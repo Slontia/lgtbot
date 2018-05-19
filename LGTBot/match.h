@@ -20,4 +20,6 @@ private:
   int64_t                           host_qq_;
   Game                              game_;
   std::map<int64_t, uint32_t>       qq2pid_;
+  uint32_t                          player_count;
+  void                              Join(int64_t player_qq);  // bind to map, create GamePlayer and send to game
 };

@@ -7,12 +7,21 @@
 
 class GamePlayer;
 
+class GameFactory
+{
+public:
+  virtual void ProduceGame() = 0;
+  virtual void ProducePlayer() = 0;
+};
+
 class GameContainer
 {
 private:
-  std::map<std::string, std::function<void>> boot_map_;
+  std::map<std::string, GameFactory> factory_map_;
 public:
   template <class G>
-  void bind(std::string game_id);     // bind boot function to map
-  void NewGame(std::string game_id, uint32_t player_num, Game* game, GamePlayer* player);  // call bool function
+  void Bind(std::string game_id, GameFactory factory);
+  Game GetGame(std::string game_id, uint32_t player_num);  // call bool function
+  GamePlayer GetPlayer(std::string game_id);
 };
+

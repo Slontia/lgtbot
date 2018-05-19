@@ -19,6 +19,14 @@
 #include <atomic>
 #include <vector>
 #include <map>
+#include <functional>
+
+#include "game.h"
+#include "game_state.h"
+#include "game_container.h"
+#include "player.h"
+#include "match.h"
+#include "time_trigger.h"
 
 using std::string;
 using std::vector;

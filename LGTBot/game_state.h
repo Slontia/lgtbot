@@ -9,43 +9,90 @@ class GameState
 {
 protected:
   std::string   state_name_;
+  Game          game_;
 public:
-                GameState(int time, std::string name = "default");
+                GameState(Game game, std::string name = "default");
   virtual void  Start();   // triggered when state beginning
   virtual void  Over();    // triggered when state over
+  virtual bool  Request(int32_t pid, std::string msg, int32_t sub_type);
   std::string   name();
-  int           time_sec();
 };
 
-class AtomState : GameState 
+
+class AtomState : public GameState 
 {
 protected:
   int           time_sec_;
   TimeTrigger   timer_;
 public:
-                AtomState(int time, std::string name = "default");  // create timer and bind Over() to it
+                AtomState(int time, Game game, std::string name = "default"); 
+  virtual void  Start();   // triggered when state beginning
+  virtual void  Over();    // triggered when state over
+  virtual bool  Request(int32_t pid, std::string msg, int32_t sub_type);
 };
 
-class CycleState : GameState
+class CycleState : public GameState
 {
 private:
   void          ToNextRound();
 protected:
   int32_t       round_ = 0;
   GameState     substate_;
+  std::function<GameState()>     CreateSubstate;
   virtual bool  IsOver();
 public:
-                CycleState(int time, GameState substate, std::string name = "default");
+                CycleState(Game game, std::string name = "default");
+  template <class S>
+  void  BindSubstate();  // set CreateSubstate
+  virtual void  Start();   // triggered when state beginning
+  virtual void  Over();    // triggered when state over
+  virtual bool  Request(int32_t pid, std::string msg, int32_t sub_type);
 };
 
-class CompState : GameState
+
+template <enum StateId>
+class CompState : public GameState
 {
-private:
-  void                    ToNextState();
 protected:
-  uint32_t                cur_state_id_ = 0;
-  std::vector<GameState>  substates_;
-  virtual int32_t         NextStateId();  // returns -1 if over
+  StateId                       cur_state_id_ = 0;
+  GameState                     substate_;
+  std::map<StateId, std::function<GameState()>>  CreateSubstate;
+  virtual bool                  IsOver();
+  virtual StateId               NextStateId();  // returns -1 if over
 public:
-                          CompState(int time, std::vector<GameState> substates, std::string name = "default");
+                                CompState(Game game, std::string name = "default");
+  virtual void                  Start();
+  virtual void                  Over();
+  virtual bool                  Request(int32_t pid, std::string msg, int32_t sub_type);
 };
+
+template <enum StateId>
+CompState<StateId>::CompState(Game game, std::string name) : GameState(game, name) {}
+
+template <enum StateId>
+void CompState<StateId>::Start()
+{
+  cur_state_id_ = 0;
+  substate_ = CreateSubstate[cur_state_id_]();
+  substate_.Start();
+}
+
+template <enum StateId>
+void CompState<StateId>::Request(int32_t pid, std::string msg, int32_t sub_type)
+{
+  bool subover = substate_.Request(int32_t pid, std::string msg, int32_t sub_type);
+  if (subover)
+  {
+    substate_.Over();
+    if (IsOver())
+    {
+      return true;
+    }
+    else
+    {
+      cur_state_id_ = NextStateId();
+      substate_ = CreateSubstate[cur_state_id_]();
+      substate_.Start();
+    }
+  }
+}

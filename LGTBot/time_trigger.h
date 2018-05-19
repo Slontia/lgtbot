@@ -10,6 +10,7 @@ private:
   uint32_t sec_;
   const std::function<void()> handle_;
 public:
+  TimeTrigger();
   TimeTrigger(std::function<void()> handle);
   void ResetTime(uint32_t sec);
 };

@@ -56,6 +56,9 @@
     <ClCompile Include="appmain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="game_state.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Library Include="CQP.lib" />
