@@ -1,98 +1,105 @@
 #pragma once
 
 #include <iostream>
-#include "game.h"
+#include <set>
 #include "time_trigger.h"
+#include "game.h"
+
+class Game;
 
 // game data stored here
+template <class ID>
+class StateContainer
+{
+private:
+  Game& game_;
+  std::map<ID, std::function<std::unique_ptr<GameState>()>> state_creators_;
+public:
+  StateContainer(Game& game) : game_(game) {}
+
+  template <class S> void Bind(ID id)
+  {
+    state_creators[id] = [GameState]()
+    {
+      return S(game);
+    }
+  }
+
+  GameState Make(ID id)
+  {
+    return state_creators_[id]();
+  }
+};
+
+
+template <class ID>
 class GameState
 {
 protected:
-  std::string   state_name_;
-  Game          game_;
+  Game&               game_;
+  StateContainer&     container_;
+  GameState&          superstate_;
 public:
-                GameState(Game game, std::string name = "default");
-  virtual void  Start();   // triggered when state beginning
-  virtual void  Over();    // triggered when state over
-  virtual bool  Request(int32_t pid, std::string msg, int32_t sub_type);
-  std::string   name();
+  const ID            id_;
+  const std::string   name_ = "default";
+  GameState(Game& game, StateContainer& container, GameState& superstate) : 
+    game(game_), container_(container), superstate_(superstate) {}
+
+  virtual void        Start() = 0;   // triggered when state beginning
+  virtual void        Over() = 0;    // triggered when state over
+  virtual bool        Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
 };
 
 
-class AtomState : public GameState 
+template <class ID>
+class AtomState : public GameState<ID>
 {
 protected:
-  int           time_sec_;
-  TimeTrigger   timer_;
+  const int           kTimeSec = 300;
 public:
-                AtomState(int time, Game game, std::string name = "default"); 
-  virtual void  Start();   // triggered when state beginning
-  virtual void  Over();    // triggered when state over
-  virtual bool  Request(int32_t pid, std::string msg, int32_t sub_type);
+  static TimeTrigger  timer_;
+  AtomState(Game& game, StateContainer& container, GameState& superstate) : 
+    GameState(game, container, superstate) {};
+
+  virtual void        Start() = 0;
+  virtual void        Over() = 0;
+  virtual bool        Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
 };
 
-class CycleState : public GameState
+
+template <class ID>
+class CompState : public GameState<ID>
 {
 private:
-  void          ToNextRound();
-protected:
-  int32_t       round_ = 0;
-  GameState     substate_;
-  std::function<GameState()>     CreateSubstate;
-  virtual bool  IsOver();
-public:
-                CycleState(Game game, std::string name = "default");
-  template <class S>
-  void  BindSubstate();  // set CreateSubstate
-  virtual void  Start();   // triggered when state beginning
-  virtual void  Over();    // triggered when state over
-  virtual bool  Request(int32_t pid, std::string msg, int32_t sub_type);
-};
-
-
-template <enum StateId>
-class CompState : public GameState
-{
-protected:
-  StateId                       cur_state_id_ = 0;
-  GameState                     substate_;
-  std::map<StateId, std::function<GameState()>>  CreateSubstate;
-  virtual bool                  IsOver();
-  virtual StateId               NextStateId();  // returns -1 if over
-public:
-                                CompState(Game game, std::string name = "default");
-  virtual void                  Start();
-  virtual void                  Over();
-  virtual bool                  Request(int32_t pid, std::string msg, int32_t sub_type);
-};
-
-template <enum StateId>
-CompState<StateId>::CompState(Game game, std::string name) : GameState(game, name) {}
-
-template <enum StateId>
-void CompState<StateId>::Start()
-{
-  cur_state_id_ = 0;
-  substate_ = CreateSubstate[cur_state_id_]();
-  substate_.Start();
-}
-
-template <enum StateId>
-void CompState<StateId>::Request(int32_t pid, std::string msg, int32_t sub_type)
-{
-  bool subover = substate_.Request(int32_t pid, std::string msg, int32_t sub_type);
-  if (subover)
+  ID                  subid_;
+  GameState           substate_;
+protected:            
+  void SwitchSubstate(ID id)
   {
-    substate_.Over();
-    if (IsOver())
+    subid_ = id;
+    substate_ = container_.Make(subid_); // set new substate
+    substate_.Start();
+  }
+
+  bool PassRequest(int32_t pid, std::string msg, int32_t sub_type)
+  {
+    if (substate_.Request(pid, msg, sub_type))
     {
+      substate_.Over();
       return true;
     }
-    else
-    {
-      cur_state_id_ = NextStateId();
-      substate_ = CreateSubstate[cur_state_id_]();
-      substate_.Start();
-    }
+    return false;
   }
-}
+
+public:
+  CompState(Game& game, StateContainer& container, GameState& superstate) : 
+    GameState(game, container, superstate)
+  {
+    AtomState<ID>.timer_.PushHandle(HandleTimer);
+  };
+
+  virtual void        Start() = 0;
+  virtual void        Over() = 0;
+  virtual bool        Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
+  virtual void        HandleTimer() = 0;
+};

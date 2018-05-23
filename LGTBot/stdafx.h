@@ -21,8 +21,9 @@
 #include <map>
 #include <functional>
 
-#include "game.h"
+
 #include "game_state.h"
+#include "game.h"
 #include "game_container.h"
 #include "player.h"
 #include "match.h"

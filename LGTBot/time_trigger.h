@@ -2,15 +2,20 @@
 
 #include <iostream>
 #include <functional>
+#include <stack>
 #include "windows.h"
 
 class TimeTrigger
 {
 private:
   uint32_t sec_;
-  const std::function<void()> handle_;
+  /* if 
+   * 
+  */
+  std::vector<std::function<void()>> handle_stack_;
 public:
   TimeTrigger();
-  TimeTrigger(std::function<void()> handle);
-  void ResetTime(uint32_t sec);
+  void Time(uint32_t sec);
+  void PushHandle(std::function<void()> handle);
+  std::function<void()> PopHandle();
 };

@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 #include <functional>
+#include <memory>
 #include "game.h"
 
 class GamePlayer;
@@ -13,6 +14,7 @@ public:
   virtual void ProduceGame() = 0;
   virtual void ProducePlayer() = 0;
 };
+
 
 class GameContainer
 {
@@ -25,3 +27,4 @@ public:
   GamePlayer GetPlayer(std::string game_id);
 };
 
+ 

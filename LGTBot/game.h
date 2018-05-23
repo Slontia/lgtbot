@@ -6,6 +6,7 @@
 #include "game_state.h"
 
 class GamePlayer;
+class GameState;
 
 class Game
 {
