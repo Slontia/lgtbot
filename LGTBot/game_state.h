@@ -45,6 +45,11 @@ public:
   GameState(Game& game, StateContainer& container, std::shared_ptr<GameState> superstate_ptr) :
     game(game_), container_(container), superstate_(superstate) {}
 
+  virtual ~GameState()
+  {
+    Log::print_log("GameState desturct.");
+  }
+
   /* triggered when state beginning */
   virtual void        Start() = 0;
   /* triggered when state over */
@@ -63,6 +68,11 @@ public:
   static TimeTrigger  timer_;
   AtomState(Game& game, StateContainer& container, std::shared_ptr<GameState> superstate_ptr) :
     GameState(game, container, superstate_ptr) {};
+
+  virtual ~AtomState()
+  {
+    Log::print_log("AtomState desturct.");
+  }
 
   virtual void        Start() = 0;
   virtual void        Over() = 0;
@@ -100,6 +110,11 @@ public:
   {
     AtomState<ID>.timer_.PushHandle(HandleTimer);
   };
+
+  virtual ~CompState()
+  {
+    Log::print_log("CompState desturct.");
+  }
 
   virtual void        Start() = 0;
   virtual void        Over() = 0;

@@ -20,8 +20,10 @@
 #include <vector>
 #include <map>
 #include <functional>
+#include <Windows.h>
+#include <time.h>
 
-
+#include "log.h"
 #include "game_state.h"
 #include "game.h"
 #include "game_container.h"
