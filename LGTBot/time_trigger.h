@@ -9,9 +9,6 @@ class TimeTrigger
 {
 private:
   uint32_t sec_;
-  /* if 
-   * 
-  */
   std::vector<std::function<void()>> handle_stack_;
 public:
   TimeTrigger();
