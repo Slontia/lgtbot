@@ -23,7 +23,7 @@ DWORD WINAPI TimeTrigger::ThreadFunc(LPVOID data_ptr)
   TimeData* data = (TimeData*) data_ptr;
   while (true)
   {
-    if (difftime(time(NULL), begin_t) < data->interval)       // compare time
+    if (difftime(time(NULL), begin_t) < data->interval())       // compare time
     {
       HandleStack& handle_stack = data->handle_stack();
       while (!handle_stack.empty() && handle_stack.top()())   // GameState over
