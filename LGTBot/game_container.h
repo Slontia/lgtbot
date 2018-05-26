@@ -8,14 +8,6 @@
 
 class GamePlayer;
 
-class GameFactory
-{
-public:
-  virtual void ProduceGame() = 0;
-  virtual void ProducePlayer() = 0;
-};
-
-
 class GameContainer
 {
 private:
@@ -35,8 +27,8 @@ public:
       return new P(p_id);
     };
   }
-  GamePtr GetGame(std::string game_id, uint32_t p_num);  // call bool function
-  PlayerPtr GetPlayer(std::string game_id, int32_t p_id);
+  GamePtr get_game(std::string game_id, uint32_t p_num);  // call bool function
+  PlayerPtr get_player(std::string game_id, int32_t p_id);
 };
 
  

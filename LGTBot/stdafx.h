@@ -23,6 +23,11 @@
 #include <Windows.h>
 #include <time.h>
 
+
+/* Mysql Connector */
+#include <mysql_connection.h>
+#include <mysql_driver.h>
+
 #include "log.h"
 #include "game_state.h"
 #include "game.h"

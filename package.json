@@ -1,0 +1,29 @@
+{
+  "name": "LGT-bot",
+  "version": "1.0.0",
+  "description": "游戏裁判机器人，CoolQ Air 5.11.13A",
+  "main": "index.js",
+  "dependencies": {},
+  "devDependencies": {
+    "cz-conventional-changelog": "^2.1.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Slontia/LGT-bot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Slontia/LGT-bot/issues"
+  },
+  "homepage": "https://github.com/Slontia/LGT-bot#readme",
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  }
+}

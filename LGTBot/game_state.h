@@ -15,9 +15,10 @@ template <class ID>
 class StateContainer
 {
 private:
-  typedef std::shared_ptr<GameState<ID>> GameStatePtr;
-  Game& game_;
-  std::map<ID, std::function<GameStatePtr()>> state_creators_;
+  typedef std::shared_ptr<GameState<ID>>        GameStatePtr;
+  Game&                                         game_;
+  std::map<ID, std::function<GameStatePtr()>>   state_creators_;
+
 public:
   StateContainer(Game& game) : game_(game) {}
 
@@ -41,18 +42,18 @@ class GameState
 {
 protected:
   typedef std::shared_ptr<GameState<ID>> GameStatePtr;
-  Game&                               game_;
+  Game&                                   game_;
   StateContainer<ID>&                     container_;
-  GameStatePtr          superstate_ptr_;
+  GameStatePtr                            superstate_ptr_;
 public:
-  const ID            id_;
-  const std::string   name_ = "default";
+  const ID                                id_;
+  const std::string                       name_ = "default";
   /* triggered when state beginning */
-  virtual void        Start() = 0;
+  virtual void                            Start() = 0;
   /* triggered when state over */
-  virtual void        Over() = 0;
+  virtual void                            Over() = 0;
   /* triggered when player request */
-  virtual bool        Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
+  virtual bool                            Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
 
   GameState(Game& game, StateContainer& container, GameStatePtr superstate_ptr) :
     game(game_), container_(container), superstate_(superstate) {}
@@ -68,12 +69,12 @@ template <class ID>
 class AtomState : public GameState<ID>
 {
 protected:
-  const int           kTimeSec = 300;
+  const int                               kTimeSec = 300;
 public:
-  static TimeTrigger  timer_;
-  virtual void        Start() = 0;
-  virtual void        Over() = 0;
-  virtual bool        Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
+  static TimeTrigger                      timer_;
+  virtual void                            Start() = 0;
+  virtual void                            Over() = 0;
+  virtual bool                            Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
 
   AtomState(Game& game, StateContainer& container, GameStatePtr superstate_ptr) :
     GameState(game, container, superstate_ptr)
@@ -92,14 +93,14 @@ template <class ID>
 class CompState : public GameState<ID>
 {
 private:
-  ID                  subid_;
-  GameStatePtr           substate_;
+  ID                                      subid_;
+  GameStatePtr                            substate_;
 public:
-  virtual void        Start() = 0;
-  virtual void        Over() = 0;
-  virtual bool        Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
+  virtual void                            Start() = 0;
+  virtual void                            Over() = 0;
+  virtual bool                            Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
   /* triggered when substate time up */
-  virtual void        HandleTimer() = 0;
+  virtual void                            HandleTimer() = 0;
 
 protected:
   void SwitchSubstate(ID id)
