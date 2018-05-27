@@ -7,46 +7,44 @@
 #include "game.h"
 
 
-template <class ID> class GameState;
-
 // game data stored here
 
-template <class ID>
 class StateContainer
 {
-private:
-  typedef std::shared_ptr<GameState<ID>>        GameStatePtr;
+protected:
+  typedef std::shared_ptr<GameState>                              GameStatePtr;
   Game&                                         game_;
-  std::map<ID, std::function<GameStatePtr()>>   state_creators_;
+  std::map<int32_t, std::function<GameStatePtr(GameStatePtr)>>   state_creators_;
+  virtual void                                  BindCreators() = 0;
 
-public:
-  StateContainer(Game& game) : game_(game) {}
-
-  template <class S> void Bind(ID id)
+  template <class S> void Bind(int32_t id)
   {
-    state_creators[id] = [game_](GameStatePtr superstate_ptr) -> GameStatePtr
+    state_creators[id] = [this](GameStatePtr superstate_ptr) -> GameStatePtr
     {
-      return new S(game_, *this, superstate_ptr);
+      return new S(this->game_, *this, superstate_ptr);
     };
   }
 
-  GameStatePtr Make(ID id, GameStatePtr superstate_ptr)
+public:
+  StateContainer(Game& game) : game_(game)
+  {
+    BindCreators();
+  }
+
+  GameStatePtr Make(int32_t id, GameStatePtr superstate_ptr)
   {
     return state_creators_[id](superstate_ptr);
   }
 };
 
-
-template <class ID>
 class GameState
 {
 protected:
-  typedef std::shared_ptr<GameState<ID>> GameStatePtr;
+  typedef std::shared_ptr<GameState>      GameStatePtr;
   Game&                                   game_;
-  StateContainer<ID>&                     container_;
+  StateContainer&                         container_;
   GameStatePtr                            superstate_ptr_;
 public:
-  const ID                                id_;
   const std::string                       name_ = "default";
   /* triggered when state beginning */
   virtual void                            Start() = 0;
@@ -56,7 +54,7 @@ public:
   virtual bool                            Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
 
   GameState(Game& game, StateContainer& container, GameStatePtr superstate_ptr) :
-    game(game_), container_(container), superstate_(superstate) {}
+    game_(game), container_(container), superstate_ptr_(superstate_ptr) {}
 
   virtual ~GameState()
   {
@@ -65,8 +63,7 @@ public:
 };
 
 
-template <class ID>
-class AtomState : public GameState<ID>
+class AtomState : public GameState
 {
 protected:
   const int                               kTimeSec = 300;
@@ -89,42 +86,41 @@ public:
 };
 
 
-template <class ID>
-class CompState : public GameState<ID>
+class CompState : public GameState
 {
 private:
-  ID                                      subid_;
+  int32_t                                 subid_;
   GameStatePtr                            substate_;
 public:
   virtual void                            Start() = 0;
   virtual void                            Over() = 0;
   virtual bool                            Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
   /* triggered when substate time up */
-  virtual void                            HandleTimer() = 0;
+  virtual bool                            HandleTimer() = 0;
 
 protected:
-  void SwitchSubstate(ID id)
+  void SwitchSubstate(int32_t id)
   {
     subid_ = id;
-    substate_ = container_.Make(subid_); // set new substate
+    substate_ = container_.Make(subid_, (GameStatePtr) this); // set new substate
     substate_->Start();
   }
 
   bool PassRequest(int32_t pid, std::string msg, int32_t sub_type)
   {
-    if (substate_.Request(pid, msg, sub_type))
+    if (substate_->Request(pid, msg, sub_type))
     {
-      substate_.Over();
+      substate_->Over();
       return true;
     }
     return false;
   }
 
 public:
-  CompState(Game& game, StateContainer& container, GameStatePtr superstate) :
+  CompState(Game& game, StateContainer& container, GameStatePtr superstate_ptr) :
     GameState(game, container, superstate_ptr)
   {
-    AtomState<ID>.timer_.push_handle_to_stack(HandleTimer);
+    AtomState::timer_.push_handle_to_stack(std::bind(&CompState::HandleTimer, this));
   };
 
   virtual ~CompState()

@@ -6,18 +6,18 @@
 #include "game_state.h"
 
 class GamePlayer;
-template <class ID> class GameState;
+class GameState;
+class StateContainer;
 
 class Game
 {
 protected:
-  enum ID;
 	const std::string                   kGameId = "undefined";
 	const int                           kMinPlayer = 2;
 	const int                           kMaxPlayer = 0;	// set 0 if no upper limit
-  StateContainer<ID>&                 state_container_;
+  StateContainer&                     state_container_;
   std::vector<GamePlayer>             players_;
-  std::shared_ptr<GameState<ID>>      main_state_;
+  std::shared_ptr<GameState>          main_state_;
 public:
                                       Game();
   /* send msg to a specific player */
