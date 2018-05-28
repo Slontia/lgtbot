@@ -13,9 +13,22 @@ class StateContainer
 {
 protected:
   typedef std::shared_ptr<GameState>                              GameStatePtr;
+private:
+  int32_t                                       main_id_ = 0;
   Game&                                         game_;
   std::map<int32_t, std::function<GameStatePtr(GameStatePtr)>>   state_creators_;
+protected:
   virtual void                                  BindCreators() = 0;
+
+  void set_main_state_id(int32_t main_id)
+  {
+    main_id_ = main_id;
+  }
+
+  Game& game() const
+  {
+    return game_;
+  }
 
   template <class S> void Bind(int32_t id)
   {
@@ -34,6 +47,11 @@ public:
   GameStatePtr Make(int32_t id, GameStatePtr superstate_ptr)
   {
     return state_creators_[id](superstate_ptr);
+  }
+
+  GameStatePtr MakeMain()
+  {
+    return state_creators_[main_id_](nullptr);
   }
 };
 
@@ -68,7 +86,6 @@ class AtomState : public GameState
 protected:
   const int                               kTimeSec = 300;
 public:
-  static TimeTrigger                      timer_;
   virtual void                            Start() = 0;
   virtual void                            Over() = 0;
   virtual bool                            Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
@@ -76,7 +93,7 @@ public:
   AtomState(Game& game, StateContainer& container, GameStatePtr superstate_ptr) :
     GameState(game, container, superstate_ptr)
   {
-    timer_.Time(kTimeSec);
+    Game::timer_.Time(kTimeSec);
   }
 
   virtual ~AtomState()
@@ -120,7 +137,7 @@ public:
   CompState(Game& game, StateContainer& container, GameStatePtr superstate_ptr) :
     GameState(game, container, superstate_ptr)
   {
-    AtomState::timer_.push_handle_to_stack(std::bind(&CompState::HandleTimer, this));
+    Game::timer_.push_handle_to_stack(std::bind(&CompState::HandleTimer, this));
   };
 
   virtual ~CompState()

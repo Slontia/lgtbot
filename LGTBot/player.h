@@ -4,8 +4,6 @@
 
 class GamePlayer
 {
-private:
-  int id;
 public:
-  GamePlayer(int id);
+  GamePlayer();
 };

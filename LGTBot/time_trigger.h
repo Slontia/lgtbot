@@ -26,6 +26,7 @@ public:
   TimeTrigger();
   void Time(uint32_t interval);
   void push_handle_to_stack(std::function<bool()> handle);
+  void clear_stack();
 };
 
 

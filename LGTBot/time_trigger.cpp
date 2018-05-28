@@ -45,3 +45,11 @@ void TimeTrigger::push_handle_to_stack(std::function<bool()> handle)
 {
   handle_stack_.push(handle);
 }
+
+void TimeTrigger::clear_stack()
+{
+  while (!handle_stack_.empty())
+  {
+    handle_stack_.pop();
+  }
+}
