@@ -102,7 +102,7 @@
     </ClCompile>
     <ClCompile Include="game.cpp" />
     <ClCompile Include="game_container.cpp" />
-    <ClCompile Include="log.cpp" />
+    <ClCompile Include="match.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>

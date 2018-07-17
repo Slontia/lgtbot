@@ -1,7 +1,5 @@
 #include "stdafx.h"
 
-Game::Game(Match& match) : match_(match) {}
-
 inline bool Game::valid_pnum(uint32_t pnum)
 {
   return pnum >= kMinPlayer && (kMaxPlayer == 0 || pnum <= kMaxPlayer);
@@ -22,9 +20,11 @@ void Game::Broadcast(std::string msg) const
   match_.Broadcast(msg);
 }
 
-void Game::Join(std::shared_ptr<GamePlayer> player)
+int32_t Game::Join(std::shared_ptr<GamePlayer> player)
 {
+  int32_t pid = players_.size();
   players_.push_back(player);
+  return pid;
 }
 
 bool Game::StartGame()

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-template <class G, class P, class SC> void GameContainer::Bind(std::string game_id)
+template <class G, class P> void GameContainer::Bind(std::string game_id)
 {
   game_creator_map_[game_id] = [](Match& match) -> GamePtr
   {
@@ -10,29 +10,34 @@ template <class G, class P, class SC> void GameContainer::Bind(std::string game_
   {
     return new P();
   };
-  state_con_creator_map_[game_id] = [](Game& game) ->StateConPtr
-  {
-    return new SC(game);
-  }
 }
 
-std::shared_ptr<Game> GameContainer::get_game(std::string game_id, Match& match, uint32_t pnum)
+/* Create game without players
+*/
+std::shared_ptr<Game> GameContainer::MakeGame(std::string game_id, Match& match)
 {
-  std::shared_ptr<Game> game_ptr = game_creator_map_[game_id](match);  // create game
-  if (game_ptr != nullptr)
+  if (!game_creator_map_[game_id])  // unexpected game_id
   {
-    game_ptr->set_state_container(state_con_creator_map_[game_id](*game_ptr));  // set state container
-    if (game_ptr->valid_pnum(pnum))
-    {
-      for (uint32_t i = 0; i < pnum; i++)
-      {
-        game_ptr->Join(player_creator_map_[game_id]());  // add players
-      }
-    }
-    else
-    {
-      return nullptr;
-    }
+    LOG_ERROR("Unexpected game_id " << game_id);
+    return nullptr;
+  }
+  std::shared_ptr<Game> game_ptr = game_creator_map_[game_id](match);  // create game
+  if (!game_ptr)
+  {
+    LOG_ERROR("Failed to create game");
   }
   return game_ptr;
 }
+
+/* Create a player
+*/
+std::shared_ptr<GamePlayer> GameContainer::MakePlayer(std::string game_id)
+{
+  if (!game_creator_map_[game_id])  // unexpected game_id
+  {
+    LOG_ERROR("Unexpected game_id " << game_id);
+    return nullptr;
+  }
+  return player_creator_map_[game_id]();
+}
+

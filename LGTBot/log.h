@@ -1,8 +1,4 @@
 #pragma once
 
-#include <iostream>
-
-namespace Log
-{
-  void print_log(std::string msg);
-}
+#define LOG_INFO(msg) std::cout << "[INFO] " << msg << std::endl;
+#define LOG_ERROR(msg) std::cout << "[ERROR] " << msg << std::endl;
