@@ -34,8 +34,8 @@ public:
   int32_t                             Join(std::shared_ptr<GamePlayer> player);
   /* create main_state_ */
   bool                                StartGame();
-  /* write results to the database */
-  virtual bool                        RecordResult() = 0;
+  /* a callback function which write results to the database */
+  bool                                RecordResult();
   /* transmit msg to main_state_ */
   void                                Request(uint32_t pid, const char* msg, int32_t sub_type);
 

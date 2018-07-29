@@ -1,5 +1,7 @@
 #include "stdafx.h"
 
+TimeTrigger Game::timer_;
+
 inline bool Game::valid_pnum(uint32_t pnum)
 {
   return pnum >= kMinPlayer && (kMaxPlayer == 0 || pnum <= kMaxPlayer);
@@ -37,7 +39,18 @@ bool Game::StartGame()
 
 void Game::Request(uint32_t pid, const char* msg, int32_t sub_type)
 {
-  main_state_->Request(pid, msg, sub_type);
+  if (main_state_->Request(pid, msg, sub_type)) // game over
+  {
+    RecordResult();
+  }
+}
+
+
+// bool to fit callback requirements
+bool Game::RecordResult()
+{
+  std::cout << "record" << std::endl;
+  return true;  // always returns true
 }
 
 //std::unique_ptr<sql::Statement> state(sql::mysql::get_mysql_driver_instance()

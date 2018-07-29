@@ -80,10 +80,12 @@
   <ItemGroup>
     <ClInclude Include="appmain.h" />
     <ClInclude Include="cqp.h" />
+    <ClInclude Include="db_manager.h" />
     <ClInclude Include="game_container.h" />
     <ClInclude Include="game_state.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="match.h" />
+    <ClInclude Include="my_game.h" />
     <ClInclude Include="player.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
@@ -92,6 +94,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="appmain.cpp" />
+    <ClCompile Include="db_manager.cpp" />
     <ClCompile Include="dllmain.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -103,6 +106,7 @@
     <ClCompile Include="game.cpp" />
     <ClCompile Include="game_container.cpp" />
     <ClCompile Include="match.cpp" />
+    <ClCompile Include="my_game.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>

@@ -15,6 +15,8 @@
 
 // game data stored here
 
+typedef int32_t StateId;
+
 class StateContainer
 {
 public:
@@ -22,24 +24,12 @@ public:
 
   /* constructor 
    */
-  StateContainer(Game& game, std::function<void()> bind_creators) : 
-    game_(game), BindCreators(bind_creators)
-  {
-    if (BindCreators)
-    {
-      BindCreators();
-      valid_ = true;
-    }
-    else
-    {
-      valid_ = false;
-    }
-  }
+  StateContainer(Game& game) : game_(game) {}
 
   /* returns game state pointer with id
    * if the id is main state id, returns the main game state pointer
   */
-  GameStatePtr Make(int32_t id, GameStatePtr superstate)
+  GameStatePtr Make(StateId id, GameStatePtr superstate)
   {
     if (state_creators_[id] == nullptr)
     {
@@ -56,17 +46,12 @@ public:
     return state_creators_[main_id_](nullptr);
   }
 
-  bool is_valid()
-  {
-    return valid_;
-  }
-
 protected:
-  std::function<void()> BindCreators = nullptr;
+  virtual void BindCreators() = 0;
 
   /* set main state id, 0 is default
   */
-  void set_main_state_id(int32_t main_id)
+  void set_main_state_id(StateId main_id)
   {
     main_id_ = main_id;
   }
@@ -81,7 +66,7 @@ protected:
   /* bind game state S to container with id
    * if the id has been used, S will replace the old state 
   */
-  template <class S> void Bind(int32_t id)
+  template <class S> void Bind(StateId id)
   {
     state_creators[id] = [this](GameStatePtr superstate_ptr) -> GameStatePtr
     {
@@ -90,10 +75,9 @@ protected:
   }
 
 private:
-  int32_t                                       main_id_ = 0;
+  StateId                                       main_id_ = 0;
   Game&                                         game_;
-  std::map<int32_t, std::function<GameStatePtr(GameStatePtr)>>   state_creators_;
-  bool                                          valid_;
+  std::map<StateId, std::function<GameStatePtr(GameStatePtr)>>   state_creators_;
 };    
 
 
@@ -184,30 +168,34 @@ protected:
   /* Jump to next state with id.
    * Failed when substate is running or id does not exist
   */
-  bool SwitchSubstate(int32_t id)
+  bool SwitchSubstate(StateId id)
   {
-    if (!substate_->is_over())
+    if (substate_ && !substate_->is_over())
     {
       LOG_ERROR("Switch failed: substate must be over.");
       return false;
     }
-    subid_ = id;
-    substate_ = container_.Make(subid_, (GameStatePtr) this); // set new substate
-    if (substate_)
+    if (!(substate_ = container_.Make(subid_, (GameStatePtr) this))) // set new substate
     {
-      substate_->Start();
-      return true;
+      LOG_ERROR("Switch failed: no such substate.");
+      subid_ = -1;
+      return false;
     }
-    LOG_ERROR("Switch failed: failed to make substate.");
-    subid_ = -1;
-    return false;
+    subid_ = id;
+    substate_->Start();
+    return true;
   }
 
   /* Pass request to substate, check whether substate over or not
   */
   bool PassRequest(int32_t pid, std::string msg, int32_t sub_type)
   {
-    if (substate_ && substate_->Request(pid, msg, sub_type)) // if returns true, substate over
+    if (!substate_ || substate_->is_over())
+    {
+      LOG_ERROR("Pass failed: substate must be running.");
+      return false;
+    }
+    if (substate_->Request(pid, msg, sub_type)) // if returns true, substate over
     {
       substate_->end_up();
       return true;

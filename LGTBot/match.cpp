@@ -4,6 +4,8 @@
 #include "game_container.h"
 #include "cqp.h"
 
+GameContainer Match::game_container_;
+
 Match::Match(std::string game_id, int64_t host_qq) : game_id_(game_id), host_qq_(host_qq), status_(PREPARE)
 {
   game_ = game_container_.MakeGame(game_id_, *this); // create game
@@ -38,7 +40,7 @@ int Match::GameStart()
   {
     return TOO_FEW_PLAYERS;
   }
-  for (int i = 0; i < player_count_; i++) // build qq2pid_
+  for (uint32_t i = 0; i < player_count_; i++) // build qq2pid_
   {
     qq2pid_[qq_list_[i]] = i;
     game_->Join(game_container_.MakePlayer(game_id_));  // make players from containter
@@ -56,7 +58,7 @@ void Match::Reply(uint32_t pid, std::string msg) const
 /* send msg to all player */
 void Match::Broadcast(std::string msg) const
 {
-  CQ_sendGroupMsg(-1, groupid, msg.c_str());
+  CQ_sendGroupMsg(-1, 59057683, msg.c_str());
 }
 
 /* append new player to qq_list

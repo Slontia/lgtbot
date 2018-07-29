@@ -17,7 +17,6 @@ typedef enum
 
 class GamePlayer;     // player info
 
-
 class Match
 {
 public:
