@@ -2,8 +2,8 @@
 
 #include <iostream>
 #include <map>
-#include "game.h"
 #include "game_container.h"
+#include "game.h"
 
 typedef enum
 {
@@ -16,6 +16,9 @@ typedef enum
 } ErrNo;
 
 class GamePlayer;     // player info
+class Game;
+
+
 
 class Match
 {
@@ -32,13 +35,14 @@ public:
   int                              Join(int64_t qq);
   int                              Leave(int64_t qq);
 
-  inline bool has_qq(int64_t qq);
+  bool has_qq(int64_t qq);
+  
 private:
-  static GameContainer              game_container_;
+  
   enum { PREPARE, GAMING, OVER }    status_;
   std::string                       game_id_;
   int64_t                           host_qq_;
-  std::shared_ptr<Game>             game_;
+  std::unique_ptr<Game>             game_;
   std::map<int64_t, uint32_t>       qq2pid_;
   std::vector<int64_t>              qq_list_;
   uint32_t                          player_count_;

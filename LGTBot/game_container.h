@@ -5,7 +5,7 @@
 #include <functional>
 #include <memory>
 #include "game.h"
-#include "game_state.h"
+#include "game_stage.h"
 
 class GamePlayer;
 class Match;
@@ -13,7 +13,7 @@ class Match;
 class GameContainer
 {
 private:
-  typedef std::shared_ptr<Game> GamePtr;
+  typedef std::unique_ptr<Game> GamePtr;
   typedef std::shared_ptr<GamePlayer> PlayerPtr;
   std::map<std::string, std::function<GamePtr(Match&)>> game_creator_map_;
   std::map<std::string, std::function<PlayerPtr()>> player_creator_map_;

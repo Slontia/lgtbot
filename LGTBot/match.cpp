@@ -3,8 +3,11 @@
 #include "stdafx.h"
 #include "game_container.h"
 #include "cqp.h"
+#include "log.h"
+#include "game.h"
+#include "match.h"
 
-GameContainer Match::game_container_;
+GameContainer              game_container_;
 
 Match::Match(std::string game_id, int64_t host_qq) : game_id_(game_id), host_qq_(host_qq), status_(PREPARE)
 {

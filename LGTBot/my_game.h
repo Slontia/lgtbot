@@ -1,4 +1,4 @@
 #pragma once
 #include "stdafx.h"
 
-void Bind(GameContainer& game_container);
+//void Bind(GameContainer& game_container);

@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "time_trigger.h"
 
 // [warning] HandleStack maybe not avaliable in TimeData
 
