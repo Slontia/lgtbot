@@ -1,6 +1,6 @@
+#include "stdafx.h"
 #include "match.h"
 #include "log.h"
-#include "stdafx.h"
 #include "game_container.h"
 #include "cqp.h"
 #include "log.h"

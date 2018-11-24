@@ -2,26 +2,9 @@
 #include "game_stage.h"
 #include "log.h"
 
-/* Constructor
-*/
-StageContainer::StageContainer(Game& game, StageCreatorMap&& stage_creators) :
-  game_(game), stage_creators_(std::forward<StageCreatorMap>(stage_creators)) {}
 
-/* Returns game Stage pointer with id
-* if the id is main Stage id, returns the main game Stage pointer
-*/
-StagePtr StageContainer::Make(StageId id, GameStage& father_stage) const
-{
-  auto it = stage_creators_.find(id);
-  if (it == stage_creators_.end())
-  {
-    /* Not found stage id. */
-    throw ("Stage id " + std::to_string(id) + " has not been bound.");
-  }
-  return it->second(father_stage);
-}
 
-GameStage::GameStage() {}
+GameStage::GameStage(Game& game) : game_(game) {}
 
 GameStage::~GameStage() {}
 

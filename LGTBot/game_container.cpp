@@ -3,17 +3,7 @@
 #include "log.h"
 #include "game_container.h"
 
-template <class G, class P> void GameContainer::Bind(std::string game_id)
-{
-  game_creator_map_[game_id] = [](Match& match) -> GamePtr
-  {
-    return new G();
-  };
-  player_creator_map_[game_id] = []() -> PlayerPtr
-  {
-    return new P();
-  };
-}
+
 
 /* Create game without players
 */

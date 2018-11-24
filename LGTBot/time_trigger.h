@@ -29,6 +29,8 @@ public:
   void clear_stack();
 };
 
+extern TimeTrigger timer;
+ 
 
 
 

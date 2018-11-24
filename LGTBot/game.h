@@ -5,11 +5,58 @@
 #include <functional>
 #include <utility>
 
+#include "time_trigger.h"
 #include "game_stage.h"
 
 class GamePlayer;
-class GameStage;
 class Match;
+class GameStage;
+class StageContainer;
+class Game;
+
+extern TimeTrigger timer;
+
+typedef std::unique_ptr<GameStage> StagePtr;
+typedef std::function<StagePtr(GameStage&)> StageCreator;
+typedef std::map<StageId, StageCreator> StageCreatorMap;
+
+class StageContainer
+{
+private:
+  Game& game_;
+  const std::map<StageId, StageCreator>   stage_creators_;
+public:
+  /* Constructor
+  */
+  StageContainer(Game& game, StageCreatorMap&& stage_creators);
+
+  /* Returns game Stage pointer with id
+  * if the id is main Stage id, returns the main game Stage pointer
+  */
+  StagePtr Make(StageId id, GameStage& father_stage) const;
+
+  template <class Stage>
+  std::unique_ptr<Stage> get_stage_ptr(GameStage& father_stage)
+  {
+    return std::make_unique<Stage>(game_, father_stage);
+  }
+
+  template <class Stage>
+  std::unique_ptr<Stage> get_stage_ptr()
+  {
+    return std::make_unique<Stage>(game_);
+  }
+
+  template <class Stage>
+  StageCreator get_creator()
+  {
+    return [this](GameStage& father_stage) -> StagePtr
+    {
+      /* Cast GameStage& to FatherStage&. */
+      return get_stage_ptr<Stage>(father_stage);
+    };
+  }
+};
 
 //template <class MainStage, class MyStageContainer>
 class Game

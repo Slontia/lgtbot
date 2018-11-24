@@ -1,74 +1,35 @@
 #include "stdafx.h"
 #include "my_game.h"
-/*
+#include "game_stage.h"
+#include "game.h"
+#include "player.h"
+#include "game_container.h"
+
 // ============= Define Parameters Here ==============
-#define GAME_NAME     MyGame
+#define GAME_NAME     "Demo"
 #define PLAYER_NAME   MyPlayer
 #define MIN_PLAYER    4
 #define MAX_PLAYER    0
 // ============= Defination Over =====================
 
-#define TO_STR(name) #name          // cast class name to string 
+class MyGame;
 
-#define CAST_GAME(game) ((GAME_NAME&) game)
-#define CAST_PLAYER(player) ((PLAYER_NAME&) player)
-
-// game
-#define DECLARE_GAME \
-class GAME_NAME : public Game\
-{\
-public:\
-  GAME_NAME(Match& match) : Game(match, new MyStateContainer(*this), TO_STR(GAME_NAME), MIN_PLAYER, MAX_PLAYER) {}\
-private:
-
-// player
-#define DECLARE_PLAYER \
-class PLAYER_NAME : public GamePlayer\
-{\
-public:\
-  PLAYER_NAME(int64_t qqid) : GamePlayer(qqid) {}\
-private:
-
-// comp state
-#define DECLARE_COMP_STATE(StateName) \
-class StateName : public CompState\
-{\
-public:\
-  StateName(Game& game, StateContainer& container, GameStatePtr superstate_ptr) :\
-    CompState(game, container, superstate_ptr) {}\
-private:\
-  GAME_NAME& game() { return CAST_GAME(game_); }
-
-#define DECLARE_END };
-
-
-
-enum MyStates
+enum
 {
-  MAIN_STATE,
-  ROUND_STATE
+  ROUND_STAGE, DEPEND_STAGE
 };
 
-DECLARE_GAME
-  // here add members
-
-DECLARE_END
-
-DECLARE_PLAYER
-  // here add members
-
-DECLARE_END
-
-// MAIN_STATE
-
-DECLARE_COMP_STATE(MyMainState)
-
+class MainStage : public CompStage<MyGame>, SuperstageRef<void>
+{
 public:
+  MainStage(Game& game) : CompStage<MyGame>(game) {}
+
+  template <class MyGame>
   void Start()
   {
     cur_round = 1;
-    SwitchSubstate(ROUND_STATE);
-    game().Broadcast("第1回合开始！");
+    SwitchSubstage(ROUND_STAGE);
+    game_.Broadcast("第1回合开始！");
   }
 
   void Over()
@@ -82,6 +43,7 @@ public:
     return false;
   }
 
+  template <class MyGame>
   bool HandleTimer()
   {
     if (cur_round == kRound)
@@ -91,8 +53,8 @@ public:
     else
     {
       cur_round++;
-      SwitchSubstate(ROUND_STATE);
-      game().Broadcast((string) "第" + ('0' + cur_round) + "回合开始！");
+      SwitchSubstage(ROUND_STAGE);
+      game_.Broadcast((string) "第" + std::to_string('0' + cur_round) + "回合开始！");
     }
     return true;
   }
@@ -107,14 +69,14 @@ private:
   const int kRound = 6;
   int cur_round;
 
-DECLARE_END
+};
 
 // ROUND_STATE
-class RoundState : public AtomState
+class RoundStage : public TimerStage<MyGame>, public SuperstageRef<MainStage>
 {
 public:
-  RoundState(Game& game, StateContainer& container, GameStatePtr superstate_ptr) :
-    AtomState(game, container, superstate_ptr) {}
+  RoundStage(Game& game, GameStage& superstage) :
+    TimerStage<MyGame>(game), SuperstageRef<MainStage>(superstage) {}
 
   void Start()
   {
@@ -128,27 +90,60 @@ public:
 
   bool Request(int32_t pid, std::string msg, int32_t sub_type)
   {
-    
+    return true;
+  }
+
+  bool TimerCallback()
+  {
+    return true;
   }
 };
 
-
-class MyStateContainer : public StateContainer
+class DependStage : public TimerStage<MyGame>, public SuperstageRef<void>
 {
 public:
-  MyStateContainer(Game& game) : StateContainer(game) {}
-protected:
-  void BindCreators()
+  DependStage(Game& game, GameStage& superstage) : TimerStage<MyGame>(game) {}
+
+  void Start()
   {
-    Bind<MyMainState>(MAIN_STATE);
-    Bind<RoundState>(ROUND_STATE);
+
+  }
+
+  void Over()
+  {
+
+  }
+
+  bool Request(int32_t pid, std::string msg, int32_t sub_type)
+  {
+    return true;
+  }
+
+  bool TimerCallback()
+  {
+    return true;
   }
 };
 
+class MyGame : public Game
+{
+public:
+  MyGame(Match& match) :
+    Game(match, GAME_NAME, MIN_PLAYER, MAX_PLAYER, std::unique_ptr<MainStage>(),
+    {
+      {DEPEND_STAGE, stage_container_.get_creator<DependStage>()},
+      {ROUND_STAGE, stage_container_.get_creator<RoundStage>()}
+    }) {}
+};
 
+class MyPlayer : public GamePlayer
+{
+public:
+  MyPlayer() : GamePlayer() {}
+};
 
 void Bind(GameContainer& game_container)
 {
-  game_container.Bind<GAME_NAME, PLAYER_NAME>(TO_STR(GAME_NAME));
+  game_container.Bind<MyGame, MyPlayer>(GAME_NAME);
 }
-*/
+

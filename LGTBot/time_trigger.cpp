@@ -2,6 +2,7 @@
 #include "time_trigger.h"
 
 // [warning] HandleStack maybe not avaliable in TimeData
+TimeTrigger timer;
 
 TimeTrigger::TimeData::TimeData(uint32_t interval, TimeTrigger::HandleStack& handle_stack) :
   interval_(interval), handle_stack_(handle_stack) {}

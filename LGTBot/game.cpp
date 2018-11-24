@@ -3,7 +3,24 @@
 #include "match.h"
 #include "time_trigger.h"
 
-TimeTrigger timer_;
+/* Constructor
+*/
+StageContainer::StageContainer(Game& game, StageCreatorMap&& stage_creators) :
+  game_(game), stage_creators_(std::forward<StageCreatorMap>(stage_creators)) {}
+
+/* Returns game Stage pointer with id
+* if the id is main Stage id, returns the main game Stage pointer
+*/
+StagePtr StageContainer::Make(StageId id, GameStage& father_stage) const
+{
+  auto it = stage_creators_.find(id);
+  if (it == stage_creators_.end())
+  {
+    /* Not found stage id. */
+    throw ("Stage id " + std::to_string(id) + " has not been bound.");
+  }
+  return it->second(father_stage);
+}
 
 Game::Game(
   Match& match,
@@ -45,8 +62,8 @@ int32_t Game::Join(std::shared_ptr<GamePlayer> player)
 /* create main_state_ */
 bool Game::StartGame()
 {
-  timer_.clear_stack();
-  timer_.push_handle_to_stack(std::bind(&Game::RecordResult, this));
+  timer.clear_stack();
+  timer.push_handle_to_stack(std::bind(&Game::RecordResult, this));
   main_stage_->start_up();
 }
 

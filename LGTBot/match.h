@@ -2,8 +2,6 @@
 
 #include <iostream>
 #include <map>
-#include "game_container.h"
-#include "game.h"
 
 typedef enum
 {
@@ -17,8 +15,6 @@ typedef enum
 
 class GamePlayer;     // player info
 class Game;
-
-
 
 class Match
 {

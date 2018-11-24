@@ -6,6 +6,7 @@
 #include <cassert>
 #include <string>
 
+#include "log.h"
 #include "time_trigger.h"
 
 /* Two ways to end up a game Stage:
@@ -19,49 +20,18 @@ class Game;
 class GameStage;
 
 typedef int32_t StageId;
-typedef std::unique_ptr<GameStage> StagePtr;
-typedef std::function<StagePtr(GameStage&)> StageCreator;
-typedef std::map<StageId, StageCreator> StageCreatorMap;
-
-class StageContainer
-{
-private:
-  Game& game_;
-  const std::map<StageId, StageCreator>   stage_creators_;
-public:
-  /* Constructor
-  */
-  StageContainer(Game& game, StageCreatorMap&& stage_creators);
-
-  /* Returns game Stage pointer with id
-  * if the id is main Stage id, returns the main game Stage pointer
-  */
-  StagePtr Make(StageId id, GameStage& father_stage) const;
-
-private:
-  template <class S>
-  static StageCreator get_creator()
-  {
-    return [game_](GameStage& father_stage) -> StagePtr
-    {
-      /* Cast GameStage& to FatherStage&. */
-      return std::is_void_v<S::super_type> ?
-        std::make_unique<S>(game_) :
-        std::make_unique<S>(game_, father_stage);
-    };
-  }
-};    
 
 class GameStage
 {
 protected:
   enum { NOT_STARTED, IN_PROGRESS, OVER } status_;
+  Game& game_;
 
 public:
   const std::string                       name_ = "default";
 
   /* Constructor. */
-  GameStage();
+  GameStage(Game& game);
 
   /* Destructor. */
   virtual ~GameStage();
@@ -87,46 +57,13 @@ public:
   bool is_over() const;
 };
 
-template <class MyGame, class SuperStage>
-class DependStage : public GameStage
-{
-public:
-  typedef SuperStage super_type;
-
-  /* Constructor. */
-  DependStage(Game& game, GameStage& super_stage) :
-    GameStage(), game_(dynamic_cast<MyGame&>(game)), super_stage_(std::dynamic_pointer_cast<SuperStage>(super_stage)) {}
-
-protected:
-  MyGame game_;
-  SuperStage& super_stage_;
-};
-
 template <class MyGame>
-class DependStage<MyGame, void> : public GameStage
+class TimerStage : public GameStage
 {
 public:
-  typedef void super_type;
-
-  /* Constructor. */
-  DependStage(Game& game) : GameStage(), game_(dynamic_cast<MyGame&>(game)) {}
-
-protected:
-  MyGame game_;
-};
-
-template <class MyGame, class SuperStage = void>
-class TimerStage : public DependStage<MyGame, SuperStage>
-{
-public:
-  TimerStage(Game& game) : DependStage<SuperStage>(game)
+  TimerStage(Game& game) : GameStage(game)
   {
-    Game::timer_.Time(kTimeSec);
-  }
-
-  TimerStage(Game& game, GameStage& super_stage) : DependStage<SuperStage>(game, super_stage)
-  {
-    Game::timer_.Time(kTimeSec);
+    timer.Time(kTimeSec);
   }
 
   virtual ~TimerStage()
@@ -138,19 +75,15 @@ protected:
   const int                               kTimeSec = 300;
 };
 
-template <class MyGame, class SuperStage = void>
-class CompStage : public DependStage<MyGame, SuperStage>
+template <class MyGame>
+class CompStage : public GameStage
 {
 private:
-  int32_t                                 subid_; // subStage不存储id，无法只凭subStage判断当前处于什么状态
-  std::unique_ptr<GameStage>              subStage_;
+  int32_t                                 subid_; // substage不存储id，无法只凭substage判断当前处于什么状态
+  std::unique_ptr<GameStage>              substage_;
 
 public:
-  CompStage(Game& game) :
-    DependStage<SuperStage>(game), subid_(-1), subStage_(nullptr) {}
-
-  CompStage(Game& game, GameStage& super_stage) :
-    DependStage<SuperStage>(game, super_stage), subid_(-1), subStage_(nullptr) {}
+  CompStage(Game& game) : GameStage(game), subid_(-1), substage_(nullptr) {}
 
   virtual ~CompStage()
   {
@@ -159,39 +92,53 @@ public:
 
 protected:
   /* Jump to next Stage with id.
-   * Failed when subStage is running or id does not exist
+   * Failed when substage is running or id does not exist
   */
-  bool SwitchSubStage(StageId id)
+  bool SwitchSubstage(StageId id)
   {
-    if (subStage_ && !subStage_->is_over())
+    if (substage_ && !substage_->is_over())
     {
-      throw "Switch failed: subStage must be over.";
+      throw "Switch failed: substage must be over.";
     }
-    if (!(subStage_ = game_.state_container_.Make(subid_, *this))) // set new subStage
+    if (!(substage_ = game_.state_container_.Make(subid_, *this))) // set new substage
     {
       subid_ = -1;
-      throw "Switch failed: no such subStage.";
+      throw "Switch failed: no such substage.";
     }
     subid_ = id;
-    subStage_->start_up();
+    substage_->start_up();
     return true;
   }
 
-  /* Pass request to subStage, check whether subStage over or not
+  /* Pass request to substage, check whether substage over or not
   */
   bool PassRequest(int32_t pid, std::string msg, int32_t sub_type)
   {
-    if (!subStage_ || subStage_->is_over())
+    if (!substage_ || substage_->is_over())
     {
-      LOG_ERROR("Pass failed: subStage must be running.");
+      LOG_ERROR("Pass failed: substage must be running.");
       return false;
     }
-    if (subStage_->Request(pid, msg, sub_type)) // if returns true, subStage over
+    if (substage_->Request(pid, msg, sub_type)) // if returns true, substage over
     {
-      subStage_->end_up();
+      substage_->end_up();
       return true;
     }
     return false;
   }
 };
 
+template <class Superstage>
+struct SuperstageRef
+{
+  typedef Superstage super_type;
+  Superstage& stage_;
+  SuperstageRef(GameStage& stage) : stage_(dynamic_cast<Superstage&>(stage)) {}
+};
+
+template <>
+struct SuperstageRef<void>
+{
+  typedef void super_type;
+  SuperstageRef() {}
+};
