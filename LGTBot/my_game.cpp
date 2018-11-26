@@ -6,30 +6,75 @@
 #include "game_container.h"
 
 // ============= Define Parameters Here ==============
-#define GAME_NAME     "Demo"
-#define PLAYER_NAME   MyPlayer
+#define GAME_NAME     "演示"
+#define GAME_ID       Demo
 #define MIN_PLAYER    4
 #define MAX_PLAYER    0
 // ============= Defination Over =====================
 
 class MyGame;
 
-enum
-{
-  ROUND_STAGE, DEPEND_STAGE
-};
+/* Stage identifiers */
 
-class MainStage : public CompStage<MyGame>, SuperstageRef<void>
-{
+#define STAGE_CLASS(stage)  stage##_Stage
+#define STAGE_KV(stage)     {stage, stage_container_.get_creator<STAGE_CLASS(stage)>()}
+
+/* Declarations & Definitions */
+
+#define DECLARE_STAGE(...) enum {##__VA_ARGS__
+
+#define DEFINE_GAME(main, ...) }; \
+class MyGame : public Game \
+{\
+public: \
+  MyGame(Match& match) : \
+    Game(match, GAME_NAME, MIN_PLAYER, MAX_PLAYER, std::unique_ptr<STAGE_CLASS(main)>(), {##__VA_ARGS__}) {} \
+private:
+
+#define DEFINE_PLAYER }; \
+class MyPlayer : public GamePlayer \
+{ \
+public: \
+  MyPlayer() : GamePlayer() {} \
+private:
+
+#define DEFINE_SUBSTAGE(stage, type, super) }; \
+class STAGE_CLASS(stage) : public type<MyGame>, public SuperstageRef<STAGE_CLASS(super)> \
+{ \
+public: \
+  STAGE_CLASS(stage)(Game& game, GameStage& superstage) : \
+    type<MyGame>(game), SuperstageRef<STAGE_CLASS(super)>(superstage) {} \
+private:
+
+#define DEFINE_STAGE(stage, type) }; \
+class STAGE_CLASS(stage) : public type<MyGame>, public SuperstageRef<void> \
+{ \
+public: \
+  STAGE_CLASS(stage)(Game& game, GameStage& superstage) : type<MyGame>(game) {} \
+  STAGE_CLASS(stage)(Game& game) : type<MyGame>(game) {} \
+private:
+
+#define DEFINE_END };
+
+/*================================================================================*/
+/*================================================================================*/
+
+/* Declare stages here. */
+DECLARE_STAGE
+(
+  MAIN,
+  ROUND,
+  DEPEND
+)
+
+/* Define main stage here. */
+DEFINE_STAGE(MAIN, CompStage)
 public:
-  MainStage(Game& game) : CompStage<MyGame>(game) {}
-
-  template <class MyGame>
   void Start()
   {
     cur_round = 1;
-    SwitchSubstage(ROUND_STAGE);
-    game_.Broadcast("第1回合开始！");
+    SwitchSubstage(ROUND);
+    Broadcast("第1回合开始！");
   }
 
   void Over()
@@ -43,8 +88,7 @@ public:
     return false;
   }
 
-  template <class MyGame>
-  bool HandleTimer()
+  bool TimerCallback()
   {
     if (cur_round == kRound)
     {
@@ -53,7 +97,7 @@ public:
     else
     {
       cur_round++;
-      SwitchSubstage(ROUND_STAGE);
+      SwitchSubstage(ROUND);
       game_.Broadcast((string) "第" + std::to_string('0' + cur_round) + "回合开始！");
     }
     return true;
@@ -69,15 +113,8 @@ private:
   const int kRound = 6;
   int cur_round;
 
-};
-
-// ROUND_STATE
-class RoundStage : public TimerStage<MyGame>, public SuperstageRef<MainStage>
-{
+DEFINE_SUBSTAGE(ROUND, TimerStage, MAIN)
 public:
-  RoundStage(Game& game, GameStage& superstage) :
-    TimerStage<MyGame>(game), SuperstageRef<MainStage>(superstage) {}
-
   void Start()
   {
 
@@ -97,13 +134,9 @@ public:
   {
     return true;
   }
-};
 
-class DependStage : public TimerStage<MyGame>, public SuperstageRef<void>
-{
+DEFINE_STAGE(DEPEND, TimerStage)
 public:
-  DependStage(Game& game, GameStage& superstage) : TimerStage<MyGame>(game) {}
-
   void Start()
   {
 
@@ -123,27 +156,25 @@ public:
   {
     return true;
   }
-};
 
-class MyGame : public Game
-{
+/*======== Define your game here. ===========*/
+DEFINE_GAME
+(
+   MAIN,
+   STAGE_KV(ROUND),
+   STAGE_KV(DEPEND)
+)
 public:
-  MyGame(Match& match) :
-    Game(match, GAME_NAME, MIN_PLAYER, MAX_PLAYER, std::unique_ptr<MainStage>(),
-    {
-      {DEPEND_STAGE, stage_container_.get_creator<DependStage>()},
-      {ROUND_STAGE, stage_container_.get_creator<RoundStage>()}
-    }) {}
-};
 
-class MyPlayer : public GamePlayer
-{
+/*======== Define your player here ===========*/
+DEFINE_PLAYER
 public:
-  MyPlayer() : GamePlayer() {}
-};
+
+
+
+DEFINE_END
 
 void Bind(GameContainer& game_container)
 {
   game_container.Bind<MyGame, MyPlayer>(GAME_NAME);
 }
-

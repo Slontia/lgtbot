@@ -48,6 +48,12 @@ public:
   /* Triggered when time up. */
   virtual bool                            TimerCallback() = 0;
 
+  /* Send msg to a specific player. */
+  void Reply(uint32_t pid, std::string msg) const;
+
+  /* Send msg to all player. */
+  void Broadcast(std::string msg) const;
+
   void start_up();
 
   void end_up();
@@ -100,7 +106,7 @@ protected:
     {
       throw "Switch failed: substage must be over.";
     }
-    if (!(substage_ = game_.state_container_.Make(subid_, *this))) // set new substage
+    if (!(substage_ = game_.stage_container_.Make(subid_, *this))) // set new substage
     {
       subid_ = -1;
       throw "Switch failed: no such substage.";
