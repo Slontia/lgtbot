@@ -23,27 +23,38 @@ typedef int32_t StageId;
 
 class GameStage
 {
-protected:
-  enum { NOT_STARTED, IN_PROGRESS, OVER } status_;
+private:
   Game& game_;
+  enum { NOT_STARTED, IN_PROGRESS, OVER } status_;
 
 public:
   const std::string                       name_ = "default";
 
   /* Constructor. */
-  GameStage(Game& game);
+  GameStage(Game& game, GameStage& main_stage);
 
   /* Destructor. */
   virtual ~GameStage();
+
+  virtual void start_up();
+
+  void end_up();
+
+  bool is_in_progress() const;
+
+  bool is_over() const;
+
+  /* Triggered when player send messages. */
+  virtual bool                            Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
+
+protected:
+  GameStage& main_stage_;
 
   /* Triggered when Stage beginning. */
   virtual void                            Start() = 0;
 
   /* Triggered when Stage over. */
   virtual void                            Over() = 0;
-
-  /* Triggered when player send messages. */
-  virtual bool                            Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
 
   /* Triggered when time up. */
   virtual bool                            TimerCallback() = 0;
@@ -54,22 +65,20 @@ public:
   /* Send msg to all player. */
   void Broadcast(std::string msg) const;
 
-  void start_up();
-
-  void end_up();
-
-  bool is_in_progress() const;
-
-  bool is_over() const;
+  std::unique_ptr<GameStage> MakeSubstage(const StageId& id, GameStage& father_stage);
 };
 
-template <class MyGame>
+template <class MyGame, int T>
 class TimerStage : public GameStage
 {
 public:
-  TimerStage(Game& game) : GameStage(game)
+  TimerStage(Game& game, GameStage& main_stage) :
+    GameStage(game, main_stage), kTimeSec(T) {}
+
+  virtual void start_up()
   {
-    timer.Time(kTimeSec);
+    GameStage::start_up();
+    if (kTimeSec > 0) timer.Time(kTimeSec);
   }
 
   virtual ~TimerStage()
@@ -77,8 +86,8 @@ public:
     LOG_INFO("AtomStage desturct.");
   }
 
-protected:
-  const int                               kTimeSec = 300;
+private:
+  const int                               kTimeSec;
 };
 
 template <class MyGame>
@@ -89,7 +98,7 @@ private:
   std::unique_ptr<GameStage>              substage_;
 
 public:
-  CompStage(Game& game) : GameStage(game), subid_(-1), substage_(nullptr) {}
+  CompStage(Game& game, GameStage& main_stage) : GameStage(game, main_stage), subid_(-1), substage_(nullptr) {}
 
   virtual ~CompStage()
   {
@@ -106,7 +115,7 @@ protected:
     {
       throw "Switch failed: substage must be over.";
     }
-    if (!(substage_ = game_.stage_container_.Make(subid_, *this))) // set new substage
+    if (!(substage_ = MakeSubstage(subid_, *this))) // set new substage
     {
       subid_ = -1;
       throw "Switch failed: no such substage.";

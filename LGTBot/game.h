@@ -24,28 +24,17 @@ class StageContainer
 {
 private:
   Game& game_;
+  GameStage& main_stage_;
   const std::map<StageId, StageCreator>   stage_creators_;
 public:
   /* Constructor
   */
-  StageContainer(Game& game, StageCreatorMap&& stage_creators);
+  StageContainer(Game& game, GameStage& main_stage, StageCreatorMap&& stage_creators);
 
   /* Returns game Stage pointer with id
   * if the id is main Stage id, returns the main game Stage pointer
   */
-  StagePtr Make(StageId id, GameStage& father_stage) const;
-
-  template <class Stage>
-  std::unique_ptr<Stage> get_stage_ptr(GameStage& father_stage)
-  {
-    return std::make_unique<Stage>(game_, father_stage);
-  }
-
-  template <class Stage>
-  std::unique_ptr<Stage> get_stage_ptr()
-  {
-    return std::make_unique<Stage>(game_);
-  }
+  StagePtr Make(const StageId& id, GameStage& father_stage) const;
 
   template <class Stage>
   StageCreator get_creator()
@@ -53,7 +42,7 @@ public:
     return [this](GameStage& father_stage) -> StagePtr
     {
       /* Cast GameStage& to FatherStage&. */
-      return get_stage_ptr<Stage>(father_stage);
+      return std::make_unique<Stage>(game_, main_stage_, father_stage);
     };
   }
 };
@@ -76,6 +65,8 @@ public:
     const uint32_t& max_player,
     StagePtr&& main_stage,
     StageCreatorMap&& stage_creators);
+
+  virtual ~Game();
 
   inline bool valid_pnum(uint32_t pnum);
 

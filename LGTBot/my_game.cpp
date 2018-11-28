@@ -4,6 +4,7 @@
 #include "game.h"
 #include "player.h"
 #include "game_container.h"
+#include "match.h"
 
 // ============= Define Parameters Here ==============
 #define GAME_NAME     "演示"
@@ -19,17 +20,7 @@ class MyGame;
 #define STAGE_CLASS(stage)  stage##_Stage
 #define STAGE_KV(stage)     {stage, stage_container_.get_creator<STAGE_CLASS(stage)>()}
 
-/* Declarations & Definitions */
-
-#define DECLARE_STAGE(...) enum {##__VA_ARGS__
-
-#define DEFINE_GAME(main, ...) }; \
-class MyGame : public Game \
-{\
-public: \
-  MyGame(Match& match) : \
-    Game(match, GAME_NAME, MIN_PLAYER, MAX_PLAYER, std::unique_ptr<STAGE_CLASS(main)>(), {##__VA_ARGS__}) {} \
-private:
+/* Player Definition */
 
 #define DEFINE_PLAYER }; \
 class MyPlayer : public GamePlayer \
@@ -38,37 +29,59 @@ public: \
   MyPlayer() : GamePlayer() {} \
 private:
 
+/* Stage Definitions */
+
+#define COMP_STAGE CompStage<MyGame>
+#define TIMER_STAGE(sec) TimerStage<MyGame, sec>
+
 #define DEFINE_SUBSTAGE(stage, type, super) }; \
-class STAGE_CLASS(stage) : public type<MyGame>, public SuperstageRef<STAGE_CLASS(super)> \
+class STAGE_CLASS(stage) : public type, public SuperstageRef<STAGE_CLASS(super)> \
 { \
 public: \
-  STAGE_CLASS(stage)(Game& game, GameStage& superstage) : \
-    type<MyGame>(game), SuperstageRef<STAGE_CLASS(super)>(superstage) {} \
+  STAGE_CLASS(stage)(Game& game, GameStage& main_stage, GameStage& superstage) : \
+    type(game, main_stage), SuperstageRef<STAGE_CLASS(super)>(superstage) {} \
 private:
 
 #define DEFINE_STAGE(stage, type) }; \
-class STAGE_CLASS(stage) : public type<MyGame>, public SuperstageRef<void> \
+class STAGE_CLASS(stage) : public type, public SuperstageRef<void> \
 { \
 public: \
-  STAGE_CLASS(stage)(Game& game, GameStage& superstage) : type<MyGame>(game) {} \
-  STAGE_CLASS(stage)(Game& game) : type<MyGame>(game) {} \
+  STAGE_CLASS(stage)(Game& game, GameStage& main_stage, GameStage& superstage) : \
+    type(game, main_stage) {} \
+  STAGE_CLASS(stage)(Game& game, GameStage& main_stage) : \
+    type(game, main_stage) {} \
 private:
 
-#define DEFINE_END };
+/* Game Head */
+
+#define OUTSIDE(inside) \
+enum { MAIN = 0, inside }) {} };\
+void Bind(GameContainer& game_container)\
+{\
+  game_container.Bind<MyGame, MyPlayer>(GAME_NAME);\
+}
+
+#define DECLARE_STAGE(stage, inside) stage, inside STAGE_KV(stage),
+
+#define INSIDE(...) \
+__VA_ARGS__ }; \
+class MyGame : public Game \
+{\
+public: \
+  MyGame(Match& match) : \
+  Game(match, GAME_NAME, MIN_PLAYER, MAX_PLAYER, std::unique_ptr<STAGE_CLASS(MAIN)>(), {
 
 /*================================================================================*/
 /*================================================================================*/
 
-/* Declare stages here. */
-DECLARE_STAGE
-(
-  MAIN,
-  ROUND,
-  DEPEND
-)
+OUTSIDE(
+  /* Declare stages here. */
+  DECLARE_STAGE(ROUND,
+  DECLARE_STAGE(DEPEND,
+INSIDE(
 
 /* Define main stage here. */
-DEFINE_STAGE(MAIN, CompStage)
+DEFINE_STAGE(MAIN, COMP_STAGE)
 public:
   void Start()
   {
@@ -79,7 +92,7 @@ public:
 
   void Over()
   {
-
+    // 写逻辑
   }
 
   bool Request(int32_t pid, std::string msg, int32_t sub_type)
@@ -98,7 +111,7 @@ public:
     {
       cur_round++;
       SwitchSubstage(ROUND);
-      game_.Broadcast((string) "第" + std::to_string('0' + cur_round) + "回合开始！");
+      Broadcast((string) "第" + std::to_string('0' + cur_round) + "回合开始！");
     }
     return true;
   }
@@ -113,7 +126,10 @@ private:
   const int kRound = 6;
   int cur_round;
 
-DEFINE_SUBSTAGE(ROUND, TimerStage, MAIN)
+
+
+
+DEFINE_SUBSTAGE(ROUND, TIMER_STAGE(5), MAIN)
 public:
   void Start()
   {
@@ -135,7 +151,10 @@ public:
     return true;
   }
 
-DEFINE_STAGE(DEPEND, TimerStage)
+
+
+
+DEFINE_STAGE(DEPEND, TIMER_STAGE(2))
 public:
   void Start()
   {
@@ -157,24 +176,12 @@ public:
     return true;
   }
 
-/*======== Define your game here. ===========*/
-DEFINE_GAME
-(
-   MAIN,
-   STAGE_KV(ROUND),
-   STAGE_KV(DEPEND)
-)
+  /*======== Define your player here ===========*/
+  DEFINE_PLAYER
 public:
+  int get_score()
+  {
+    return 0;
+  }
 
-/*======== Define your player here ===========*/
-DEFINE_PLAYER
-public:
-
-
-
-DEFINE_END
-
-void Bind(GameContainer& game_container)
-{
-  game_container.Bind<MyGame, MyPlayer>(GAME_NAME);
-}
+))))

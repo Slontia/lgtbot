@@ -5,8 +5,7 @@
 class GamePlayer
 {
 public:
-  GamePlayer() : score_(0) {}
+  GamePlayer() {}
 
-protected:
-  int score_;
+  virtual int get_score() = 0;
 };

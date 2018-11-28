@@ -3,7 +3,7 @@
 #include "log.h"
 #include "game.h"
 
-GameStage::GameStage(Game& game) : game_(game) {}
+GameStage::GameStage(Game& game, GameStage& main_stage) : game_(game), main_stage_(main_stage) {}
 
 GameStage::~GameStage() {}
 
@@ -41,4 +41,9 @@ bool GameStage::is_in_progress() const
 bool GameStage::is_over() const
 {
   return status_ == OVER;
+}
+
+StagePtr GameStage::MakeSubstage(const StageId& id, GameStage& father_stage)
+{
+  return game_.stage_container_.Make(id, father_stage);
 }
