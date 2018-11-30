@@ -59,6 +59,7 @@ void Match::Reply(uint32_t pid, std::string msg) const
   CQ_sendPrivateMsg(-1, qq_list_[pid], msg.c_str());
 }
 /* send msg to all player */
+// TODO 1：支持群、讨论组、全员私信三种模式的实现
 void Match::Broadcast(std::string msg) const
 {
   CQ_sendGroupMsg(-1, 59057683, msg.c_str());

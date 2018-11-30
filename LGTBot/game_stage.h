@@ -56,14 +56,13 @@ protected:
   /* Triggered when Stage over. */
   virtual void                            Over() = 0;
 
-  /* Triggered when time up. */
-  virtual bool                            TimerCallback() = 0;
-
   /* Send msg to a specific player. */
   void Reply(uint32_t pid, std::string msg) const;
 
   /* Send msg to all player. */
   void Broadcast(std::string msg) const;
+
+  void Broadcast(uint32_t pid, std::string msg) const;
 
   virtual void OperatePlayer(std::function<void(GamePlayer&)> f);
 
@@ -104,6 +103,8 @@ private:
 
 public:
   CompStage(Game& game, GameStage& main_stage);
+
+  virtual bool                            TimerCallback() = 0;
 
   virtual ~CompStage();
 

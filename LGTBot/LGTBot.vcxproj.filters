@@ -92,6 +92,9 @@
     <ClCompile Include="game_stage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="my_main.cpp">
+      <Filter>GameDemo</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Library Include="CQP.lib" />

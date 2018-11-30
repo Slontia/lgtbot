@@ -27,6 +27,12 @@ void GameStage::Broadcast(std::string msg) const
   game_.Broadcast(msg);
 }
 
+void GameStage::Broadcast(uint32_t pid, std::string msg) const
+{
+  game_.Broadcast(msg);
+}
+
+
 void GameStage::start_up()
 {
   assert(status_ == NOT_STARTED);
