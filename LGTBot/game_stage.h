@@ -18,8 +18,9 @@
 
 class Game;
 class GameStage;
+class GamePlayer;
 
-typedef int32_t StageId;
+typedef std::string StageId;
 
 class GameStage
 {
@@ -38,18 +39,17 @@ public:
 
   virtual void start_up();
 
-  void end_up();
+  virtual void end_up();
 
   bool is_in_progress() const;
 
   bool is_over() const;
 
   /* Triggered when player send messages. */
-  virtual bool                            Request(int32_t pid, std::string msg, int32_t sub_type) = 0;
+  virtual bool                            Request(uint32_t pid, std::string msg, int32_t sub_type) = 0;
 
 protected:
   GameStage& main_stage_;
-
   /* Triggered when Stage beginning. */
   virtual void                            Start() = 0;
 
@@ -65,82 +65,57 @@ protected:
   /* Send msg to all player. */
   void Broadcast(std::string msg) const;
 
+  virtual void OperatePlayer(std::function<void(GamePlayer&)> f);
+
+  GamePlayer& get_player(uint32_t pid);
+
   std::unique_ptr<GameStage> MakeSubstage(const StageId& id, GameStage& father_stage);
 };
 
-template <class MyGame, int T>
+template <int TimeSec>
 class TimerStage : public GameStage
 {
 public:
-  TimerStage(Game& game, GameStage& main_stage) :
-    GameStage(game, main_stage), kTimeSec(T) {}
-
-  virtual void start_up()
-  {
-    GameStage::start_up();
-    if (kTimeSec > 0) timer.Time(kTimeSec);
-  }
+  TimerStage(Game& game, GameStage& main_stage) : GameStage(game, main_stage) {}
 
   virtual ~TimerStage()
   {
     LOG_INFO("AtomStage desturct.");
   }
 
-private:
-  const int                               kTimeSec;
+  virtual void start_up()
+  {
+    GameStage::start_up();
+    if (TimeSec > 0) timer.Time(TimeSec);
+  }
+
+  virtual void end_up()
+  {
+    timer.Terminate();
+    GameStage::end_up();
+  }
 };
 
-template <class MyGame>
 class CompStage : public GameStage
 {
 private:
-  int32_t                                 subid_; // substage不存储id，无法只凭substage判断当前处于什么状态
+  StageId                                 subid_; // substage不存储id，无法只凭substage判断当前处于什么状态
   std::unique_ptr<GameStage>              substage_;
 
 public:
-  CompStage(Game& game, GameStage& main_stage) : GameStage(game, main_stage), subid_(-1), substage_(nullptr) {}
+  CompStage(Game& game, GameStage& main_stage);
 
-  virtual ~CompStage()
-  {
-    LOG_INFO("CompStage desturct.");
-  }
+  virtual ~CompStage();
 
 protected:
   /* Jump to next Stage with id.
    * Failed when substage is running or id does not exist
   */
-  bool SwitchSubstage(StageId id)
-  {
-    if (substage_ && !substage_->is_over())
-    {
-      throw "Switch failed: substage must be over.";
-    }
-    if (!(substage_ = MakeSubstage(subid_, *this))) // set new substage
-    {
-      subid_ = -1;
-      throw "Switch failed: no such substage.";
-    }
-    subid_ = id;
-    substage_->start_up();
-    return true;
-  }
+  bool SwitchSubstage(StageId id);
 
   /* Pass request to substage, check whether substage over or not
   */
-  bool PassRequest(int32_t pid, std::string msg, int32_t sub_type)
-  {
-    if (!substage_ || substage_->is_over())
-    {
-      LOG_ERROR("Pass failed: substage must be running.");
-      return false;
-    }
-    if (substage_->Request(pid, msg, sub_type)) // if returns true, substage over
-    {
-      substage_->end_up();
-      return true;
-    }
-    return false;
-  }
+  bool PassRequest(int32_t pid, std::string msg, int32_t sub_type);
 };
 
 template <class Superstage>

@@ -17,7 +17,7 @@ StagePtr StageContainer::Make(const StageId& id, GameStage& father_stage) const
   if (it == stage_creators_.end())
   {
     /* Not found stage id. */
-    throw ("Stage id " + std::to_string(id) + " has not been bound.");
+    throw "Stage id " + id + " has not been bound.";
   }
   return it->second(father_stage);
 }

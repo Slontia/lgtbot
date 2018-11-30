@@ -88,8 +88,6 @@ public:
   /* transmit msg to main_state_ */
   void Request(uint32_t pid, const char* msg, int32_t sub_type);
 
-protected:
-  
   std::vector<std::shared_ptr<GamePlayer>>             players_;
 
 private:

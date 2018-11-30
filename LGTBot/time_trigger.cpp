@@ -1,46 +1,62 @@
 #include "stdafx.h"
+#include <mutex>
 #include "time_trigger.h"
+#include "global.h"
 
-// [warning] HandleStack maybe not avaliable in TimeData
+
 TimeTrigger timer;
+std::mutex mutex;
 
-TimeTrigger::TimeData::TimeData(uint32_t interval, TimeTrigger::HandleStack& handle_stack) :
-  interval_(interval), handle_stack_(handle_stack) {}
+ThreadGuard::ThreadGuard(const uint32_t& itv_minu, TimeTrigger::HandleStack& handle_stack) :
+  terminated_(false), handle_stack_(handle_stack), thread_(std::bind(&ThreadGuard::ThreadFunc, this, itv_minu)) {}
 
-uint32_t TimeTrigger::TimeData::interval()
+ThreadGuard::~ThreadGuard()
 {
-  return interval_;
+  terminated_ = true;
+  if (thread_.joinable()) thread_.join();
 }
 
-TimeTrigger::HandleStack& TimeTrigger::TimeData::handle_stack()
+void ThreadGuard::ThreadFunc(const uint32_t& itv_minu)
 {
-  return handle_stack_;
+  auto start_time = time(NULL);
+
+  while (difftime(time(NULL), start_time) < itv_minu * 60 && !terminated_)
+  {
+    std::this_thread::sleep_for(std::chrono::minutes(1));
+  }
+
+  std::unique_lock<std::mutex> lock(mutex);
+  while (true)
+  {
+    if (lock.try_lock())
+    {
+      /* Time up. Keep call functions from stack until false returned or stack cleared. */
+      while (!handle_stack_.empty() && handle_stack_.top()()) handle_stack_.pop();
+      return;
+    }
+
+    if (terminated_) return;
+
+    std::this_thread::sleep_for(std::chrono::minutes(1));
+  }
 }
+
+void ThreadGuard::terminate()
+{
+  terminated_ = true;
+}
+
 
 TimeTrigger::TimeTrigger() {}
 
-DWORD WINAPI TimeTrigger::ThreadFunc(LPVOID data_ptr)
+void TimeTrigger::Time(const uint32_t& interval)
 {
-  time_t begin_t = time(NULL);
-  TimeData* data = (TimeData*) data_ptr;
-  while (true)
-  {
-    if (difftime(time(NULL), begin_t) < data->interval())     // compare time
-    {
-      HandleStack& handle_stack = data->handle_stack();
-      while (!handle_stack.empty() && handle_stack.top()())   // GameState over
-      {
-        handle_stack.pop();                                   // remove TimeHandle of ended GameState
-      }
-      break;
-    }
-  }
-  return 0;
+  thread_guard_ = std::make_shared<ThreadGuard>(interval, handle_stack_);
 }
 
-void TimeTrigger::Time(uint32_t interval)
+void TimeTrigger::Terminate()
 {
-  thread_ = CreateThread(NULL, 0, ThreadFunc, &TimeData(interval, handle_stack_), 0, NULL);
+  if (thread_guard_) thread_guard_->terminate();
 }
 
 void TimeTrigger::push_handle_to_stack(std::function<bool()> handle)

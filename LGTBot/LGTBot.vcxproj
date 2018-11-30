@@ -84,6 +84,7 @@
     <ClInclude Include="db_manager.h" />
     <ClInclude Include="game_container.h" />
     <ClInclude Include="game_stage.h" />
+    <ClInclude Include="global.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="match.h" />
     <ClInclude Include="my_game.h" />
