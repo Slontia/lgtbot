@@ -1,5 +1,5 @@
 #pragma once
-#include "global.h"
+#include "lgtbot.h"
 #include "my_game.h"
 #include "game_stage.h"
 #include "game.h"

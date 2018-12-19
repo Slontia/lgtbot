@@ -57,7 +57,7 @@
     <ClInclude Include="game_stage.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="global.h">
+    <ClInclude Include="lgtbot.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -94,6 +94,9 @@
     </ClCompile>
     <ClCompile Include="my_main.cpp">
       <Filter>GameDemo</Filter>
+    </ClCompile>
+    <ClCompile Include="lgtbot.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include <mutex>
 #include "time_trigger.h"
-#include "global.h"
+#include "lgtbot.h"
 
 
 TimeTrigger timer;

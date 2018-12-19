@@ -68,13 +68,10 @@ public:
 
   virtual ~Game();
 
-  inline bool valid_pnum(uint32_t pnum);
-
-  /* send msg to a specific player */
-  void Reply(uint32_t pid, std::string msg) const;
+  inline bool valid_pnum(const uint32_t& pnum) const;
 
   /* send msg to all player */
-  void Broadcast(std::string msg) const;
+  void Broadcast(const std::string& msg) const;
 
   /* add new player */
   int32_t Join(std::shared_ptr<GamePlayer> player);
@@ -86,12 +83,13 @@ public:
   bool RecordResult();
 
   /* transmit msg to main_state_ */
-  void Request(uint32_t pid, const char* msg, int32_t sub_type);
+  void Request(const uint32_t& pid, MessageIterator& msg);
 
   std::vector<std::shared_ptr<GamePlayer>>             players_;
 
 private:
   Match&                              match_;
+  
 };
 
 

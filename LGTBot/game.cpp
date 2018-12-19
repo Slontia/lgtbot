@@ -36,21 +36,15 @@ Game::Game(
 
 Game::~Game() {}
 
-inline bool Game::valid_pnum(uint32_t pnum)
+inline bool Game::valid_pnum(const uint32_t& pnum) const
 {
   return pnum >= kMinPlayer && (kMaxPlayer == 0 || pnum <= kMaxPlayer);
 }
 
-/* send msg to a specific player */
-void Game::Reply(uint32_t pid, std::string msg) const
-{
-  match_.Reply(pid, msg);
-}
-
 /* send msg to all player */
-void Game::Broadcast(std::string msg) const
+void Game::Broadcast(const std::string& msg) const
 {
-  match_.Broadcast(msg);
+  match_.broadcast(msg);
 }
 
 /* add new player */
@@ -73,13 +67,14 @@ bool Game::StartGame()
 bool Game::RecordResult()
 {
   std::cout << "record" << std::endl;
+  match_manager.DeleteMatch(match_.get_id());
   return true;  // always returns true
 }
 
 /* transmit msg to main_state_ */
-void Game::Request(uint32_t pid, const char* msg, int32_t sub_type)
+void Game::Request(const uint32_t& pid, MessageIterator& msg)
 {
-  if (main_stage_->Request(pid, msg, sub_type)) // game over
+  if (main_stage_->Request(pid, msg)) // game over
   {
     RecordResult();
   }

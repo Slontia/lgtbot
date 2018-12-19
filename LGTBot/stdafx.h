@@ -14,12 +14,14 @@
 // TODO: reference additional headers your program requires here
 #include "stdint.h"
 #include "string"
+#include <iostream>
 #include <atomic>
 #include <vector>
 #include <map>
 #include <functional>
 #include <Windows.h>
 #include <time.h>
+#include <list>
 
 /* Mysql Connector */
 #include <mysql_connection.h>

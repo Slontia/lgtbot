@@ -25,7 +25,7 @@ public:
 
   int get_score()
   {
-    return 0;
+    return cur_win_ * 10 * (cur_win_ == kWinRound) ? 1 : -1;
   }
 
   void round_init()
@@ -64,9 +64,9 @@ public:
 
   void Over() {}
 
-  bool Request(uint32_t pid, std::string msg, int32_t sub_type)
+  bool Request(const uint32_t& pid, MessageIterator& msg)
   {
-    if (PassRequest(pid, msg, sub_type)) return start_next_round();
+    if (PassRequest(pid, msg)) return start_next_round();
   }
 
   bool TimerCallback()
@@ -127,37 +127,44 @@ public:
     }
   }
 
-  bool Request(uint32_t pid, std::string msg, int32_t sub_type)
+  bool Request(const uint32_t& pid, MessageIterator& msg)
   {
+    assert(msg.has_next());
+    auto sel = msg.get_next();
     auto p = GET_PLAYER(pid);
-    if (sub_type != PRIVATE_MSG)
+    if (msg.type_ != PRIVATE_MSG)
     {
       Broadcast(pid, "请私信选择您的答案，公开的答案无效");
       return false;
     }
     else if (p.has_sel())
     {
-      Reply(pid, "您已经选择过了");
+      msg.Reply("您已经选择过了");
       return false;
     }
-    else if (msg == "石头")
+    else if (msg.has_next())
+    {
+      msg.Reply("除了石头剪刀布就不要说废话了");
+      return false;
+    }
+    else if (sel == "石头")
     {
       p.sel(ROCK_SEL);
       return all_selected();
     }
-    else if (msg == "剪刀")
+    else if (sel == "剪刀")
     {
       p.sel(SCISSORS_SEL);
       return all_selected();
     }
-    else if (msg == "布")
+    else if (sel == "布")
     {
       p.sel(PAPER_SEL);
       return all_selected();
     }
     else
     {
-      Reply(pid, "您瞧瞧您选的这是啥啊，会不会选啊，就仨选项听好了啊，剪刀、石头、布，再选一遍");
+      msg.Reply("您瞧瞧您选的这是啥啊，会不会选啊，就仨选项听好了啊，剪刀、石头、布，再选一遍");
       return false;
     }
   }

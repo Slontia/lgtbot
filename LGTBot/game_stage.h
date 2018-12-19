@@ -19,6 +19,7 @@
 class Game;
 class GameStage;
 class GamePlayer;
+class MessageIterator;
 
 typedef std::string StageId;
 
@@ -46,7 +47,7 @@ public:
   bool is_over() const;
 
   /* Triggered when player send messages. */
-  virtual bool                            Request(uint32_t pid, std::string msg, int32_t sub_type) = 0;
+  virtual bool                            Request(const uint32_t& pid, MessageIterator& msg) = 0;
 
 protected:
   GameStage& main_stage_;
@@ -56,19 +57,17 @@ protected:
   /* Triggered when Stage over. */
   virtual void                            Over() = 0;
 
-  /* Send msg to a specific player. */
-  void Reply(uint32_t pid, std::string msg) const;
 
   /* Send msg to all player. */
-  void Broadcast(std::string msg) const;
+  void Broadcast(const std::string& msg) const;
 
-  void Broadcast(uint32_t pid, std::string msg) const;
+  void Broadcast(const uint32_t& pid, const std::string& msg) const;
 
   virtual void OperatePlayer(std::function<void(GamePlayer&)> f);
 
-  GamePlayer& get_player(uint32_t pid);
+  GamePlayer& get_player(const uint32_t& pid);
 
-  std::unique_ptr<GameStage> MakeSubstage(const StageId& id, GameStage& father_stage);
+  std::unique_ptr<GameStage> MakeSubstage(const StageId& id, GameStage& father_stage) const;
 };
 
 template <int TimeSec>
@@ -112,11 +111,11 @@ protected:
   /* Jump to next Stage with id.
    * Failed when substage is running or id does not exist
   */
-  bool SwitchSubstage(StageId id);
+  bool SwitchSubstage(const StageId& id);
 
   /* Pass request to substage, check whether substage over or not
   */
-  bool PassRequest(int32_t pid, std::string msg, int32_t sub_type);
+  bool PassRequest(const int32_t& pid, MessageIterator& msg);
 };
 
 template <class Superstage>

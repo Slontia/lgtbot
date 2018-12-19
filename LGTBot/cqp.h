@@ -36,6 +36,7 @@ typedef int32_t CQBOOL;
 #define CQLOG_FATAL 40          //致命错误 深红
 
 
+
 /*
 * 发送私聊消息, 成功返回消息ID
 * QQID 目标QQ号

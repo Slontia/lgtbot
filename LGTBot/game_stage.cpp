@@ -3,6 +3,7 @@
 #include "log.h"
 #include "game.h"
 #include "time_trigger.h"
+#include "match.h"
 
 GameStage::GameStage(Game& game, GameStage& main_stage) : game_(game), main_stage_(main_stage)
 {
@@ -15,20 +16,16 @@ GameStage::GameStage(Game& game, GameStage& main_stage) : game_(game), main_stag
 
 GameStage::~GameStage() {}
 
-/* Send msg to a specific player. */
-void GameStage::Reply(uint32_t pid, std::string msg) const
-{
-  game_.Reply(pid, msg);
-}
 
 /* Send msg to all player. */
-void GameStage::Broadcast(std::string msg) const
+void GameStage::Broadcast(const std::string& msg) const
 {
   game_.Broadcast(msg);
 }
 
-void GameStage::Broadcast(uint32_t pid, std::string msg) const
+void GameStage::Broadcast(const uint32_t& pid, const std::string& msg) const
 {
+  // 不要这个函数了，因为at可以穿插在文本中
   game_.Broadcast(msg);
 }
 
@@ -57,7 +54,7 @@ bool GameStage::is_over() const
   return status_ == OVER;
 }
 
-StagePtr GameStage::MakeSubstage(const StageId& id, GameStage& father_stage)
+StagePtr GameStage::MakeSubstage(const StageId& id, GameStage& father_stage) const
 {
   return game_.stage_container_.Make(id, father_stage);
 }
@@ -67,7 +64,7 @@ void GameStage::OperatePlayer(std::function<void(GamePlayer&)> f)
   for (auto it = game_.players_.begin(); it != game_.players_.end(); ++it) f(**it);
 }
 
-GamePlayer& GameStage::get_player(uint32_t pid)
+GamePlayer& GameStage::get_player(const uint32_t& pid)
 {
   return *game_.players_[pid];
 }
@@ -86,7 +83,7 @@ CompStage::~CompStage()
 /* Jump to next Stage with id.
 * Failed when substage is running or id does not exist
 */
-bool CompStage::SwitchSubstage(StageId id)
+bool CompStage::SwitchSubstage(const StageId& id)
 {
   if (substage_ && !substage_->is_over())
   {
@@ -104,14 +101,14 @@ bool CompStage::SwitchSubstage(StageId id)
 
 /* Pass request to substage, check whether substage over or not
 */
-bool CompStage::PassRequest(int32_t pid, std::string msg, int32_t sub_type)
+bool CompStage::PassRequest(const int32_t& pid, MessageIterator& msg)
 {
   if (!substage_ || substage_->is_over())
   {
     throw "Pass failed: substage must be in process.";
     return false;
   }
-  if (substage_->Request(pid, msg, sub_type)) // if returns true, substage over
+  if (substage_->Request(pid, msg)) // if returns true, substage over
   {
     substage_->end_up();
     return true;
