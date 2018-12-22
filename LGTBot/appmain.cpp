@@ -83,8 +83,8 @@ CQEVENT(int32_t, __eventDisable, 0)() {
 * subType 子类型，11/来自好友 1/来自在线状态 2/来自群 3/来自讨论组
 */
 CQEVENT(int32_t, __eventPrivateMsg, 24)(int32_t subType, int32_t msgId, int64_t fromQQ, const char *msg, int32_t font) {
-  CQ_sendPrivateMsg(ac, fromQQ, ((std::string)"[msgId] 收到" + std::to_string(msgId) + "\n[subType] " + std::to_string(subType)).c_str());
-  CQ_sendGroupMsg(ac, 714896340, msg);
+  //CQ_sendPrivateMsg(ac, fromQQ, ((std::string)"[msgId] 收到" + std::to_string(msgId) + "\n[subType] " + std::to_string(subType)).c_str());
+  //CQ_sendGroupMsg(ac, 714896340, msg);
   
 	return EVENT_BLOCK;
 	//如果要回复消息，请调用酷Q方法发送，并且这里 return EVENT_BLOCK - 截断本条消息，不再继续处理  注意：应用优先级设置为"最高"(10000)时，不得使用本返回值
@@ -97,9 +97,9 @@ CQEVENT(int32_t, __eventPrivateMsg, 24)(int32_t subType, int32_t msgId, int64_t 
 * Type=2 群消息
 */
 CQEVENT(int32_t, __eventGroupMsg, 36)(int32_t subType, int32_t msgId, int64_t fromGroup, int64_t fromQQ, const char *fromAnonymous, const char *msg, int32_t font) {
-  CQ_sendPrivateMsg(ac, fromQQ, msg);
-  if (((std::string)msg).find("[CQ:at,qq=" + std::to_string(CQ_getLoginQQ(ac)) + "]") != std::string::npos) CQ_sendGroupMsg(ac, 714896340, "[CQ:at,qq=654867229] guna");
-  CQ_sendPrivateMsg(ac, fromQQ, ((std::string)"[msgId] 收到" + std::to_string(msgId) + "\n[fromAnonymous] " + fromAnonymous + "\n[subType] " + std::to_string(subType)).c_str());
+  //CQ_sendPrivateMsg(ac, fromQQ, msg);
+  //if (((std::string)msg).find("[CQ:at,qq=" + std::to_string(CQ_getLoginQQ(ac)) + "]") != std::string::npos) CQ_sendGroupMsg(ac, 714896340, "[CQ:at,qq=654867229] guna");
+  //CQ_sendPrivateMsg(ac, fromQQ, ((std::string)"[msgId] 收到" + std::to_string(msgId) + "\n[fromAnonymous] " + fromAnonymous + "\n[subType] " + std::to_string(subType)).c_str());
 	return EVENT_IGNORE; //关于返回值说明, 见“_eventPrivateMsg”函数
 }
 
@@ -108,7 +108,7 @@ CQEVENT(int32_t, __eventGroupMsg, 36)(int32_t subType, int32_t msgId, int64_t fr
 * Type=4 讨论组消息
 */
 CQEVENT(int32_t, __eventDiscussMsg, 32)(int32_t subType, int32_t msgId, int64_t fromDiscuss, int64_t fromQQ, const char *msg, int32_t font) {
-  CQ_sendPrivateMsg(ac, fromQQ, ((std::string)"[msgId] 收到" + std::to_string(msgId) + "\n[subType] " + std::to_string(subType)).c_str());
+  //CQ_sendPrivateMsg(ac, fromQQ, ((std::string)"[msgId] 收到" + std::to_string(msgId) + "\n[subType] " + std::to_string(subType)).c_str());
 
 	return EVENT_IGNORE; //关于返回值说明, 见“_eventPrivateMsg”函数
 }

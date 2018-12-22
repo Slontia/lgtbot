@@ -9,19 +9,13 @@
 
 #include "lgtbot.h"
 
-#define INVALID_LOBBY 0
+typedef uint32_t MatchId;
 
-typedef int MatchId;
-typedef enum
-{
-  SUCC,
-  TOO_MANY_PLAYERS, 
-  TOO_FEW_PLAYERS,
-  GAME_STARTED,
-  GAME_NOT_STARTED,
-  HAS_JOINED,
-  NOT_JOINED
-} ErrNo;
+#define INVALID_LOBBY (QQ)0
+
+#define INVALID_MATCH (MatchId)0
+
+inline bool match_is_valid(MatchId id) { return id != INVALID_MATCH; }
 
 typedef enum
 {
@@ -29,13 +23,6 @@ typedef enum
   GROUP_MATCH,
   DISCUSS_MATCH
 } MatchType;
-
-typedef enum
-{
-  PRIVATE_MATCH_MSG = 1,
-  PUBLIC_MATCH_MSG,
-  INVALLID_MATCH_MSG = 0
-} MatchRequestType;
 
 class GamePlayer;     // player info
 class Game;
@@ -49,19 +36,25 @@ class MatchManager
 public:
   MatchManager();
 
+  MatchId MatchManager::get_group_match_id(const QQ& group_qq);
+
+  MatchId MatchManager::get_discuss_match_id(const QQ& discuss_qq);
+
+  static MatchId MatchManager::get_match_id(const QQ& src_qq, std::unordered_map<QQ, std::shared_ptr<Match>> match_map);
+
   std::shared_ptr<Match> new_private_match(const MatchId& id, const std::string& game_id, const QQ& host_qq);
 
   std::shared_ptr<Match> new_group_match(const MatchId& id, const std::string& game_id, const QQ& host_qq, const QQ& group_qq);
 
   std::shared_ptr<Match> new_discuss_match(const MatchId& id, const std::string& game_id, const QQ& host_qq, const QQ& discuss_qq);
 
-  std::shared_ptr<Match> new_match(const MatchType& type, const std::string& game_id, const QQ& host_qq, const QQ& lobby_qq);
+  ErrMsg new_match(const MatchType& type, const std::string& game_id, const QQ& host_qq, const QQ& lobby_qq);
 
   /* Assume usr_qq is valid. */
-  void AddPlayer(const MatchId& id, const QQ& usr_qq);
+  ErrMsg AddPlayer(const MatchId& id, const QQ& usr_qq);
 
   /* Assume usr_qq is valid. */
-  void DeletePlayer(const QQ& usr_qq);
+  ErrMsg DeletePlayer(const QQ& usr_qq);
 
   /* return true if is a game request */
   bool Request(MessageIterator& msg);
@@ -90,16 +83,16 @@ public:
 
   Match(const MatchId& id, const std::string& game_id, const int64_t& host_qq, const MatchType& type);
 
-  int         Request(MessageIterator& msg);
+  void         Request(MessageIterator& msg);
   /* switch status, create game */
-  int                GameStart();
+  std::string                GameStart();
   /* send msg to all player */
   virtual void broadcast(const std::string&) const = 0;
   virtual void private_respond(const QQ&, const std::string&) const = 0;
   virtual void public_respond(const QQ&, const std::string&) const = 0;
   /* bind to map, create GamePlayer and send to game */
-  int                              Join(const int64_t& qq);
-  int                              Leave(const int64_t& qq);
+  std::string                              Join(const int64_t& qq);
+  std::string                              Leave(const int64_t& qq);
 
   bool has_qq(const int64_t& qq) const;
   const MatchId& get_id() const { return id_; }
@@ -115,6 +108,7 @@ public:
     host_qq_ = *ready_qq_set_.begin();
     return true;
   }
+  bool is_started() { return status_ != PREPARE; }
 
 protected:
   enum { PREPARE, GAMING, OVER }    status_;

@@ -5,13 +5,17 @@
 
 #define INVALID_QQ (QQ)0
 
+#define RETURN_IF_FAILED(str) if (const string& err = (str); !err.empty()) return err;
+
 /*
-1. 传参msg使用iterator
-2. game除了两种response之外，再加reply，根据消息来源判断那种response
+1. 进行“开始”指令、“加入”指令和“退出”指令的衔接
+2. 补充错误提示
 3. 精简mygame中的接口
+4. 最好可以一次从iterator里取出多个字符串
 */
 
 typedef int64_t QQ;
+typedef std::string ErrMsg;
 
 extern std::mutex mutex;
 
@@ -71,6 +75,7 @@ public:
   MessageIterator(const MessageType& type, const QQ& src_qq, const QQ& usr_qq, std::vector<std::string>&& msgs) :
     type_(type), src_qq_(src_qq), usr_qq_(usr_qq), msgs_(std::forward<std::vector<std::string>>(msgs)), it_(msgs.begin()) {}
 
+
   std::string get_next()
   {
     return *(it_++);
@@ -84,6 +89,11 @@ public:
   bool is_public() const { return type_ == GROUP_MSG || type_ == DISCUSS_MSG; }
 
   virtual void Reply(const std::string& msg) const = 0;
+
+  void Reply(const std::string& msg, const std::string& bakmsg)
+  {
+    Reply(!msg.empty() ? msg : bakmsg);
+  }
 
 private:
   const std::vector<std::string> msgs_;
