@@ -50,6 +50,8 @@ public:
 
   ErrMsg new_match(const MatchType& type, const std::string& game_id, const QQ& host_qq, const QQ& lobby_qq);
 
+  ErrMsg StartGame(const QQ& host_qq);
+
   /* Assume usr_qq is valid. */
   ErrMsg AddPlayer(const MatchId& id, const QQ& usr_qq);
 

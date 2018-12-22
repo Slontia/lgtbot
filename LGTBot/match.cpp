@@ -80,6 +80,17 @@ ErrMsg MatchManager::new_match(const MatchType& type, const std::string& game_id
   return "";
 }
 
+ErrMsg MatchManager::StartGame(const QQ& host_qq)
+{
+  auto it = player_matches.find(host_qq);
+  if (it == player_matches.end()) return "您未加入游戏";
+
+  auto match = it->second;
+  if (match->get_host_qq() != host_qq) return "您不是房主，没有开始游戏的权限";
+  RETURN_IF_FAILED(match->GameStart());
+  return "";
+}
+
 // private
 MatchId MatchManager::get_match_id(const QQ& src_qq, std::unordered_map<QQ, std::shared_ptr<Match>> match_map)
 {
@@ -252,7 +263,7 @@ std::string Match::GameStart()
   }
   status_ = GAMING;
   game_->StartGame();
-  return "游戏开始！";
+  return "";
 }
 
 /* append new player to qq_list

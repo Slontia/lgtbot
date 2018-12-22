@@ -117,6 +117,26 @@ bool to_type(const std::string& str, T& res)
   return (bool)(std::stringstream(str) >> res);
 }
 
+void start_game(MessageIterator& msg)
+{
+  if (msg.has_next())
+  {
+    msg.Reply("多余的参数");
+    return;
+  }
+  msg.Reply(match_manager.StartGame(msg.usr_qq_), "开始游戏成功");
+}
+
+void leave(MessageIterator& msg)
+{
+  if (msg.has_next())
+  {
+    msg.Reply("多余的参数");
+    return;
+  }
+  msg.Reply(match_manager.DeletePlayer(msg.usr_qq_), "退出成功");
+}
+
 void join(MessageIterator& msg)
 {
   MatchId id;
@@ -126,6 +146,11 @@ void join(MessageIterator& msg)
     if (!to_type(msg.get_next(), id))
     {
       msg.Reply("比赛ID必须为整数！");
+      return;
+    }
+    if (msg.has_next())
+    {
+      msg.Reply("多余的参数");
       return;
     }
   }
@@ -178,15 +203,15 @@ void global_request(MessageIterator& msg)
   }
   else if (front_msg == "开始") // host only
   {
-
+    start_game(msg);
   }
   else if (front_msg == "加入") // 加入 [比赛编号]
   {
-
+    join(msg);
   }
   else if (front_msg == "退出")
   {
-
+    leave(msg);
   }
 }
 
