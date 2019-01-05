@@ -24,8 +24,8 @@
 #include <list>
 
 /* Mysql Connector */
-#include <mysql_connection.h>
-#include <mysql_driver.h>
+//#include <mysql_connection.h>
+//#include <mysql_driver.h>
 
 using std::string;
 using std::vector;
