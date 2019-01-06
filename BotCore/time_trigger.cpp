@@ -13,7 +13,8 @@ ThreadGuard::ThreadGuard(const uint32_t& itv_minu, TimeTrigger::HandleStack& han
 ThreadGuard::~ThreadGuard()
 {
   terminated_ = true;
-  if (thread_.joinable()) thread_.join();
+  if (thread_.joinable())
+    thread_.join();
 }
 
 void ThreadGuard::ThreadFunc(const uint32_t& itv_minu)
@@ -22,13 +23,12 @@ void ThreadGuard::ThreadFunc(const uint32_t& itv_minu)
 
   while (difftime(time(NULL), start_time) < itv_minu * 60 && !terminated_)
   {
-    std::this_thread::sleep_for(std::chrono::minutes(1));
+    std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  std::unique_lock<std::mutex> lock(mutex);
   while (true)
   {
-    if (lock.try_lock())
+    if (mutex.try_lock())
     {
       /* Time up. Keep call functions from stack until false returned or stack cleared. */
       while (!handle_stack_.empty() && handle_stack_.top()()) handle_stack_.pop();

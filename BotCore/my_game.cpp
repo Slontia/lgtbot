@@ -109,8 +109,8 @@ public:
 
   void Over()
   {
-    auto p1 = GET_PLAYER(0);
-    auto p2 = GET_PLAYER(1);
+    auto& p1 = GET_PLAYER(0);
+    auto& p2 = GET_PLAYER(1);
     switch (sel_comp(p1.sel_, p2.sel_))
     {
       case 1:
@@ -130,7 +130,7 @@ public:
   {
     assert(msg.has_next());
     auto sel = msg.get_next();
-    auto p = GET_PLAYER(pid);
+    auto& p = GET_PLAYER(pid);
     if (msg.type_ != PRIVATE_MSG)
     {
       Broadcast(pid, "请私信选择您的答案，公开的答案无效");

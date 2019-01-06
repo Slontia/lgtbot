@@ -262,6 +262,7 @@ std::string Match::GameStart()
   {
     pid2qq_.push_back(qq);
     qq2pid_.emplace(qq, pid2qq_.size() - 1);
+    game_->Join(game_container.MakePlayer(game_id_));
   }
   status_ = GAMING;
   game_->StartGame();

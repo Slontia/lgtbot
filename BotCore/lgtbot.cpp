@@ -140,6 +140,8 @@ void global_request(MessageIterator& msg)
 
 bool LGTBOT::Request(const MessageType& msg_type, const QQ& src_qq, const QQ& usr_qq, char* msg_c)
 {
+  std::lock_guard<std::mutex> lock(mutex);
+
   std::string msg(msg_c);
   if (msg.empty()) return false;
 
