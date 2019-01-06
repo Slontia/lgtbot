@@ -4,7 +4,7 @@
 #include "lgtbot.h"
 
 
-TimeTrigger timer;
+
 std::mutex mutex;
 
 ThreadGuard::ThreadGuard(const uint32_t& itv_minu, TimeTrigger::HandleStack& handle_stack) :

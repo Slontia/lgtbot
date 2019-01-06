@@ -239,9 +239,12 @@ bool Match::has_qq(const int64_t& qq) const
 
 void Match::Request(MessageIterator& msg)
 {
-  if (status_ != GAMING) msg.Reply("当前游戏未在进行");
+  if (status_ != GAMING)
+  {
+    msg.Reply("错误：当前游戏未处于进行状态");
+    return;
+  }
   assert(has_qq(msg.usr_qq_));
-  
   game_->Request(qq2pid_[msg.usr_qq_], msg);
 }
 

@@ -7,7 +7,7 @@
 
 GameStage::GameStage(Game& game, const std::string& name) : game_(game), name_(name), status_(NOT_STARTED)
 {
-  timer.push_handle_to_stack([this]() -> bool
+  game_.timer_.push_handle_to_stack([this]() -> bool
   {
     end_up();
     return true;
@@ -72,7 +72,7 @@ GamePlayer& GameStage::get_player(const uint32_t& pid)
 CompStage::CompStage(Game& game, const std::string& name) :
   GameStage(game, name), subid_(), substage_(nullptr)
 {
-  timer.push_handle_to_stack(std::bind(&CompStage::TimerCallback, this));
+  game_.timer_.push_handle_to_stack(std::bind(&CompStage::TimerCallback, this));
 }
 
 CompStage::~CompStage()

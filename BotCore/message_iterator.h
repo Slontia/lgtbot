@@ -28,10 +28,15 @@ public:
 
   virtual void Reply(const std::string& msg) const = 0;
 
+  void ReplyError(const std::string& msg)
+  {
+    Reply("´íÎó£º" + msg);
+  }
+
   void Reply(const std::string& msg, const std::string& bakmsg)
   {
     if (!msg.empty())
-      Reply(msg);
+      ReplyError(msg);
     else if (!bakmsg.empty())
       Reply(bakmsg);
   }
@@ -57,7 +62,7 @@ class GroupMessageIterator : public MessageIterator
 {
 public:
   GroupMessageIterator(const QQ& usr_qq, std::vector<std::string>&& msgs, const QQ& group_qq) :
-    MessageIterator(PRIVATE_MSG, group_qq, usr_qq, std::forward<std::vector<std::string>>(msgs)) {}
+    MessageIterator(GROUP_MSG, group_qq, usr_qq, std::forward<std::vector<std::string>>(msgs)) {}
 
   void Reply(const std::string& msg) const
   {
@@ -69,7 +74,7 @@ class DiscussMessageIterator : public MessageIterator
 {
 public:
   DiscussMessageIterator(const QQ& usr_qq, std::vector<std::string>&& msgs, const QQ& discuss_qq) :
-    MessageIterator(PRIVATE_MSG, discuss_qq, usr_qq, std::forward<std::vector<std::string>>(msgs)) {}
+    MessageIterator(DISCUSS_MSG, discuss_qq, usr_qq, std::forward<std::vector<std::string>>(msgs)) {}
 
   void Reply(const std::string& msg) const
   {

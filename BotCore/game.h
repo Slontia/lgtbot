@@ -14,8 +14,6 @@ class GameStage;
 class StageContainer;
 class Game;
 
-extern TimeTrigger timer;
-
 typedef std::unique_ptr<GameStage> StagePtr;
 typedef std::function<StagePtr(const std::string&, GameStage&)> StageCreator;
 typedef std::map<StageId, StageCreator> StageCreatorMap;
@@ -56,6 +54,7 @@ public:
   const uint32_t                           kMaxPlayer = 0;	// set 0 if no upper limit
   StageContainer                      stage_container_;
   StagePtr  main_stage_;
+  TimeTrigger timer_;
 
   Game(
     Match& match,

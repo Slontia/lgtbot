@@ -85,12 +85,12 @@ public:
   virtual void start_up()
   {
     GameStage::start_up();
-    if (TimeSec > 0) timer.Time(TimeSec);
+    if (TimeSec > 0) game_.timer_.Time(TimeSec);
   }
 
   virtual void end_up()
   {
-    timer.Terminate();
+    game_.timer_.Terminate();
     GameStage::end_up();
   }
 };

@@ -58,8 +58,8 @@ int32_t Game::Join(std::shared_ptr<GamePlayer> player)
 /* create main_state_ */
 void Game::StartGame()
 {
-  timer.clear_stack();
-  timer.push_handle_to_stack(std::bind(&Game::RecordResult, this));
+  timer_.clear_stack();
+  timer_.push_handle_to_stack(std::bind(&Game::RecordResult, this));
   main_stage_->start_up();
 }
 

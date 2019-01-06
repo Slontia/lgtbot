@@ -21,8 +21,6 @@ public:
   void push_handle_to_stack(std::function<bool()> handle);
   void clear_stack();
 };
-
-extern TimeTrigger timer;
  
 class ThreadGuard
 {
