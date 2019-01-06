@@ -286,7 +286,7 @@ std::string Match::Join(const int64_t& qq)
     return "加入游戏失败：比赛人数已达到游戏上线";
   }
   ready_qq_set_.insert(qq); // add to queue
-  broadcast("玩家 " + std::to_string(qq) + " 加入了游戏");
+  broadcast("玩家 " + LGTBOT::at_str(qq) + " 加入了游戏");
   return "";
 }
 
@@ -297,9 +297,9 @@ std::string Match::Leave(const int64_t& qq)
   assert(has_qq(qq));
   if (status_ != PREPARE)
   {
-    return "退出失败！游戏已经开始了，你跑不了了";
+    return "退出失败！游戏已经开始了，你逃不掉了，JOJO！";
   }
-  broadcast("玩家 " + std::to_string(qq) + " 退出了游戏");
+  broadcast("玩家 " + LGTBOT::at_str(qq) + " 退出了游戏");
   ready_qq_set_.erase(qq);  // remove from queue
   return "";
 }

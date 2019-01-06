@@ -104,7 +104,7 @@ void leave(MessageIterator& msg)
     msg.ReplyError("退出游戏失败！多余的参数");
     return;
   }
-  msg.Reply(match_manager.DeletePlayer(msg.usr_qq_), "退出游戏成功！");
+  msg.Reply(match_manager.DeletePlayer(msg.usr_qq_), "");
 }
 
 void join(MessageIterator& msg)
@@ -142,5 +142,5 @@ void join(MessageIterator& msg)
         assert(false);
     }
   }
-  msg.Reply(match_manager.AddPlayer(id, msg.usr_qq_), "加入成功！");
+  msg.Reply(match_manager.AddPlayer(id, msg.usr_qq_), "");
 }

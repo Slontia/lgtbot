@@ -137,9 +137,9 @@ public:
 
   void broadcast(const std::string& msg) const
   {
-    for (auto player : qq2pid_)
+    for (auto qq : ready_qq_set_)
     {
-      LGTBOT::send_private_msg(player.first, msg);
+      LGTBOT::send_private_msg(qq, msg);
     }
   }
 
