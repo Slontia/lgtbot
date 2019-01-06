@@ -17,19 +17,18 @@ class Game;
 extern TimeTrigger timer;
 
 typedef std::unique_ptr<GameStage> StagePtr;
-typedef std::function<StagePtr(GameStage&)> StageCreator;
+typedef std::function<StagePtr(const std::string&, GameStage&)> StageCreator;
 typedef std::map<StageId, StageCreator> StageCreatorMap;
 
 class StageContainer
 {
 private:
   Game& game_;
-  GameStage& main_stage_;
   const std::map<StageId, StageCreator>   stage_creators_;
 public:
   /* Constructor
   */
-  StageContainer(Game& game, GameStage& main_stage, StageCreatorMap&& stage_creators);
+  StageContainer(Game& game, StageCreatorMap&& stage_creators);
 
   /* Returns game Stage pointer with id
   * if the id is main Stage id, returns the main game Stage pointer
@@ -39,10 +38,10 @@ public:
   template <class Stage>
   StageCreator get_creator()
   {
-    return [this](GameStage& father_stage) -> StagePtr
+    return [this](const std::string& name, GameStage& father_stage) -> StagePtr
     {
       /* Cast GameStage& to FatherStage&. */
-      return std::make_unique<Stage>(game_, main_stage_, father_stage);
+      return std::make_unique<Stage>(game_, name, father_stage);
     };
   }
 };

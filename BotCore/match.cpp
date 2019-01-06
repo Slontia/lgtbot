@@ -7,8 +7,6 @@
 #include "game.h"
 #include "match.h"
 
-GameContainer              game_container_;
-
 
 MatchManager::MatchManager() : next_match_id(1) {}
 
@@ -229,8 +227,10 @@ bool MatchManager::PublicRequest(MessageIterator& msg, const std::unordered_map<
 
 
 Match::Match(const MatchId& id, const std::string& game_id, const int64_t& host_qq, const MatchType& type) :
-  id_(id), type_(type), game_id_(game_id), host_qq_(host_qq), status_(PREPARE), game_(game_container_.MakeGame(game_id_, *this))
-{}
+  id_(id), type_(type), game_id_(game_id), host_qq_(host_qq), status_(PREPARE), game_(game_container.MakeGame(game_id_, *this))
+{
+
+}
 
 bool Match::has_qq(const int64_t& qq) const
 {

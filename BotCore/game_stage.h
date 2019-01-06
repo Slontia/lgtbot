@@ -25,15 +25,17 @@ typedef std::string StageId;
 
 class GameStage
 {
-private:
+protected:
   Game& game_;
+
+private:
   enum { NOT_STARTED, IN_PROGRESS, OVER } status_;
 
 public:
   const std::string                       name_ = "default";
 
   /* Constructor. */
-  GameStage(Game& game, GameStage& main_stage);
+  GameStage(Game& game, const std::string&);
 
   /* Destructor. */
   virtual ~GameStage();
@@ -50,7 +52,6 @@ public:
   virtual bool                            Request(const uint32_t& pid, MessageIterator& msg) = 0;
 
 protected:
-  GameStage& main_stage_;
   /* Triggered when Stage beginning. */
   virtual void                            Start() = 0;
 
@@ -74,7 +75,7 @@ template <int TimeSec>
 class TimerStage : public GameStage
 {
 public:
-  TimerStage(Game& game, GameStage& main_stage) : GameStage(game, main_stage) {}
+  TimerStage(Game& game, const std::string& name) : GameStage(game, name) {}
 
   virtual ~TimerStage()
   {
@@ -101,7 +102,7 @@ private:
   std::unique_ptr<GameStage>              substage_;
 
 public:
-  CompStage(Game& game, GameStage& main_stage);
+  CompStage(Game& game, const std::string& name);
 
   virtual bool                            TimerCallback() = 0;
 

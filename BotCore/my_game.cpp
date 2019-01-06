@@ -4,9 +4,9 @@
 class MyGame;
 class MyPlayer;
 
-const std::string kGameName = "²ÂÈ­ÓÎÏ·";
-const int kMinPlayer = 1;
-const int kMaxPlayer = 2;
+#define kGameName "²ÂÈ­ÓÎÏ·"
+#define kMinPlayer 1
+#define kMaxPlayer 2
 
 typedef enum
 {
@@ -52,7 +52,7 @@ public:
 DEFINE_END
 
 /* Define main stage here. */
-DEFINE_STAGE(MAIN, CompStage)
+DEFINE_MAIN_STAGE(CompStage)
 public:
   const int winRound = 3;
   int cur_round = 0;
@@ -66,7 +66,7 @@ public:
 
   bool Request(const uint32_t& pid, MessageIterator& msg)
   {
-    if (PassRequest(pid, msg)) return start_next_round();
+    return PassRequest(pid, msg) ? start_next_round() : false;
   }
 
   bool TimerCallback()
@@ -95,7 +95,6 @@ public:
     return true;  // finish
   }
 DEFINE_END
-
 
 DEFINE_SUBSTAGE(ROUND, TimerStage<5>, MAIN)
 public:

@@ -5,7 +5,7 @@
 #include "time_trigger.h"
 #include "match.h"
 
-GameStage::GameStage(Game& game, GameStage& main_stage) : game_(game), main_stage_(main_stage)
+GameStage::GameStage(Game& game, const std::string& name) : game_(game), name_(name), status_(NOT_STARTED)
 {
   timer.push_handle_to_stack([this]() -> bool
   {
@@ -69,8 +69,8 @@ GamePlayer& GameStage::get_player(const uint32_t& pid)
   return *game_.players_[pid];
 }
 
-CompStage::CompStage(Game& game, GameStage& main_stage) :
-  GameStage(game, main_stage), subid_(), substage_(nullptr)
+CompStage::CompStage(Game& game, const std::string& name) :
+  GameStage(game, name), subid_(), substage_(nullptr)
 {
   timer.push_handle_to_stack(std::bind(&CompStage::TimerCallback, this));
 }
@@ -89,7 +89,7 @@ bool CompStage::SwitchSubstage(const StageId& id)
   {
     throw "Switch failed: substage must be over.";
   }
-  if (!(substage_ = MakeSubstage(subid_, *this))) // set new substage
+  if (!(substage_ = MakeSubstage(id, *this))) // set new substage
   {
     subid_ = -1;
     throw "Switch failed: no such substage.";

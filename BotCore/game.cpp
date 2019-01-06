@@ -5,8 +5,8 @@
 
 /* Constructor
 */
-StageContainer::StageContainer(Game& game, GameStage& main_stage, StageCreatorMap&& stage_creators) :
-  game_(game), main_stage_(main_stage), stage_creators_(std::forward<StageCreatorMap>(stage_creators)) {}
+StageContainer::StageContainer(Game& game, StageCreatorMap&& stage_creators) :
+  game_(game), stage_creators_(std::forward<StageCreatorMap>(stage_creators)) {}
 
 /* Returns game Stage pointer with id
 * if the id is main Stage id, returns the main game Stage pointer
@@ -19,7 +19,7 @@ StagePtr StageContainer::Make(const StageId& id, GameStage& father_stage) const
     /* Not found stage id. */
     throw "Stage id " + id + " has not been bound.";
   }
-  return it->second(father_stage);
+  return it->second(id, father_stage);
 }
 
 Game::Game(
@@ -30,7 +30,7 @@ Game::Game(
   StagePtr&& main_stage,
   StageCreatorMap&& stage_creators) :
   match_(match), kGameId(game_id), kMinPlayer(min_player), kMaxPlayer(max_player),
-  stage_container_(*this, *main_stage_, std::forward<StageCreatorMap>(stage_creators)),
+  stage_container_(*this, std::forward<StageCreatorMap>(stage_creators)),
   main_stage_(std::forward<StagePtr>(main_stage))
 {}
 

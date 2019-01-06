@@ -132,6 +132,10 @@ void global_request(MessageIterator& msg)
   {
     leave(msg);
   }
+  else
+  {
+    msg.Reply("ÄãËµÄãÂíÄØ");
+  }
 }
 
 bool LGTBOT::Request(const MessageType& msg_type, const QQ& src_qq, const QQ& usr_qq, char* msg_c)
@@ -154,7 +158,7 @@ bool LGTBOT::Request(const MessageType& msg_type, const QQ& src_qq, const QQ& us
   {
     /* Read next word. */
     pos = msg.find(" ", last_pos);
-    if (last_pos != pos) substrs.push_back(msg.substr(last_pos, pos));
+    if (last_pos != pos) substrs.push_back(msg.substr(last_pos, pos - last_pos));
 
     /* If finish reading, break. */
     if (pos == std::string::npos) break;

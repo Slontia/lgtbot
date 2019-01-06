@@ -30,7 +30,10 @@ public:
 
   void Reply(const std::string& msg, const std::string& bakmsg)
   {
-    Reply(!msg.empty() ? msg : bakmsg);
+    if (!msg.empty())
+      Reply(msg);
+    else if (!bakmsg.empty())
+      Reply(bakmsg);
   }
 
 private:
