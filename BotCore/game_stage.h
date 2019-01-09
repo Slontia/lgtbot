@@ -41,11 +41,8 @@ public:
   virtual ~GameStage();
 
   virtual void start_up();
-
   virtual void end_up();
-
   bool is_in_progress() const;
-
   bool is_over() const;
 
   /* Triggered when player send messages. */
@@ -75,7 +72,10 @@ template <int TimeSec>
 class TimerStage : public GameStage
 {
 public:
-  TimerStage(Game& game, const std::string& name) : GameStage(game, name) {}
+  TimerStage(Game& game, const std::string& name) : GameStage(game, name)
+  {
+
+  }
 
   virtual ~TimerStage()
   {
@@ -84,6 +84,11 @@ public:
 
   virtual void start_up()
   {
+    game_.timer_.push_handle_to_stack([this]() -> bool
+    {
+      end_up();
+      return true;
+    });
     GameStage::start_up();
     if (TimeSec > 0) game_.timer_.Time(TimeSec);
   }
@@ -92,6 +97,7 @@ public:
   {
     game_.timer_.Terminate();
     GameStage::end_up();
+    game_.timer_.pop();
   }
 };
 
@@ -105,6 +111,8 @@ public:
   CompStage(Game& game, const std::string& name);
 
   virtual bool                            TimerCallback() = 0;
+  virtual void start_up();
+  virtual void end_up();
 
   virtual ~CompStage();
 

@@ -140,8 +140,6 @@ void global_request(MessageIterator& msg)
 
 bool LGTBOT::Request(const MessageType& msg_type, const QQ& src_qq, const QQ& usr_qq, char* msg_c)
 {
-  std::lock_guard<std::mutex> lock(mutex);
-
   std::string msg(msg_c);
   if (msg.empty()) return false;
 
@@ -176,10 +174,16 @@ bool LGTBOT::Request(const MessageType& msg_type, const QQ& src_qq, const QQ& us
                                 nullptr;
   assert(msgit_p != nullptr);
   MessageIterator& msgit = *msgit_p;
+
+  mutex.lock();
+
   /* Distribute msg to global handle or match handle. */
   if (is_global)
     global_request(msgit);
   else
     match_manager.Request(msgit);
+
+  mutex.unlock();
+
   return true;
 }

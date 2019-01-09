@@ -76,6 +76,7 @@ void Game::Request(const uint32_t& pid, MessageIterator& msg)
 {
   if (main_stage_->Request(pid, msg)) // game over
   {
+    main_stage_->end_up();
     RecordResult();
   }
 }

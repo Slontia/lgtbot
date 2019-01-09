@@ -5,37 +5,26 @@
 #include <stack>
 #include <thread>
 
-class ThreadGuard;
-
 class TimeTrigger
 {
 public:
   typedef std::stack<std::function<bool()>> HandleStack;
 private:
+  time_t start_time_;
   HandleStack handle_stack_;
-  std::shared_ptr<ThreadGuard> thread_guard_;
+  bool terminated_;
+  std::unique_ptr<std::thread> thread_;
+  uint32_t  itv_sec_;
 public:
   TimeTrigger();
+  ~TimeTrigger();
   void Time(const uint32_t& interval);
   void Terminate();
+  void ThreadFunc();
   void push_handle_to_stack(std::function<bool()> handle);
   void clear_stack();
+  void pop();
 };
  
-class ThreadGuard
-{
-public:
-  ThreadGuard(const uint32_t& itv_minu, TimeTrigger::HandleStack& handle_stack);
-  ~ThreadGuard();
-  ThreadGuard(const ThreadGuard &) = delete;
-  ThreadGuard& operator=(const ThreadGuard &) = delete;
-  void ThreadFunc(const uint32_t& itv_minu);
-  void terminate();
-
-private:
-  bool terminated_;
-  TimeTrigger::HandleStack& handle_stack_;
-  std::thread thread_;
-};
 
 

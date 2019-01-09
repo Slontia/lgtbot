@@ -7,14 +7,11 @@
 
 GameStage::GameStage(Game& game, const std::string& name) : game_(game), name_(name), status_(NOT_STARTED)
 {
-  game_.timer_.push_handle_to_stack([this]() -> bool
-  {
-    end_up();
-    return true;
-  });
 }
 
-GameStage::~GameStage() {}
+GameStage::~GameStage()
+{
+}
 
 
 /* Send msg to all player. */
@@ -72,7 +69,6 @@ GamePlayer& GameStage::get_player(const uint32_t& pid)
 CompStage::CompStage(Game& game, const std::string& name) :
   GameStage(game, name), subid_(), substage_(nullptr)
 {
-  game_.timer_.push_handle_to_stack(std::bind(&CompStage::TimerCallback, this));
 }
 
 CompStage::~CompStage()
@@ -114,4 +110,21 @@ bool CompStage::PassRequest(const int32_t& pid, MessageIterator& msg)
     return true;
   }
   return false;
+}
+
+void CompStage::start_up()
+{
+  game_.timer_.push_handle_to_stack([this]() -> bool
+  {
+    bool over = TimerCallback();
+    if (over) end_up();
+    return over;
+  });
+  GameStage::start_up();
+}
+
+void CompStage::end_up()
+{
+  GameStage::end_up();
+  game_.timer_.pop();
 }

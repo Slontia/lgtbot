@@ -107,19 +107,37 @@ public:
     Broadcast("第" + std::to_string(get_main().cur_round) + "回合开始！");
   }
 
+  std::string sel_to_string(SELECTION sel)
+  {
+    switch (sel)
+    {
+      case ROCK_SEL: return "石头";
+      case PAPER_SEL: return "布";
+      case SCISSORS_SEL: return "剪刀";
+      case NONE_SEL: return "未选择";
+      default:
+        assert(false);
+        return "";
+    }
+  }
+
   void Over()
   {
     auto& p1 = GET_PLAYER(0);
     auto& p2 = GET_PLAYER(1);
+    std::string res = "回合结束！\n0号玩家选择：" + sel_to_string(p1.sel_) + "\n1号玩家选择：" + sel_to_string(p2.sel_) + "\n";
     switch (sel_comp(p1.sel_, p2.sel_))
     {
       case 1:
-        ++p1.cur_win_;
+        ++(p1.cur_win_);
+        Broadcast(res + "0号玩家获胜！");
         break;
       case -1:
-        ++p2.cur_win_;
+        ++(p2.cur_win_);
+        Broadcast(res + "1号玩家获胜！");
         break;
       case 0:
+        Broadcast(res + "平局！");
         break;
       default:
         assert(false);
