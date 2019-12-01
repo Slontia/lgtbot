@@ -7,7 +7,7 @@
 #include <string>
 
 #include "log.h"
-#include "time_trigger.h"
+#include "timer.h"
 
 /* Two ways to end up a game Stage:
  * 1. Time up
@@ -17,7 +17,6 @@
 // game data stored here
 
 class Game;
-class GameStage;
 class GamePlayer;
 class MessageIterator;
 

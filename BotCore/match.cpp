@@ -38,7 +38,7 @@ std::shared_ptr<Match> MatchManager::new_discuss_match(const MatchId& id, const 
 
   /* Create new match. */
   auto match = std::make_shared<DiscussMatch>(id, game_id, host_qq, discuss_qq);
-
+  
   discuss_matches.emplace(discuss_qq, match);
   return std::dynamic_pointer_cast<Match>(match);
 }

@@ -21,13 +21,7 @@
     <ClInclude Include="targetver.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="time_trigger.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="player.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="my_game.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="message_handlers.h">
@@ -40,15 +34,6 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="lgtbot.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="game_stage.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="game_container.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="game.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="log.h">
@@ -78,18 +63,6 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="message_handlers.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="game.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="my_game.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="game_stage.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="game_container.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
