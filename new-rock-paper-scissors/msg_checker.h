@@ -3,6 +3,8 @@
 #include <vector>
 #include <tuple>
 #include <memory>
+#include <iostream>
+//#include <type_traits>
 
 static const std::string k_empty_str_ = "";
 
@@ -35,7 +37,7 @@ public:
     return iter_ == args_.end() ? k_empty_str_ : *(iter_++);
   }
 
-  void Reset() { iter_ = args_.end(); }
+  void Reset() { iter_ = args_.begin(); }
 
 private:
   std::vector<std::string> args_;
@@ -46,7 +48,7 @@ template <typename T>
 class MsgArgChecker
 {
 public:
-  typedef T type;
+  typedef T arg_type;
   MsgArgChecker() {}
   virtual ~MsgArgChecker() {}
   virtual std::string FormatInfo() const = 0;
@@ -58,7 +60,7 @@ template <>
 class MsgArgChecker<void> final
 {
 public:
-  typedef void type;
+  typedef void arg_type;
   /* const_arg cannot contain spaces or be empty */
   MsgArgChecker(std::string&& const_arg) : const_arg_(const_arg) {}
   ~MsgArgChecker() {}
@@ -89,30 +91,33 @@ private:
   {
     if constexpr (N == std::tuple_size<CheckerTuple>::value)
     {
-      if (!msg_reader.HasNext()) { return false; }
+      if (msg_reader.HasNext()) { return false; }
       callback_(args...);
       return true;
     }
     else
     {
-      auto& checker = std::get<N>(checkers_);
-      using checker_type = decltype(*checker)::type;
+      auto& checker = *std::get<N>(checkers_);
+      typedef typename std::decay<decltype(checker)>::type::arg_type checker_type;
       if constexpr (std::is_void<checker_type>::value)
       {
-        return checker->Check(msg_reader) ? FilterValues<N + 1, Args...>(msg_reader, args...)
-                                          : false;
+        return checker.Check(msg_reader) ? CallIfValid<N + 1, Args...>(msg_reader, args...)
+          : false;
       }
       else
       {
-        auto[is_valid, value] = checker->Check(msg_reader);
-        return is_valid ? FilterValues<N + 1, Args..., checker_type>(msg_reader, args..., value) >
-                        : false;
+        auto[is_valid, value] = checker.Check(msg_reader);
+        return is_valid ? CallIfValid<N + 1, Args..., checker_type>(msg_reader, args..., value)
+          : false;
       }
     }
   }
 
+  template <typename Checker>
+  std::string GetFormatInfo(const Checker& checker) const { return checker.FormatInfo(); }
+
 public:
-  MsgCommandImpl(Callback&& callback, std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers) : callback_(callback), checkers_ (checkers...) {}
+  MsgCommandImpl(Callback&& callback, std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers) : callback_(callback), checkers_ (std::forward<std::unique_ptr<MsgArgChecker<CheckTypes>>&&>(checkers)...) {}
 
   virtual bool CallIfValid(MsgReader& msg_reader) const override
   {
@@ -122,9 +127,10 @@ public:
 
   virtual std::string Info() const override
   {
-    const auto show_format = [](const auto&... checkers) -> std::string { return (checker.FormatInfo() + ...); };
-    const auto show_example = [](const auto&... checkers) -> std::string { return (checker.ExampleInfo() + ...); };
-    return "格式提示：" + std::apply(show_format, checkers_) + "\n举例：" + std::apply(show_example, checkers_);
+    //const auto cat_str = [](std::string&& strs, ...) -> std::string { return strs + ..; };
+    //const auto f = [this](const auto&... checkers) -> std::string { (GetFormatInfo(*checkers), ...); return ""; };
+    //return "格式提示：" + std::apply(f, checkers_) + "\n举例：";
+    return "";
   }
 
 private:

@@ -8,8 +8,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace GameTest
 {
-  template <>
-  class MsgArgChecker<int>
+  class IntChecker : public MsgArgChecker<int>
   {
   public:
     virtual std::string FormatInfo() const { return "<ÕûÊý>"; }
@@ -17,6 +16,8 @@ namespace GameTest
     virtual std::pair<bool, int> Check(MsgReader& reader) const
     {
       if (!reader.HasNext()) { return {false, 0}; }
+      //std::string s = reader.NextArg();
+      //Logger::WriteMessage(s.c_str());
       try { return {true, std::stoi(reader.NextArg())}; }
       catch (...) { return {false, 0}; } 
     };
@@ -28,10 +29,25 @@ namespace GameTest
 		
     TEST_METHOD(TestMethod1)
     {
-      const auto f = [](const int value) { std::cout << "get " << value << std::endl; };
-      MsgReader reader("asdf, asdf");
-      MsgCommand* command = new MsgCommandImpl<decltype(f), int>(std::move(f), std::make_unique<MsgArgChecker<int>>());
-      command->CallIfValid(reader);
+      const auto f = [](const int a, const int b)
+      {
+        std::stringstream ss;
+        ss << a << " " << b;
+        Logger::WriteMessage(ss.str().c_str());
+      };
+      MsgCommand* command = new MsgCommandImpl<decltype(f), IntChecker::arg_type, int, void>(std::move(f),
+          std::unique_ptr<MsgArgChecker<int>>(new IntChecker()),
+          std::unique_ptr<MsgArgChecker<int>>(new IntChecker()),
+          std::unique_ptr<MsgArgChecker<void>>(new MsgArgChecker<void>("c")));
+      const auto test = [&](std::string s)
+      {
+        MsgReader reader(s);
+        command->CallIfValid(reader);
+      };
+      test("1 2 c"); 
+      //MsgReader reader("aa bb cc");
+      //reader.Reset();
+      //Logger::WriteMessage(reader.NextArg().c_str());
     }
 	};
 }
