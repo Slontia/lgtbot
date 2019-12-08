@@ -78,6 +78,12 @@ public:
   virtual ~MsgCommand() {}
   virtual bool CallIfValid(MsgReader& msg_reader) const = 0;
   virtual std::string Info() const = 0;
+
+  template <typename Callback, typename ...Checkers>
+  static std::shared_ptr<MsgCommand> Make(const Callback& f, std::unique_ptr<Checkers>&&... checkers)
+  {
+    return std::make_shared<MsgCommandImpl<decltype(f), typename Checkers::arg_type...>>(std::move(f), std::move(checkers)...);
+  };
 };
 
 template <typename Callback, typename ...CheckTypes>

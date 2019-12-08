@@ -16,8 +16,6 @@ namespace GameTest
     virtual std::pair<bool, int> Check(MsgReader& reader) const
     {
       if (!reader.HasNext()) { return {false, 0}; }
-      //std::string s = reader.NextArg();
-      //Logger::WriteMessage(s.c_str());
       try { return {true, std::stoi(reader.NextArg())}; }
       catch (...) { return {false, 0}; } 
     };
@@ -29,25 +27,21 @@ namespace GameTest
 		
     TEST_METHOD(TestMethod1)
     {
-      const auto f = [](const int a, const int b)
-      {
-        std::stringstream ss;
-        ss << a << " " << b;
-        Logger::WriteMessage(ss.str().c_str());
-      };
-      MsgCommand* command = new MsgCommandImpl<decltype(f), IntChecker::arg_type, int, void>(std::move(f),
-          std::unique_ptr<MsgArgChecker<int>>(new IntChecker()),
-          std::unique_ptr<MsgArgChecker<int>>(new IntChecker()),
-          std::unique_ptr<MsgArgChecker<void>>(new MsgArgChecker<void>("c")));
+      const auto f = [](const auto...) {};
+      std::shared_ptr<MsgCommand> command =
+        MsgCommand::Make(std::move(f),
+                         //std::make_unique<IntChecker>(),
+                         //std::make_unique<IntChecker>(),
+                         std::make_unique<MsgArgChecker<void>>("a"));
       const auto test = [&](std::string s)
       {
         MsgReader reader(s);
-        command->CallIfValid(reader);
+        Logger::WriteMessage(std::to_string(command->CallIfValid(reader)).c_str());
       };
-      test("1 2 c"); 
-      //MsgReader reader("aa bb cc");
-      //reader.Reset();
-      //Logger::WriteMessage(reader.NextArg().c_str());
+      test("1 2 c");
+      test("1 2");
+      test("1");
+      test("a");
     }
 	};
 }
