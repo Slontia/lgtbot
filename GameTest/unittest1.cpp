@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "CppUnitTest.h"
-#include "../new-rock-paper-scissors/msg_checker.h"
+#include "../new-rock-paper-scissors/game_stage.h"
 #include <memory>
 #include <iostream>
 
@@ -21,6 +21,22 @@ namespace GameTest
     };
   };
 
+  class StringChecker : public MsgArgChecker<std::vector<std::string>>
+  {
+  public:
+    virtual std::string FormatInfo() const { return "<字符串...>"; }
+    virtual std::string ExampleInfo() const { return "森高 是个 大帅哥"; }
+    virtual std::pair<bool, std::vector<std::string>> Check(MsgReader& reader) const
+    {
+      std::vector<std::string> ret;
+      while (reader.HasNext())
+      {
+        ret.push_back(reader.NextArg());
+      }
+      return {!ret.empty(), ret};
+    };
+  };
+
 	TEST_CLASS(UnitTest1)
 	{
 	public:
@@ -32,7 +48,8 @@ namespace GameTest
         MsgCommand::Make(std::move(f),
                          //std::make_unique<IntChecker>(),
                          //std::make_unique<IntChecker>(),
-                         std::make_unique<MsgArgChecker<void>>("a"));
+                         //std::make_unique<MsgArgChecker<void>>("a"),
+                         std::make_unique<StringChecker>());
       const auto test = [&](std::string s)
       {
         MsgReader reader(s);
