@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "CppUnitTest.h"
-#include "../new-rock-paper-scissors/game_stage.h"
+#include "../new-rock-paper-scissors/msg_checker.h"
 #include <memory>
 #include <iostream>
 
@@ -43,9 +43,9 @@ namespace GameTest
 		
     TEST_METHOD(TestMethod1)
     {
-      const auto f = [](const auto...) {};
-      std::shared_ptr<MsgCommand> command =
-        MsgCommand::Make(std::move(f),
+      const auto f = [](const std::vector<std::string>) {};
+      std::function f1 {f};
+      std::shared_ptr<MsgCommand<void>> command = Make(std::function {f},
                          //std::make_unique<IntChecker>(),
                          //std::make_unique<IntChecker>(),
                          //std::make_unique<MsgArgChecker<void>>("a"),
