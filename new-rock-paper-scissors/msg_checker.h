@@ -157,8 +157,8 @@ private:
 template <typename Callback>
 using to_func = decltype(std::function{ Callback() });
 
-template <typename Callback, typename ...CheckTypes>
-static auto Make(const Callback& f, std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers)
+template <typename Callback, typename ...Checkers>
+static auto Make(const Callback& f, std::unique_ptr<Checkers>&&... checkers)
 {
-  return std::make_shared < MsgCommandImpl<decltype(std::function{ f }),CheckTypes... >> (std::function{ f }, std::move(checkers)...);
+  return std::make_shared < MsgCommandImpl<decltype(std::function{ f }), typename Checkers::arg_type... >> (std::function{ f }, std::move(checkers)...);
 };

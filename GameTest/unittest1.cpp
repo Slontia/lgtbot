@@ -50,7 +50,7 @@ namespace GameTest
 				//std::make_unique<IntChecker>(),
 								   //std::make_unique<IntChecker>(),
 								   //std::make_unique<MsgArgChecker<void>>("a"),
-				std::unique_ptr<MsgArgChecker<int>>(std::make_unique<IntChecker>()));
+				std::make_unique<IntChecker>());
 			const auto test = [&](std::string s)
 			{
 				MsgReader reader(s);
