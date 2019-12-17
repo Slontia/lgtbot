@@ -81,12 +81,12 @@ public:
   virtual std::string Info() const = 0;
 };
 
-template <typename FuncType, typename ...CheckTypes> //TODO: infer result_type from callback
-class MsgCommandImpl final : public MsgCommand<typename std::function<FuncType>::result_type>
+template <typename Callback, typename ...CheckTypes> //TODO: infer result_type from callback
+class MsgCommandImpl final : public MsgCommand<typename Callback::result_type>
 {
 private:
   using CheckerTuple = std::tuple<std::unique_ptr<MsgArgChecker<CheckTypes>>...>;
-  using ResultType = typename std::function<FuncType>::result_type;
+  using ResultType = typename Callback::result_type;
   using CommandResultType = typename std::conditional<std::is_void<ResultType>::value, bool, std::pair<bool, ResultType>>::type;
   
   static CommandResultType NotMatch()
@@ -133,7 +133,7 @@ private:
   std::string GetFormatInfo(const Checker& checker) const { return checker.FormatInfo(); }
 
 public:
-  MsgCommandImpl(std::function<FuncType>&& callback, std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers) : callback_(callback), checkers_ (std::forward<std::unique_ptr<MsgArgChecker<CheckTypes>>&&>(checkers)...) {}
+  MsgCommandImpl(Callback&& callback, std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers) : callback_(callback), checkers_ (std::forward<std::unique_ptr<MsgArgChecker<CheckTypes>>&&>(checkers)...) {}
 
   virtual CommandResultType CallIfValid(MsgReader& msg_reader) const override
   {
@@ -150,12 +150,15 @@ public:
   }
 
 private:
-  const std::function<FuncType> callback_;
+  const Callback callback_;
   const CheckerTuple checkers_;
 };
 
-template <typename FuncType, typename ...Checkers>
-static std::shared_ptr<MsgCommand<typename std::function<FuncType>::result_type>> Make(std::function<FuncType> f, std::unique_ptr<Checkers>&&... checkers)
+template <typename Callback>
+using to_func = decltype(std::function{ Callback() });
+
+template <typename Callback, typename ...CheckTypes>
+static auto Make(const Callback& f, std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers)
 {
-  return std::make_shared<MsgCommandImpl<FuncType, typename Checkers::arg_type...>>(std::move(f), std::move(checkers)...);
+  return std::make_shared < MsgCommandImpl<decltype(std::function{ f }),CheckTypes... >> (std::function{ f }, std::move(checkers)...);
 };

@@ -41,24 +41,26 @@ namespace GameTest
 	{
 	public:
 		
-    TEST_METHOD(TestMethod1)
-    {
-      const auto f = [](const std::vector<std::string>) {};
-      std::function f1 {f};
-      std::shared_ptr<MsgCommand<void>> command = Make(std::function {f},
-                         //std::make_unique<IntChecker>(),
-                         //std::make_unique<IntChecker>(),
-                         //std::make_unique<MsgArgChecker<void>>("a"),
-                         std::make_unique<StringChecker>());
-      const auto test = [&](std::string s)
-      {
-        MsgReader reader(s);
-        Logger::WriteMessage(std::to_string(command->CallIfValid(reader)).c_str());
-      };
-      test("1 2 c");
-      test("1 2");
-      test("1");
-      test("a");
-    }
+		TEST_METHOD(TestMethod1)
+		{
+			auto f = [](const int) -> std::string { return "aaa"; };
+			std::function f1{ f };
+			std::shared_ptr<MsgCommand<std::string>> command = Make(f,
+				//std::shared_ptr<MsgCommand<void>> command = std::make_shared<MsgCommandImpl>(std::function{ f },
+				//std::make_unique<IntChecker>(),
+								   //std::make_unique<IntChecker>(),
+								   //std::make_unique<MsgArgChecker<void>>("a"),
+				std::unique_ptr<MsgArgChecker<int>>(std::make_unique<IntChecker>()));
+			const auto test = [&](std::string s)
+			{
+				MsgReader reader(s);
+				Logger::WriteMessage(command->CallIfValid(reader).second.c_str());
+			};
+			test("1 2 c");
+			test("1 2");
+			test("1");
+			test("a");
+		}
 	};
+
 }
