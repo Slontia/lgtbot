@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include "my_game.h"
 #include "lgtbot.h"
 #include "message_iterator.h"
 #include "message_handlers.h"
@@ -19,7 +18,6 @@ do\
     return err;\
 } while (0);
 
-GameContainer game_container;
 MatchManager match_manager;
 
 QQ LGTBOT::this_qq = INVALID_QQ;
@@ -91,8 +89,7 @@ void LGTBOT::send_discuss_msg(const QQ& discuss_qq, const std::string& msg, cons
 
 void LGTBOT::LoadGames()
 {
-  LOG_INFO("马斯塔，老子他娘的启动了！");
-  Bind(game_container); /* Mygame */
+  /* TODO: load games from dlls */
 }
 
 /* msg is not empty */
@@ -152,7 +149,7 @@ bool LGTBOT::Request(const MessageType& msg_type, const QQ& src_qq, const QQ& us
     last_pos = 1;
     is_global = true;
   }
-  
+
   std::vector<std::string> substrs;
   while (true)
   {
@@ -167,22 +164,20 @@ bool LGTBOT::Request(const MessageType& msg_type, const QQ& src_qq, const QQ& us
   if (substrs.empty()) return true;
 
   /* Make Message Iterator. */
-  std::shared_ptr<MessageIterator> msgit_p = 
+  std::shared_ptr<MessageIterator> msgit_p =
     (msg_type == PRIVATE_MSG) ? std::dynamic_pointer_cast<MessageIterator>(std::make_shared<PrivateMessageIterator>(usr_qq, std::move(substrs))) :
-    (msg_type == GROUP_MSG)   ? std::dynamic_pointer_cast<MessageIterator>(std::make_shared<GroupMessageIterator>(usr_qq, std::move(substrs), src_qq)) :
+    (msg_type == GROUP_MSG) ? std::dynamic_pointer_cast<MessageIterator>(std::make_shared<GroupMessageIterator>(usr_qq, std::move(substrs), src_qq)) :
     (msg_type == DISCUSS_MSG) ? std::dynamic_pointer_cast<MessageIterator>(std::make_shared<DiscussMessageIterator>(usr_qq, std::move(substrs), src_qq)) :
-                                nullptr;
+    nullptr;
   assert(msgit_p != nullptr);
   MessageIterator& msgit = *msgit_p;
 
   mutex.lock();
 
   /* Distribute msg to global handle or match handle. */
-  if (is_global)
-    global_request(msgit);
-  else
-    match_manager.Request(msgit);
-
+  if (is_global) { global_request(msgit); }
+  else { match_manager.Request(msgit); }
+    
   mutex.unlock();
 
   return true;

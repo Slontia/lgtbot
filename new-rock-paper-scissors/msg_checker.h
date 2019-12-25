@@ -5,6 +5,7 @@
 #include <memory>
 #include <iostream>
 #include <functional>
+#include <optional>
 
 static const std::string k_empty_str_ = "";
 
@@ -53,7 +54,7 @@ public:
   virtual ~MsgArgChecker() {}
   virtual std::string FormatInfo() const = 0;
   virtual std::string ExampleInfo() const = 0;
-  virtual std::pair<bool, T> Check(MsgReader& reader) const = 0;
+  virtual std::optional<T> Check(MsgReader& reader) const = 0;
 };
 
 template <>
@@ -71,13 +72,16 @@ private:
   const std::string const_arg_;
 };
 
-template <typename ResultType>
+template <typename ResultType_>
 class MsgCommand
 {
+protected:
+  typedef ResultType_ ResultType;
+  typedef typename std::conditional<std::is_void<ResultType>::value, bool, std::optional<ResultType>>::type CommandResultType;
 public:
   MsgCommand() {}
   virtual ~MsgCommand() {}
-  virtual typename std::conditional<std::is_void<ResultType>::value, bool, std::pair<bool, ResultType>>::type CallIfValid(MsgReader& msg_reader) const = 0;
+  virtual CommandResultType CallIfValid(MsgReader& msg_reader) const = 0;
   virtual std::string Info() const = 0;
 };
 
@@ -86,17 +90,15 @@ class MsgCommandImpl final : public MsgCommand<typename Callback::result_type>
 {
 private:
   using CheckerTuple = std::tuple<std::unique_ptr<MsgArgChecker<CheckTypes>>...>;
-  using ResultType = typename Callback::result_type;
-  using CommandResultType = typename std::conditional<std::is_void<ResultType>::value, bool, std::pair<bool, ResultType>>::type;
   
-  static CommandResultType NotMatch()
+  static typename MsgCommand::CommandResultType NotMatch()
   {
     if constexpr (std::is_void_v<ResultType>) { return false; }
-    else { return {false, {}}; }
+    else { return {}; }
   }
 
   template <unsigned N, typename ...Args>
-  CommandResultType CallIfValid(MsgReader& msg_reader, const Args& ...args) const
+  typename MsgCommand::CommandResultType CallIfValid(MsgReader& msg_reader, const Args& ...args) const
   {
     if constexpr (N == std::tuple_size<CheckerTuple>::value)
     {
@@ -108,7 +110,7 @@ private:
       }
       else
       {
-        return {true, callback_(args...)};
+        return callback_(args...);
       }
     }
     else
@@ -122,8 +124,8 @@ private:
       }
       else
       {
-        auto[is_valid, value] = checker.Check(msg_reader);
-        return is_valid ? CallIfValid<N + 1, Args..., checker_type>(msg_reader, args..., value)
+        std::optional value = checker.Check(msg_reader);
+        return value ? CallIfValid<N + 1, Args..., checker_type>(msg_reader, args..., *value)
           : NotMatch();
       }
     }
@@ -135,7 +137,7 @@ private:
 public:
   MsgCommandImpl(Callback&& callback, std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers) : callback_(callback), checkers_ (std::forward<std::unique_ptr<MsgArgChecker<CheckTypes>>&&>(checkers)...) {}
 
-  virtual CommandResultType CallIfValid(MsgReader& msg_reader) const override
+  virtual typename MsgCommand::CommandResultType CallIfValid(MsgReader& msg_reader) const override
   {
     msg_reader.Reset();
     return CallIfValid<0>(msg_reader);
@@ -160,5 +162,5 @@ using to_func = decltype(std::function{ Callback() });
 template <typename Callback, typename ...Checkers>
 static auto Make(const Callback& f, std::unique_ptr<Checkers>&&... checkers)
 {
-  return std::make_shared < MsgCommandImpl<decltype(std::function{ f }), typename Checkers::arg_type... >> (std::function{ f }, std::move(checkers)...);
+  return std::make_shared<MsgCommandImpl<decltype(std::function(f)), typename Checkers::arg_type...>>(std::function(f), std::move(checkers)...);
 };
