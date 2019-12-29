@@ -43,16 +43,17 @@ namespace GameTest
 		
 		TEST_METHOD(TestMethod1)
 		{
-			auto f = [](const int a) -> std::string { return std::to_string(a); };
-			std::shared_ptr<MsgCommand<std::string>> command = Make(f, std::make_unique<IntChecker>());
+			//const std::function<std::string(const int)> f = [](const int a) -> std::string { return std::to_string(a); };
+      const std::function<std::string(const bool b, const int i)> f = [](const int b, const int i) { return std::to_string(b ? -i : i); };
+      std::shared_ptr<MsgCommand<std::string(const bool)>> command = MakeCommand<std::string(const bool)>(f, std::make_unique<IntChecker>());
 			const auto test = [&](std::string s)
 			{
 				MsgReader reader(s);
-				Logger::WriteMessage(std::to_string(command->CallIfValid(reader).has_value()).c_str());
+        Logger::WriteMessage(std::to_string(command->CallIfValid(reader, std::tuple{ true }).has_value()).c_str());
 			};
 			test("1 2 c");
 			test("1 2");
-			test("1");
+      test("1");
 			test("a");
 		}
 	};

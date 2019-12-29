@@ -2,7 +2,7 @@
 #include "match.h"
 #include "log.h"
 #include "match.h"
-
+#include "../new-rock-paper-scissors/dllmain.h"
 
 MatchManager::MatchManager() : next_match_id(1) {}
 
@@ -222,7 +222,7 @@ bool MatchManager::PublicRequest(MessageIterator& msg, const std::unordered_map<
 }
 
 
-Match::Match(const MatchId& id, const std::string& game_id, const int64_t& host_qq, const MatchType& type) :
+Match::Match(const std::string& game_id, const int64_t& host_qq, const MatchType& type) :
   id_(id), type_(type), game_id_(game_id), host_qq_(host_qq), status_(PREPARE), game_(game_container.MakeGame(game_id_, *this))
 {
 

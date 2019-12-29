@@ -27,7 +27,7 @@ public:
   {
     assert(!is_over_);
     MsgReader reader(msg);
-    bool reply_msg = main_stage_->HandleRequest(reader,reply_f);
+    bool reply_msg = main_stage_->HandleRequest(reader, reply_f, is_public);
     if (main_stage_->IsOver())
     {
       game_over_f(game_id_, PlayerScores());
