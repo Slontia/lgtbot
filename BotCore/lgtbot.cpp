@@ -2,6 +2,7 @@
 #include "lgtbot.h"
 #include "message_iterator.h"
 #include "message_handlers.h"
+#include "../new-rock-paper-scissors/dllmain.h"
 
 #include <list>
 #include <sstream>
@@ -87,8 +88,77 @@ void LGTBOT::send_discuss_msg(const QQ& discuss_qq, const std::string& msg, cons
   send_discuss_msg(discuss_qq, at_str(to_usr_qq) + msg);
 }
 
+std::vector<GameHandle> getPlugins() {
+  std::vector<GameHandle> ret;
+
+  // 在plugins目录中查找dll文件并将文件信息保存在fileData中
+  WIN32_FIND_DATA fileData;
+  HANDLE fileHandle = FindFirstFile(L"plugins/*.dll", &fileData);
+
+  if (fileHandle == (void*)ERROR_INVALID_HANDLE ||
+    fileHandle == (void*)ERROR_FILE_NOT_FOUND) {
+    // 没有找到任何dll文件，返回空vector
+    return {};
+  }
+
+  // 循环加载plugins目录中的所有dll文件
+  do {
+    // 将dll加载到当前进程的地址空间中
+    std::wstring dll_path = L"./plugins/" + std::wstring(fileData.cFileName);
+    HINSTANCE mod = LoadLibrary(dll_path.c_str());
+
+    if (!mod)
+    {
+      /* TODO: LOG(dll_path + "load failed"); */
+      continue;
+    }
+
+    // 从dll句柄中获取getObj和getName的函数地址
+    typedef int (__cdecl *Init)(const boardcast, const tell, const at, const game_over);
+    typedef char* (__cdecl *GameInfo)(uint64_t* const, uint64_t* const);
+    typedef Game* (__cdecl *NewGame)(const uint64_t);
+    typedef int (__cdecl *ReleaseGame)(Game* const);
+
+    Init init = (Init) GetProcAddress(mod, "Init");
+    GameInfo game_info = (GameInfo) GetProcAddress(mod, "GameInfo");
+    NewGame new_game = (NewGame) GetProcAddress(mod, "NewGame");
+    ReleaseGame release_game = (ReleaseGame) GetProcAddress(mod, "GetProcAddress");
+
+    if (!init || !game_info || !new_game || !release_game)
+    {
+      //LOG("Invalid Plugin DLL: some interface not be defined.");
+      continue;
+    }
+
+    uint64_t min_player = 0;
+    uint64_t max_player = 0;
+    char* name = game_info(&min_player, &max_player);
+    if (!name)
+    {
+      //LOG("Cannot get game game");
+      continue;
+    }
+    if (min_player == 0 || max_player < min_player)
+    {
+      //LOG("Invalid" min_player, max_player)
+      continue;
+    }
+    
+    ret.emplace_back(name, min_player, max_player, new_game, release_game, mod);
+
+    //LOG(name" loaded!\n");
+  } while (FindNextFile(fileHandle, &fileData));
+
+  std::clog << std::endl;
+
+  // 关闭文件句柄
+  FindClose(fileHandle);
+  return ret;
+}
+
 void LGTBOT::LoadGames()
 {
+  g_games_.clear();
   /* TODO: load games from dlls */
 }
 

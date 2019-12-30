@@ -1,13 +1,12 @@
 #include "stdafx.h"
 
 #include <sstream>
-
+#include <tuple>
 
 #include "message_iterator.h"
-#include "game_container.h"
-
 #include "message_handlers.h"
 #include "match.h"
+#include "lgtbot.h"
 
 static std::string read_gamename(MessageIterator& msg);
 
@@ -19,14 +18,12 @@ static bool to_type(const std::string& str, T& res)
 
 void show_gamelist(MessageIterator& msg)
 {
-  auto gamelist = game_container.gamelist();
   std::stringstream ss;
   int i = 0;
   ss << "ÓÎÏ·ÁÐ±í£º";
-  for (auto it = gamelist.begin(); it != gamelist.end(); it++)
+  for (const auto& [name, game] : g_game_handles_)
   {
-    auto name = *it;
-    ss << std::endl << i << '.' << name;
+    ss << std::endl << (++ i) << '.' << name;
   }
   msg.Reply(ss.str());
 }
@@ -39,7 +36,8 @@ std::string read_gamename(MessageIterator& msg)
     return "";
   }
   const std::string& name = msg.get_next();
-  if (!game_container.has_game(name))
+  const auto it = g_game_handles_.find(name);
+  if (it == g_game_handles_.end())
   {
     /* error: game not found */
     return "";

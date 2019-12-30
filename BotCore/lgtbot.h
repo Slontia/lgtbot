@@ -3,6 +3,8 @@
 #include <mutex>
 #include <iostream>
 #include <string>
+#include <functional>
+#include "../new-rock-paper-scissors/dllmain.h"
 
 #define INVALID_QQ (QQ)0
 
@@ -15,14 +17,6 @@ do\
   if (const std::string& err = (str); !err.empty())\
     return err;\
 } while (0);
-
-
-/*
-1. 进行“开始”指令、“加入”指令和“退出”指令的衔接
-2. 补充错误提示
-3. 精简mygame中的接口
-4. 最好可以一次从iterator里取出多个字符串
-*/
 
 typedef int64_t QQ;
 typedef std::string ErrMsg;
@@ -40,6 +34,26 @@ enum MessageType
 
 typedef void(*AT_CALLBACK)(const QQ&, const char*, const size_t& sz);
 typedef void(*MSG_CALLBACK)(const QQ&, const char*);
+
+static std::map<std::string, GameHandle> g_game_handles_;
+
+struct GameHandle
+{
+  GameHandle(const std::string& name, const uint64_t min_player, const uint64_t max_player, 
+    const std::function<Game*(const uint64_t)>& new_game, const std::function<int(Game* const)>& release_game,
+    const HINSTANCE& module)
+    : name_(name), min_player_(min_player), max_player_(max_player),
+    new_game_(new_game), release_game_(release_game), module_(module) {}
+  GameHandle(GameHandle&&) = default;
+  ~GameHandle() { FreeLibrary(module_); }
+  
+  const std::string name_;
+  const uint64_t min_player_;
+  const uint64_t max_player_;
+  const std::function<Game*(const uint64_t)> new_game_;
+  const std::function<int(Game* const)> release_game_;
+  const HINSTANCE module_;
+};
 
 class LGTBOT
 {
@@ -65,6 +79,7 @@ public:
   static void send_discuss_msg(const QQ& discuss_qq, const std::string& msg);
   static void send_group_msg(const QQ& group_qq, const std::string& msg, const QQ& to_usr_qq);
   static void send_discuss_msg(const QQ& discuss_qq, const std::string& msg, const QQ& to_usr_qq);
+
 };
 
 
