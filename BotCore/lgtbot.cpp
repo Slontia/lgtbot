@@ -110,8 +110,10 @@ MetaCommand MakeMetaCommand(Args... args)
 
 std::vector<MetaCommand> cmds =
 {
-  MakeMetaCommand(show_gamelist, std::make_unique<MsgArgChecker<void>>("游戏列表")),
-  MakeMetaCommand(new_game, std::make_unique<MsgArgChecker<void>>("游戏列表")),
+  MakeMetaCommand(show_gamelist, std::make_unique<VoidChecker>("游戏列表")),
+  MakeMetaCommand(new_game, std::make_unique<VoidChecker>("新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名"), std::make_unique<BoolChecker>("公开", "私密")),
+  MakeMetaCommand(start_game, std::make_unique<VoidChecker>("开始游戏")),
+  MakeMetaCommand(leave, std::make_unique<VoidChecker>("退出游戏"))
 };
 
 /* msg is not empty */

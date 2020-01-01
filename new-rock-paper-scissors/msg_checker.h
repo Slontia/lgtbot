@@ -14,18 +14,8 @@ class MsgReader final
 public:
   MsgReader(const std::string& msg)
   {
-    uint32_t pos = 0;
-    uint32_t last_pos = 0;
-    while (true)
-    {
-      /* Read next word. */
-      pos = msg.find(" ", last_pos);
-      if (last_pos != pos) { args_.push_back(msg.substr(last_pos, pos - last_pos)); }
-
-      /* If finish reading, break. */
-      if (pos == std::string::npos) { break; }
-      last_pos = pos + 1;
-    }
+    std::istringstream ss(msg);
+    for (std::string arg; ss >> arg;) { args_.push_back(arg); }
     iter_ = args_.begin();
   }
 
@@ -57,6 +47,24 @@ public:
   virtual std::optional<T> Check(MsgReader& reader) const = 0;
 };
 
+class AnyArg : public MsgArgChecker<std::string>
+{
+public:
+  AnyArg(const std::string& meaning = "×Ö·û´®", const std::string& example = "×Ö·û´®") : meaning_(meaning), example_(example) {}
+  virtual ~AnyArg() {}
+  virtual std::string FormatInfo() const override { return "<" + meaning_ + ">"; }
+  virtual std::string ExampleInfo() const override { return example_; }
+  virtual std::optional<std::string> Check(MsgReader& reader) const override
+  {
+    if (!reader.HasNext()) { return {}; }
+    return reader.NextArg();
+  }
+
+private:
+  const std::string meaning_;
+  const std::string example_;
+};
+
 class BoolChecker : public MsgArgChecker<bool>
 {
 public:
@@ -78,11 +86,10 @@ private:
   const std::string false_str_;
 };
 
-template <typename T, T Min, T Max, typename = typename std::enable_if_t<std::is_arithmetic_v<T>>>
-class ArithChecker : public MsgArgChecker<T>
+template <typename T, T Min, T Max, bool Optional = false, typename = typename std::enable_if_t<std::is_arithmetic_v<T>>>
+class ArithChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
 public:
-  typedef T arg_type;
   ArithChecker(const std::string meaning = "Êý×Ö") : meaning_(meaning) { static_assert(Max >= Min, "Invalid Range"); }
   virtual ~ArithChecker() {}
   virtual std::string FormatInfo() const override
@@ -90,12 +97,12 @@ public:
     return "<" + meaning_ + "£º" + std::to_string(Min) + "~" + std::to_string(Max) + ">";
   }
   virtual std::string ExampleInfo() const override { return std::to_string((Min + Max) / 2); }
-  virtual std::optional<T> Check(MsgReader& reader) const
+  virtual std::optional<std::conditional_t<Optional, std::optional<T>, T>> Check(MsgReader& reader) const
   {
-    if (!reader.HasNext()) { return {}; }
+    if (!reader.HasNext()) { return std::optional<T>(); }
     std::stringstream ss;
     ss << reader.NextArg();
-    if (T value; ss >> value) { return value; }
+    if (T value; ss >> value && Min <= value && value <= Max) { return value; }
     else { return {}; };
   }
 
@@ -139,7 +146,7 @@ protected:
 public:
   MsgCommand() {}
   virtual ~MsgCommand() {}
-  virtual CommandResultType CallIfValid(MsgReader& msg_reader, UserArgsTuple& user_args_tuple) const = 0;
+  virtual CommandResultType CallIfValid(MsgReader& msg_reader, UserArgsTuple&& user_args_tuple = {}) const = 0;
   virtual std::string Info() const = 0;
 };
 
@@ -196,7 +203,7 @@ private:
 public:
   MsgCommandImpl(Callback&& callback, std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers) : callback_(callback), checkers_ (std::forward<std::unique_ptr<MsgArgChecker<CheckTypes>>&&>(checkers)...) {}
 
-  virtual typename MsgCommand::CommandResultType CallIfValid(MsgReader& msg_reader, typename MsgCommand::UserArgsTuple& user_args_tuple) const override
+  virtual typename MsgCommand::CommandResultType CallIfValid(MsgReader& msg_reader, typename MsgCommand::UserArgsTuple&& user_args_tuple) const override
   {
     msg_reader.Reset();
     return CallIfValidParseArgs<0>(msg_reader, user_args_tuple);
