@@ -90,12 +90,9 @@ template <typename T, T Min, T Max, bool Optional = false, typename = typename s
 class ArithChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
 public:
-  ArithChecker(const std::string meaning = "数字") : meaning_(meaning) { static_assert(Max >= Min, "Invalid Range"); }
+  ArithChecker(const std::string meaning = "数字", const bool show_range = true) : meaning_(meaning) { static_assert(Max >= Min, "Invalid Range"); }
   virtual ~ArithChecker() {}
-  virtual std::string FormatInfo() const override
-  {
-    return "<" + meaning_ + "：" + std::to_string(Min) + "~" + std::to_string(Max) + ">";
-  }
+  virtual std::string FormatInfo() const override { return "<" + meaning_ + "：" + std::to_string(Min) + "~" + std::to_string(Max) + ">"; }
   virtual std::string ExampleInfo() const override { return std::to_string((Min + Max) / 2); }
   virtual std::optional<std::conditional_t<Optional, std::optional<T>, T>> Check(MsgReader& reader) const
   {
@@ -103,6 +100,30 @@ public:
     std::stringstream ss;
     ss << reader.NextArg();
     if (T value; ss >> value && Min <= value && value <= Max) { return value; }
+    else { return {}; };
+  }
+
+private:
+  const std::string meaning_;
+};
+
+template <typename T, bool Optional = false, typename = typename std::enable_if_t<std::is_arithmetic_v<T>>>
+class BasicChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
+{
+public:
+  BasicChecker(const std::string meaning = "对象", const bool show_range = true) : meaning_(meaning) { static_assert(Max >= Min, "Invalid Range"); }
+  virtual ~BasicChecker() {}
+  virtual std::string FormatInfo() const override
+  {
+    return "<" + meaning_ + ">";
+  }
+  virtual std::string ExampleInfo() const override { return std::to_string(T()); }
+  virtual std::optional<std::conditional_t<Optional, std::optional<T>, T>> Check(MsgReader& reader) const
+  {
+    if (!reader.HasNext()) { return std::optional<T>(); }
+    std::stringstream ss;
+    ss << reader.NextArg();
+    if (T value; ss >> value) { return value; }
     else { return {}; };
   }
 

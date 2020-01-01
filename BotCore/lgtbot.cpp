@@ -25,14 +25,14 @@ bool __cdecl Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, 
   return true;
 }
 
-bool __cdecl HandlePrivateRequest(const UserID uid, const char* const msg)
+void __cdecl HandlePrivateRequest(const UserID uid, const char* const msg)
 {
-
+  SendPrivateMsg(uid, HandleRequest(uid, {}, msg));
 }
 
-bool __cdecl HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
+void __cdecl HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
 {
-
+  SendPublicMsg(gid, At(uid) + HandleRequest(uid, gid, msg));
 }
 
 static bool IsAtMe(const std::string& msg)
@@ -44,7 +44,7 @@ static std::optional<GameHandle> LoadGame(HINSTANCE mod)
 {
   if (!mod)
   {
-    /* TODO: LOG(dll_path + "load failed"); */
+    LOG_ERROR("Load mod failed");
     return {};
   }
 
@@ -60,7 +60,7 @@ static std::optional<GameHandle> LoadGame(HINSTANCE mod)
 
   if (!init || !game_info || !new_game || !release_game)
   {
-    LOG_INFO("Invalid Plugin DLL: some interface not be defined.");
+    LOG_ERROR("Invalid Plugin DLL: some interface not be defined.");
     return {};
   }
   uint64_t min_player = 0;
@@ -68,12 +68,12 @@ static std::optional<GameHandle> LoadGame(HINSTANCE mod)
   char* name = game_info(&min_player, &max_player);
   if (!name)
   {
-    LOG_INFO("Cannot get game game");
+    LOG_ERROR("Cannot get game game");
     return {};
   }
   if (min_player == 0 || max_player < min_player)
   {
-    LOG_INFO("Invalid" + std::to_string(min_player) + std::to_string(max_player));
+    LOG_ERROR("Invalid" + std::to_string(min_player) + std::to_string(max_player));
     return {};
   }
   return GameHandle(name, min_player, max_player, new_game, release_game, mod);
@@ -100,109 +100,29 @@ static void LoadGameModules()
   FindClose(file_handle);
 }
 
-typedef std::shared_ptr<MsgCommand<void(const UserID, const std::optional<GroupID>)>> MetaCommand;
-
-template <typename ...Args>
-MetaCommand MakeMetaCommand(Args... args)
+static std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)
 {
-  return std::make_shared<void(const UserID, const std::optional<GroupID>)>(args...);
+  typedef MsgCommand<std::string(const UserID, const std::optional<GroupID>)> MetaCommand;
+  static const auto make_meta_command = [](auto... args) -> std::shared_ptr<MetaCommand> { return MakeCommand<std::string(const UserID, const std::optional<GroupID>)>(args...);  };
+  static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
+  {
+    make_meta_command(show_gamelist, std::make_unique<VoidChecker>("游戏列表")),
+    make_meta_command(new_game, std::make_unique<VoidChecker>("新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名"), std::make_unique<BoolChecker>("公开", "私密")),
+    make_meta_command(start_game, std::make_unique<VoidChecker>("开始游戏")),
+    make_meta_command(leave, std::make_unique<VoidChecker>("退出比赛")),
+    make_meta_command(join, std::make_unique<VoidChecker>("加入比赛"), std::make_unique<BasicChecker<MatchId, true>>("赛事编号")),
+  };
+  reader.Reset();
+  for (const std::shared_ptr<MetaCommand>& cmd : meta_cmds)
+  {
+    if (std::optional<std::string> reply_msg = cmd->CallIfValid(reader, std::tuple{ uid, gid })) { return *reply_msg; }
+  }
+  return "[错误] 未预料的元请求";
 }
 
-std::vector<MetaCommand> cmds =
+static std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)
 {
-  MakeMetaCommand(show_gamelist, std::make_unique<VoidChecker>("游戏列表")),
-  MakeMetaCommand(new_game, std::make_unique<VoidChecker>("新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名"), std::make_unique<BoolChecker>("公开", "私密")),
-  MakeMetaCommand(start_game, std::make_unique<VoidChecker>("开始游戏")),
-  MakeMetaCommand(leave, std::make_unique<VoidChecker>("退出游戏"))
-};
-
-/* msg is not empty */
-void global_request(MessageIterator& msg)
-{
-  assert(msg.has_next());
-  const std::string front_msg = msg.get_next();
-  if (front_msg == "游戏大厅") 
-  {
-
-  }
-  else if (front_msg == "游戏列表")
-  {
-    show_gamelist(msg);
-  }
-  else if (front_msg == "规则")
-  {
-
-  }
-  else if (front_msg == "新游戏") // 新游戏 <游戏名> (公开|私密)
-  {
-    new_game(msg);
-  }
-  else if (front_msg == "帮助")
-  {
-
-  }
-  else if (front_msg == "开始") // host only
-  {
-    start_game(msg);
-  }
-  else if (front_msg == "加入") // 加入 [比赛编号]
-  {
-    join(msg);
-  }
-  else if (front_msg == "退出")
-  {
-    leave(msg);
-  }
-  else
-  {
-    msg.Reply("你说你马呢");
-  }
-}
-
-bool Request(const MessageType& msg_type, const QQ& src_qq, const QQ& usr_qq, char* msg_c)
-{
-  std::string msg(msg_c);
-  if (msg.empty()) return false;
-
-  bool is_global = false;
-  size_t last_pos = 0, pos = 0;
-
-  /* If it is a global request, we should move char pointer behind '#'. */
-  if (msg[0] == '#')
-  {
-    last_pos = 1;
-    is_global = true;
-  }
-
-  std::vector<std::string> substrs;
-  while (true)
-  {
-    /* Read next word. */
-    pos = msg.find(" ", last_pos);
-    if (last_pos != pos) substrs.push_back(msg.substr(last_pos, pos - last_pos));
-
-    /* If finish reading, break. */
-    if (pos == std::string::npos) break;
-    last_pos = pos + 1;
-  }
-  if (substrs.empty()) return true;
-
-  /* Make Message Iterator. */
-  std::shared_ptr<MessageIterator> msgit_p =
-    (msg_type == PRIVATE_MSG) ? std::dynamic_pointer_cast<MessageIterator>(std::make_shared<PrivateMessageIterator>(usr_qq, std::move(substrs))) :
-    (msg_type == GROUP_MSG) ? std::dynamic_pointer_cast<MessageIterator>(std::make_shared<GroupMessageIterator>(usr_qq, std::move(substrs), src_qq)) :
-    (msg_type == DISCUSS_MSG) ? std::dynamic_pointer_cast<MessageIterator>(std::make_shared<DiscussMessageIterator>(usr_qq, std::move(substrs), src_qq)) :
-    nullptr;
-  assert(msgit_p != nullptr);
-  MessageIterator& msgit = *msgit_p;
-
-  mutex.lock();
-
-  /* Distribute msg to global handle or match handle. */
-  if (is_global) { global_request(msgit); }
-  else { match_manager.Request(msgit); }
-    
-  mutex.unlock();
-
-  return true;
+  if (msg.empty()) { return; }
+  std::lock_guard<std::mutex> lock(g_mutex);
+  return (msg[0] == '#') ? HandleMetaRequest(uid, gid, MsgReader(msg.substr(1, msg.size()))) : match_manager.Request(uid, gid, MsgReader(msg));
 }
