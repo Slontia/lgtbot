@@ -9,7 +9,6 @@
 
 #include "lgtbot.h"
 #include "message_iterator.h"
-#include "game.h"
 
 typedef uint32_t MatchId;
 
@@ -26,8 +25,7 @@ typedef enum
   DISCUSS_MATCH
 } MatchType;
 
-class GamePlayer;     // player info
-class Game;
+class GameBase;
 class Match;
 class PrivateMatch;
 class GroupMatch;
@@ -89,9 +87,9 @@ public:
   typedef enum { PRIVATE_MATCH, GROUP_MATCH, DISCUSS_MATCH } MatchType;
   const MatchType                   type_;
 
-  Match(const MatchId& id, const std::string& game_id, const int64_t& host_qq, const MatchType& type);
+  Match(const MatchId id, const GameHandle& game_handle, const int64_t& host_qq, const MatchType& type);
 
-  void         Request(MessageIterator& msg);
+  std::string         Request(const QQ qq, const bool is_public, const std::string& msg);
   /* switch status, create game */
   std::string                GameStart();
   /* send msg to all player */
@@ -121,9 +119,9 @@ public:
 protected:
   enum { PREPARE, GAMING, OVER }    status_;
   const MatchId                     id_;
-  const std::string                 game_id_;
+  const GameHandle&                 game_handle_;
   QQ                     host_qq_;
-  std::unique_ptr<Game>       game_;
+  GameBase*       game_;
   std::unordered_set<QQ>            ready_qq_set_;
   std::map<QQ, uint32_t>       qq2pid_;
   std::vector<QQ>              pid2qq_;

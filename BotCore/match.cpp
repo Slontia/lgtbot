@@ -3,6 +3,7 @@
 #include "log.h"
 #include "match.h"
 #include "../new-rock-paper-scissors/dllmain.h"
+#include "../new-rock-paper-scissors/game_base.h"
 
 MatchManager::MatchManager() : next_match_id(1) {}
 
@@ -222,8 +223,8 @@ bool MatchManager::PublicRequest(MessageIterator& msg, const std::unordered_map<
 }
 
 
-Match::Match(const std::string& game_id, const int64_t& host_qq, const MatchType& type) :
-  id_(id), type_(type), game_id_(game_id), host_qq_(host_qq), status_(PREPARE), game_(game_container.MakeGame(game_id_, *this))
+Match::Match(const MatchId id, const GameHandle& game_handle, const int64_t& host_qq, const MatchType& type) :
+  id_(id), type_(type), game_handle_(game_handle), host_qq_(host_qq), status_(PREPARE)
 {
 
 }
@@ -233,15 +234,14 @@ bool Match::has_qq(const int64_t& qq) const
   return ready_qq_set_.find(qq) != ready_qq_set_.end();
 }
 
-void Match::Request(MessageIterator& msg)
+std::string Match::Request(const QQ qq, const bool is_public, const std::string& msg)
 {
   if (status_ != GAMING)
   {
-    msg.Reply("错误：当前游戏未处于进行状态");
-    return;
+    return "错误：当前游戏未处于进行状态";
   }
-  assert(has_qq(msg.usr_qq_));
-  game_->Request(qq2pid_[msg.usr_qq_], msg);
+  assert(has_qq(qq));
+  game_->HandleRequest(qq2pid_[qq], msg.c_str());
 }
 
 /* Register players, switch status and start the game 
@@ -253,7 +253,7 @@ std::string Match::GameStart()
     return "开始游戏失败：游戏未处于准备状态";
   }
   player_count_ = ready_qq_set_.size();
-  if (player_count_ < game_->kMinPlayer)
+  if (player_count_ < game_handle_.min_player_)
   {
     return "开始游戏失败：玩家人数过少";
   }

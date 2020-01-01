@@ -89,7 +89,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;BOTCORE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -146,12 +146,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="BotCore.h" />
+    <ClInclude Include="dllmain.h" />
     <ClInclude Include="lgtbot.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="match.h" />
     <ClInclude Include="message_handlers.h" />
     <ClInclude Include="message_iterator.h" />
-    <ClInclude Include="player.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>

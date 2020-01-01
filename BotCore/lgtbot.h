@@ -5,8 +5,7 @@
 #include <string>
 #include <functional>
 #include "../new-rock-paper-scissors/dllmain.h"
-
-#define INVALID_QQ (QQ)0
+#include "dllmain.h"
 
 #define DLL_EXPORT __declspec(dllexport)
 #define DLL_IMPORT __declspec(dllimport)
@@ -18,29 +17,10 @@ do\
     return err;\
 } while (0);
 
-typedef int64_t QQ;
-typedef std::string ErrMsg;
-
-extern std::mutex mutex;
-
-const int32_t LGT_AC = -1;
-
-enum MessageType
-{
-  PRIVATE_MSG,
-  GROUP_MSG,
-  DISCUSS_MSG
-};
-
-typedef void(*AT_CALLBACK)(const QQ&, const char*, const size_t& sz);
-typedef void(*MSG_CALLBACK)(const QQ&, const char*);
-
-static std::map<std::string, GameHandle> g_game_handles_;
-
 struct GameHandle
 {
   GameHandle(const std::string& name, const uint64_t min_player, const uint64_t max_player, 
-    const std::function<Game*(const uint64_t)>& new_game, const std::function<int(Game* const)>& release_game,
+    const std::function<GameBase*(const uint64_t)>& new_game, const std::function<int(GameBase* const)>& release_game,
     const HINSTANCE& module)
     : name_(name), min_player_(min_player), max_player_(max_player),
     new_game_(new_game), release_game_(release_game), module_(module) {}
@@ -50,42 +30,24 @@ struct GameHandle
   const std::string name_;
   const uint64_t min_player_;
   const uint64_t max_player_;
-  const std::function<Game*(const uint64_t)> new_game_;
-  const std::function<int(Game* const)> release_game_;
+  const std::function<GameBase*(const uint64_t)> new_game_;
+  const std::function<int(GameBase* const)> release_game_;
   const HINSTANCE module_;
 };
 
-class LGTBOT
-{
-public:
-  static AT_CALLBACK at_cq;
-  static MSG_CALLBACK send_private_msg_callback;
-  static MSG_CALLBACK send_group_msg_callback;
-  static MSG_CALLBACK send_discuss_msg_callback;
-  static QQ this_qq;
+static const int32_t LGT_AC = -1;
+static const UserID INVALID_USER_ID = 0;
+static const GroupID INVALID_GROUP_ID = 0;
 
-  DLL_EXPORT static void LoadGames();
-  DLL_EXPORT static bool Request(const MessageType& msg_type, const QQ& src_qq, const QQ& usr_qq, char* msg);
-  DLL_EXPORT static void set_at_cq_callback(AT_CALLBACK fun);
-  DLL_EXPORT static void set_send_private_msg_callback(MSG_CALLBACK fun);
-  DLL_EXPORT static void set_send_group_msg_callback(MSG_CALLBACK fun);
-  DLL_EXPORT static void set_send_discuss_msg_callback(MSG_CALLBACK fun);
-  DLL_EXPORT static void set_this_qq(const QQ& this_qq);
+static std::mutex g_mutex;
 
-  static bool is_at(const std::string& msg);
-  static std::string at_str(const QQ&);
-  static void send_private_msg(const QQ& usr_qq, const std::string& msg);
-  static void send_group_msg(const QQ& group_qq, const std::string& msg);
-  static void send_discuss_msg(const QQ& discuss_qq, const std::string& msg);
-  static void send_group_msg(const QQ& group_qq, const std::string& msg, const QQ& to_usr_qq);
-  static void send_discuss_msg(const QQ& discuss_qq, const std::string& msg, const QQ& to_usr_qq);
+static std::map<std::string, GameHandle> g_game_handles;
 
-};
+static AT_CALLBACK g_at_cb = nullptr;
+static PRIVATE_MSG_CALLBACK g_send_pri_msg_cb = nullptr;
+static PUBLIC_MSG_CALLBACK g_send_pub_msg_cb = nullptr;
+static UserID g_this_uid = INVALID_USER_ID;
 
-
-
-
-
-
-
-
+static std::string At(const UserID uid) { return g_at_cb(uid); }
+static void SendPrivateMsg(const UserID uid, const std::string& msg) { return g_send_pri_msg_cb(uid, msg.c_str()); }
+static void SendPublicMsg(const GroupID gid, const std::string& msg) { return g_send_pub_msg_cb(gid, msg.c_str()); }

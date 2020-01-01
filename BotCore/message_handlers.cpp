@@ -2,143 +2,52 @@
 
 #include <sstream>
 #include <tuple>
+#include <optional>
 
 #include "message_iterator.h"
 #include "message_handlers.h"
 #include "match.h"
 #include "lgtbot.h"
 
-static std::string read_gamename(MessageIterator& msg);
-
-template <class T>
-static bool to_type(const std::string& str, T& res)
-{
-  return (bool) (std::stringstream(str) >> res);
-}
-
-void show_gamelist(MessageIterator& msg)
+std::string show_gamelist(const UserID uid, const std::optional<GroupID> gid)
 {
   std::stringstream ss;
   int i = 0;
   ss << "游戏列表：";
-  for (const auto& [name, game] : g_game_handles_)
-  {
-    ss << std::endl << (++ i) << '.' << name;
-  }
-  msg.Reply(ss.str());
+  for (const auto&[name, _] : g_game_handles) { ss << std::endl << (++i) << '.' << name; }
+  return ss.str();
 }
 
-std::string read_gamename(MessageIterator& msg)
+std::string new_game(const UserID uid, const std::optional<GroupID> gid, const std::string& gamename, const bool for_public_match)
 {
-  if (!msg.has_next())
-  {
-    /* error: without game name */
-    return "";
-  }
-  const std::string& name = msg.get_next();
-  const auto it = g_game_handles_.find(name);
-  if (it == g_game_handles_.end())
-  {
-    /* error: game not found */
-    return "";
-  }
-  return name;
-};
-
-void new_game(MessageIterator& msg)
-{
-  auto gamename = read_gamename(msg);
-  if (gamename.empty())
-  {
-    msg.ReplyError("创建游戏失败！未知的游戏名");
-    return;
-  }
-  if (msg.has_next())
-  {
-    auto match_type = msg.get_next();
-    if (match_type == "公开")
-    {
-      switch (msg.type_)
-      {
-        case PRIVATE_MSG:
-          msg.ReplyError("创建游戏失败！公开类型游戏不支持私信建立，请在群或讨论组中公屏建立");
-          return;
-        case GROUP_MSG:
-          msg.Reply(match_manager.new_match(GROUP_MATCH, gamename, msg.usr_qq_, msg.src_qq_), "创建游戏成功！");
-          break;
-        case DISCUSS_MSG:
-          msg.Reply(match_manager.new_match(DISCUSS_MATCH, gamename, msg.usr_qq_, msg.src_qq_), "创建游戏成功！");
-          break;
-        default:
-          /* Never reach here! */
-          assert(false);
-      }
-    }
-    else if (match_type == "私密")
-    {
-      msg.Reply(match_manager.new_match(PRIVATE_MATCH, gamename, msg.usr_qq_, INVALID_QQ), "创建游戏成功！");
-    }
-    else
-    {
-      msg.ReplyError("创建游戏失败！未知的比赛类型，应该为【公开】或者【私密】");
-    }
-  }
+  std::string err_msg;
+  if (g_game_handles.find(gamename) == g_game_handles.end()) { err_msg = "创建游戏失败：未知的游戏名"; }
+  else if (gid.has_value()) { err_msg = match_manager.new_match(GROUP_MATCH, gamename, uid, gid); }
+  else if (for_public_match) { err_msg = "创建游戏失败：公开类型游戏不支持私信建立，请在群或讨论组中公屏建立"; }
+  else { err_msg = match_manager.new_match(PRIVATE_MATCH, gamename, uid, uid); }
+  return err_msg.empty() ? "创建游戏成功" : "[错误] " + err_msg;
 }
 
-void start_game(MessageIterator& msg)
+std::string start_game(const UserID uid, const std::optional<GroupID> gid)
 {
-  if (msg.has_next())
-  {
-    msg.ReplyError("开始游戏失败！多余的参数");
-    return;
-  }
-  msg.Reply(match_manager.StartGame(msg.usr_qq_), "游戏开始！");
+  std::string err_msg = match_manager.StartGame(uid);
+  return err_msg.empty() ? "游戏开始" : "[错误] " + err_msg;
 }
 
-void leave(MessageIterator& msg)
+std::string leave(const UserID uid, const std::optional<GroupID> gid)
 {
-  if (msg.has_next())
-  {
-    msg.ReplyError("退出游戏失败！多余的参数");
-    return;
-  }
-  msg.Reply(match_manager.DeletePlayer(msg.usr_qq_), "");
+  std::string err_msg = match_manager.DeletePlayer(uid);
+  return err_msg.empty() ? "退出成功" : "[错误] " + err_msg;
 }
 
-void join(MessageIterator& msg)
+std::string join(const UserID uid, const std::optional<GroupID> gid, std::optional<MatchId> match_id)
 {
-  MatchId id;
-  if (msg.has_next())
+  std::string err_msg;
+  if (!match_id.has_value())
   {
-    /* Match ID */
-    if (!to_type(msg.get_next(), id))
-    {
-      msg.ReplyError("加入失败！比赛ID必须为整数");
-      return;
-    }
-    if (msg.has_next())
-    {
-      msg.ReplyError("加入失败！多余的参数");
-      return;
-    }
+    if (!gid.has_value()) { err_msg = "请指定比赛ID，或公屏报名"; }
+    else { match_id = match_manager.get_group_match_id(*gid); }
   }
-  else
-  {
-    std::shared_ptr<Match> match = nullptr;
-    switch (msg.type_)
-    {
-      case PRIVATE_MSG:
-        msg.ReplyError("加入失败！私密类型游戏，必须指定比赛ID");
-        return;
-      case GROUP_MSG:
-        id = match_manager.get_group_match_id(msg.src_qq_);
-        break;
-      case DISCUSS_MSG:
-        id = match_manager.get_discuss_match_id(msg.src_qq_);
-        break;
-      default:
-        assert(false);
-    }
-  }
-  msg.Reply(match_manager.AddPlayer(id, msg.usr_qq_), "");
+  if (match_id.has_value()) { err_msg = match_manager.AddPlayer(*match_id, uid); }
+  return err_msg.empty() ? "加入成功" : "[错误] " + err_msg;
 }

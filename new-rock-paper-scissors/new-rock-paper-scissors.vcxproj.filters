@@ -36,6 +36,9 @@
     <ClInclude Include="dllmain.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="game_base.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

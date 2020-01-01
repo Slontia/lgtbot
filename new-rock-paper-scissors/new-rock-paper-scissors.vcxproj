@@ -147,6 +147,7 @@
   <ItemGroup>
     <ClInclude Include="dllmain.h" />
     <ClInclude Include="game.h" />
+    <ClInclude Include="game_base.h" />
     <ClInclude Include="game_stage.h" />
     <ClInclude Include="msg_checker.h" />
     <ClInclude Include="mygame.h" />

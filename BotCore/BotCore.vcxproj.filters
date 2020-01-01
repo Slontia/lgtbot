@@ -21,9 +21,6 @@
     <ClInclude Include="targetver.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="player.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="message_handlers.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -40,6 +37,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="BotCore.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="dllmain.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

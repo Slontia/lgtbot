@@ -3,164 +3,116 @@
 #include "message_iterator.h"
 #include "message_handlers.h"
 #include "../new-rock-paper-scissors/dllmain.h"
+#include "../new-rock-paper-scissors/msg_checker.h"
+#include "dllmain.h"
+#include "log.h"
 
 #include <list>
 #include <sstream>
 #include <memory>
-
-#define CQ_CODE_LEN 256
-
-char cq_code_buf[CQ_CODE_LEN];
-
-#define RETURN_IF_FAILED(str) \
-do\
-{\
-  if (const std::string& err = (str); !err.empty())\
-    return err;\
-} while (0);
+#include <optional>
 
 MatchManager match_manager;
 
-QQ LGTBOT::this_qq = INVALID_QQ;
-AT_CALLBACK LGTBOT::at_cq = nullptr;
-MSG_CALLBACK LGTBOT::send_private_msg_callback = nullptr;
-MSG_CALLBACK LGTBOT::send_group_msg_callback = nullptr;
-MSG_CALLBACK LGTBOT::send_discuss_msg_callback = nullptr;
-
-std::string LGTBOT::at_str(const QQ& qq)
+bool __cdecl Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, const PUBLIC_MSG_CALLBACK pub_msg_cb, const AT_CALLBACK at_cb)
 {
-  at_cq(qq, cq_code_buf, CQ_CODE_LEN);
-  return std::string(cq_code_buf);
+  if (this_uid == INVALID_USER_ID || !pri_msg_cb || !pub_msg_cb || !at_cb) { return false; }
+  g_this_uid = this_uid;
+  g_send_pri_msg_cb = pri_msg_cb;
+  g_send_pub_msg_cb = pub_msg_cb;
+  g_at_cb = at_cb;
+  LoadGameModules();
+  return true;
 }
 
-void LGTBOT::set_this_qq(const QQ& qq)
+bool __cdecl HandlePrivateRequest(const UserID uid, const char* const msg)
 {
-  this_qq = qq;
+
 }
 
-void LGTBOT::set_at_cq_callback(AT_CALLBACK fun)
+bool __cdecl HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
 {
-  at_cq = fun;
+
 }
 
-void LGTBOT::set_send_private_msg_callback(MSG_CALLBACK fun)
+static bool IsAtMe(const std::string& msg)
 {
-  send_private_msg_callback = fun;
+  return msg.find(At(g_this_uid)) != std::string::npos;
 }
 
-void LGTBOT::set_send_group_msg_callback(MSG_CALLBACK fun)
+static std::optional<GameHandle> LoadGame(HINSTANCE mod)
 {
-  send_group_msg_callback = fun;
-}
-
-void LGTBOT::set_send_discuss_msg_callback(MSG_CALLBACK fun)
-{
-  send_discuss_msg_callback = fun;
-}
-
-bool LGTBOT::is_at(const std::string& msg)
-{
-  return msg.find(at_str(this_qq)) != std::string::npos;
-}
-
-void LGTBOT::send_private_msg(const QQ& usr_qq, const std::string& msg)
-{
-  send_private_msg_callback(usr_qq, msg.c_str());
-}
-
-void LGTBOT::send_group_msg(const QQ& group_qq, const std::string& msg)
-{
-  send_group_msg_callback(group_qq, msg.c_str());
-}
-
-void LGTBOT::send_discuss_msg(const QQ& discuss_qq, const std::string& msg)
-{
-  send_discuss_msg_callback(discuss_qq, msg.c_str());
-}
-
-void LGTBOT::send_group_msg(const QQ& group_qq, const std::string& msg, const QQ& to_usr_qq)
-{
-  send_group_msg(group_qq, at_str(to_usr_qq) + msg);
-}
-
-void LGTBOT::send_discuss_msg(const QQ& discuss_qq, const std::string& msg, const QQ& to_usr_qq)
-{
-  send_discuss_msg(discuss_qq, at_str(to_usr_qq) + msg);
-}
-
-std::vector<GameHandle> getPlugins() {
-  std::vector<GameHandle> ret;
-
-  // 在plugins目录中查找dll文件并将文件信息保存在fileData中
-  WIN32_FIND_DATA fileData;
-  HANDLE fileHandle = FindFirstFile(L"plugins/*.dll", &fileData);
-
-  if (fileHandle == (void*)ERROR_INVALID_HANDLE ||
-    fileHandle == (void*)ERROR_FILE_NOT_FOUND) {
-    // 没有找到任何dll文件，返回空vector
+  if (!mod)
+  {
+    /* TODO: LOG(dll_path + "load failed"); */
     return {};
   }
 
-  // 循环加载plugins目录中的所有dll文件
-  do {
-    // 将dll加载到当前进程的地址空间中
-    std::wstring dll_path = L"./plugins/" + std::wstring(fileData.cFileName);
-    HINSTANCE mod = LoadLibrary(dll_path.c_str());
+  typedef int (__cdecl *Init)(const boardcast, const tell, const at, const game_over);
+  typedef char* (__cdecl *GameInfo)(uint64_t* const, uint64_t* const);
+  typedef GameBase* (__cdecl *NewGame)(const uint64_t);
+  typedef int (__cdecl *ReleaseGame)(GameBase* const);
 
-    if (!mod)
-    {
-      /* TODO: LOG(dll_path + "load failed"); */
-      continue;
-    }
+  Init init = (Init)GetProcAddress(mod, "Init");
+  GameInfo game_info = (GameInfo)GetProcAddress(mod, "GameInfo");
+  NewGame new_game = (NewGame)GetProcAddress(mod, "NewGame");
+  ReleaseGame release_game = (ReleaseGame)GetProcAddress(mod, "GetProcAddress");
 
-    // 从dll句柄中获取getObj和getName的函数地址
-    typedef int (__cdecl *Init)(const boardcast, const tell, const at, const game_over);
-    typedef char* (__cdecl *GameInfo)(uint64_t* const, uint64_t* const);
-    typedef Game* (__cdecl *NewGame)(const uint64_t);
-    typedef int (__cdecl *ReleaseGame)(Game* const);
-
-    Init init = (Init) GetProcAddress(mod, "Init");
-    GameInfo game_info = (GameInfo) GetProcAddress(mod, "GameInfo");
-    NewGame new_game = (NewGame) GetProcAddress(mod, "NewGame");
-    ReleaseGame release_game = (ReleaseGame) GetProcAddress(mod, "GetProcAddress");
-
-    if (!init || !game_info || !new_game || !release_game)
-    {
-      //LOG("Invalid Plugin DLL: some interface not be defined.");
-      continue;
-    }
-
-    uint64_t min_player = 0;
-    uint64_t max_player = 0;
-    char* name = game_info(&min_player, &max_player);
-    if (!name)
-    {
-      //LOG("Cannot get game game");
-      continue;
-    }
-    if (min_player == 0 || max_player < min_player)
-    {
-      //LOG("Invalid" min_player, max_player)
-      continue;
-    }
-    
-    ret.emplace_back(name, min_player, max_player, new_game, release_game, mod);
-
-    //LOG(name" loaded!\n");
-  } while (FindNextFile(fileHandle, &fileData));
-
-  std::clog << std::endl;
-
-  // 关闭文件句柄
-  FindClose(fileHandle);
-  return ret;
+  if (!init || !game_info || !new_game || !release_game)
+  {
+    LOG_INFO("Invalid Plugin DLL: some interface not be defined.");
+    return {};
+  }
+  uint64_t min_player = 0;
+  uint64_t max_player = 0;
+  char* name = game_info(&min_player, &max_player);
+  if (!name)
+  {
+    LOG_INFO("Cannot get game game");
+    return {};
+  }
+  if (min_player == 0 || max_player < min_player)
+  {
+    LOG_INFO("Invalid" + std::to_string(min_player) + std::to_string(max_player));
+    return {};
+  }
+  return GameHandle(name, min_player, max_player, new_game, release_game, mod);
 }
 
-void LGTBOT::LoadGames()
+static void LoadGameModules()
 {
-  g_games_.clear();
-  /* TODO: load games from dlls */
+  WIN32_FIND_DATA file_data;
+  HANDLE file_handle = FindFirstFile(L"plugins/*.dll", &file_data);
+  if (file_handle == (void*)ERROR_INVALID_HANDLE || file_handle == (void*)ERROR_FILE_NOT_FOUND) { return; }
+  do {
+    std::wstring dll_path = L"./plugins/" + std::wstring(file_data.cFileName);
+    std::optional<GameHandle> game_handle = LoadGame(LoadLibrary(dll_path.c_str()));
+    if (game_handle.has_value())
+    {
+      LOG_ERROR(std::string(dll_path.begin(), dll_path.end()) + " loaded failed!\n");
+    }
+    else
+    {
+      LOG_INFO(std::string(dll_path.begin(), dll_path.end()) + " loaded success!\n");
+      g_game_handles.emplace(game_handle->name_, *game_handle);
+    }    
+  } while (FindNextFile(file_handle, &file_data));
+  FindClose(file_handle);
 }
+
+typedef std::shared_ptr<MsgCommand<void(const UserID, const std::optional<GroupID>)>> MetaCommand;
+
+template <typename ...Args>
+MetaCommand MakeMetaCommand(Args... args)
+{
+  return std::make_shared<void(const UserID, const std::optional<GroupID>)>(args...);
+}
+
+std::vector<MetaCommand> cmds =
+{
+  MakeMetaCommand(show_gamelist, std::make_unique<MsgArgChecker<void>>("游戏列表")),
+  MakeMetaCommand(new_game, std::make_unique<MsgArgChecker<void>>("游戏列表")),
+};
 
 /* msg is not empty */
 void global_request(MessageIterator& msg)
@@ -205,7 +157,7 @@ void global_request(MessageIterator& msg)
   }
 }
 
-bool LGTBOT::Request(const MessageType& msg_type, const QQ& src_qq, const QQ& usr_qq, char* msg_c)
+bool Request(const MessageType& msg_type, const QQ& src_qq, const QQ& usr_qq, char* msg_c)
 {
   std::string msg(msg_c);
   if (msg.empty()) return false;

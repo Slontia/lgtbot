@@ -4,11 +4,10 @@
 
 #include "lgtbot.h"
 #include "message_iterator.h"
-#include "game_container.h"
 #include "match.h"
 
-void show_gamelist(MessageIterator& msg);
-void start_game(MessageIterator& msg);
-void new_game(MessageIterator& msg);
-void leave(MessageIterator& msg);
-void join(MessageIterator& msg);
+std::string show_gamelist(const UserID uid, const std::optional<GroupID> gid);
+std::string new_game(const UserID uid, const std::optional<GroupID> gid, const std::string& gamename, const bool for_public_match);
+std::string start_game(const UserID uid, const std::optional<GroupID> gid);
+std::string leave(const UserID uid, const std::optional<GroupID> gid);
+std::string join(const UserID uid, const std::optional<GroupID> gid, std::optional<MatchId> match_id);
