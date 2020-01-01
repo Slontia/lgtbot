@@ -11,21 +11,9 @@ using GameMsgCommand = MsgCommand<std::string(const uint64_t, const bool)>;
 class Stage
 {
 public:
-  Stage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game& game)
-    : stage_id_(stage_id), commands_(std::move(commands)), is_over_(false), game_(game) {}
-  virtual ~Stage() {}
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public) = 0
-  {
-    for (const std::unique_ptr<GameMsgCommand>& command : commands_)
-    {
-      if (std::optional<std::string> response = command->CallIfValid(reader, std::tuple{player_id, is_public}))
-      {
-        if (!response->empty()) { game_.Reply(player_id, is_public, *response); }
-        return true;
-      }
-    }
-    return false;
-  }
+  Stage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game& game);
+  virtual ~Stage();
+  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public) = 0;
   virtual void HandleTimeout() = 0;
   bool IsOver() const { return is_over_; }
   StageEnum StageID() const { return stage_id_; }
@@ -33,15 +21,7 @@ public:
 protected:
   virtual std::string Name() const = 0;
   virtual void OnOver() = 0;
-  void Over()
-  {
-    if (!is_over_)
-    {
-      OnOver();
-      is_over_ = true;
-    }
-  }
-  //Game& Game() { return game_; }
+  void Over();
 
 private:
   const StageEnum stage_id_;
@@ -53,27 +33,12 @@ private:
 class CompStage : public Stage
 {
 public:
-  CompStage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game& game, std::unique_ptr<Stage>&& sub_stage)
-    : Stage(stage_id, std::move(commands), game), sub_stage_(std::move(sub_stage)) {}
-  virtual ~CompStage() {}
+  CompStage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game& game, std::unique_ptr<Stage>&& sub_stage);
+  virtual ~CompStage();
   virtual std::unique_ptr<Stage> NextSubStage(const StageEnum cur_stage) const = 0;
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public) override final
-  {
-    if (Stage::HandleRequest(reader, player_id, is_public)) { return true; }
-    const bool sub_stage_handled = sub_stage_->HandleRequest(reader, player_id, is_public);
-    if (sub_stage_->IsOver()) { CheckoutSubStage(); }
-    return sub_stage_handled;
-  }
-  virtual void HandleTimeout() override final
-  {
-    sub_stage_->HandleTimeout();
-    if (sub_stage_->IsOver()) { CheckoutSubStage(); }
-  }
-  void CheckoutSubStage()
-  {
-    sub_stage_ = NextSubStage(sub_stage_->StageID());
-    if (!sub_stage_) { Over(); } // no more substages
-  }
+  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public);
+  virtual void HandleTimeout();
+  void CheckoutSubStage();
 
 private:
   std::unique_ptr<Stage> sub_stage_;

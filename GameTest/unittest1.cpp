@@ -46,15 +46,16 @@ namespace GameTest
 			//const std::function<std::string(const int)> f = [](const int a) -> std::string { return std::to_string(a); };
       const std::function<std::string(const bool b, const int i)> f = [](const int b, const int i) { return std::to_string(b ? -i : i); };
       std::shared_ptr<MsgCommand<std::string(const bool)>> command = MakeCommand<std::string(const bool)>(f, std::make_unique<IntChecker>());
-			const auto test = [&](std::string s)
+      std::shared_ptr<MsgCommand<std::string(const bool)>> command2 = MakeCommand<std::string(const bool)>(f, std::make_unique<ArithChecker<int, 0, 100>>());
+      std::shared_ptr<MsgCommand<std::string()>> command3 = MakeCommand<std::string()>(f, std::make_unique<BoolChecker>("true", "false"), std::make_unique<ArithChecker<int, 0, 100>>());
+
+      const auto test = [&](std::string s, auto& cmd, auto& tuple)
 			{
 				MsgReader reader(s);
-        Logger::WriteMessage(std::to_string(command->CallIfValid(reader, std::tuple{ true }).has_value()).c_str());
+        Logger::WriteMessage(std::to_string(cmd->CallIfValid(reader, tuple).has_value()).c_str());
 			};
-			test("1 2 c");
-			test("1 2");
-      test("1");
-			test("a");
+      test("false", command3, std::tuple{});
+      test("1", command2, std::tuple{true});
 		}
 	};
 

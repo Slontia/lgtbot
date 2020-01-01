@@ -156,6 +156,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="game_stage.cpp" />
     <ClCompile Include="mygame.cpp" />
     <ClCompile Include="new-rock-paper-scissors.cpp" />
     <ClCompile Include="stdafx.cpp">

@@ -6,6 +6,7 @@
 #include <iostream>
 #include <functional>
 #include <optional>
+#include <sstream>
 static const std::string k_empty_str_ = "";
 
 class MsgReader final
@@ -55,6 +56,54 @@ public:
   virtual std::string ExampleInfo() const = 0;
   virtual std::optional<T> Check(MsgReader& reader) const = 0;
 };
+
+class BoolChecker : public MsgArgChecker<bool>
+{
+public:
+  BoolChecker(const std::string& true_str, const std::string& false_str) : true_str_(true_str), false_str_(false_str) {}
+  virtual ~BoolChecker() {}
+  virtual std::string FormatInfo() const override { return "<" + true_str_ + ":" + false_str_ + ">"; }
+  virtual std::string ExampleInfo() const override { return true_str_; }
+  virtual std::optional<bool> Check(MsgReader& reader) const override
+  {
+    if (!reader.HasNext()) { return {}; }
+    const std::string str = reader.NextArg();
+    if (str == true_str_) { return true; }
+    else if (str == false_str_) { return false; }
+    else { return {}; }
+  }
+
+private:
+  const std::string true_str_;
+  const std::string false_str_;
+};
+
+template <typename T, T Min, T Max, typename = typename std::enable_if_t<std::is_arithmetic_v<T>>>
+class ArithChecker : public MsgArgChecker<T>
+{
+public:
+  typedef T arg_type;
+  ArithChecker(const std::string meaning = "Êý×Ö") : meaning_(meaning) { static_assert(Max >= Min, "Invalid Range"); }
+  virtual ~ArithChecker() {}
+  virtual std::string FormatInfo() const override
+  {
+    return "<" + meaning_ + "£º" + std::to_string(Min) + "~" + std::to_string(Max) + ">";
+  }
+  virtual std::string ExampleInfo() const override { return std::to_string((Min + Max) / 2); }
+  virtual std::optional<T> Check(MsgReader& reader) const
+  {
+    if (!reader.HasNext()) { return {}; }
+    std::stringstream ss;
+    ss << reader.NextArg();
+    if (T value; ss >> value) { return value; }
+    else { return {}; };
+  }
+
+private:
+  const std::string meaning_;
+};
+
+using VoidChecker = MsgArgChecker<void>;
 
 template <>
 class MsgArgChecker<void> final
