@@ -3,9 +3,9 @@
 #include <iostream>
 #include <map>
 #include <assert.h>
-#include <unordered_map>
-#include <unordered_set>
+#include <set>
 #include <stack>
+#include <optional>
 
 #include "lgtbot.h"
 #include "message_iterator.h"
@@ -39,57 +39,30 @@ class MatchManager
 {
 public:
   MatchManager();
-
-  MatchId MatchManager::get_group_match_id(const QQ& group_qq);
-
-  MatchId MatchManager::get_discuss_match_id(const QQ& discuss_qq);
-
-  static MatchId MatchManager::get_match_id(const QQ& src_qq, std::unordered_map<QQ, std::shared_ptr<Match>> match_map);
-
-  std::shared_ptr<Match> new_private_match(const MatchId& id, const std::string& game_id, const QQ& host_qq);
-
-  std::shared_ptr<Match> new_group_match(const MatchId& id, const std::string& game_id, const QQ& host_qq, const QQ& group_qq);
-
-  std::shared_ptr<Match> new_discuss_match(const MatchId& id, const std::string& game_id, const QQ& host_qq, const QQ& discuss_qq);
-
-  ErrMsg new_match(const MatchType& type, const std::string& game_id, const QQ& host_qq, const QQ& lobby_qq);
-
-  ErrMsg StartGame(const QQ& host_qq);
-
-  /* Assume usr_qq is valid. */
-  ErrMsg AddPlayer(const MatchId& id, const QQ& usr_qq);
-
-  /* Assume usr_qq is valid. */
-  ErrMsg DeletePlayer(const QQ& usr_qq);
-
-  /* return true if is a game request */
-  bool Request(MessageIterator& msg);
-
-  void DeleteMatch(MatchId id);
-  
+  ~MatchManager() = default;
+  std::string NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid);
+  std::string StartGame(const UserID uid);
+  std::string AddPlayer(const MatchId mid, const UserID uid);
+  std::string AddPlayer(const GroupID gid, const UserID uid);
+  std::string DeletePlayer(const UserID uid);
+  std::string Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg);
+  void DeleteMatch(const MatchId id);
 
 private:
-  std::map<MatchId, std::shared_ptr<Match>> matches;
-  std::unordered_map<QQ, std::shared_ptr<Match>> discuss_matches;
-  std::unordered_map<QQ, std::shared_ptr<Match>> group_matches;
-  std::unordered_map<QQ, std::shared_ptr<Match>> player_matches;
-  std::stack<MatchId> match_ids;
-  MatchId next_match_id;
+  MatchId NewMatchID();
 
-  MatchId assign_id();
-
-  bool PublicRequest(MessageIterator& msg, const std::unordered_map<QQ, std::shared_ptr<Match>> public_matches);
+  std::map<MatchId, std::shared_ptr<Match>> mid2match_;
+  std::map<UserID, std::shared_ptr<Match>> uid2match_;
+  std::map<GroupID, std::shared_ptr<Match>> gid2match_;
+  MatchId next_mid_;
 };
 
 class Match
 {
 public:
-  typedef enum { PRIVATE_MATCH, GROUP_MATCH, DISCUSS_MATCH } MatchType;
-  const MatchType                   type_;
+  Match(const MatchId id, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid);
 
-  Match(const MatchId id, const GameHandle& game_handle, const int64_t& host_qq, const MatchType& type);
-
-  std::string         Request(const QQ qq, const bool is_public, const std::string& msg);
+  std::string         Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg);
   /* switch status, create game */
   std::string                GameStart();
   /* send msg to all player */
@@ -97,35 +70,32 @@ public:
   virtual void private_respond(const QQ&, const std::string&) const = 0;
   virtual void public_respond(const QQ&, const std::string&) const = 0;
   /* bind to map, create GamePlayer and send to game */
-  std::string                              Join(const int64_t& qq);
-  std::string                              Leave(const int64_t& qq);
+  std::string                              Join(const UserID uid);
+  std::string                              Leave(const UserID uid);
 
-  bool has_qq(const int64_t& qq) const;
-  const MatchId& get_id() const { return id_; }
-  MatchType get_type() const { return type_; }
-  std::pair<std::unordered_set<QQ>::const_iterator, std::unordered_set<QQ>::const_iterator> get_ready_iterator() const
-  { 
-    return { ready_qq_set_.begin(), ready_qq_set_.end() };
-  }
-  const QQ& get_host_qq() const { return host_qq_; }
-  bool switch_host()
+  bool Has(const UserID uid) const;
+  MatchId mid() const { return mid_; }
+  std::optional<GroupID> gid() const { return gid_; }
+  UserID host_uid() const { return host_uid_; }
+  const std::set<UserID>& ready_uid_set() const { return ready_uid_set_; }
+  bool SwitchHost()
   {
-    if (ready_qq_set_.empty()) return false;
-    host_qq_ = *ready_qq_set_.begin();
+    if (ready_uid_set_.empty()) { return false; }
+    host_uid_ = *ready_uid_set_.begin();
     return true;
   }
-  bool is_started() { return status_ != PREPARE; }
+  bool is_started() { return state_ != PREPARE; }
 
 protected:
-  enum { PREPARE, GAMING, OVER }    status_;
-  const MatchId                     id_;
+  const MatchId                     mid_;
   const GameHandle&                 game_handle_;
-  QQ                     host_qq_;
+  UserID                     host_uid_;
+  const std::optional<GroupID> gid_;
+  enum { PREPARE, GAMING, OVER }    state_;
   GameBase*       game_;
-  std::unordered_set<QQ>            ready_qq_set_;
-  std::map<QQ, uint32_t>       qq2pid_;
-  std::vector<QQ>              pid2qq_;
-  uint32_t                          player_count_;
+  std::set<UserID>            ready_uid_set_;
+  std::map<UserID, uint64_t>       uid2pid_;
+  std::vector<UserID>              pid2uid_;
 };
 
 class PrivateMatch : public Match

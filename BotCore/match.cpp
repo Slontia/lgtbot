@@ -4,298 +4,156 @@
 #include "match.h"
 #include "../new-rock-paper-scissors/dllmain.h"
 #include "../new-rock-paper-scissors/game_base.h"
+#include <optional>
 
-MatchManager::MatchManager() : next_match_id(1) {}
+MatchManager::MatchManager() : next_mid_(0) {}
 
-std::shared_ptr<Match> MatchManager::new_private_match(const MatchId& id, const std::string& game_id, const QQ& host_qq)
+std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid)
 {
-  return std::dynamic_pointer_cast<Match>(std::make_shared<PrivateMatch>(id, game_id, host_qq));
-}
+  if (uid2match_.find(uid) != uid2match_.end()) { return "您已加入游戏，不能新建游戏"; }
+  if (gid.has_value() && gid2match_.find(*gid) != gid2match_.end()) { return "该房间已经开始了游戏，不能再新建游戏了"; }
 
-std::shared_ptr<Match> MatchManager::new_group_match(const MatchId& id, const std::string& game_id, const QQ& host_qq, const QQ& group_qq)
-{
-  assert(id != INVALID_LOBBY);
+  auto mid = NewMatchID();
+  std::shared_ptr<Match> new_match = std::make_shared<Match>(mid, game_handle, uid, gid);
+  assert(mid2match_.find(mid) == mid2match_.end());
 
-  /* If the group has match, return. */
-  if (group_matches.find(group_qq) != group_matches.end()) return nullptr;
-
-  /* Create new match. */
-  auto match = std::make_shared<GroupMatch>(id, game_id, host_qq, group_qq);
-
-  group_matches.emplace(group_qq, match);
-  return std::dynamic_pointer_cast<Match>(match);
-}
-
-std::shared_ptr<Match> MatchManager::new_discuss_match(const MatchId& id, const std::string& game_id, const QQ& host_qq, const QQ& discuss_qq)
-{
-  assert(id != INVALID_LOBBY);
-
-  /* If the discuss has match, return. */
-  if (discuss_matches.find(discuss_qq) != discuss_matches.end()) return nullptr;
-
-  /* Create new match. */
-  auto match = std::make_shared<DiscussMatch>(id, game_id, host_qq, discuss_qq);
-  
-  discuss_matches.emplace(discuss_qq, match);
-  return std::dynamic_pointer_cast<Match>(match);
-}
-
-ErrMsg MatchManager::new_match(const MatchType& type, const std::string& game_id, const QQ& host_qq, const QQ& lobby_qq)
-{
-  if ((player_matches.find(host_qq) != player_matches.end())) return "您已加入游戏，不能新建游戏";
-
-  /* Create id and match. */
-  auto id = assign_id();
-  std::shared_ptr<Match> new_match = nullptr;
-  switch (type)
-  {
-    case PRIVATE_MATCH:
-      new_match = new_private_match(id, game_id, host_qq);
-      assert(new_match);
-      break;
-    case GROUP_MATCH:
-      new_match = new_group_match(id, game_id, host_qq, lobby_qq);
-      break;
-    case DISCUSS_MATCH:
-      new_match = new_discuss_match(id, game_id, host_qq, lobby_qq);
-      break;
-    default:
-      /* Never reach here! */
-      assert(false);
-  }
-  if (!new_match) return "该房间已经开始了游戏，不能再新建游戏了";
-
-  /* Store match into map. */
-  assert(matches.find(id) == matches.end());
-  matches.emplace(id, new_match);
-
-  /* Add host player. */
-  RETURN_IF_FAILED(AddPlayer(id, host_qq));
+  if (!mid2match_.emplace(mid, new_match).second) { assert(false); }
+  if (!uid2match_.emplace(uid, new_match).second) { assert(false); }
+  if (gid.has_value() && !gid2match_.emplace(*gid, new_match).second) { assert(false); }
 
   return "";
 }
 
-ErrMsg MatchManager::StartGame(const QQ& host_qq)
+std::string MatchManager::StartGame(const UserID uid)
 {
-  auto it = player_matches.find(host_qq);
-  if (it == player_matches.end()) return "您未加入游戏";
-
-  auto match = it->second;
-  if (match->get_host_qq() != host_qq) return "您不是房主，没有开始游戏的权限";
+  auto it = uid2match_.find(uid);
+  if (it == uid2match_.end()) { return "您未加入游戏"; }
+  const std::shared_ptr<Match>& match = it->second;
+  if (match->host_uid() != uid) { return "您不是房主，没有开始游戏的权限"; }
   RETURN_IF_FAILED(match->GameStart());
   return "";
 }
 
-// private
-MatchId MatchManager::get_match_id(const QQ& src_qq, std::unordered_map<QQ, std::shared_ptr<Match>> match_map)
+std::string MatchManager::AddPlayer(const MatchId mid, const UserID uid)
 {
-  auto it = match_map.find(src_qq);
-  return (it == match_map.end()) ? INVALID_MATCH : it->second->get_id();
-}
-
-MatchId MatchManager::get_group_match_id(const QQ& group_qq)
-{
-  return get_match_id(group_qq, group_matches);
-}
-
-MatchId MatchManager::get_discuss_match_id(const QQ& discuss_qq)
-{
-  return get_match_id(discuss_qq, discuss_matches);
-}
-
-
-/* Assume usr_qq is valid. */
-std::string MatchManager::AddPlayer(const MatchId& id, const QQ& usr_qq)
-{
-  auto it = matches.find(id);
-  if (it == matches.end()) return "该房间未进行游戏，或游戏ID不存在";
-  if (player_matches.find(usr_qq) != player_matches.end()) return "您已加入其它游戏，请先退出";
-  auto match = it->second;
-
-  /* Join match. */
-  RETURN_IF_FAILED(match->Join(usr_qq));
-  
-  /* Insert into player matches map. */
-  player_matches.emplace(usr_qq, match);
-
+  if (uid2match_.find(uid) != uid2match_.end()) { return "您已加入其它游戏，请先退出"; }
+  const auto it = mid2match_.find(mid);
+  if (it == mid2match_.end()) { return "游戏ID不存在"; }
+  const std::shared_ptr<Match> match = it->second;
+  RETURN_IF_FAILED(match->Join(uid));
+  if (!uid2match_.emplace(uid, match).second) { assert(false); }
   return "";
 }
 
-/* Assume usr_qq is valid. */
-std::string MatchManager::DeletePlayer(const QQ& usr_qq)
+std::string MatchManager::AddPlayer(const GroupID gid, const UserID uid)
 {
-  
-  auto it = player_matches.find(usr_qq);
-  if (it == player_matches.end()) return "您未加入游戏，退出失败";
-  auto match = it->second;
+  if (uid2match_.find(uid) != uid2match_.end()) { return "您已加入其它游戏，请先退出"; }
+  const auto it = gid2match_.find(gid);
+  if (it == gid2match_.end()) { return "该房间未进行游戏"; }
+  const std::shared_ptr<Match> match = it->second;
+  RETURN_IF_FAILED(match->Join(uid));
+  if (!uid2match_.emplace(uid, match).second) { assert(false); }
+  return "";
+}
 
-  /* Leave match. */
-  RETURN_IF_FAILED(match->Leave(usr_qq));
-
-  /* Erase from player matches map. */
-  player_matches.erase(usr_qq);
-
+std::string MatchManager::DeletePlayer(const UserID uid)
+{
+  auto it = uid2match_.find(uid);
+  if (it == uid2match_.end()) { return "您未加入游戏，退出失败"; }
+  const std::shared_ptr<Match>& match = it->second;
+  RETURN_IF_FAILED(match->Leave(uid));
+  uid2match_.erase(uid);
   /* If host quit, switch host. */
-  if (usr_qq == match->get_host_qq() && !match->switch_host())
-  {
-    DeleteMatch(match->get_id());
-  }
-
+  if (uid == match->host_uid() && !match->SwitchHost()) { DeleteMatch(match->mid()); }
   return "";
 }
 
 /* return true if is a game request */
-bool MatchManager::Request(MessageIterator& msg)
+std::string MatchManager::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)
 {
-  switch (msg.type_)
+  const auto uid_it = uid2match_.find(uid);
+  if (uid_it == uid2match_.end()) { return "[错误] 您未加入任何游戏"; }
+  else if (gid.has_value())
   {
-    case PRIVATE_MSG:
-    {
-      auto match = player_matches.find(msg.usr_qq_);
-      if (match == player_matches.end()) return false;
-      match->second->Request(msg);
-      return true;
-    }
-    case GROUP_MSG:
-      return PublicRequest(msg, group_matches);
-    case DISCUSS_MSG:
-      return PublicRequest(msg, discuss_matches);
-    default:
-      break;
+    const auto gid_it = gid2match_.find(*gid);
+    if (gid_it == gid2match_.end() || uid_it->second->mid() != gid_it->second->mid()) { return "[错误] 您未处于当前群比赛中"; }
+    else { return uid_it->second->Request(uid, true /* is_public */, msg); }
   }
-  /* Never reach here! */
-  assert(false);
-  return false;
+  else { return uid_it->second->Request(uid, false /* is_public */, msg); }
 }
 
-void MatchManager::DeleteMatch(MatchId id)
+void MatchManager::DeleteMatch(const MatchId mid)
 {
-  auto it = matches.find(id);
-  assert(it != matches.end());
-  auto match = it->second;
-  /* Delete match from group or discuss. */
-  switch (match->get_type())
-  {
-    case GROUP_MATCH:
-      group_matches.erase(std::dynamic_pointer_cast<GroupMatch>(match)->get_group_qq());
-      break;
-    case DISCUSS_MATCH:
-      discuss_matches.erase(std::dynamic_pointer_cast<DiscussMatch>(match)->get_discuss_qq());
-      break;
-    default:
-      assert(match->get_type() == PRIVATE_MATCH);
-  }
-
-  /* Delete match from id. */
-  matches.erase(id);
-
+  auto it = mid2match_.find(mid);
+  assert(it != mid2match_.end());
+  const std::shared_ptr<Match> match = it->second;
   match->broadcast("游戏中止或结束");
 
-  /* Delete players. */
-  auto ready_iterators = match->get_ready_iterator();
-  for (auto it = ready_iterators.first; it != ready_iterators.second; ++it)
-  {
-    DeletePlayer(*it);
-  }
+  mid2match_.erase(match->mid());
+  if (match->gid().has_value()) { gid2match_.erase(*match->gid()); }
+  const std::set<UserID>& ready_uid_set = match->ready_uid_set();
+  for (auto it = ready_uid_set.begin(); it != ready_uid_set.end(); ++ it) { uid2match_.erase(*it); }
 }
 
-
-MatchId MatchManager::assign_id()
+MatchId MatchManager::NewMatchID()
 {
-  /* If no available id, create new one. */
-  if (match_ids.empty()) return next_match_id++;
-
-  /* Or fetch from stack. */
-  auto id = match_ids.top();
-  match_ids.pop();
-  return id;
+  while (mid2match_.find(++ next_mid_) != mid2match_.end());
+  return next_mid_;
 }
 
-bool MatchManager::PublicRequest(MessageIterator& msg, const std::unordered_map<QQ, std::shared_ptr<Match>> public_matches)
+Match::Match(const MatchId mid, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid) :
+  mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), state_(PREPARE) {}
+
+bool Match::Has(const UserID uid) const
 {
-  auto player_match = player_matches.find(msg.usr_qq_);
-  auto public_match = public_matches.find(msg.src_qq_);
-  if (player_match == player_matches.end() ||
-      public_match == public_matches.end() ||
-      player_match->second->get_id() != public_match->second->get_id()) return false;
-  player_match->second->Request(msg);
-  return true;
+  return ready_uid_set_.find(uid) != ready_uid_set_.end();
 }
 
-
-Match::Match(const MatchId id, const GameHandle& game_handle, const int64_t& host_qq, const MatchType& type) :
-  id_(id), type_(type), game_handle_(game_handle), host_qq_(host_qq), status_(PREPARE)
+std::string Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)
 {
-
-}
-
-bool Match::has_qq(const int64_t& qq) const
-{
-  return ready_qq_set_.find(qq) != ready_qq_set_.end();
-}
-
-std::string Match::Request(const QQ qq, const bool is_public, const std::string& msg)
-{
-  if (status_ != GAMING)
-  {
-    return "错误：当前游戏未处于进行状态";
-  }
-  assert(has_qq(qq));
-  game_->HandleRequest(qq2pid_[qq], msg.c_str());
+  if (state_ != GAMING) { return "[错误] 当前游戏未处于进行状态"; }
+  const auto it = uid2pid_.find(uid);
+  assert(it != uid2pid_.end());
+  return game_->HandleRequest(it->second, gid.has_value(), msg.c_str());
 }
 
 /* Register players, switch status and start the game 
 */
 std::string Match::GameStart()
 {
-  if (status_ != PREPARE)
+  if (state_ != PREPARE) { return "开始游戏失败：游戏未处于准备状态"; }
+  const uint64_t player_num = ready_uid_set_.size();
+  if (player_num < game_handle_.min_player_) { return "开始游戏失败：玩家人数过少"; }
+  assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
+  for (UserID uid : ready_uid_set_)
   {
-    return "开始游戏失败：游戏未处于准备状态";
+    uid2pid_.emplace(uid, pid2uid_.size());
+    pid2uid_.push_back(uid);
   }
-  player_count_ = ready_qq_set_.size();
-  if (player_count_ < game_handle_.min_player_)
-  {
-    return "开始游戏失败：玩家人数过少";
-  }
-  for (auto qq : ready_qq_set_)
-  {
-    pid2qq_.push_back(qq);
-    qq2pid_.emplace(qq, pid2qq_.size() - 1);
-    game_->Join(game_container.MakePlayer(game_id_));
-  }
-  status_ = GAMING;
-  game_->StartGame();
+  state_ = GAMING;
+  game_ = NewGame(mid_, player_num);
   return "";
 }
 
 /* append new player to qq_list
 */
-std::string Match::Join(const int64_t& qq)
+std::string Match::Join(const UserID uid)
 {
-  assert(!has_qq(qq));
-  if (status_ != PREPARE)
-  {
-    return "加入游戏失败：游戏已经开始";
-  }
-  if (ready_qq_set_.size() >= game_->kMaxPlayer)
-  {
-    return "加入游戏失败：比赛人数已达到游戏上线";
-  }
-  ready_qq_set_.insert(qq); // add to queue
-  broadcast("玩家 " + LGTBOT::at_str(qq) + " 加入了游戏");
+  assert(!Has(uid));
+  if (state_ != PREPARE) { return "加入游戏失败：游戏已经开始"; }
+  if (ready_uid_set_.size() >= game_handle_.max_player_) { return "加入游戏失败：比赛人数已达到游戏上线"; }
+  ready_uid_set_.emplace(uid); // add to queue
+  broadcast("玩家 " + At(uid) + " 加入了游戏");
   return "";
 }
 
 /* remove player from qq_list
 */
-std::string Match::Leave(const int64_t& qq)
+std::string Match::Leave(const UserID uid)
 {
-  assert(has_qq(qq));
-  if (status_ != PREPARE)
-  {
-    return "退出失败！游戏已经开始了，你逃不掉了，JOJO！";
-  }
-  broadcast("玩家 " + LGTBOT::at_str(qq) + " 退出了游戏");
-  ready_qq_set_.erase(qq);  // remove from queue
+  assert(Has(uid));
+  if (state_ != PREPARE) { return "退出失败：游戏已经开始"; }
+  broadcast("玩家 " + At(uid) + " 退出了游戏");
+  ready_uid_set_.erase(uid);
   return "";
 }

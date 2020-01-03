@@ -16,13 +16,13 @@ Stage::Stage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgComman
 
 Stage::~Stage() {}
 
-bool Stage::HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public)
+bool Stage::HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply)
 {
   for (const std::unique_ptr<GameMsgCommand>& command : commands_)
   {
     if (std::optional<std::string> response = command->CallIfValid(reader, std::tuple{ player_id, is_public }))
     {
-      if (!response->empty()) { game_.Reply(player_id, is_public, *response); }
+      if (!response->empty()) { reply(*response); }
       return true;
     }
   }
@@ -43,10 +43,10 @@ CompStage::CompStage(const StageEnum stage_id, std::vector<std::unique_ptr<GameM
 
 CompStage::~CompStage() {}
 
-bool CompStage::HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public)
+bool CompStage::HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply)
 {
-  if (Stage::HandleRequest(reader, player_id, is_public)) { return true; }
-  const bool sub_stage_handled = sub_stage_->HandleRequest(reader, player_id, is_public);
+  if (Stage::HandleRequest(reader, player_id, is_public, reply)) { return true; }
+  const bool sub_stage_handled = sub_stage_->HandleRequest(reader, player_id, is_public, reply);
   if (sub_stage_->IsOver()) { CheckoutSubStage(); }
   return sub_stage_handled;
 }

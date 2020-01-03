@@ -13,7 +13,7 @@ class Stage
 public:
   Stage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game& game);
   virtual ~Stage();
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public) = 0;
+  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) = 0;
   virtual void HandleTimeout() = 0;
   bool IsOver() const { return is_over_; }
   StageEnum StageID() const { return stage_id_; }
@@ -36,7 +36,7 @@ public:
   CompStage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game& game, std::unique_ptr<Stage>&& sub_stage);
   virtual ~CompStage();
   virtual std::unique_ptr<Stage> NextSubStage(const StageEnum cur_stage) const = 0;
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public);
+  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply);
   virtual void HandleTimeout();
   void CheckoutSubStage();
 

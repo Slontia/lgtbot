@@ -24,21 +24,17 @@ public:
     : match_id_(match_id), game_env_(std::move(game_env)), main_stage_(std::move(main_stage)), is_over_(false) {}
   virtual ~Game() {}
 
-  bool HandleRequest(const uint64_t player_id, const bool is_public, char* const msg) override
+  const char* __cdecl HandleRequest(const uint64_t player_id, const bool is_public, const char* const msg) override
   {
     assert(!is_over_);
     assert(msg);
     MsgReader reader(msg);
-    bool reply_msg = main_stage_->HandleRequest(reader, player_id, is_public);
+    std::string& reply_msg = tmp_str_;
+    const auto reply = [&reply_msg](const std::string& msg) { reply_msg = msg; };
+    if (!main_stage_->HandleRequest(reader, player_id, is_public, reply)) { reply("[错误] 未预料的游戏请求"); }
     if (main_stage_->IsOver()) { is_over_ = true; }
-    return is_over_;
+    return reply_msg.c_str();
   }
-
-  void Reply(const uint64_t player_id, const bool is_public, const std::string& reply_msg)
-  {
-    if (is_public) { boardcast_f(match_id_, at_f(match_id_, player_id) + reply_msg); }
-    else { tell_f(match_id_, player_id, reply_msg); }
-  };
 
   std::vector<int64_t> PlayerScores() const;
   bool IsOver() const { return is_over_; }
@@ -48,5 +44,6 @@ private:
   const std::unique_ptr<GameEnv> game_env_;
   const std::unique_ptr<Stage> main_stage_;
   bool is_over_;
+  std::string tmp_str_;
 };
 

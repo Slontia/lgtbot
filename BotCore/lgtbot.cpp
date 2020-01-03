@@ -27,12 +27,12 @@ bool __cdecl Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, 
 
 void __cdecl HandlePrivateRequest(const UserID uid, const char* const msg)
 {
-  SendPrivateMsg(uid, HandleRequest(uid, {}, msg));
+  if (const std::string reply_msg = HandleRequest(uid, {}, msg); !reply_msg.empty()) { SendPrivateMsg(uid, reply_msg);  }
 }
 
 void __cdecl HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
 {
-  SendPublicMsg(gid, At(uid) + HandleRequest(uid, gid, msg));
+  if (const std::string reply_msg = HandleRequest(uid, gid, msg); !reply_msg.empty()) { SendPublicMsg(gid, At(uid) + reply_msg); };
 }
 
 static bool IsAtMe(const std::string& msg)

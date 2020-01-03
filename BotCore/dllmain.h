@@ -10,8 +10,8 @@ extern "C"
   typedef void(*PUBLIC_MSG_CALLBACK)(const GroupID&, const char*);
 
   __declspec(dllexport) bool __cdecl Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, const PUBLIC_MSG_CALLBACK pub_msg_cb, const AT_CALLBACK at_cb);
-  __declspec(dllexport) bool __cdecl HandlePrivateRequest(const UserID uid, const char* const msg);
-  __declspec(dllexport) bool __cdecl HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg);
+  __declspec(dllexport) void __cdecl HandlePrivateRequest(const UserID uid, const char* const msg);
+  __declspec(dllexport) void __cdecl HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg);
 }
 
 
