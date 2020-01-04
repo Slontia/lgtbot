@@ -20,30 +20,40 @@ static std::function<void(const uint64_t game_id, const std::vector<int64_t>& sc
 class Game : public GameBase
 {
 public:
-  Game(const uint64_t match_id, std::unique_ptr<GameEnv>&& game_env, std::unique_ptr<Stage>&& main_stage)
-    : match_id_(match_id), game_env_(std::move(game_env)), main_stage_(std::move(main_stage)), is_over_(false) {}
+  Game(const uint64_t mid, std::unique_ptr<GameEnv>&& game_env, std::unique_ptr<Stage>&& main_stage)
+    : mid_(mid), game_env_(std::move(game_env)), main_stage_(std::move(main_stage)), is_over_(false) {}
   virtual ~Game() {}
 
-  const char* __cdecl HandleRequest(const uint64_t player_id, const bool is_public, const char* const msg) override
+  /* Return true when is_over_ switch from false to true */
+  virtual void __cdecl HandleRequest(const uint64_t pid, const bool is_public, const char* const msg) override
   {
-    assert(!is_over_);
+    const auto reply = [this, pid, is_public](const std::string& msg) { is_public ? Boardcast(At(pid) + msg) : Tell(pid, msg); };
+    if (is_over_)
+    {
+      reply("[错误] 差一点点，游戏已经结束了哦~");
+      return;
+    }
     assert(msg);
     MsgReader reader(msg);
-    std::string& reply_msg = tmp_str_;
-    const auto reply = [&reply_msg](const std::string& msg) { reply_msg = msg; };
-    if (!main_stage_->HandleRequest(reader, player_id, is_public, reply)) { reply("[错误] 未预料的游戏请求"); }
-    if (main_stage_->IsOver()) { is_over_ = true; }
-    return reply_msg.c_str();
+    if (!main_stage_->HandleRequest(reader, pid, is_public, reply)) { reply("[错误] 未预料的游戏请求"); }
+    if (main_stage_->IsOver())
+    {
+      is_over_ = true;
+      game_over_f(mid_, PlayerScores_());
+    }
   }
 
-  std::vector<int64_t> PlayerScores() const;
-  bool IsOver() const { return is_over_; }
+  void Boardcast(const std::string& msg) { boardcast_f(mid_, msg); }
+  void Tell(const uint64_t pid, const std::string& msg) { tell_f(mid_, pid, msg); }
+  std::string At(const uint64_t pid) { return at_f(mid_, pid); }
 
 private:
-  const uint64_t match_id_;
+  std::vector<int64_t> PlayerScores_() const;
+
+  const uint64_t mid_;
   const std::unique_ptr<GameEnv> game_env_;
   const std::unique_ptr<Stage> main_stage_;
   bool is_over_;
-  std::string tmp_str_;
+  std::optional<std::vector<int64_t>> scores_;
 };
 

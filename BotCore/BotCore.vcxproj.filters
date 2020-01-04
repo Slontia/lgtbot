@@ -24,9 +24,6 @@
     <ClInclude Include="message_handlers.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="message_iterator.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="match.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -54,9 +51,6 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="lgtbot.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="time_trigger.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="match.cpp">

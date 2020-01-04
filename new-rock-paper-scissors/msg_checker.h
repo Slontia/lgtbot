@@ -111,7 +111,7 @@ template <typename T, bool Optional = false, typename = typename std::enable_if_
 class BasicChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
 public:
-  BasicChecker(const std::string meaning = "对象", const bool show_range = true) : meaning_(meaning) { static_assert(Max >= Min, "Invalid Range"); }
+  BasicChecker(const std::string meaning = "对象", const bool show_range = true) : meaning_(meaning) {}
   virtual ~BasicChecker() {}
   virtual std::string FormatInfo() const override
   {

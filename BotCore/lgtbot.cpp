@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "lgtbot.h"
-#include "message_iterator.h"
 #include "message_handlers.h"
 #include "../new-rock-paper-scissors/dllmain.h"
 #include "../new-rock-paper-scissors/msg_checker.h"
@@ -14,30 +13,33 @@
 
 MatchManager match_manager;
 
-bool __cdecl Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, const PUBLIC_MSG_CALLBACK pub_msg_cb, const AT_CALLBACK at_cb)
-{
-  if (this_uid == INVALID_USER_ID || !pri_msg_cb || !pub_msg_cb || !at_cb) { return false; }
-  g_this_uid = this_uid;
-  g_send_pri_msg_cb = pri_msg_cb;
-  g_send_pub_msg_cb = pub_msg_cb;
-  g_at_cb = at_cb;
-  LoadGameModules();
-  return true;
-}
-
-void __cdecl HandlePrivateRequest(const UserID uid, const char* const msg)
-{
-  if (const std::string reply_msg = HandleRequest(uid, {}, msg); !reply_msg.empty()) { SendPrivateMsg(uid, reply_msg);  }
-}
-
-void __cdecl HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
-{
-  if (const std::string reply_msg = HandleRequest(uid, gid, msg); !reply_msg.empty()) { SendPublicMsg(gid, At(uid) + reply_msg); };
-}
-
 static bool IsAtMe(const std::string& msg)
 {
   return msg.find(At(g_this_uid)) != std::string::npos;
+}
+
+static void MatchBoardcast(const MatchId mid, const char* const msg)
+{
+  MatchManager::GetMatch(mid)->Boardcast(msg);
+}
+
+static void MatchTell(const MatchId mid, const uint64_t pid, const char* const msg)
+{
+  MatchManager::GetMatch(mid)->Tell(pid, msg);
+}
+
+static const char* MatchAt(const MatchId mid, const uint64_t pid)
+{
+  /* fix bug */
+  static std::string tmp_str;
+  tmp_str = MatchManager::GetMatch(mid)->At(pid);
+  return tmp_str.c_str();
+}
+
+static void MatchGameOver(const uint64_t mid, const int64_t scores[])
+{
+  MatchManager::GetMatch(mid)->GameOver(scores);
+  MatchManager::DeleteMatch(mid);
 }
 
 static std::optional<GameHandle> LoadGame(HINSTANCE mod)
@@ -50,19 +52,26 @@ static std::optional<GameHandle> LoadGame(HINSTANCE mod)
 
   typedef int (__cdecl *Init)(const boardcast, const tell, const at, const game_over);
   typedef char* (__cdecl *GameInfo)(uint64_t* const, uint64_t* const);
-  typedef GameBase* (__cdecl *NewGame)(const uint64_t);
-  typedef int (__cdecl *ReleaseGame)(GameBase* const);
+  typedef GameBase* (__cdecl *NewGame)(const MatchId, const uint64_t);
+  typedef int (__cdecl *DeleteGame)(GameBase* const);
 
   Init init = (Init)GetProcAddress(mod, "Init");
   GameInfo game_info = (GameInfo)GetProcAddress(mod, "GameInfo");
   NewGame new_game = (NewGame)GetProcAddress(mod, "NewGame");
-  ReleaseGame release_game = (ReleaseGame)GetProcAddress(mod, "GetProcAddress");
+  DeleteGame delete_game = (DeleteGame)GetProcAddress(mod, "DeleteGame");
 
-  if (!init || !game_info || !new_game || !release_game)
+  if (!init || !game_info || !new_game || !delete_game)
   {
     LOG_ERROR("Invalid Plugin DLL: some interface not be defined.");
     return {};
   }
+
+  if (!init(&MatchBoardcast, &MatchTell, &MatchAt, &MatchGameOver))
+  {
+    LOG_ERROR("Init failed");
+    return {};
+  }
+
   uint64_t min_player = 0;
   uint64_t max_player = 0;
   char* name = game_info(&min_player, &max_player);
@@ -76,7 +85,7 @@ static std::optional<GameHandle> LoadGame(HINSTANCE mod)
     LOG_ERROR("Invalid" + std::to_string(min_player) + std::to_string(max_player));
     return {};
   }
-  return GameHandle(name, min_player, max_player, new_game, release_game, mod);
+  return GameHandle(name, min_player, max_player, new_game, delete_game, mod);
 }
 
 static void LoadGameModules()
@@ -94,7 +103,7 @@ static void LoadGameModules()
     else
     {
       LOG_INFO(std::string(dll_path.begin(), dll_path.end()) + " loaded success!\n");
-      g_game_handles.emplace(game_handle->name_, *game_handle);
+      g_game_handles.emplace(game_handle->name_, std::move(*game_handle));
     }    
   } while (FindNextFile(file_handle, &file_data));
   FindClose(file_handle);
@@ -103,7 +112,10 @@ static void LoadGameModules()
 static std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)
 {
   typedef MsgCommand<std::string(const UserID, const std::optional<GroupID>)> MetaCommand;
-  static const auto make_meta_command = [](auto... args) -> std::shared_ptr<MetaCommand> { return MakeCommand<std::string(const UserID, const std::optional<GroupID>)>(args...);  };
+  static const auto make_meta_command = [](const auto& cb, auto&&... checkers) -> std::shared_ptr<MetaCommand>
+  {
+    return MakeCommand<std::string(const UserID, const std::optional<GroupID>)>(cb, std::move(checkers)...);
+  };
   static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
   {
     make_meta_command(show_gamelist, std::make_unique<VoidChecker>("游戏列表")),
@@ -122,7 +134,33 @@ static std::string HandleMetaRequest(const UserID uid, const std::optional<Group
 
 static std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)
 {
-  if (msg.empty()) { return; }
-  std::lock_guard<std::mutex> lock(g_mutex);
-  return (msg[0] == '#') ? HandleMetaRequest(uid, gid, MsgReader(msg.substr(1, msg.size()))) : match_manager.Request(uid, gid, MsgReader(msg));
+  if (msg.empty()) { return "[错误] 空白消息"; }
+  if (msg[0] == '#') { return HandleMetaRequest(uid, gid, MsgReader(msg.substr(1, msg.size()))); }
+  else
+  {
+    std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
+    if (!match) { return "[错误] 您未参与游戏"; }
+    match->Request(uid, gid, msg);
+  }
+}
+
+bool __cdecl BOT_API::Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, const PUBLIC_MSG_CALLBACK pub_msg_cb, const AT_CALLBACK at_cb)
+{
+  if (this_uid == INVALID_USER_ID || !pri_msg_cb || !pub_msg_cb || !at_cb) { return false; }
+  g_this_uid = this_uid;
+  g_send_pri_msg_cb = pri_msg_cb;
+  g_send_pub_msg_cb = pub_msg_cb;
+  g_at_cb = at_cb;
+  LoadGameModules();
+  return true;
+}
+
+void __cdecl BOT_API::HandlePrivateRequest(const UserID uid, const char* const msg)
+{
+  if (const std::string reply_msg = HandleRequest(uid, {}, msg); !reply_msg.empty()) { SendPrivateMsg(uid, reply_msg); }
+}
+
+void __cdecl BOT_API::HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
+{
+  if (const std::string reply_msg = HandleRequest(uid, gid, msg); !reply_msg.empty()) { SendPublicMsg(gid, At(uid) + reply_msg); };
 }

@@ -10,7 +10,7 @@ std::unique_ptr<Stage> MakeMainStage()
 {
   return NULL;
 }
-std::vector<int64_t> Game::PlayerScores() const
+std::vector<int64_t> Game::PlayerScores_() const
 {
   return {};
 }

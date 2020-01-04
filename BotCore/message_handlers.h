@@ -3,7 +3,6 @@
 #include <sstream>
 
 #include "lgtbot.h"
-#include "message_iterator.h"
 #include "match.h"
 
 std::string show_gamelist(const UserID uid, const std::optional<GroupID> gid);
