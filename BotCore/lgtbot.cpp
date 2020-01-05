@@ -2,7 +2,7 @@
 #include "lgtbot.h"
 #include "message_handlers.h"
 #include "../new-rock-paper-scissors/dllmain.h"
-#include "../new-rock-paper-scissors/msg_checker.h"
+#include "../util/msg_checker.h"
 #include "dllmain.h"
 #include "log.h"
 

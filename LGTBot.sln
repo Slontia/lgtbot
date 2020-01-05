@@ -13,13 +13,19 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BotCore", "BotCore\BotCore.
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Games", "Games", "{DC4B8E1D-6B4F-4FD1-80DC-93040651E9A7}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rock-paper-scissors", "rock-paper-scissors\rock-paper-scissors.vcxproj", "{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "new-rock-paper-scissors", "new-rock-paper-scissors\new-rock-paper-scissors.vcxproj", "{0F8E3B0B-CAD1-423D-969E-9CE3CFF8845C}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GameBase", "new-rock-paper-scissors\new-rock-paper-scissors.vcxproj", "{0F8E3B0B-CAD1-423D-969E-9CE3CFF8845C}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GameTest", "GameTest\GameTest.vcxproj", "{0E4C2C2F-DC26-432C-BA61-514EC2E429DE}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RockPaperScissors", "games\RockPaperScissors\RockPaperScissors.vcxproj", "{1927AE78-766F-4290-A674-3A4D863A7B8F}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GameFramework", "GameFramework\GameFramework.vcxitems", "{6ABAE26E-A3EE-47D5-BFCA-087DDDA42764}"
+EndProject
 Global
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		GameFramework\GameFramework.vcxitems*{1927ae78-766f-4290-a674-3a4d863a7b8f}*SharedItemsImports = 4
+		GameFramework\GameFramework.vcxitems*{6abae26e-a3ee-47d5-bfca-087ddda42764}*SharedItemsImports = 9
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
 		Debug|x64 = Debug|x64
@@ -74,18 +80,6 @@ Global
 		{50B8408C-6C97-46A7-97C1-A6A8DEC5CC70}.Test|Win32.Build.0 = Release|Win32
 		{50B8408C-6C97-46A7-97C1-A6A8DEC5CC70}.Test|x64.ActiveCfg = Release|x64
 		{50B8408C-6C97-46A7-97C1-A6A8DEC5CC70}.Test|x64.Build.0 = Release|x64
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Debug|Win32.ActiveCfg = Debug|Win32
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Debug|Win32.Build.0 = Debug|Win32
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Debug|x64.ActiveCfg = Debug|x64
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Debug|x64.Build.0 = Debug|x64
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Release|Win32.ActiveCfg = Release|Win32
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Release|Win32.Build.0 = Release|Win32
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Release|x64.ActiveCfg = Release|x64
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Release|x64.Build.0 = Release|x64
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Test|Win32.ActiveCfg = Release|Win32
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Test|Win32.Build.0 = Release|Win32
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Test|x64.ActiveCfg = Release|x64
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB}.Test|x64.Build.0 = Release|x64
 		{0F8E3B0B-CAD1-423D-969E-9CE3CFF8845C}.Debug|Win32.ActiveCfg = Debug|Win32
 		{0F8E3B0B-CAD1-423D-969E-9CE3CFF8845C}.Debug|Win32.Build.0 = Debug|Win32
 		{0F8E3B0B-CAD1-423D-969E-9CE3CFF8845C}.Debug|x64.ActiveCfg = Debug|x64
@@ -110,14 +104,27 @@ Global
 		{0E4C2C2F-DC26-432C-BA61-514EC2E429DE}.Test|Win32.Build.0 = Release|Win32
 		{0E4C2C2F-DC26-432C-BA61-514EC2E429DE}.Test|x64.ActiveCfg = Release|x64
 		{0E4C2C2F-DC26-432C-BA61-514EC2E429DE}.Test|x64.Build.0 = Release|x64
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Debug|Win32.Build.0 = Debug|Win32
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Debug|x64.ActiveCfg = Debug|x64
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Debug|x64.Build.0 = Debug|x64
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Release|Win32.ActiveCfg = Release|Win32
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Release|Win32.Build.0 = Release|Win32
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Release|x64.ActiveCfg = Release|x64
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Release|x64.Build.0 = Release|x64
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Test|Win32.ActiveCfg = Release|Win32
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Test|Win32.Build.0 = Release|Win32
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Test|x64.ActiveCfg = Release|x64
+		{1927AE78-766F-4290-A674-3A4D863A7B8F}.Test|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{E998C41C-7ED7-4A90-B5FB-E6DEB196A0EB} = {DC4B8E1D-6B4F-4FD1-80DC-93040651E9A7}
 		{0F8E3B0B-CAD1-423D-969E-9CE3CFF8845C} = {DC4B8E1D-6B4F-4FD1-80DC-93040651E9A7}
 		{0E4C2C2F-DC26-432C-BA61-514EC2E429DE} = {DC4B8E1D-6B4F-4FD1-80DC-93040651E9A7}
+		{1927AE78-766F-4290-A674-3A4D863A7B8F} = {DC4B8E1D-6B4F-4FD1-80DC-93040651E9A7}
+		{6ABAE26E-A3EE-47D5-BFCA-087DDDA42764} = {DC4B8E1D-6B4F-4FD1-80DC-93040651E9A7}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {57B14C1F-F749-427D-BC27-E6820A5588F3}

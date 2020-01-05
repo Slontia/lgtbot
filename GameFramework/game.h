@@ -6,21 +6,22 @@
 #include <functional>
 #include "game_stage.h"
 #include "../util/msg_checker.h"
-#include "mygame.h"
+//#include "mygame.h"
 #include "game_base.h"
 
 class Player;
-class GameEnv;
+struct GameEnv;
 
 static std::function<void(const uint64_t, const std::string&)> boardcast_f;
 static std::function<void(const uint64_t, const uint64_t, const std::string&)> tell_f;
 static std::function<std::string(const uint64_t, const uint64_t)> at_f;
 static std::function<void(const uint64_t game_id, const std::vector<int64_t>& scores)> game_over_f;
 
+template <typename StageEnum, typename GameEnv>
 class Game : public GameBase
 {
 public:
-  Game(const uint64_t mid, std::unique_ptr<GameEnv>&& game_env, std::unique_ptr<Stage>&& main_stage)
+  Game(const uint64_t mid, std::unique_ptr<GameEnv>&& game_env, std::unique_ptr<Stage<StageEnum, GameEnv>>&& main_stage)
     : mid_(mid), game_env_(std::move(game_env)), main_stage_(std::move(main_stage)), is_over_(false) {}
   virtual ~Game() {}
 
@@ -39,7 +40,7 @@ public:
     if (main_stage_->IsOver())
     {
       is_over_ = true;
-      game_over_f(mid_, PlayerScores_());
+      game_over_f(mid_, game_env_->PlayerScores());
     }
   }
 
@@ -48,11 +49,9 @@ public:
   std::string At(const uint64_t pid) { return at_f(mid_, pid); }
 
 private:
-  std::vector<int64_t> PlayerScores_() const;
-
   const uint64_t mid_;
   const std::unique_ptr<GameEnv> game_env_;
-  const std::unique_ptr<Stage> main_stage_;
+  const std::unique_ptr<Stage<StageEnum, GameEnv>> main_stage_;
   bool is_over_;
   std::optional<std::vector<int64_t>> scores_;
 };
