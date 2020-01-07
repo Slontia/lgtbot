@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "lgtbot.h"
 #include "message_handlers.h"
-#include "../new-rock-paper-scissors/dllmain.h"
-#include "../util/msg_checker.h"
+#include "../GameFrameWork/dllmain.h"
+#include "msg_checker.h"
 #include "dllmain.h"
 #include "log.h"
 
@@ -140,7 +140,7 @@ static std::string HandleRequest(const UserID uid, const std::optional<GroupID> 
   {
     std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
     if (!match) { return "[´íÎó] ÄúÎ´²ÎÓëÓÎÏ·"; }
-    match->Request(uid, gid, msg);
+    return match->Request(uid, gid, msg);
   }
 }
 

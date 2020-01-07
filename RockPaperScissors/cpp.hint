@@ -1,2 +1,0 @@
-#define ROCKPAPERSCISSORS_API __declspec(dllexport)
-#define ROCKPAPERSCISSORS_API __declspec(dllimport)

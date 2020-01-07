@@ -9,6 +9,7 @@
 #include <sstream>
 
 #include "lgtbot.h"
+#include "spinlock.h"
 
 #define INVALID_LOBBY (QQ)0
 
@@ -70,6 +71,7 @@ private:
   static std::map<UserID, std::shared_ptr<Match>> uid2match_;
   static std::map<GroupID, std::shared_ptr<Match>> gid2match_;
   static MatchId next_mid_;
+  static SpinLock spinlock_;
 };
 
 class Match

@@ -5,9 +5,9 @@
 #include <memory>
 #include <functional>
 #include "game_stage.h"
-#include "../util/msg_checker.h"
-//#include "mygame.h"
+#include "msg_checker.h"
 #include "game_base.h"
+#include "spinlock.h"
 
 class Player;
 struct GameEnv;
@@ -28,6 +28,7 @@ public:
   /* Return true when is_over_ switch from false to true */
   virtual void __cdecl HandleRequest(const uint64_t pid, const bool is_public, const char* const msg) override
   {
+    SpinLockGuard l(spinlock_);
     const auto reply = [this, pid, is_public](const std::string& msg) { is_public ? Boardcast(At(pid) + msg) : Tell(pid, msg); };
     if (is_over_)
     {
@@ -54,5 +55,6 @@ private:
   const std::unique_ptr<Stage<StageEnum, GameEnv>> main_stage_;
   bool is_over_;
   std::optional<std::vector<int64_t>> scores_;
+  SpinLock spinlock_;
 };
 

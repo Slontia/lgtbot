@@ -2,8 +2,8 @@
 #include "match.h"
 #include "log.h"
 #include "match.h"
-#include "../new-rock-paper-scissors/dllmain.h"
-#include "../new-rock-paper-scissors/game_base.h"
+#include "../GameFramework/dllmain.h"
+#include "../GameFramework/game_base.h"
 #include <optional>
 
 /* TODO:
@@ -17,9 +17,11 @@ std::map<MatchId, std::shared_ptr<Match>> MatchManager::mid2match_;
 std::map<UserID, std::shared_ptr<Match>> MatchManager::uid2match_;
 std::map<GroupID, std::shared_ptr<Match>> MatchManager::gid2match_;
 MatchId MatchManager::next_mid_ = 0;
+SpinLock MatchManager::spinlock_;
 
 std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid)
 {
+  SpinLockGuard l(spinlock_);
   if (GetMatch_(uid, uid2match_)) { return "新建游戏失败：您已加入游戏"; }
   if (gid.has_value() && GetMatch_(*gid, gid2match_)) { return "新建游戏失败：该房间已经开始游戏"; }
 
@@ -35,6 +37,7 @@ std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID u
 
 std::string MatchManager::StartGame(const UserID uid)
 {
+  SpinLockGuard l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
   if (!match) { return "开始游戏失败：您未加入游戏"; }
   if (match->host_uid() != uid) { return "开始游戏失败：您不是房主，没有开始游戏的权限"; }
@@ -44,6 +47,7 @@ std::string MatchManager::StartGame(const UserID uid)
 
 std::string MatchManager::AddPlayerWithMatchID(const MatchId mid, const UserID uid)
 {
+  SpinLockGuard l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
   if (!match) { return "加入游戏失败：游戏ID不存在"; }
   return AddPlayer_(match, uid);
@@ -51,6 +55,7 @@ std::string MatchManager::AddPlayerWithMatchID(const MatchId mid, const UserID u
 
 std::string MatchManager::AddPlayerWithGroupID(const GroupID gid, const UserID uid)
 {
+  SpinLockGuard l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(gid, gid2match_);
   if (!match) { return "加入游戏失败：该房间未进行游戏"; }
   return AddPlayer_(match, uid);
@@ -67,6 +72,7 @@ std::string MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const 
 
 std::string MatchManager::DeletePlayer(const UserID uid)
 {
+  SpinLockGuard l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
   if (!match) { return "退出游戏失败：您未加入游戏"; }
   RETURN_IF_FAILED(match->Leave(uid));
@@ -78,6 +84,7 @@ std::string MatchManager::DeletePlayer(const UserID uid)
 
 void MatchManager::DeleteMatch(const MatchId mid)
 {
+  SpinLockGuard l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
   assert(match);
   match->Boardcast("游戏中止或结束");
@@ -90,11 +97,13 @@ void MatchManager::DeleteMatch(const MatchId mid)
 
 std::shared_ptr<Match> MatchManager::GetMatch(const MatchId mid)
 {
+  SpinLockGuard l(spinlock_);
   return GetMatch_(mid, mid2match_);
 }
 
 std::shared_ptr<Match> MatchManager::GetMatch(const UserID uid, const std::optional<GroupID> gid)
 {
+  SpinLockGuard l(spinlock_);
   std::shared_ptr<Match> match = GetMatch_(uid, uid2match_);
   return (!match || (gid.has_value() && GetMatch_(*gid, gid2match_) != match)) ? nullptr : match;
 }

@@ -3,7 +3,7 @@
   <PropertyGroup Label="Globals">
     <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
     <HasSharedItems>true</HasSharedItems>
-    <ItemsProjectGuid>{6abae26e-a3ee-47d5-bfca-087ddda42764}</ItemsProjectGuid>
+    <ItemsProjectGuid>{3aebbc65-e226-42e1-94e8-bfc7a10d04c9}</ItemsProjectGuid>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -14,13 +14,7 @@
     <ProjectCapability Include="SourceItemsFromImports" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="$(MSBuildThisFileDirectory)dllmain.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="$(MSBuildThisFileDirectory)dllmain.h" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)game.h" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)game_base.h" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)game_stage.h" />
-    <ClInclude Include="$(MSBuildThisFileDirectory)targetver.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)msg_checker.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)spinlock.h" />
   </ItemGroup>
 </Project>

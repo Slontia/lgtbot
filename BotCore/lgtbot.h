@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 #include <functional>
-#include "../new-rock-paper-scissors/dllmain.h"
+#include "../GameFramework/dllmain.h"
 #include "dllmain.h"
 
 #define DLL_EXPORT __declspec(dllexport)
