@@ -2,6 +2,7 @@
 #include "msg_checker.h"
 #include <optional>
 #include <cassert>
+#include "timer.h"
 
 using GameMsgCommand = MsgCommand<std::string(const uint64_t, const bool)>;
 template <typename StageEnum, typename GameEnv> class Game;
@@ -18,7 +19,7 @@ public:
 
   ~Stage() {}
 
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) = 0
+  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply)
   {
     for (const std::unique_ptr<GameMsgCommand>& command : commands_)
     {
@@ -33,15 +34,7 @@ public:
 
 protected:
   virtual std::string Name() const = 0;
-  virtual void OnOver() = 0;
-  void Over()
-  {
-    if (!is_over_)
-    {
-      OnOver();
-      is_over_ = true;
-    }
-  }
+  virtual void Over() { is_over_ = true; }
 private:
   const StageEnum stage_id_;
   std::vector<std::unique_ptr<GameMsgCommand>> commands_;
@@ -87,10 +80,15 @@ template <typename StageEnum, typename GameEnv>
 class AtomStage : public Stage<StageEnum, GameEnv>
 {
 public:
-  using Stage<StageEnum, GameEnv>::Stage;
+  AtomStage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game, const uint64_t sec = 0)
+    : Stage(stage_id, std::move(commands), game), timer_(game.Time(sec)) {}
   virtual ~AtomStage() {}
-  virtual uint32_t TimerSec() const = 0;
-  using Stage<StageEnum, GameEnv>::HandleRequest;
-  virtual void HandleTimeout() override final { Over(); }
-  using Stage<StageEnum, GameEnv>::Over; // to public
+  virtual void HandleTimeout() override final { Stage<StageEnum, GameEnv>::Over(); }
+  virtual void Over() override final
+  {
+    timer_ = nullptr;
+    Stage<StageEnum, GameEnv>::Over();
+  }
+private:
+  std::unique_ptr<Timer> timer_;
 };
