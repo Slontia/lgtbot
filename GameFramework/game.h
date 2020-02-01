@@ -14,7 +14,7 @@ struct GameEnv;
 static std::function<void(const uint64_t, const std::string&)> boardcast_f;
 static std::function<void(const uint64_t, const uint64_t, const std::string&)> tell_f;
 static std::function<std::string(const uint64_t, const uint64_t)> at_f;
-static std::function<void(const uint64_t game_id, const std::vector<int64_t>& scores)> game_over_f;
+static std::function<void(const uint64_t, const std::vector<int64_t>&)> game_over_f;
 
 template <typename StageEnum, typename GameEnv>
 class Game : public GameBase
@@ -27,7 +27,6 @@ public:
   /* Return true when is_over_ switch from false to true */
   virtual void __cdecl HandleRequest(const uint64_t pid, const bool is_public, const char* const msg) override
   {
-    
     std::unique_lock<std::mutex> lk(mutex_);
     cv_.wait(lk, [&is_busy = is_busy_]() { return !is_busy.exchange(true); });
     const auto reply = [this, pid, is_public](const std::string& msg) { is_public ? Boardcast(At(pid) + msg) : Tell(pid, msg); };

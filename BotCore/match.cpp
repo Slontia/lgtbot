@@ -182,6 +182,11 @@ void Match::Tell(const uint64_t pid, const std::string& msg) const
   SendPrivateMsg(pid2uid_[pid], msg);
 }
 
+void Match::At(const uint64_t pid, char* buf, const uint64_t len) const
+{
+  ::At(pid2uid_[pid], buf, len);
+}
+
 std::string Match::At(const uint64_t pid) const
 {
   return ::At(pid2uid_[pid]);

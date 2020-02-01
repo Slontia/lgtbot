@@ -87,6 +87,7 @@ public:
   void Boardcast(const std::string& msg) const;
   void Tell(const uint64_t pid, const std::string& msg) const;
   std::string At(const uint64_t pid) const;
+  void At(const uint64_t pid, char* buf, const uint64_t len) const;
   void GameOver(const int64_t scores[])
   {
     assert(ready_uid_set_.size() == pid2uid_.size());

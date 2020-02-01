@@ -4,7 +4,9 @@
 #include <iostream>
 #include <string>
 #include <functional>
+#include <map>
 #include "../GameFramework/dllmain.h"
+#include <Windows.h>
 #include "dllmain.h"
 
 #define DLL_EXPORT __declspec(dllexport)
@@ -48,6 +50,12 @@ static PRIVATE_MSG_CALLBACK g_send_pri_msg_cb = nullptr;
 static PUBLIC_MSG_CALLBACK g_send_pub_msg_cb = nullptr;
 static UserID g_this_uid = INVALID_USER_ID;
 
-static std::string At(const UserID uid) { return g_at_cb(uid); }
+static void At(const UserID uid, char* buf, const uint64_t len) { g_at_cb(uid, buf, len); }
+static std::string At(const UserID uid)
+{
+  char buf[128];
+  g_at_cb(uid, buf, 128);
+  return std::string(buf);
+}
 static void SendPrivateMsg(const UserID uid, const std::string& msg) { return g_send_pri_msg_cb(uid, msg.c_str()); }
 static void SendPublicMsg(const GroupID gid, const std::string& msg) { return g_send_pub_msg_cb(gid, msg.c_str()); }

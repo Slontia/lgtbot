@@ -28,12 +28,9 @@ static void MatchTell(const MatchId mid, const uint64_t pid, const char* const m
   MatchManager::GetMatch(mid)->Tell(pid, msg);
 }
 
-static const char* MatchAt(const MatchId mid, const uint64_t pid)
+static void MatchAt(const MatchId mid, const uint64_t pid, char* buf, const uint64_t len)
 {
-  /* fix bug */
-  static std::string tmp_str;
-  tmp_str = MatchManager::GetMatch(mid)->At(pid);
-  return tmp_str.c_str();
+  MatchManager::GetMatch(mid)->At(pid, buf, len);
 }
 
 static void MatchGameOver(const uint64_t mid, const int64_t scores[])
@@ -91,12 +88,12 @@ static std::optional<GameHandle> LoadGame(HINSTANCE mod)
 static void LoadGameModules()
 {
   WIN32_FIND_DATA file_data;
-  HANDLE file_handle = FindFirstFile(L"plugins/*.dll", &file_data);
-  if (file_handle == (void*)ERROR_INVALID_HANDLE || file_handle == (void*)ERROR_FILE_NOT_FOUND) { return; }
+  HANDLE file_handle = FindFirstFile(L".\\plugins\\*.dll", &file_data);
+  if (file_handle == INVALID_HANDLE_VALUE) { return; }
   do {
-    std::wstring dll_path = L"./plugins/" + std::wstring(file_data.cFileName);
+    std::wstring dll_path = L".\\plugins\\" + std::wstring(file_data.cFileName);
     std::optional<GameHandle> game_handle = LoadGame(LoadLibrary(dll_path.c_str()));
-    if (game_handle.has_value())
+    if (!game_handle.has_value())
     {
       LOG_ERROR(std::string(dll_path.begin(), dll_path.end()) + " loaded failed!\n");
     }
