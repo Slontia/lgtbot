@@ -11,6 +11,18 @@
 #include <memory>
 #include <optional>
 
+const int32_t LGT_AC = -1;
+const UserID INVALID_USER_ID = 0;
+const GroupID INVALID_GROUP_ID = 0;
+
+std::mutex g_mutex;
+std::map<std::string, GameHandle> g_game_handles;
+
+AT_CALLBACK g_at_cb = nullptr;
+PRIVATE_MSG_CALLBACK g_send_pri_msg_cb = nullptr;
+PUBLIC_MSG_CALLBACK g_send_pub_msg_cb = nullptr;
+UserID g_this_uid = INVALID_USER_ID;
+
 MatchManager match_manager;
 
 static bool IsAtMe(const std::string& msg)
@@ -99,11 +111,12 @@ static void LoadGameModules()
     }
     else
     {
-      LOG_INFO(std::string(dll_path.begin(), dll_path.end()) + " loaded success!\n");
       g_game_handles.emplace(game_handle->name_, std::move(*game_handle));
+      LOG_INFO(std::string(dll_path.begin(), dll_path.end()) + " loaded success!\n");
     }    
   } while (FindNextFile(file_handle, &file_data));
   FindClose(file_handle);
+  LOG_INFO("共加载游戏个数：" + std::to_string(g_game_handles.size()));
 }
 
 static std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)

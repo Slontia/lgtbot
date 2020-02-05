@@ -7,13 +7,17 @@
 #include "message_handlers.h"
 #include "match.h"
 #include "lgtbot.h"
+#include "log.h"
 
 std::string show_gamelist(const UserID uid, const std::optional<GroupID> gid)
 {
   std::stringstream ss;
   int i = 0;
   ss << "ÓÎÏ·ÁÐ±í£º";
-  for (const auto&[name, _] : g_game_handles) { ss << std::endl << (++i) << '.' << name; }
+  for (const auto& [name, _] : g_game_handles)
+  {
+    ss << std::endl << (++i) << ".\t" << name;
+  }
   return ss.str();
 }
 

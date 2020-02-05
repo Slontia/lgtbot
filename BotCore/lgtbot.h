@@ -37,23 +37,22 @@ struct GameHandle
   const HINSTANCE module_;
 };
 
-static const int32_t LGT_AC = -1;
-static const UserID INVALID_USER_ID = 0;
-static const GroupID INVALID_GROUP_ID = 0;
+extern const int32_t LGT_AC;
+extern const UserID INVALID_USER_ID;
+extern const GroupID INVALID_GROUP_ID;
 
-static std::mutex g_mutex;
+extern std::mutex g_mutex;
+extern std::map<std::string, GameHandle> g_game_handles;
 
-static std::map<std::string, GameHandle> g_game_handles;
-
-static AT_CALLBACK g_at_cb = nullptr;
-static PRIVATE_MSG_CALLBACK g_send_pri_msg_cb = nullptr;
-static PUBLIC_MSG_CALLBACK g_send_pub_msg_cb = nullptr;
-static UserID g_this_uid = INVALID_USER_ID;
+extern AT_CALLBACK g_at_cb;
+extern PRIVATE_MSG_CALLBACK g_send_pri_msg_cb;
+extern PUBLIC_MSG_CALLBACK g_send_pub_msg_cb;
+extern UserID g_this_uid;
 
 static void At(const UserID uid, char* buf, const uint64_t len) { g_at_cb(uid, buf, len); }
 static std::string At(const UserID uid)
 {
-  char buf[128];
+  char buf[128] = { 0 };
   g_at_cb(uid, buf, 128);
   return std::string(buf);
 }

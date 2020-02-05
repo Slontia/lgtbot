@@ -49,13 +49,13 @@ public:
   virtual std::unique_ptr<Stage<StageEnum, GameEnv>> NextSubStage(const StageEnum cur_stage) const = 0;
   
   CompStage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game, std::unique_ptr<Stage<StageEnum, GameEnv>>&& sub_stage)
-    : Stage(stage_id, std::move(commands), game), sub_stage_(std::move(sub_stage)) {}
+    : Stage<StageEnum, GameEnv>(stage_id, std::move(commands), game), sub_stage_(std::move(sub_stage)) {}
 
   ~CompStage() {}
 
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) override
   {
-    if (Stage::HandleRequest(reader, player_id, is_public, reply)) { return true; }
+    if (Stage<StageEnum, GameEnv>::HandleRequest(reader, player_id, is_public, reply)) { return true; }
     const bool sub_stage_handled = sub_stage_->HandleRequest(reader, player_id, is_public, reply);
     if (sub_stage_->IsOver()) { CheckoutSubStage(); }
     return sub_stage_handled;
@@ -81,7 +81,7 @@ class AtomStage : public Stage<StageEnum, GameEnv>
 {
 public:
   AtomStage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game, const uint64_t sec = 0)
-    : Stage(stage_id, std::move(commands), game), timer_(game.Time(sec)) {}
+    : Stage<StageEnum, GameEnv>(stage_id, std::move(commands), game), timer_(game.Time(sec)) {}
   virtual ~AtomStage() {}
   virtual void HandleTimeout() override final { Stage<StageEnum, GameEnv>::Over(); }
   virtual void Over() override final
@@ -90,5 +90,5 @@ public:
     Stage<StageEnum, GameEnv>::Over();
   }
 private:
-  std::unique_ptr<Timer> timer_;
+  std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;
 };

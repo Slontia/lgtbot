@@ -20,8 +20,8 @@ template <typename StageEnum, typename GameEnv>
 class Game : public GameBase
 {
 public:
-  Game(const uint64_t mid, std::unique_ptr<GameEnv>&& game_env, std::unique_ptr<Stage<StageEnum, GameEnv>>&& main_stage)
-    : mid_(mid), game_env_(std::move(game_env)), main_stage_(std::move(main_stage)), is_over_(false), timer_(nullptr), is_busy_(false) {}
+  Game(const uint64_t mid, std::unique_ptr<GameEnv>&& game_env)
+    : mid_(mid), game_env_(std::move(game_env)), is_over_(false), timer_(nullptr), is_busy_(false) {}
   virtual ~Game() {}
 
   /* Return true when is_over_ switch from false to true */
@@ -47,34 +47,24 @@ public:
     cv_.notify_one();
   }
 
-  struct Deleter
-  {
-    Deleter(std::mutex& timer_mutex) : state_over_(std::make_shared<std::atomic<bool>>(false)) {}
-    Deleter(const Deleter&) = delete;
-    Deleter(Deleter&&) = default;
-    ~Deleter() = default;
-    void operator()(Timer* timer)
-    {
-      {
-        std::lock_guard<std::mutex> lk(timer_mutex_);
-        state_over_->store(true);
-      }
-      cv_.notify_one();
-      delete timer;
-    }
-    std::shared_ptr<std::atomic<bool>> state_over_;
-    std::mutex& timer_mutex_;
-  };
-
-  std::unique_ptr<Timer> Time(const uint64_t sec)
+  std::unique_ptr<Timer, std::function<void(Timer*)>> Time(const uint64_t sec)
   {
     if (sec == 0) { return nullptr; }
-    Deleter deleter;
-    return std::unique_ptr<Timer>(new Timer(sec, [this, state_over = deleter.state_over_]()
+    std::shared_ptr<std::atomic<bool>> state_over = std::make_shared<std::atomic<bool>>(false);
+    const auto deleter = [state_over, &mutex = mutex_, &cv = cv_](Timer* timer)
+    {
+      {
+        std::lock_guard<std::mutex> lk(mutex);
+        state_over->store(true);
+      }
+      cv.notify_one();
+      delete timer;
+    };
+    return std::unique_ptr<Timer, std::function<void(Timer*)>>(new Timer(sec, [this, state_over]()
     {
       std::unique_lock<std::mutex> lk(mutex_);
-      cv_.wait(lk, [&state_over, &is_busy = is_busy_]() { return state_over.load() || !is_busy.exchange(true); });
-      if (!state_over.load())
+      cv_.wait(lk, [&state_over, &is_busy = is_busy_]() { return state_over->load() || !is_busy.exchange(true); });
+      if (!state_over->load())
       {
         main_stage_->HandleTimeout();
         is_busy_.store(false);
@@ -84,6 +74,7 @@ public:
     }), std::move(deleter));
   }
 
+  void SetMainStage(std::unique_ptr<Stage<StageEnum, GameEnv>>&& main_stage) { main_stage_ = std::move(main_stage); }
   void Boardcast(const std::string& msg) { boardcast_f(mid_, msg); }
   void Tell(const uint64_t pid, const std::string& msg) { tell_f(mid_, pid, msg); }
   std::string At(const uint64_t pid) { return at_f(mid_, pid); }
@@ -91,7 +82,7 @@ public:
 private:
   const uint64_t mid_;
   const std::unique_ptr<GameEnv> game_env_;
-  const std::unique_ptr<Stage<StageEnum, GameEnv>> main_stage_;
+  std::unique_ptr<Stage<StageEnum, GameEnv>> main_stage_;
   bool is_over_;
   std::optional<std::vector<int64_t>> scores_;
   std::unique_ptr<Timer> timer_;
