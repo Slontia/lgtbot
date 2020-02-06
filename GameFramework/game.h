@@ -78,6 +78,7 @@ public:
   void Boardcast(const std::string& msg) { boardcast_f(mid_, msg); }
   void Tell(const uint64_t pid, const std::string& msg) { tell_f(mid_, pid, msg); }
   std::string At(const uint64_t pid) { return at_f(mid_, pid); }
+  GameEnv& game_env() { return *game_env_; }
 
 private:
   const uint64_t mid_;

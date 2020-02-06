@@ -4,14 +4,28 @@
 #include <cassert>
 #include "timer.h"
 
-using GameMsgCommand = MsgCommand<std::string(const uint64_t, const bool)>;
+using GameUserFuncType = std::string(const uint64_t, const bool);
+using GameMsgCommand = MsgCommand<GameUserFuncType>;
+
+template <typename T, typename Ret, typename ...Args>
+static std::function<Ret(Args...)> BindThis(T* p, Ret (T::*func)(Args...))
+{
+  return [p, func](Args... args) { return (p->*func)(args...); };
+}
+
+template <typename Stage, typename ...Args, typename ...Checkers>
+static std::shared_ptr<GameMsgCommand> MakeStageCommand(Stage* stage, std::string (Stage::*cb)(Args...), Checkers&&... checkers)
+{
+  return MakeCommand<GameUserFuncType>(BindThis(stage, cb), std::move(checkers)...);
+}
+
 template <typename StageEnum, typename GameEnv> class Game;
 
 template <typename StageEnum, typename GameEnv>
 class Stage
 {
 public:
-  Stage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game)
+  Stage(const StageEnum stage_id, std::vector<std::shared_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game)
     : stage_id_(stage_id), commands_(std::move(commands)), is_over_(false), game_(game) {}
   virtual void HandleTimeout() = 0;
   bool IsOver() const { return is_over_; }
@@ -21,7 +35,7 @@ public:
 
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply)
   {
-    for (const std::unique_ptr<GameMsgCommand>& command : commands_)
+    for (const std::shared_ptr<GameMsgCommand>& command : commands_)
     {
       if (std::optional<std::string> response = command->CallIfValid(reader, std::tuple{ player_id, is_public }))
       {
@@ -35,20 +49,21 @@ public:
 protected:
   virtual std::string Name() const = 0;
   virtual void Over() { is_over_ = true; }
+  Game<StageEnum, GameEnv>& game_;
+
 private:
   const StageEnum stage_id_;
-  std::vector<std::unique_ptr<GameMsgCommand>> commands_;
+  std::vector<std::shared_ptr<GameMsgCommand>> commands_;
   bool is_over_;
-  Game<StageEnum, GameEnv>& game_;
 };
 
 template <typename StageEnum, typename GameEnv>
 class CompStage : public Stage<StageEnum, GameEnv>
 {
 public:
-  virtual std::unique_ptr<Stage<StageEnum, GameEnv>> NextSubStage(const StageEnum cur_stage) const = 0;
+  virtual std::unique_ptr<Stage<StageEnum, GameEnv>> NextSubStage(const StageEnum cur_stage) = 0;
   
-  CompStage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game, std::unique_ptr<Stage<StageEnum, GameEnv>>&& sub_stage)
+  CompStage(const StageEnum stage_id, std::vector<std::shared_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game, std::unique_ptr<Stage<StageEnum, GameEnv>>&& sub_stage)
     : Stage<StageEnum, GameEnv>(stage_id, std::move(commands), game), sub_stage_(std::move(sub_stage)) {}
 
   ~CompStage() {}
@@ -80,7 +95,7 @@ template <typename StageEnum, typename GameEnv>
 class AtomStage : public Stage<StageEnum, GameEnv>
 {
 public:
-  AtomStage(const StageEnum stage_id, std::vector<std::unique_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game, const uint64_t sec = 0)
+  AtomStage(const StageEnum stage_id, std::vector<std::shared_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game, const uint64_t sec = 0)
     : Stage<StageEnum, GameEnv>(stage_id, std::move(commands), game), timer_(game.Time(sec)) {}
   virtual ~AtomStage() {}
   virtual void HandleTimeout() override final { Stage<StageEnum, GameEnv>::Over(); }

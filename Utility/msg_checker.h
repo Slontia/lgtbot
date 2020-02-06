@@ -6,6 +6,7 @@
 #include <iostream>
 #include <functional>
 #include <optional>
+#include <map>
 #include <sstream>
 static const std::string k_empty_str_ = "";
 
@@ -70,7 +71,7 @@ class BoolChecker : public MsgArgChecker<bool>
 public:
   BoolChecker(const std::string& true_str, const std::string& false_str) : true_str_(true_str), false_str_(false_str) {}
   virtual ~BoolChecker() {}
-  virtual std::string FormatInfo() const override { return "<" + true_str_ + ":" + false_str_ + ">"; }
+  virtual std::string FormatInfo() const override { return "<" + true_str_ + "|" + false_str_ + ">"; }
   virtual std::string ExampleInfo() const override { return true_str_; }
   virtual std::optional<bool> Check(MsgReader& reader) const override
   {
@@ -86,11 +87,52 @@ private:
   const std::string false_str_;
 };
 
+template <typename T>
+class AlterChecker : public MsgArgChecker<T>
+{
+public:
+  AlterChecker(std::map<std::string, T>&& arg_map, const std::string& meaning = "选择")
+    : arg_map_(arg_map), meaning_(meaning) {}
+  virtual ~AlterChecker() {}
+  virtual std::string FormatInfo() const override
+  {
+    std::stringstream ss;
+    ss << "<" << meaning_ << "：";
+    if (arg_map_.empty()) { ss << "(错误，可选项为空)"; }
+    else
+    {
+      bool is_first = true;
+      for (const auto& [arg_str, _] : arg_map_)
+      {
+        if (is_first) { is_first = !is_first; }
+        else { ss << "|"; }
+        ss << arg_str;
+      }
+    }
+    return ss.str();
+  }
+  virtual std::string ExampleInfo() const override { return arg_map_.empty() ? "（错误，可选项为空）" : arg_map_.begin()->first; }
+  virtual std::optional<T> Check(MsgReader& reader) const
+  {
+    if (!reader.HasNext()) { return std::optional<T>(); }
+    std::string s = reader.NextArg();
+    for (const auto&[arg_str, value] : arg_map_)
+    {
+      if (arg_str == s) { return value; }
+    }
+    return std::optional<T>();
+  }
+
+private:
+  const std::map<std::string, T> arg_map_;
+  const std::string meaning_;
+};
+
 template <typename T, T Min, T Max, bool Optional = false, typename = typename std::enable_if_t<std::is_arithmetic_v<T>>>
 class ArithChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
 public:
-  ArithChecker(const std::string meaning = "数字", const bool show_range = true) : meaning_(meaning) { static_assert(Max >= Min, "Invalid Range"); }
+  ArithChecker(const std::string meaning = "数字") : meaning_(meaning) { static_assert(Max >= Min, "Invalid Range"); }
   virtual ~ArithChecker() {}
   virtual std::string FormatInfo() const override { return "<" + meaning_ + "：" + std::to_string(Min) + "~" + std::to_string(Max) + ">"; }
   virtual std::string ExampleInfo() const override { return std::to_string((Min + Max) / 2); }
@@ -111,7 +153,7 @@ template <typename T, bool Optional = false, typename = typename std::enable_if_
 class BasicChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
 public:
-  BasicChecker(const std::string meaning = "对象", const bool show_range = true) : meaning_(meaning) {}
+  BasicChecker(const std::string meaning = "对象") : meaning_(meaning) {}
   virtual ~BasicChecker() {}
   virtual std::string FormatInfo() const override
   {
@@ -249,7 +291,6 @@ using to_func = decltype(std::function{ Callback() });
 template <typename UserFuncType, typename Callback, typename ...Checkers>
 static auto MakeCommand(const Callback& f, std::unique_ptr<Checkers>&&... checkers)
 {
-  
-  static_assert(std::is_same_v<typename FuncTypeHelper<UserFuncType>::ResultType, typename decltype(std::function(f))::result_type>);
+  static_assert(std::is_same_v<typename FuncTypeHelper<UserFuncType>::ResultType, typename decltype(std::function(f))::result_type>, "differenct result type");
   return std::make_shared<MsgCommandImpl<decltype(std::function(f)), UserFuncType, typename Checkers::arg_type...>>(std::function(f), std::move(checkers)...);
 };

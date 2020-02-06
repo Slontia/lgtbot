@@ -30,19 +30,19 @@ static bool IsAtMe(const std::string& msg)
   return msg.find(At(g_this_uid)) != std::string::npos;
 }
 
-static void MatchBoardcast(const MatchId mid, const char* const msg)
+static void BoardcastPlayers(const MatchId mid, const char* const msg)
 {
-  MatchManager::GetMatch(mid)->Boardcast(msg);
+  MatchManager::GetMatch(mid)->BoardcastPlayers(msg);
 }
 
-static void MatchTell(const MatchId mid, const uint64_t pid, const char* const msg)
+static void TellPlayer(const MatchId mid, const uint64_t pid, const char* const msg)
 {
-  MatchManager::GetMatch(mid)->Tell(pid, msg);
+  MatchManager::GetMatch(mid)->TellPlayer(pid, msg);
 }
 
-static void MatchAt(const MatchId mid, const uint64_t pid, char* buf, const uint64_t len)
+static void AtPlayer(const MatchId mid, const uint64_t pid, char* buf, const uint64_t len)
 {
-  MatchManager::GetMatch(mid)->At(pid, buf, len);
+  MatchManager::GetMatch(mid)->AtPlayer(pid, buf, len);
 }
 
 static void MatchGameOver(const uint64_t mid, const int64_t scores[])
@@ -75,7 +75,7 @@ static std::optional<GameHandle> LoadGame(HINSTANCE mod)
     return {};
   }
 
-  if (!init(&MatchBoardcast, &MatchTell, &MatchAt, &MatchGameOver))
+  if (!init(&BoardcastPlayers, &TellPlayer, &AtPlayer, &MatchGameOver))
   {
     LOG_ERROR("Init failed");
     return {};
@@ -121,7 +121,8 @@ static void LoadGameModules()
 
 static std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)
 {
-  typedef MsgCommand<std::string(const UserID, const std::optional<GroupID>)> MetaCommand;
+  using MetaUserFuncType = std::string(const UserID, const std::optional<GroupID>);
+  using MetaCommand = MsgCommand<MetaUserFuncType>;
   static const auto make_meta_command = [](const auto& cb, auto&&... checkers) -> std::shared_ptr<MetaCommand>
   {
     return MakeCommand<std::string(const UserID, const std::optional<GroupID>)>(cb, std::move(checkers)...);

@@ -84,10 +84,10 @@ public:
   std::string GameStart();
   std::string Join(const UserID uid);
   std::string Leave(const UserID uid);
-  void Boardcast(const std::string& msg) const;
-  void Tell(const uint64_t pid, const std::string& msg) const;
-  std::string At(const uint64_t pid) const;
-  void At(const uint64_t pid, char* buf, const uint64_t len) const;
+  void BoardcastPlayers(const std::string& msg) const;
+  void TellPlayer(const uint64_t pid, const std::string& msg) const;
+  std::string AtPlayer(const uint64_t pid) const;
+  void AtPlayer(const uint64_t pid, char* buf, const uint64_t len) const;
   void GameOver(const int64_t scores[])
   {
     assert(ready_uid_set_.size() == pid2uid_.size());
@@ -95,7 +95,7 @@ public:
     ss << "游戏结束，公布分数：" << std::endl;
     for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) { ss << At(pid) << " " << scores[pid] << std::endl; }
     ss << "感谢大家参与！";
-    Boardcast(ss.str());
+    BoardcastPlayers(ss.str());
     //TODO: link to database
   }
 

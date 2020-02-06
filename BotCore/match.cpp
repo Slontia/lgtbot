@@ -28,8 +28,8 @@ std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID u
   const MatchId mid = NewMatchID();
   std::shared_ptr<Match> new_match = std::make_shared<Match>(mid, game_handle, uid, gid);
   
+  RETURN_IF_FAILED(AddPlayer_(new_match, uid));
   BindMatch_(mid, mid2match_, new_match);
-  BindMatch_(uid, uid2match_, new_match);
   if (gid.has_value()) { BindMatch_(*gid, gid2match_, new_match); }
 
   return "";
@@ -87,7 +87,7 @@ void MatchManager::DeleteMatch(const MatchId mid)
   SpinLockGuard l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
   assert(match);
-  match->Boardcast("游戏中止或结束");
+  match->BoardcastPlayers("游戏中止或结束");
 
   UnbindMatch_(mid, mid2match_);
   if (match->gid().has_value()) { UnbindMatch_(*match->gid(), gid2match_); }
@@ -158,7 +158,7 @@ std::string Match::Join(const UserID uid)
   if (state_ != PREPARE) { return "加入游戏失败：游戏已经开始"; }
   if (ready_uid_set_.size() >= game_handle_.max_player_) { return "加入游戏失败：比赛人数已达到游戏上线"; }
   ready_uid_set_.emplace(uid);
-  Boardcast("玩家 " + At(uid) + " 加入了游戏");
+  BoardcastPlayers("玩家 " + At(uid) + " 加入了游戏");
   return "";
 }
 
@@ -166,28 +166,28 @@ std::string Match::Leave(const UserID uid)
 {
   assert(Has(uid));
   if (state_ != PREPARE) { return "退出失败：游戏已经开始"; }
-  Boardcast("玩家 " + At(uid) + " 退出了游戏");
+  BoardcastPlayers("玩家 " + At(uid) + " 退出了游戏");
   ready_uid_set_.erase(uid);
   return "";
 }
 
-void Match::Boardcast(const std::string& msg) const
+void Match::BoardcastPlayers(const std::string& msg) const
 {
   if (gid_.has_value()) { SendPublicMsg(*gid_, msg); }
   else { for (const UserID uid : ready_uid_set_) { SendPrivateMsg(uid, msg); } }
 }
 
-void Match::Tell(const uint64_t pid, const std::string& msg) const
+void Match::TellPlayer(const uint64_t pid, const std::string& msg) const
 {
   SendPrivateMsg(pid2uid_[pid], msg);
 }
 
-void Match::At(const uint64_t pid, char* buf, const uint64_t len) const
+void Match::AtPlayer(const uint64_t pid, char* buf, const uint64_t len) const
 {
   ::At(pid2uid_[pid], buf, len);
 }
 
-std::string Match::At(const uint64_t pid) const
+std::string Match::AtPlayer(const uint64_t pid) const
 {
   return ::At(pid2uid_[pid]);
 }

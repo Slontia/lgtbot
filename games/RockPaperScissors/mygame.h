@@ -19,11 +19,9 @@ struct PlayerEnv
 
 struct GameEnv
 {
-  GameEnv() : cur_round_(0) {}
+  GameEnv() {}
   std::vector<int64_t> PlayerScores() const;
-
   std::array<PlayerEnv, 2> player_envs_;
-  uint64_t cur_round_;
 };
 
 std::unique_ptr<GameEnv> MakeGameEnv(const uint64_t player_num);
