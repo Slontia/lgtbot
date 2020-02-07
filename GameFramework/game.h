@@ -30,7 +30,8 @@ public:
     std::unique_lock<std::mutex> lk(mutex_);
     cv_.wait(lk, [&is_busy = is_busy_]() { return !is_busy.exchange(true); });
     const auto reply = [this, pid, is_public](const std::string& msg) { is_public ? Boardcast(At(pid) + msg) : Tell(pid, msg); };
-    if (is_over_)
+    if (is_over_) { reply("[错误] 差一点点，游戏已经结束了哦~"); }
+    else
     {
       assert(msg);
       MsgReader reader(msg);
@@ -41,7 +42,6 @@ public:
         game_over_f(mid_, game_env_->PlayerScores());
       }
     }
-    else { reply("[错误] 差一点点，游戏已经结束了哦~"); }
     is_busy_.store(false);
     lk.unlock();
     cv_.notify_one();

@@ -26,7 +26,7 @@ struct GameHandle
     const HINSTANCE& module)
     : name_(name), min_player_(min_player), max_player_(max_player),
     new_game_(new_game), delete_game_(delete_game), module_(module) {}
-  GameHandle(GameHandle&&) = default;
+  GameHandle(GameHandle&&) = delete;
   ~GameHandle() { FreeLibrary(module_); }
   
   const std::string name_;
@@ -42,7 +42,7 @@ extern const UserID INVALID_USER_ID;
 extern const GroupID INVALID_GROUP_ID;
 
 extern std::mutex g_mutex;
-extern std::map<std::string, GameHandle> g_game_handles;
+extern std::map<std::string, std::unique_ptr<GameHandle>> g_game_handles;
 
 extern AT_CALLBACK g_at_cb;
 extern PRIVATE_MSG_CALLBACK g_send_pri_msg_cb;

@@ -25,13 +25,24 @@ template <typename StageEnum, typename GameEnv>
 class Stage
 {
 public:
-  Stage(const StageEnum stage_id, std::vector<std::shared_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game)
-    : stage_id_(stage_id), commands_(std::move(commands)), is_over_(false), game_(game) {}
+  Stage(
+    Game<StageEnum, GameEnv>& game,
+    const StageEnum stage_id,
+    std::string&& name,
+    std::vector<std::shared_ptr<GameMsgCommand>>&& commands)
+    : stage_id_(stage_id), name_(std::move(name)), commands_(std::move(commands)), is_over_(false), game_(game)
+  {
+    if (!name_.empty()) { game_.Boardcast(name_ + "¿ªÊ¼"); }
+  }
+
+  ~Stage()
+  {
+    if (!name_.empty()) { game_.Boardcast(name_ + "½áÊø"); }
+  }
+
   virtual void HandleTimeout() = 0;
   bool IsOver() const { return is_over_; }
   StageEnum StageID() const { return stage_id_; }
-
-  ~Stage() {}
 
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply)
   {
@@ -47,12 +58,12 @@ public:
   }
 
 protected:
-  virtual std::string Name() const = 0;
   virtual void Over() { is_over_ = true; }
   Game<StageEnum, GameEnv>& game_;
 
 private:
   const StageEnum stage_id_;
+  const std::string name_;
   std::vector<std::shared_ptr<GameMsgCommand>> commands_;
   bool is_over_;
 };
@@ -63,8 +74,13 @@ class CompStage : public Stage<StageEnum, GameEnv>
 public:
   virtual std::unique_ptr<Stage<StageEnum, GameEnv>> NextSubStage(const StageEnum cur_stage) = 0;
   
-  CompStage(const StageEnum stage_id, std::vector<std::shared_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game, std::unique_ptr<Stage<StageEnum, GameEnv>>&& sub_stage)
-    : Stage<StageEnum, GameEnv>(stage_id, std::move(commands), game), sub_stage_(std::move(sub_stage)) {}
+  CompStage(
+    Game<StageEnum, GameEnv>& game,
+    const StageEnum stage_id,
+    std::string&& name,
+    std::vector<std::shared_ptr<GameMsgCommand>>&& commands,
+    std::unique_ptr<Stage<StageEnum, GameEnv>>&& sub_stage)
+    : Stage<StageEnum, GameEnv>(game, stage_id, std::move(name), std::move(commands)), sub_stage_(std::move(sub_stage)) {}
 
   ~CompStage() {}
 
@@ -95,8 +111,13 @@ template <typename StageEnum, typename GameEnv>
 class AtomStage : public Stage<StageEnum, GameEnv>
 {
 public:
-  AtomStage(const StageEnum stage_id, std::vector<std::shared_ptr<GameMsgCommand>>&& commands, Game<StageEnum, GameEnv>& game, const uint64_t sec = 0)
-    : Stage<StageEnum, GameEnv>(stage_id, std::move(commands), game), timer_(game.Time(sec)) {}
+  AtomStage(
+    Game<StageEnum, GameEnv>& game,
+    const StageEnum stage_id,
+    std::string&& name,
+    std::vector<std::shared_ptr<GameMsgCommand>>&& commands,
+    const uint64_t sec = 0)
+    : Stage<StageEnum, GameEnv>(game, stage_id, std::move(name), std::move(commands)), timer_(game.Time(sec)) {}
   virtual ~AtomStage() {}
   virtual void HandleTimeout() override final { Stage<StageEnum, GameEnv>::Over(); }
   virtual void Over() override final

@@ -16,7 +16,7 @@ const UserID INVALID_USER_ID = 0;
 const GroupID INVALID_GROUP_ID = 0;
 
 std::mutex g_mutex;
-std::map<std::string, GameHandle> g_game_handles;
+std::map<std::string, std::unique_ptr<GameHandle>> g_game_handles;
 
 AT_CALLBACK g_at_cb = nullptr;
 PRIVATE_MSG_CALLBACK g_send_pri_msg_cb = nullptr;
@@ -51,12 +51,12 @@ static void MatchGameOver(const uint64_t mid, const int64_t scores[])
   MatchManager::DeleteMatch(mid);
 }
 
-static std::optional<GameHandle> LoadGame(HINSTANCE mod)
+static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
 {
   if (!mod)
   {
     LOG_ERROR("Load mod failed");
-    return {};
+    return nullptr;
   }
 
   typedef int (__cdecl *Init)(const boardcast, const tell, const at, const game_over);
@@ -72,13 +72,13 @@ static std::optional<GameHandle> LoadGame(HINSTANCE mod)
   if (!init || !game_info || !new_game || !delete_game)
   {
     LOG_ERROR("Invalid Plugin DLL: some interface not be defined.");
-    return {};
+    return nullptr;
   }
 
   if (!init(&BoardcastPlayers, &TellPlayer, &AtPlayer, &MatchGameOver))
   {
     LOG_ERROR("Init failed");
-    return {};
+    return nullptr;
   }
 
   uint64_t min_player = 0;
@@ -87,14 +87,14 @@ static std::optional<GameHandle> LoadGame(HINSTANCE mod)
   if (!name)
   {
     LOG_ERROR("Cannot get game game");
-    return {};
+    return nullptr;
   }
   if (min_player == 0 || max_player < min_player)
   {
     LOG_ERROR("Invalid" + std::to_string(min_player) + std::to_string(max_player));
-    return {};
+    return nullptr;
   }
-  return GameHandle(name, min_player, max_player, new_game, delete_game, mod);
+  return std::make_unique<GameHandle>(name, min_player, max_player, new_game, delete_game, mod);
 }
 
 static void LoadGameModules()
@@ -104,14 +104,14 @@ static void LoadGameModules()
   if (file_handle == INVALID_HANDLE_VALUE) { return; }
   do {
     std::wstring dll_path = L".\\plugins\\" + std::wstring(file_data.cFileName);
-    std::optional<GameHandle> game_handle = LoadGame(LoadLibrary(dll_path.c_str()));
-    if (!game_handle.has_value())
+    std::unique_ptr<GameHandle> game_handle = LoadGame(LoadLibrary(dll_path.c_str()));
+    if (!game_handle)
     {
       LOG_ERROR(std::string(dll_path.begin(), dll_path.end()) + " loaded failed!\n");
     }
     else
     {
-      g_game_handles.emplace(game_handle->name_, std::move(*game_handle));
+      g_game_handles.emplace(game_handle->name_, std::move(game_handle));
       LOG_INFO(std::string(dll_path.begin(), dll_path.end()) + " loaded success!\n");
     }    
   } while (FindNextFile(file_handle, &file_data));

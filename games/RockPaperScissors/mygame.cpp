@@ -23,44 +23,44 @@ std::vector<int64_t> GameEnv::PlayerScores() const
 class RoundStage : public AtomStage<StageEnum, GameEnv>
 {
  public:
-  RoundStage(const uint64_t round, Game<StageEnum, GameEnv>& game);
+   RoundStage(const uint64_t round, Game<StageEnum, GameEnv>& game)
+     : AtomStage(game, ROUND_STAGE, "第" + std::to_string(round) + "回合",
+       {
+         MakeStageCommand(this, &RoundStage::Act, 
+           std::make_unique<AlterChecker<Choise>>(std::map<std::string, Choise> {
+             { "剪刀", SCISSORS_CHOISE},
+             { "石头", ROCK_CHOISE },
+             { "布", PAPER_CHOISE }
+           }, "选择")),
+       })
+   {
+     game_.game_env().player_envs_[0].cur_choise_ = NONE_CHOISE;
+     game_.game_env().player_envs_[1].cur_choise_ = NONE_CHOISE;
+     game_.Boardcast("请私信裁判进行选择");
+   }
+
   std::string Act(const uint64_t pid, const bool is_public, Choise choise)
   {
     if (is_public) { return "请私信裁判选择，公开选择无效"; }
     Choise& cur_choise = game_.game_env().player_envs_[pid].cur_choise_;
     if (cur_choise != NONE_CHOISE) { return "您已经进行过选择了"; }
     cur_choise = choise;
+    if (game_.game_env().player_envs_[1 - pid].cur_choise_ != NONE_CHOISE) { Over(); }
     return "选择成功";
   }
-  std::string Name() const { return "第" + std::to_string(round_) + "回合"; }
-
- private:
-  const uint64_t round_;
 };
-
-RoundStage::RoundStage(const uint64_t round, Game<StageEnum, GameEnv>& game)
-  : AtomStage(ROUND_STAGE,
-    {
-      MakeStageCommand(this, &RoundStage::Act, std::make_unique<AlterChecker<Choise>>(
-        std::map<std::string, Choise> {
-          { "剪刀", SCISSORS_CHOISE},
-          { "石头", ROCK_CHOISE },
-          { "布", PAPER_CHOISE }
-        }, "选择")),
-    }, game), round_(round) {}
 
 class MainStage : public CompStage<StageEnum, GameEnv>
 {
  public:
   MainStage(Game<StageEnum, GameEnv>& game)
-    : CompStage(MAIN_STAGE, {}, game, std::make_unique<RoundStage>(1, game)), round_(1) {}
+    : CompStage(game, MAIN_STAGE, "", {}, std::make_unique<RoundStage>(1, game)), round_(1) {}
 
   virtual std::unique_ptr<Stage<StageEnum, GameEnv>> NextSubStage(const StageEnum cur_stage) override
   {
     GameEnv& env = game_.game_env();
     return (env.player_envs_[0].win_count_ == 3 || env.player_envs_[1].win_count_ == 3) ? nullptr : std::make_unique<RoundStage>(++ round_, game_);
   }
-  std::string Name() const { return ""; }
 
  private:
    uint64_t round_;

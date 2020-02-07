@@ -116,11 +116,8 @@ public:
   {
     if (!reader.HasNext()) { return std::optional<T>(); }
     std::string s = reader.NextArg();
-    for (const auto&[arg_str, value] : arg_map_)
-    {
-      if (arg_str == s) { return value; }
-    }
-    return std::optional<T>();
+    const auto it = arg_map_.find(s);
+    return it == arg_map_.end() ? std::optional<T>() : it->second;
   }
 
 private:
