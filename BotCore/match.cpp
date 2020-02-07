@@ -6,13 +6,6 @@
 #include "../GameFramework/game_base.h"
 #include <optional>
 
-/* TODO:
- * 1. 将UserID GroupID MatchID用结构体封装，放到独立于项目的util/目录下，添加GetMatch_ BindMatch_ UnbindMatch_三个私有模板方法
- * 2. 添加spinlock类，以及spinlockguard类，放到util/目录下，所有公共方法加spinlock
- * 3. Game里添加spinlock，接收请求和thread回调都要加锁
- * 4. 传入GameOver接口，如果thread回调导致游戏结束，置is_over状态（is_over状态discard所有请求）调用GameOver接口，内部调用DeleteMatch方法
- */
-
 std::map<MatchId, std::shared_ptr<Match>> MatchManager::mid2match_;
 std::map<UserID, std::shared_ptr<Match>> MatchManager::uid2match_;
 std::map<GroupID, std::shared_ptr<Match>> MatchManager::gid2match_;
@@ -148,7 +141,7 @@ std::string Match::GameStart()
     pid2uid_.push_back(uid);
   }
   state_ = GAMING;
-  game_ = game_handle_.new_game_(mid_, player_num);
+  game_ = game_handle_.new_game_(this, player_num);
   return "";
 }
 

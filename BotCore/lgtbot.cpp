@@ -30,25 +30,25 @@ static bool IsAtMe(const std::string& msg)
   return msg.find(At(g_this_uid)) != std::string::npos;
 }
 
-static void BoardcastPlayers(const MatchId mid, const char* const msg)
+static void BoardcastPlayers(void* match, const char* const msg)
 {
-  MatchManager::GetMatch(mid)->BoardcastPlayers(msg);
+  static_cast<Match*>(match)->BoardcastPlayers(msg);
 }
 
-static void TellPlayer(const MatchId mid, const uint64_t pid, const char* const msg)
+static void TellPlayer(void* match, const uint64_t pid, const char* const msg)
 {
-  MatchManager::GetMatch(mid)->TellPlayer(pid, msg);
+  static_cast<Match*>(match)->TellPlayer(pid, msg);
 }
 
-static void AtPlayer(const MatchId mid, const uint64_t pid, char* buf, const uint64_t len)
+static void AtPlayer(void* match, const uint64_t pid, char* buf, const uint64_t len)
 {
-  MatchManager::GetMatch(mid)->AtPlayer(pid, buf, len);
+  static_cast<Match*>(match)->AtPlayer(pid, buf, len);
 }
 
-static void MatchGameOver(const uint64_t mid, const int64_t scores[])
+static void MatchGameOver(void* match, const int64_t scores[])
 {
-  MatchManager::GetMatch(mid)->GameOver(scores);
-  MatchManager::DeleteMatch(mid);
+  static_cast<Match*>(match)->GameOver(scores);
+  MatchManager::DeleteMatch(static_cast<Match*>(match)->mid());
 }
 
 static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
@@ -61,7 +61,7 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
 
   typedef int (__cdecl *Init)(const boardcast, const tell, const at, const game_over);
   typedef char* (__cdecl *GameInfo)(uint64_t* const, uint64_t* const);
-  typedef GameBase* (__cdecl *NewGame)(const MatchId, const uint64_t);
+  typedef GameBase* (__cdecl *NewGame)(void* const match, const uint64_t);
   typedef int (__cdecl *DeleteGame)(GameBase* const);
 
   Init init = (Init)GetProcAddress(mod, "Init");
@@ -132,8 +132,8 @@ static std::string HandleMetaRequest(const UserID uid, const std::optional<Group
     make_meta_command(show_gamelist, std::make_unique<VoidChecker>("游戏列表")),
     make_meta_command(new_game, std::make_unique<VoidChecker>("新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名"), std::make_unique<BoolChecker>("公开", "私密")),
     make_meta_command(start_game, std::make_unique<VoidChecker>("开始游戏")),
-    make_meta_command(leave, std::make_unique<VoidChecker>("退出比赛")),
-    make_meta_command(join, std::make_unique<VoidChecker>("加入比赛"), std::make_unique<BasicChecker<MatchId, true>>("赛事编号")),
+    make_meta_command(leave, std::make_unique<VoidChecker>("退出游戏")),
+    make_meta_command(join, std::make_unique<VoidChecker>("加入游戏"), std::make_unique<BasicChecker<MatchId, true>>("赛事编号")),
   };
   reader.Reset();
   for (const std::shared_ptr<MetaCommand>& cmd : meta_cmds)

@@ -4,7 +4,7 @@
 #include <cassert>
 #include "timer.h"
 
-using GameUserFuncType = std::string(const uint64_t, const bool);
+using GameUserFuncType = void(const uint64_t, const bool, const std::function<void(const std::string&)>);
 using GameMsgCommand = MsgCommand<GameUserFuncType>;
 
 template <typename T, typename Ret, typename ...Args>
@@ -14,7 +14,7 @@ static std::function<Ret(Args...)> BindThis(T* p, Ret (T::*func)(Args...))
 }
 
 template <typename Stage, typename ...Args, typename ...Checkers>
-static std::shared_ptr<GameMsgCommand> MakeStageCommand(Stage* stage, std::string (Stage::*cb)(Args...), Checkers&&... checkers)
+static std::shared_ptr<GameMsgCommand> MakeStageCommand(Stage* stage, void (Stage::*cb)(Args...), Checkers&&... checkers)
 {
   return MakeCommand<GameUserFuncType>(BindThis(stage, cb), std::move(checkers)...);
 }
@@ -48,11 +48,7 @@ public:
   {
     for (const std::shared_ptr<GameMsgCommand>& command : commands_)
     {
-      if (std::optional<std::string> response = command->CallIfValid(reader, std::tuple{ player_id, is_public }))
-      {
-        if (!response->empty()) { reply(*response); }
-        return true;
-      }
+      if (command->CallIfValid(reader, std::tuple{ player_id, is_public, reply })) { return true; }
     }
     return false;
   }
@@ -100,6 +96,7 @@ public:
 
   void CheckoutSubStage()
   {
+    sub_stage_.release(); // ensure previous substage is released before next substage built
     sub_stage_ = NextSubStage(sub_stage_->StageID());
     if (!sub_stage_) { Stage<StageEnum, GameEnv>::Over(); } // no more substages
   }

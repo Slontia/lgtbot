@@ -93,7 +93,7 @@ public:
     assert(ready_uid_set_.size() == pid2uid_.size());
     std::ostringstream ss;
     ss << "游戏结束，公布分数：" << std::endl;
-    for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) { ss << At(pid) << " " << scores[pid] << std::endl; }
+    for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) { ss << AtPlayer(pid) << " " << scores[pid] << std::endl; }
     ss << "感谢大家参与！";
     BoardcastPlayers(ss.str());
     //TODO: link to database

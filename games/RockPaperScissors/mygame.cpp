@@ -20,13 +20,21 @@ std::vector<int64_t> GameEnv::PlayerScores() const
   return {score(0), score(1)};
 }
 
+static std::string Choise2Str(const Choise& choise)
+{
+  return choise == SCISSORS_CHOISE ? "剪刀" :
+    choise == ROCK_CHOISE ? "石头" :
+    choise == PAPER_CHOISE ? "布" :
+    "未选择";
+}
+
 class RoundStage : public AtomStage<StageEnum, GameEnv>
 {
  public:
    RoundStage(const uint64_t round, Game<StageEnum, GameEnv>& game)
      : AtomStage(game, ROUND_STAGE, "第" + std::to_string(round) + "回合",
        {
-         MakeStageCommand(this, &RoundStage::Act, 
+         MakeStageCommand(this, &RoundStage::Act_, 
            std::make_unique<AlterChecker<Choise>>(std::map<std::string, Choise> {
              { "剪刀", SCISSORS_CHOISE},
              { "石头", ROCK_CHOISE },
@@ -39,14 +47,54 @@ class RoundStage : public AtomStage<StageEnum, GameEnv>
      game_.Boardcast("请私信裁判进行选择");
    }
 
-  std::string Act(const uint64_t pid, const bool is_public, Choise choise)
+private:
+  void Act_(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, Choise choise)
   {
-    if (is_public) { return "请私信裁判选择，公开选择无效"; }
+    if (is_public)
+    {
+      reply("请私信裁判选择，公开选择无效");
+      return;
+    }
     Choise& cur_choise = game_.game_env().player_envs_[pid].cur_choise_;
-    if (cur_choise != NONE_CHOISE) { return "您已经进行过选择了"; }
+    if (cur_choise != NONE_CHOISE)
+    {
+      reply("您已经进行过选择了");
+      return;
+    }
     cur_choise = choise;
-    if (game_.game_env().player_envs_[1 - pid].cur_choise_ != NONE_CHOISE) { Over(); }
-    return "选择成功";
+    reply("选择成功");
+    JudgeWinner_();
+  }
+
+  void JudgeWinner_()
+  {
+    const auto choise = [&game = game_](const uint64_t pid) { return game.game_env().player_envs_[pid].cur_choise_; };
+    const auto win_count = [&game = game_](const uint64_t pid) { return game.game_env().player_envs_[pid].win_count_; };
+    if (choise(0) == NONE_CHOISE || choise(1) == NONE_CHOISE) { return; }
+    std::stringstream ss;
+    ss << "玩家" << game_.At(0) << "：" << Choise2Str(choise(0)) << std::endl;
+    ss << "玩家" << game_.At(1) << "：" << Choise2Str(choise(1)) << std::endl;
+    const auto is_win = [&game = game_](const uint64_t pid)
+    {
+      const Choise& my_choise = game.game_env().player_envs_[pid].cur_choise_;
+      const Choise& oppo_choise = game.game_env().player_envs_[1 - pid].cur_choise_;
+      return (my_choise == PAPER_CHOISE && oppo_choise == ROCK_CHOISE) ||
+        (my_choise == ROCK_CHOISE && oppo_choise == SCISSORS_CHOISE) ||
+        (my_choise == SCISSORS_CHOISE && oppo_choise == PAPER_CHOISE);
+    };
+    const auto on_win = [&game = game_, &ss](const uint64_t pid)
+    {
+      ss << "玩家" << game.At(pid) << "胜利" << std::endl;
+      ++game.game_env().player_envs_[0].win_count_;
+    };
+    if (is_win(0)) { on_win(0); }
+    else if (is_win(1)) { on_win(1); }
+    else { ss << "平局" << std::endl; }
+    ss << "目前比分：" << std::endl;
+    ss << game_.At(0) << " " << game_.game_env().player_envs_[0].win_count_ << " - " <<
+      game_.game_env().player_envs_[1].win_count_ << " " << game_.At(1);
+    game_.Boardcast(ss.str());
+    Over();
   }
 };
 

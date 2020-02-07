@@ -22,7 +22,7 @@ do\
 struct GameHandle
 {
   GameHandle(const std::string& name, const uint64_t min_player, const uint64_t max_player, 
-    const std::function<GameBase*(const MatchId, const uint64_t)>& new_game, const std::function<void(GameBase* const)>& delete_game,
+    const std::function<GameBase*(void* const, const uint64_t)>& new_game, const std::function<void(GameBase* const)>& delete_game,
     const HINSTANCE& module)
     : name_(name), min_player_(min_player), max_player_(max_player),
     new_game_(new_game), delete_game_(delete_game), module_(module) {}
@@ -32,7 +32,7 @@ struct GameHandle
   const std::string name_;
   const uint64_t min_player_;
   const uint64_t max_player_;
-  const std::function<GameBase*(const MatchId, const uint64_t)> new_game_;
+  const std::function<GameBase*(void* const, const uint64_t)> new_game_;
   const std::function<void(GameBase* const)> delete_game_;
   const HINSTANCE module_;
 };
