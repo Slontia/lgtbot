@@ -35,16 +35,17 @@ class MatchManager
 {
 public:
   static std::string NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid);
-  static std::string StartGame(const UserID uid);
-  static std::string AddPlayerWithMatchID(const MatchId mid, const UserID uid);
-  static std::string AddPlayerWithGroupID(const GroupID gid, const UserID uid);
-  static std::string DeletePlayer(const UserID uid);
+  static std::string StartGame(const UserID uid, const std::optional<GroupID> gid);
+  static std::string AddPlayerToPrivateGame(const MatchId mid, const UserID uid);
+  static std::string AddPlayerToPublicGame(const GroupID gid, const UserID uid);
+  static std::string DeletePlayer(const UserID uid, const std::optional<GroupID> gid);
   static void DeleteMatch(const MatchId id);
   static std::shared_ptr<Match> GetMatch(const MatchId mid);
   static std::shared_ptr<Match> GetMatch(const UserID uid, const std::optional<GroupID> gid);
 
 private:
   static std::string AddPlayer_(const std::shared_ptr<Match>& match, const UserID);
+  static void DeleteMatch_(const MatchId id);
 
   template <typename IDType>
   static std::shared_ptr<Match> GetMatch_(const IDType id, const std::map<IDType, std::shared_ptr<Match>>& id2match)
@@ -88,25 +89,12 @@ public:
   void TellPlayer(const uint64_t pid, const std::string& msg) const;
   std::string AtPlayer(const uint64_t pid) const;
   void AtPlayer(const uint64_t pid, char* buf, const uint64_t len) const;
-  void GameOver(const int64_t scores[])
-  {
-    assert(ready_uid_set_.size() == pid2uid_.size());
-    std::ostringstream ss;
-    ss << "游戏结束，公布分数：" << std::endl;
-    for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) { ss << AtPlayer(pid) << " " << scores[pid] << std::endl; }
-    ss << "感谢大家参与！";
-    BoardcastPlayers(ss.str());
-    //TODO: link to database
-  }
+  void GameOver(const int64_t scores[]);
 
-  bool SwitchHost()
-  {
-    if (ready_uid_set_.empty()) { return false; }
-    host_uid_ = *ready_uid_set_.begin();
-    return true;
-  }
+  bool SwitchHost();
 
   bool Has(const UserID uid) const;
+  bool IsPrivate() const { return !gid_.has_value(); }
 
   MatchId mid() const { return mid_; }
   std::optional<GroupID> gid() const { return gid_; }

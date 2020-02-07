@@ -85,7 +85,7 @@ private:
     const auto on_win = [&game = game_, &ss](const uint64_t pid)
     {
       ss << "Íæ¼Ò" << game.At(pid) << "Ê¤Àû" << std::endl;
-      ++game.game_env().player_envs_[0].win_count_;
+      ++game.game_env().player_envs_[pid].win_count_;
     };
     if (is_win(0)) { on_win(0); }
     else if (is_win(1)) { on_win(1); }

@@ -28,25 +28,28 @@ std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID u
   return "";
 }
 
-std::string MatchManager::StartGame(const UserID uid)
+std::string MatchManager::StartGame(const UserID uid, const std::optional<GroupID> gid)
 {
   SpinLockGuard l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
   if (!match) { return "开始游戏失败：您未加入游戏"; }
-  if (match->host_uid() != uid) { return "开始游戏失败：您不是房主，没有开始游戏的权限"; }
+  else if (match->host_uid() != uid) { return "开始游戏失败：您不是房主，没有开始游戏的权限"; }
+  else if (!match->IsPrivate() && !gid.has_value()) { return "开始游戏失败：请公开开始游戏"; }
+  else if (match->gid() != gid) { return "开始游戏失败：您未在该房间建立游戏"; }
   RETURN_IF_FAILED(match->GameStart());
   return "";
 }
 
-std::string MatchManager::AddPlayerWithMatchID(const MatchId mid, const UserID uid)
+std::string MatchManager::AddPlayerToPrivateGame(const MatchId mid, const UserID uid)
 {
   SpinLockGuard l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
   if (!match) { return "加入游戏失败：游戏ID不存在"; }
+  else if (!match->IsPrivate()) { return "加入游戏失败：该游戏属于公开比赛，请前往房间加入游戏"; }
   return AddPlayer_(match, uid);
 }
 
-std::string MatchManager::AddPlayerWithGroupID(const GroupID gid, const UserID uid)
+std::string MatchManager::AddPlayerToPublicGame(const GroupID gid, const UserID uid)
 {
   SpinLockGuard l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(gid, gid2match_);
@@ -63,24 +66,31 @@ std::string MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const 
   return "";
 }
 
-std::string MatchManager::DeletePlayer(const UserID uid)
+std::string MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID> gid)
 {
   SpinLockGuard l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
   if (!match) { return "退出游戏失败：您未加入游戏"; }
+  else if (!match->IsPrivate() && !gid.has_value()) { return "退出游戏失败：请公开退出游戏"; }
+  else if (match->gid() != gid) { return "退出游戏失败：您未加入本房间游戏"; }
   RETURN_IF_FAILED(match->Leave(uid));
   UnbindMatch_(uid, uid2match_);
   /* If host quit, switch host. */
-  if (uid == match->host_uid() && !match->SwitchHost()) { DeleteMatch(match->mid()); }
+  if (uid == match->host_uid() && !match->SwitchHost()) { DeleteMatch_(match->mid()); }
   return "";
 }
 
 void MatchManager::DeleteMatch(const MatchId mid)
 {
   SpinLockGuard l(spinlock_);
+  return DeleteMatch_(mid);
+}
+
+void MatchManager::DeleteMatch_(const MatchId mid)
+{
   const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
   assert(match);
-  match->BoardcastPlayers("游戏中止或结束");
+  match->BoardcastPlayers("游戏结束");
 
   UnbindMatch_(mid, mid2match_);
   if (match->gid().has_value()) { UnbindMatch_(*match->gid(), gid2match_); }
@@ -107,8 +117,8 @@ MatchId MatchManager::NewMatchID()
   return next_mid_;
 }
 
-Match::Match(const MatchId mid, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid) :
-  mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), state_(PREPARE) {}
+Match::Match(const MatchId mid, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid)
+  : mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), state_(PREPARE), game_(nullptr) {}
 
 Match::~Match()
 {
@@ -183,4 +193,23 @@ void Match::AtPlayer(const uint64_t pid, char* buf, const uint64_t len) const
 std::string Match::AtPlayer(const uint64_t pid) const
 {
   return ::At(pid2uid_[pid]);
+}
+
+void Match::GameOver(const int64_t scores[])
+{
+  assert(ready_uid_set_.size() == pid2uid_.size());
+  std::ostringstream ss;
+  ss << "游戏结束，公布分数：" << std::endl;
+  for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) { ss << AtPlayer(pid) << " " << scores[pid] << std::endl; }
+  ss << "感谢大家参与！";
+  BoardcastPlayers(ss.str());
+  //TODO: link to database
+}
+
+bool Match::SwitchHost()
+{
+  if (ready_uid_set_.empty()) { return false; }
+  host_uid_ = *ready_uid_set_.begin();
+  BoardcastPlayers(At(host_uid_) + "被选为新房主");
+  return true;
 }

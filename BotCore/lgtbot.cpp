@@ -130,10 +130,11 @@ static std::string HandleMetaRequest(const UserID uid, const std::optional<Group
   static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
   {
     make_meta_command(show_gamelist, std::make_unique<VoidChecker>("游戏列表")),
-    make_meta_command(new_game, std::make_unique<VoidChecker>("新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名"), std::make_unique<BoolChecker>("公开", "私密")),
+    make_meta_command(new_game, std::make_unique<VoidChecker>("新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
     make_meta_command(start_game, std::make_unique<VoidChecker>("开始游戏")),
     make_meta_command(leave, std::make_unique<VoidChecker>("退出游戏")),
-    make_meta_command(join, std::make_unique<VoidChecker>("加入游戏"), std::make_unique<BasicChecker<MatchId, true>>("赛事编号")),
+    make_meta_command(join_public, std::make_unique<VoidChecker>("加入游戏")),
+    make_meta_command(join_private, std::make_unique<VoidChecker>("加入游戏"), std::make_unique<BasicChecker<MatchId>>("赛事编号")),
   };
   reader.Reset();
   for (const std::shared_ptr<MetaCommand>& cmd : meta_cmds)
@@ -151,6 +152,7 @@ static std::string HandleRequest(const UserID uid, const std::optional<GroupID> 
   {
     std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
     if (!match) { return "[错误] 您未参与游戏"; }
+    if (match->gid() != gid && gid.has_value()) { return "[错误] 您未在本群参与游戏"; }
     return match->Request(uid, gid, msg);
   }
 }

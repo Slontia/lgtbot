@@ -96,8 +96,9 @@ public:
 
   void CheckoutSubStage()
   {
+    StageEnum last_stage = sub_stage_->StageID();
     sub_stage_.release(); // ensure previous substage is released before next substage built
-    sub_stage_ = NextSubStage(sub_stage_->StageID());
+    sub_stage_ = NextSubStage(last_stage);
     if (!sub_stage_) { Stage<StageEnum, GameEnv>::Over(); } // no more substages
   }
 private:
