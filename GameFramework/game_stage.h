@@ -41,6 +41,14 @@ public:
   }
 
   virtual void HandleTimeout() = 0;
+  virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss)
+  {
+    for (const std::shared_ptr<GameMsgCommand>& cmd : commands_)
+    {
+      ss << std::endl << std::endl << "[" << (++i) << "] " << cmd->Info();
+    }
+    return i;
+  }
   bool IsOver() const { return is_over_; }
   StageEnum StageID() const { return stage_id_; }
 
@@ -92,6 +100,12 @@ public:
   {
     sub_stage_->HandleTimeout();
     if (sub_stage_->IsOver()) { CheckoutSubStage(); }
+  }
+
+  virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss) override
+  {
+    i = Stage<StageEnum, GameEnv>::CommandInfo(i, ss);
+    return sub_stage_->CommandInfo(i, ss);
   }
 
   void CheckoutSubStage()

@@ -51,11 +51,11 @@ static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
 {
   make_meta_command("查看帮助", help, std::make_unique<VoidChecker>("#帮助")),
   make_meta_command("显示游戏列表", show_gamelist, std::make_unique<VoidChecker>("#游戏列表")),
-  make_meta_command("在当前房间建立公开游戏，或私信建立私密游戏", new_game, std::make_unique<VoidChecker>("#新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
+  make_meta_command("在当前房间建立公开游戏，或私信bot以建立私密游戏", new_game, std::make_unique<VoidChecker>("#新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
   make_meta_command("房主开始游戏", start_game, std::make_unique<VoidChecker>("#开始游戏")),
   make_meta_command("在游戏开始前退出游戏", leave, std::make_unique<VoidChecker>("#退出游戏")),
-  make_meta_command("加入公开游戏", join_public, std::make_unique<VoidChecker>("#加入游戏")),
-  make_meta_command("加入私密游戏", join_private, std::make_unique<VoidChecker>("#加入游戏"), std::make_unique<BasicChecker<MatchId>>("赛事编号")),
+  make_meta_command("加入当前房间的公开游戏", join_public, std::make_unique<VoidChecker>("#加入游戏")),
+  make_meta_command("私信bot以加入私密游戏", join_private, std::make_unique<VoidChecker>("#加入游戏"), std::make_unique<BasicChecker<MatchId>>("私密比赛编号")),
 };
 
 static void BoardcastPlayers(void* match, const char* const msg)

@@ -206,7 +206,7 @@ protected:
 public:
   MsgCommand() {}
   virtual ~MsgCommand() {}
-  virtual CommandResultType CallIfValid(MsgReader& msg_reader, UserArgsTuple&& user_args_tuple = {}) const = 0;
+  virtual CommandResultType CallIfValid(MsgReader& msg_reader, const UserArgsTuple& user_args_tuple = {}) const = 0;
   virtual std::string Info() const = 0;
 };
 
@@ -223,7 +223,7 @@ private:
   }
 
   template <unsigned N, typename ...Args>
-  typename MsgCommand<UserFuncType>::CommandResultType CallIfValidParseArgs(MsgReader& msg_reader, typename MsgCommand<UserFuncType>::UserArgsTuple& user_args_tuple, const Args&... args) const
+  typename MsgCommand<UserFuncType>::CommandResultType CallIfValidParseArgs(MsgReader& msg_reader, const typename MsgCommand<UserFuncType>::UserArgsTuple& user_args_tuple, const Args&... args) const
   {
     if constexpr (N == std::tuple_size<CheckerTuple>::value)
     {
@@ -261,7 +261,7 @@ public:
   MsgCommandImpl(std::string&& description, Callback&& callback, std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers)
     : description_(std::move(description)), callback_(callback), checkers_ (std::forward<std::unique_ptr<MsgArgChecker<CheckTypes>>&&>(checkers)...) {}
 
-  virtual typename MsgCommand<UserFuncType>::CommandResultType CallIfValid(MsgReader& msg_reader, typename MsgCommand<UserFuncType>::UserArgsTuple&& user_args_tuple) const override
+  virtual typename MsgCommand<UserFuncType>::CommandResultType CallIfValid(MsgReader& msg_reader, const typename MsgCommand<UserFuncType>::UserArgsTuple& user_args_tuple) const override
   {
     msg_reader.Reset();
     return CallIfValidParseArgs<0>(msg_reader, user_args_tuple);

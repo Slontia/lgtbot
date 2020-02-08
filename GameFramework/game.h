@@ -21,7 +21,8 @@ class Game : public GameBase
 {
 public:
   Game(void* const match, std::unique_ptr<GameEnv>&& game_env)
-    : match_(match), game_env_(std::move(game_env)), is_over_(false), timer_(nullptr), is_busy_(false) {}
+    : match_(match), game_env_(std::move(game_env)), is_over_(false), timer_(nullptr), is_busy_(false),
+      help_cmd_(MakeCommand<void(const std::function<void(const std::string&)>)>("查看游戏帮助", BindThis(this, &Game<StageEnum, GameEnv>::Help), std::make_unique<VoidChecker>("帮助"))){}
   virtual ~Game() {}
 
   /* Return true when is_over_ switch from false to true */
@@ -35,7 +36,7 @@ public:
     {
       assert(msg);
       MsgReader reader(msg);
-      if (!main_stage_->HandleRequest(reader, pid, is_public, reply)) { reply("[错误] 未预料的游戏请求"); }
+      if (!help_cmd_->CallIfValid(reader, std::tuple{reply}) && !main_stage_->HandleRequest(reader, pid, is_public, reply)) { reply("[错误] 未预料的游戏请求"); }
       if (main_stage_->IsOver())
       {
         is_over_ = true;
@@ -74,6 +75,15 @@ public:
     }), std::move(deleter));
   }
 
+  void Help(const std::function<void(const std::string&)> reply)
+  {
+    std::stringstream ss;
+    ss << "[当前游戏命令]";
+    ss << std::endl << std::endl << help_cmd_->Info();
+    main_stage_->CommandInfo(1, ss);
+    reply(ss.str());
+  }
+
   void SetMainStage(std::unique_ptr<Stage<StageEnum, GameEnv>>&& main_stage) { main_stage_ = std::move(main_stage); }
   void Boardcast(const std::string& msg) { boardcast_f(match_, msg); }
   void Tell(const uint64_t pid, const std::string& msg) { tell_f(match_, pid, msg); }
@@ -90,5 +100,6 @@ private:
   std::mutex mutex_;
   std::condition_variable cv_;
   std::atomic<bool> is_busy_;
+  const std::shared_ptr<MsgCommand<void(const std::function<void(const std::string&)>)>> help_cmd_;
 };
 
