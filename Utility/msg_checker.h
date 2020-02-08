@@ -210,7 +210,7 @@ public:
   virtual std::string Info() const = 0;
 };
 
-template <typename Callback, typename UserFuncType, typename ...CheckTypes> //TODO: infer result_type from callback
+template <typename Callback, typename UserFuncType, typename ...CheckTypes>
 class MsgCommandImpl final : public MsgCommand<UserFuncType>
 {
 private:
@@ -257,11 +257,9 @@ private:
     }
   }
 
-  template <typename Checker>
-  std::string GetFormatInfo(const Checker& checker) const { return checker.FormatInfo(); }
-
 public:
-  MsgCommandImpl(Callback&& callback, std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers) : callback_(callback), checkers_ (std::forward<std::unique_ptr<MsgArgChecker<CheckTypes>>&&>(checkers)...) {}
+  MsgCommandImpl(std::string&& description, Callback&& callback, std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers)
+    : description_(std::move(description)), callback_(callback), checkers_ (std::forward<std::unique_ptr<MsgArgChecker<CheckTypes>>&&>(checkers)...) {}
 
   virtual typename MsgCommand<UserFuncType>::CommandResultType CallIfValid(MsgReader& msg_reader, typename MsgCommand<UserFuncType>::UserArgsTuple&& user_args_tuple) const override
   {
@@ -271,13 +269,18 @@ public:
 
   virtual std::string Info() const override
   {
-    //const auto cat_str = [](std::string&& strs, ...) -> std::string { return strs + ..; };
-    //const auto f = [this](const auto&... checkers) -> std::string { (GetFormatInfo(*checkers), ...); return ""; };
-    //return "格式提示：" + std::apply(f, checkers_) + "\n举例：";
-    return "";
+    std::stringstream ss;
+    ss << description_ << std::endl;
+    ss << "格式：";
+    std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers->FormatInfo() + " ")); }, checkers_);
+    ss << std::endl;
+    ss << "例如：";
+    std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers->ExampleInfo() + " ")); }, checkers_);
+    return ss.str();
   }
 
 private:
+  const std::string description_;
   const Callback callback_;
   const CheckerTuple checkers_;
 };
@@ -286,8 +289,8 @@ template <typename Callback>
 using to_func = decltype(std::function{ Callback() });
 
 template <typename UserFuncType, typename Callback, typename ...Checkers>
-static auto MakeCommand(const Callback& f, std::unique_ptr<Checkers>&&... checkers)
+static auto MakeCommand(std::string&& description, const Callback& f, std::unique_ptr<Checkers>&&... checkers)
 {
   static_assert(std::is_same_v<typename FuncTypeHelper<UserFuncType>::ResultType, typename decltype(std::function(f))::result_type>, "differenct result type");
-  return std::make_shared<MsgCommandImpl<decltype(std::function(f)), UserFuncType, typename Checkers::arg_type...>>(std::function(f), std::move(checkers)...);
+  return std::make_shared<MsgCommandImpl<decltype(std::function(f)), UserFuncType, typename Checkers::arg_type...>>(std::move(description), std::function(f), std::move(checkers)...);
 };

@@ -14,9 +14,9 @@ static std::function<Ret(Args...)> BindThis(T* p, Ret (T::*func)(Args...))
 }
 
 template <typename Stage, typename ...Args, typename ...Checkers>
-static std::shared_ptr<GameMsgCommand> MakeStageCommand(Stage* stage, void (Stage::*cb)(Args...), Checkers&&... checkers)
+static std::shared_ptr<GameMsgCommand> MakeStageCommand(Stage* stage, std::string&& description, void (Stage::*cb)(Args...), Checkers&&... checkers)
 {
-  return MakeCommand<GameUserFuncType>(BindThis(stage, cb), std::move(checkers)...);
+  return MakeCommand<GameUserFuncType>(std::move(description), BindThis(stage, cb), std::move(checkers)...);
 }
 
 template <typename StageEnum, typename GameEnv> class Game;

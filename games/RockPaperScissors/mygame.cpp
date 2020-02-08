@@ -34,7 +34,7 @@ class RoundStage : public AtomStage<StageEnum, GameEnv>
    RoundStage(const uint64_t round, Game<StageEnum, GameEnv>& game)
      : AtomStage(game, ROUND_STAGE, "第" + std::to_string(round) + "回合",
        {
-         MakeStageCommand(this, &RoundStage::Act_, 
+         MakeStageCommand(this, "出拳", &RoundStage::Act_, 
            std::make_unique<AlterChecker<Choise>>(std::map<std::string, Choise> {
              { "剪刀", SCISSORS_CHOISE},
              { "石头", ROCK_CHOISE },
