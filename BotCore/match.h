@@ -42,6 +42,7 @@ public:
   static void DeleteMatch(const MatchId id);
   static std::shared_ptr<Match> GetMatch(const MatchId mid);
   static std::shared_ptr<Match> GetMatch(const UserID uid, const std::optional<GroupID> gid);
+  static void ForEachMatch(const std::function<void(const std::shared_ptr<Match>)>);
 
 private:
   static std::string AddPlayer_(const std::shared_ptr<Match>& match, const UserID);
@@ -66,7 +67,7 @@ private:
     id2match.erase(id);
   }
 
-  static MatchId NewMatchID();
+  static MatchId NewMatchID_();
 
   static std::map<MatchId, std::shared_ptr<Match>> mid2match_;
   static std::map<UserID, std::shared_ptr<Match>> uid2match_;
@@ -95,7 +96,9 @@ public:
 
   bool Has(const UserID uid) const;
   bool IsPrivate() const { return !gid_.has_value(); }
+  std::string Name() const { return game_handle_.name_; }
 
+  int is_started() const { return is_started_; }
   MatchId mid() const { return mid_; }
   std::optional<GroupID> gid() const { return gid_; }
   UserID host_uid() const { return host_uid_; }
@@ -106,7 +109,7 @@ protected:
   const GameHandle&                 game_handle_;
   UserID                     host_uid_;
   const std::optional<GroupID> gid_;
-  enum { PREPARE, GAMING, OVER }    state_;
+  bool    is_started_;
   GameBase*       game_;
   std::set<UserID>            ready_uid_set_;
   std::map<UserID, uint64_t>       uid2pid_;

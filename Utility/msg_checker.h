@@ -10,6 +10,12 @@
 #include <sstream>
 static const std::string k_empty_str_ = "";
 
+template <typename T, typename Ret, typename ...Args>
+static std::function<Ret(Args...)> BindThis(T* p, Ret (T::*func)(Args...))
+{
+  return [p, func](Args... args) { return (p->*func)(args...); };
+}
+
 class MsgReader final
 {
 public:
@@ -109,6 +115,7 @@ public:
         ss << arg_str;
       }
     }
+    ss << ">";
     return ss.str();
   }
   virtual std::string ExampleInfo() const override { return arg_map_.empty() ? "（错误，可选项为空）" : arg_map_.begin()->first; }
@@ -193,7 +200,7 @@ class FuncTypeHelper<R(Args...)>
 {
 public:
   typedef R ResultType;
-  typedef std::tuple<Args...> ArgsTuple;
+  typedef std::tuple<std::remove_reference_t<Args>...> ArgsTuple;
 };
 
 template <typename UserFuncType>

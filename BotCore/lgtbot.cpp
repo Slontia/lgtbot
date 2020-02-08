@@ -25,39 +25,6 @@ UserID g_this_uid = INVALID_USER_ID;
 
 MatchManager match_manager;
 
-using MetaUserFuncType = std::string(const UserID, const std::optional<GroupID>);
-using MetaCommand = MsgCommand<MetaUserFuncType>;
-
-static const auto make_meta_command = [](std::string&& description, const auto& cb, auto&&... checkers) -> std::shared_ptr<MetaCommand>
-{
-  return MakeCommand<std::string(const UserID, const std::optional<GroupID>)>(std::move(description), cb, std::move(checkers)...);
-};
-
-extern const std::vector<std::shared_ptr<MetaCommand>> meta_cmds;
-
-static std::string help(const UserID uid, const std::optional<GroupID> gid)
-{
-  std::stringstream ss;
-  ss << "[可使用的元指令]";
-  int i = 0;
-  for (const std::shared_ptr<MetaCommand>& cmd : meta_cmds)
-  {
-    ss << std::endl << std::endl << "[" << (++ i) << "] " << cmd->Info();
-  }
-  return ss.str();
-}
-
-static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
-{
-  make_meta_command("查看帮助", help, std::make_unique<VoidChecker>("#帮助")),
-  make_meta_command("显示游戏列表", show_gamelist, std::make_unique<VoidChecker>("#游戏列表")),
-  make_meta_command("在当前房间建立公开游戏，或私信bot以建立私密游戏", new_game, std::make_unique<VoidChecker>("#新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
-  make_meta_command("房主开始游戏", start_game, std::make_unique<VoidChecker>("#开始游戏")),
-  make_meta_command("在游戏开始前退出游戏", leave, std::make_unique<VoidChecker>("#退出游戏")),
-  make_meta_command("加入当前房间的公开游戏", join_public, std::make_unique<VoidChecker>("#加入游戏")),
-  make_meta_command("私信bot以加入私密游戏", join_private, std::make_unique<VoidChecker>("#加入游戏"), std::make_unique<BasicChecker<MatchId>>("私密比赛编号")),
-};
-
 static void BoardcastPlayers(void* match, const char* const msg)
 {
   static_cast<Match*>(match)->BoardcastPlayers(msg);
@@ -145,17 +112,6 @@ static void LoadGameModules()
   } while (FindNextFile(file_handle, &file_data));
   FindClose(file_handle);
   LOG_INFO("共加载游戏个数：" + std::to_string(g_game_handles.size()));
-}
-
-static std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)
-{
-
-  reader.Reset();
-  for (const std::shared_ptr<MetaCommand>& cmd : meta_cmds)
-  {
-    if (std::optional<std::string> reply_msg = cmd->CallIfValid(reader, std::tuple{ uid, gid })) { return *reply_msg; }
-  }
-  return "[错误] 未预料的元请求";
 }
 
 static std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)

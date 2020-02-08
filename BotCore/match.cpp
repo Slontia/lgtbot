@@ -18,7 +18,7 @@ std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID u
   if (GetMatch_(uid, uid2match_)) { return "新建游戏失败：您已加入游戏"; }
   if (gid.has_value() && GetMatch_(*gid, gid2match_)) { return "新建游戏失败：该房间已经开始游戏"; }
 
-  const MatchId mid = NewMatchID();
+  const MatchId mid = NewMatchID_();
   std::shared_ptr<Match> new_match = std::make_shared<Match>(mid, game_handle, uid, gid);
   
   RETURN_IF_FAILED(AddPlayer_(new_match, uid));
@@ -111,14 +111,20 @@ std::shared_ptr<Match> MatchManager::GetMatch(const UserID uid, const std::optio
   return (!match || (gid.has_value() && GetMatch_(*gid, gid2match_) != match)) ? nullptr : match;
 }
 
-MatchId MatchManager::NewMatchID()
+void MatchManager::ForEachMatch(const std::function<void(const std::shared_ptr<Match>)> handle)
+{
+  SpinLockGuard l(spinlock_);
+  for (const auto&[_, match] : mid2match_) { handle(match); }
+}
+
+MatchId MatchManager::NewMatchID_()
 {
   while (mid2match_.find(++ next_mid_) != mid2match_.end());
   return next_mid_;
 }
 
 Match::Match(const MatchId mid, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid)
-  : mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), state_(PREPARE), game_(nullptr) {}
+  : mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), is_started_(false), game_(nullptr) {}
 
 Match::~Match()
 {
@@ -132,7 +138,7 @@ bool Match::Has(const UserID uid) const
 
 std::string Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)
 {
-  if (state_ != GAMING) { return "[错误] 当前游戏未处于进行状态"; }
+  if (!is_started()) { return "[错误] 当前游戏未处于进行状态"; }
   const auto it = uid2pid_.find(uid);
   assert(it != uid2pid_.end());
   game_->HandleRequest(it->second, gid.has_value(), msg.c_str());
@@ -141,7 +147,7 @@ std::string Match::Request(const UserID uid, const std::optional<GroupID> gid, c
 
 std::string Match::GameStart()
 {
-  if (state_ != PREPARE) { return "开始游戏失败：游戏未处于准备状态"; }
+  if (is_started()) { return "开始游戏失败：游戏已经开始"; }
   const uint64_t player_num = ready_uid_set_.size();
   if (player_num < game_handle_.min_player_) { return "开始游戏失败：玩家人数过少"; }
   assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
@@ -150,7 +156,7 @@ std::string Match::GameStart()
     uid2pid_.emplace(uid, pid2uid_.size());
     pid2uid_.push_back(uid);
   }
-  state_ = GAMING;
+  is_started_ = true;
   game_ = game_handle_.new_game_(this, player_num);
   return "";
 }
@@ -158,7 +164,7 @@ std::string Match::GameStart()
 std::string Match::Join(const UserID uid)
 {
   assert(!Has(uid));
-  if (state_ != PREPARE) { return "加入游戏失败：游戏已经开始"; }
+  if (is_started()) { return "加入游戏失败：游戏已经开始"; }
   if (ready_uid_set_.size() >= game_handle_.max_player_) { return "加入游戏失败：比赛人数已达到游戏上线"; }
   ready_uid_set_.emplace(uid);
   BoardcastPlayers("玩家 " + At(uid) + " 加入了游戏");
@@ -168,7 +174,7 @@ std::string Match::Join(const UserID uid)
 std::string Match::Leave(const UserID uid)
 {
   assert(Has(uid));
-  if (state_ != PREPARE) { return "退出失败：游戏已经开始"; }
+  if (is_started()) { return "退出失败：游戏已经开始"; }
   BoardcastPlayers("玩家 " + At(uid) + " 退出了游戏");
   ready_uid_set_.erase(uid);
   return "";

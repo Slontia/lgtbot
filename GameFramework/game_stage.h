@@ -7,12 +7,6 @@
 using GameUserFuncType = void(const uint64_t, const bool, const std::function<void(const std::string&)>);
 using GameMsgCommand = MsgCommand<GameUserFuncType>;
 
-template <typename T, typename Ret, typename ...Args>
-static std::function<Ret(Args...)> BindThis(T* p, Ret (T::*func)(Args...))
-{
-  return [p, func](Args... args) { return (p->*func)(args...); };
-}
-
 template <typename Stage, typename ...Args, typename ...Checkers>
 static std::shared_ptr<GameMsgCommand> MakeStageCommand(Stage* stage, std::string&& description, void (Stage::*cb)(Args...), Checkers&&... checkers)
 {
