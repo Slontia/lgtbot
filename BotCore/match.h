@@ -42,6 +42,7 @@ public:
   static void DeleteMatch(const MatchId id);
   static std::shared_ptr<Match> GetMatch(const MatchId mid);
   static std::shared_ptr<Match> GetMatch(const UserID uid, const std::optional<GroupID> gid);
+  static std::shared_ptr<Match> GetMatchWithGroupID(const GroupID gid);
   static void ForEachMatch(const std::function<void(const std::shared_ptr<Match>)>);
 
 private:
@@ -96,7 +97,7 @@ public:
 
   bool Has(const UserID uid) const;
   bool IsPrivate() const { return !gid_.has_value(); }
-  std::string Name() const { return game_handle_.name_; }
+  const GameHandle& game_handle() const { return game_handle_; }
 
   int is_started() const { return is_started_; }
   MatchId mid() const { return mid_; }

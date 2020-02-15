@@ -29,7 +29,7 @@ static std::string help(const UserID uid, const std::optional<GroupID> gid)
   int i = 0;
   for (const std::shared_ptr<MetaCommand>& cmd : meta_cmds)
   {
-    ss << std::endl << std::endl << "[" << (++i) << "] " << cmd->Info();
+    ss << std::endl << "[" << (++i) << "] " << cmd->Info();
   }
   return ss.str();
 }
@@ -93,11 +93,33 @@ static std::string show_private_matches(const UserID uid, const std::optional<Gr
     if (match->IsPrivate() && !match->is_started())
     {
       ++count;
-      ss << std::endl << match->Name() << " - [房主ID] " << match->host_uid() << " - [比赛ID] " << match->mid();
+      ss << std::endl << match->game_handle().name_ << " - [房主ID] " << match->host_uid() << " - [比赛ID] " << match->mid();
     }
   });
   if (ss.rdbuf()->in_avail() == 0) { return "当前无未开始的私密比赛"; }
   else { return "共" + std::to_string(count) + "场：" + ss.str(); }
+}
+
+static std::string show_match_status(const UserID uid, const std::optional<GroupID> gid)
+{
+  std::stringstream ss;
+  std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
+  if (!match && gid.has_value()) { match = MatchManager::GetMatchWithGroupID(*gid); }
+  if (!match) { return "[错误] 您未加入游戏，或该房间未进行游戏"; }
+  ss << "游戏名称：" << match->game_handle().name_ << std::endl;
+  ss << "游戏状态：" << (match->is_started() ? "正在进行" : "未进行") << std::endl;
+  ss << "房间号：";
+  if (match->gid().has_value()) { ss << *gid << std::endl; }
+  else { ss << "私密游戏" << std::endl; }
+  ss << "可参加人数：" << match->game_handle().min_player_;
+  if (const uint64_t max_player = match->game_handle().max_player_; max_player > match->game_handle().min_player_) { ss << "~" << max_player; }
+  else if (max_player == 0) { ss << "+"; }
+  ss << "人" << std::endl;
+  ss << "房主：" << match->host_uid() << std::endl;
+  const std::set<uint64_t>& ready_uid_set = match->ready_uid_set();
+  ss << "已参加玩家：" << ready_uid_set.size() << "人";
+  for (const uint64_t uid : ready_uid_set) { ss << std::endl << uid; }
+  return ss.str();
 }
 
 static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
@@ -110,6 +132,7 @@ static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
   make_meta_command("加入当前房间的公开游戏", join_public, std::make_unique<VoidChecker>("#加入游戏")),
   make_meta_command("私信bot以加入私密游戏", join_private, std::make_unique<VoidChecker>("#加入游戏"), std::make_unique<BasicChecker<MatchId>>("私密比赛编号")),
   make_meta_command("查看当前所有未开始的私密比赛", show_private_matches, std::make_unique<VoidChecker>("#私密游戏列表")),
+  make_meta_command("查看已加入，或该房间正在进行的比赛信息", show_match_status, std::make_unique<VoidChecker>("#游戏信息")),
 };
 
 std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)

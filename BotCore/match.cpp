@@ -111,6 +111,12 @@ std::shared_ptr<Match> MatchManager::GetMatch(const UserID uid, const std::optio
   return (!match || (gid.has_value() && GetMatch_(*gid, gid2match_) != match)) ? nullptr : match;
 }
 
+std::shared_ptr<Match> MatchManager::GetMatchWithGroupID(const GroupID gid)
+{
+  SpinLockGuard l(spinlock_);
+  return GetMatch_(gid, gid2match_);
+}
+
 void MatchManager::ForEachMatch(const std::function<void(const std::shared_ptr<Match>)> handle)
 {
   SpinLockGuard l(spinlock_);
@@ -157,6 +163,7 @@ std::string Match::GameStart()
     pid2uid_.push_back(uid);
   }
   is_started_ = true;
+  BoardcastPlayers("游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令");
   game_ = game_handle_.new_game_(this, player_num);
   return "";
 }
