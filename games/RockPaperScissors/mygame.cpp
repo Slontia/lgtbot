@@ -1,6 +1,7 @@
 #include "mygame.h"
 #include "game_stage.h"
 #include "msg_checker.h"
+#include <Windows.h>
 #include <memory>
 #include <array>
 #include <functional>
@@ -122,5 +123,14 @@ std::unique_ptr<GameEnv> MakeGameEnv(const uint64_t player_num)
 
 std::unique_ptr<Stage<StageEnum, GameEnv>> MakeMainStage(Game<StageEnum, GameEnv>& game)
 {
+  FindResource();
   return std::make_unique<MainStage>(game);
+}
+
+GameBase* __cdecl NewGame(void* const match, const uint64_t player_num)
+{
+  if (player_num < k_min_player || (player_num > k_max_player && k_max_player != 0)) { return nullptr; }
+  Game<StageEnum, GameEnv>* game = new Game<StageEnum, GameEnv>(match, MakeGameEnv(player_num));
+  game->SetMainStage(MakeMainStage(*game));
+  return game;
 }

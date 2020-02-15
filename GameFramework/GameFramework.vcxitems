@@ -15,11 +15,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)dllmain.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)game_main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)dllmain.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)game.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)game_base.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)game_main.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)game_stage.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)targetver.h" />
   </ItemGroup>
