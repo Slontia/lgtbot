@@ -11,10 +11,10 @@
 class Player;
 struct GameEnv;
 
-static std::function<void(void*, const std::string&)> boardcast_f;
-static std::function<void(void*, const uint64_t, const std::string&)> tell_f;
-static std::function<std::string(void*, const uint64_t)> at_f;
-static std::function<void(void*, const std::vector<int64_t>&)> game_over_f;
+extern std::function<void(void*, const std::string&)> boardcast_f;
+extern std::function<void(void*, const uint64_t, const std::string&)> tell_f;
+extern std::function<std::string(void*, const uint64_t)> at_f;
+extern std::function<void(void*, const std::vector<int64_t>&)> game_over_f;
 
 template <typename StageEnum, typename GameEnv>
 class Game : public GameBase

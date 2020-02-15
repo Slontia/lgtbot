@@ -41,7 +41,7 @@ static std::string show_gamelist(const UserID uid, const std::optional<GroupID> 
   ss << "ÓÎÏ·ÁÐ±í£º";
   for (const auto& [name, _] : g_game_handles)
   {
-    ss << std::endl << (++i) << ".\t" << name;
+    ss << std::endl << (++i) << ". " << name;
   }
   return ss.str();
 }

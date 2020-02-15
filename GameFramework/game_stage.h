@@ -25,14 +25,9 @@ public:
     std::string&& name,
     std::vector<std::shared_ptr<GameMsgCommand>>&& commands)
     : stage_id_(stage_id), name_(std::move(name)), commands_(std::move(commands)), is_over_(false), game_(game)
-  {
-    if (!name_.empty()) { game_.Boardcast(name_ + "¿ªÊ¼"); }
-  }
+  {}
 
-  ~Stage()
-  {
-    if (!name_.empty()) { game_.Boardcast(name_ + "½áÊø"); }
-  }
+  ~Stage() {}
 
   virtual void HandleTimeout() = 0;
   virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss)
@@ -58,10 +53,10 @@ public:
 protected:
   virtual void Over() { is_over_ = true; }
   Game<StageEnum, GameEnv>& game_;
+  const std::string name_;
 
 private:
   const StageEnum stage_id_;
-  const std::string name_;
   std::vector<std::shared_ptr<GameMsgCommand>> commands_;
   bool is_over_;
 };
