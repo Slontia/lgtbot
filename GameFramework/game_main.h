@@ -9,6 +9,7 @@ template <typename GameEnv, typename StateEnum> class Game;
 extern const std::string k_game_name;
 extern const uint64_t k_min_player;
 extern const uint64_t k_max_player;
+extern const std::string k_rule;
 
 std::unique_ptr<GameEnv> MakeGameEnv(const uint64_t player_num);
 std::unique_ptr<Stage<StageEnum, GameEnv>> MakeMainStage(Game<StageEnum, GameEnv>& game);

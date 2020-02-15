@@ -55,7 +55,7 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
   }
 
   typedef int (__cdecl *Init)(const boardcast, const tell, const at, const game_over);
-  typedef char* (__cdecl *GameInfo)(uint64_t* const, uint64_t* const);
+  typedef char* (__cdecl *GameInfo)(uint64_t*, uint64_t*, const char**);
   typedef GameBase* (__cdecl *NewGame)(void* const match, const uint64_t);
   typedef int (__cdecl *DeleteGame)(GameBase* const);
 
@@ -66,7 +66,7 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
 
   if (!init || !game_info || !new_game || !delete_game)
   {
-    LOG_ERROR("Invalid Plugin DLL: some interface not be defined.");
+    LOG_ERROR("Invalid Plugin DLL: some interface not be defined." + std::to_string((bool)new_game));
     return nullptr;
   }
 
@@ -76,9 +76,10 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
     return nullptr;
   }
 
+  const char* rule = nullptr;
   uint64_t min_player = 0;
   uint64_t max_player = 0;
-  char* name = game_info(&min_player, &max_player);
+  char* name = game_info(&min_player, &max_player, &rule);
   if (!name)
   {
     LOG_ERROR("Cannot get game game");
@@ -89,7 +90,7 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
     LOG_ERROR("Invalid" + std::to_string(min_player) + std::to_string(max_player));
     return nullptr;
   }
-  return std::make_unique<GameHandle>(name, min_player, max_player, new_game, delete_game, mod);
+  return std::make_unique<GameHandle>(name, min_player, max_player, rule, new_game, delete_game, mod);
 }
 
 static void LoadGameModules()

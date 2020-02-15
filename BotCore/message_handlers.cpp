@@ -122,6 +122,20 @@ static std::string show_match_status(const UserID uid, const std::optional<Group
   return ss.str();
 }
 
+static std::string show_rule(const UserID uid, const std::optional<GroupID> gid, const std::string& gamename)
+{
+  std::stringstream ss;
+  const auto it = g_game_handles.find(gamename);
+  if (it == g_game_handles.end()) { return "[错误] 未知的游戏名"; }
+  ss << "可参加人数：" << it->second->min_player_;
+  if (const uint64_t max_player = it->second->max_player_; max_player > it->second->min_player_) { ss << "~" << max_player; }
+  else if (max_player == 0) { ss << "+"; }
+  ss << "人" << std::endl;
+  ss << "详细规则：" << std::endl;
+  ss << it->second->rule_;
+  return ss.str();
+}
+
 static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
 {
   make_meta_command("查看帮助", help, std::make_unique<VoidChecker>("#帮助")),
@@ -133,6 +147,7 @@ static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
   make_meta_command("私信bot以加入私密游戏", join_private, std::make_unique<VoidChecker>("#加入游戏"), std::make_unique<BasicChecker<MatchId>>("私密比赛编号")),
   make_meta_command("查看当前所有未开始的私密比赛", show_private_matches, std::make_unique<VoidChecker>("#私密游戏列表")),
   make_meta_command("查看已加入，或该房间正在进行的比赛信息", show_match_status, std::make_unique<VoidChecker>("#游戏信息")),
+  make_meta_command("查看游戏规则", show_rule, std::make_unique<VoidChecker>("#规则"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
 };
 
 std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)
