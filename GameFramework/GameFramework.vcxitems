@@ -16,6 +16,8 @@
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)dllmain.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)game_main.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)resource_loader.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)resource_loader.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)dllmain.h" />

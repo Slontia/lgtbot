@@ -2,45 +2,20 @@
 #include "game_stage.h"
 #include "msg_checker.h"
 #include "dllmain.h"
-#include <Windows.h>
 #include "resource.h"
 #include <memory>
 #include <array>
 #include <functional>
-
-std::string LoadRule()
-{
-  HMODULE handle = GetModuleHandle(L".\\plugins\\RockPaperScissors.dll");
-  if (handle == NULL)
-    return "GetModuleHandle failed: " + std::to_string(GetLastError());
-
-  HRSRC hRsrc = FindResource(handle, MAKEINTRESOURCE(IDR_TEXT1), TEXT("Text"));
-  if (NULL == hRsrc)
-    return "FindResource failed: " + std::to_string(GetLastError());
-
-  DWORD dwSize = SizeofResource(handle, hRsrc);
-  if (0 == dwSize)
-    return "SizeofResource failed: " + std::to_string(GetLastError());
-
-  HGLOBAL hGlobal = LoadResource(handle, hRsrc);
-  if (NULL == hGlobal)
-    return "LoadResource failed: " + std::to_string(GetLastError());
-
-  LPVOID pBuffer = LockResource(hGlobal);
-  if (NULL == pBuffer)
-    return "LockResource failed: " + std::to_string(GetLastError());
-
-  std::string rule(static_cast<char*>(pBuffer));
-
-  GlobalUnlock(hGlobal);
-
-  return rule;
-}
+#include "resource_loader.h"
 
 const std::string k_game_name = "²ÂÈ­ÓÎÏ·";
 const uint64_t k_min_player = 2; /* should be larger than 1 */
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
-const std::string k_rule = LoadRule();
+const char* Rule()
+{
+  static std::string rule = LoadText(IDR_TEXT1_RULE, TEXT("Text"));
+  return rule.c_str();
+}
 
 enum StageEnum { MAIN_STAGE, ROUND_STAGE };
 

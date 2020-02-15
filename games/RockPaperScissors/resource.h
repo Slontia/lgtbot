@@ -2,7 +2,7 @@
 // Microsoft Visual C++ 生成的包含文件。
 // 供 RockPaperScissors.rc 使用
 //
-#define IDR_TEXT1                       101
+#define IDR_TEXT1_RULE                       101
 
 // Next default values for new objects
 // 
