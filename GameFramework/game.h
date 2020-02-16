@@ -79,7 +79,7 @@ public:
   {
     std::stringstream ss;
     ss << "[当前可使用游戏命令]";
-    ss << std::endl << std::endl << "[1] " << help_cmd_->Info();
+    ss << std::endl << "[1] " << help_cmd_->Info();
     main_stage_->CommandInfo(1, ss);
     reply(ss.str());
   }

@@ -34,7 +34,7 @@ public:
   {
     for (const std::shared_ptr<GameMsgCommand>& cmd : commands_)
     {
-      ss << std::endl << std::endl << "[" << (++i) << "] " << cmd->Info();
+      ss << std::endl << "[" << (++i) << "] " << cmd->Info();
     }
     return i;
   }
