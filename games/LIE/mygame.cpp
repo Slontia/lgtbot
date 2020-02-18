@@ -43,21 +43,21 @@ class NumberStage : public AtomStage<StageEnum, GameEnv>
   {}
 
  private:
-   void Number(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const int num)
+   bool Number(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const int num)
    {
      if (pid != game_.game_env().questioner_)
      {
        reply("[错误] 本回合您为猜测者，无法设置数字");
-       return;
+       return false;
      }
      if (is_public)
      {
        reply("[错误] 请私信裁判选择数字，公开选择无效");
-       return;
+       return false;
      }
      game_.game_env().num_ = num;
      reply("设置成功，请提问数字");
-     Over();
+     return true;
    }
 };
 
@@ -72,16 +72,16 @@ public:
   {}
 
 private:
-  void Lie(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const int num)
+  bool Lie(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const int num)
   {
     if (pid != game_.game_env().questioner_)
     {
       reply("[错误] 本回合您为猜测者，无法提问");
-      return;
+      return false;
     }
     game_.game_env().lie_num_ = num;
     game_.Boardcast((std::stringstream() << "玩家" << game_.At(pid) << "提问数字" << num << "，请玩家" << game_.At(1 - pid) << "相信或质疑").str());
-    Over();
+    return true;
   }
 };
 
@@ -96,12 +96,12 @@ public:
   {}
 
 private:
-  void Guess(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const bool doubt)
+  bool Guess(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const bool doubt)
   {
     if (pid == game_.game_env().questioner_)
     {
       reply("[错误] 本回合您为提问者，无法猜测");
-      return;
+      return false;
     }
     const bool suc = doubt ^ (game_.game_env().num_ == game_.game_env().lie_num_);
     const uint64_t loser = suc ? 1 - pid : pid;
@@ -117,7 +117,7 @@ private:
       ss << std::endl << game_.game_env().player_nums_[0][num - 1] << " [" << num << "] " << game_.game_env().player_nums_[1][num - 1];
     }
     game_.Boardcast(ss.str());
-    Over();
+    return true;
   }
 };
 

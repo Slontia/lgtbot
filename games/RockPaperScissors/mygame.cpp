@@ -56,29 +56,29 @@ class RoundStage : public AtomStage<StageEnum, GameEnv>
    }
 
 private:
-  void Act_(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, Choise choise)
+  bool Act_(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, Choise choise)
   {
     if (is_public)
     {
       reply("请私信裁判选择，公开选择无效");
-      return;
+      return false;
     }
     Choise& cur_choise = game_.game_env().player_envs_[pid].cur_choise_;
     if (cur_choise != NONE_CHOISE)
     {
       reply("您已经进行过选择了");
-      return;
+      return false;
     }
     cur_choise = choise;
     reply("选择成功");
-    JudgeWinner_();
+    return JudgeWinner_();
   }
 
-  void JudgeWinner_()
+  bool JudgeWinner_()
   {
     const auto choise = [&game = game_](const uint64_t pid) { return game.game_env().player_envs_[pid].cur_choise_; };
     const auto win_count = [&game = game_](const uint64_t pid) { return game.game_env().player_envs_[pid].win_count_; };
-    if (choise(0) == NONE_CHOISE || choise(1) == NONE_CHOISE) { return; }
+    if (choise(0) == NONE_CHOISE || choise(1) == NONE_CHOISE) { return false; }
     std::stringstream ss;
     ss << "玩家" << game_.At(0) << "：" << Choise2Str(choise(0)) << std::endl;
     ss << "玩家" << game_.At(1) << "：" << Choise2Str(choise(1)) << std::endl;
@@ -102,7 +102,7 @@ private:
     ss << game_.At(0) << " " << game_.game_env().player_envs_[0].win_count_ << " - " <<
       game_.game_env().player_envs_[1].win_count_ << " " << game_.At(1);
     game_.Boardcast(ss.str());
-    Over();
+    return true;
   }
 };
 

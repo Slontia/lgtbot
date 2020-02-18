@@ -203,8 +203,14 @@ public:
   typedef std::tuple<std::remove_reference_t<Args>...> ArgsTuple;
 };
 
+class MsgCommandBase
+{
+public:
+  virtual std::string Info() const = 0;
+};
+
 template <typename UserFuncType>
-class MsgCommand
+class MsgCommand : public MsgCommandBase
 {
 protected:
   typedef typename FuncTypeHelper<UserFuncType>::ResultType ResultType;
@@ -214,7 +220,6 @@ public:
   MsgCommand() {}
   virtual ~MsgCommand() {}
   virtual CommandResultType CallIfValid(MsgReader& msg_reader, const UserArgsTuple& user_args_tuple = {}) const = 0;
-  virtual std::string Info() const = 0;
 };
 
 template <typename Callback, typename UserFuncType, typename ...CheckTypes>
