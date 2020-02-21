@@ -3,8 +3,6 @@
 #include "game_main.h"
 #include <array>
 
-enum StageEnum;
-
 enum Choise { NONE_CHOISE, ROCK_CHOISE, SCISSORS_CHOISE, PAPER_CHOISE };
 
 struct PlayerEnv

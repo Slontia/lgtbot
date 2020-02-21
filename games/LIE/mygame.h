@@ -4,8 +4,6 @@
 #include <array>
 #include <random>
 
-enum StageEnum;
-
 struct GameEnv
 {
   GameEnv() : player_nums_{0}, questioner_(std::rand() % 2) {}

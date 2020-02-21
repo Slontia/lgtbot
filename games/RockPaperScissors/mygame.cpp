@@ -17,8 +17,6 @@ const char* Rule()
   return rule.c_str();
 }
 
-enum StageEnum { MAIN_STAGE, ROUND_STAGE };
-
 std::vector<int64_t> GameEnv::PlayerScores() const
 {
   const auto score = [player_envs = player_envs_](const uint64_t pid)
@@ -36,11 +34,11 @@ static std::string Choise2Str(const Choise& choise)
     "未选择";
 }
 
-class RoundStage : public AtomStage<StageEnum, GameEnv>
+class RoundStage : public AtomStage<GameEnv>
 {
  public:
-   RoundStage(const uint64_t round, Game<StageEnum, GameEnv>& game)
-     : AtomStage(game, ROUND_STAGE, "第" + std::to_string(round) + "回合",
+   RoundStage(const uint64_t round, Game<GameEnv>& game)
+     : AtomStage(game, "第" + std::to_string(round) + "回合",
        {
          MakeStageCommand(this, "出拳", &RoundStage::Act_, 
            std::make_unique<AlterChecker<Choise>>(std::map<std::string, Choise> {
@@ -106,16 +104,17 @@ private:
   }
 };
 
-class MainStage : public CompStage<StageEnum, GameEnv>
+class MainStage : public CompStage<GameEnv, RoundStage>
 {
  public:
-  MainStage(Game<StageEnum, GameEnv>& game)
-    : CompStage(game, MAIN_STAGE, "", {}, std::make_unique<RoundStage>(1, game)), round_(1) {}
+  MainStage(Game<GameEnv>& game)
+    : CompStage(game, "", {}, std::make_unique<RoundStage>(1, game)), round_(1) {}
 
-  virtual std::unique_ptr<Stage<StageEnum, GameEnv>> NextSubStage(const StageEnum cur_stage) override
+  virtual VariantSubStage NextSubStage(RoundStage&) override
   {
     GameEnv& env = game_.game_env();
-    return (env.player_envs_[0].win_count_ == 3 || env.player_envs_[1].win_count_ == 3) ? nullptr : std::make_unique<RoundStage>(++ round_, game_);
+    if (env.player_envs_[0].win_count_ == 3 || env.player_envs_[1].win_count_ == 3) { return {}; }
+    return std::make_unique<RoundStage>(++ round_, game_);
   }
 
  private:
@@ -128,7 +127,7 @@ std::unique_ptr<GameEnv> MakeGameEnv(const uint64_t player_num)
   return std::make_unique<GameEnv>();
 }
 
-std::unique_ptr<Stage<StageEnum, GameEnv>> MakeMainStage(Game<StageEnum, GameEnv>& game)
+std::unique_ptr<Stage<GameEnv>> MakeMainStage(Game<GameEnv>& game)
 {
   return std::make_unique<MainStage>(game);
 }
@@ -136,7 +135,7 @@ std::unique_ptr<Stage<StageEnum, GameEnv>> MakeMainStage(Game<StageEnum, GameEnv
 GameBase* __cdecl NewGame(void* const match, const uint64_t player_num)
 {
   if (player_num < k_min_player || (player_num > k_max_player && k_max_player != 0)) { return nullptr; }
-  Game<StageEnum, GameEnv>* game = new Game<StageEnum, GameEnv>(match, MakeGameEnv(player_num));
+  Game<GameEnv>* game = new Game<GameEnv>(match, MakeGameEnv(player_num));
   game->SetMainStage(MakeMainStage(*game));
   return game;
 }

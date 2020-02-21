@@ -16,13 +16,13 @@ extern std::function<void(void*, const uint64_t, const std::string&)> tell_f;
 extern std::function<std::string(void*, const uint64_t)> at_f;
 extern std::function<void(void*, const std::vector<int64_t>&)> game_over_f;
 
-template <typename StageEnum, typename GameEnv>
+template <typename GameEnv>
 class Game : public GameBase
 {
 public:
   Game(void* const match, std::unique_ptr<GameEnv>&& game_env)
     : match_(match), game_env_(std::move(game_env)), is_over_(false), timer_(nullptr), is_busy_(false),
-      help_cmd_(MakeCommand<void(const std::function<void(const std::string&)>)>("查看游戏帮助", BindThis(this, &Game<StageEnum, GameEnv>::Help), std::make_unique<VoidChecker>("帮助"))){}
+      help_cmd_(MakeCommand<void(const std::function<void(const std::string&)>)>("查看游戏帮助", BindThis(this, &Game<GameEnv>::Help), std::make_unique<VoidChecker>("帮助"))){}
   virtual ~Game() {}
 
   /* Return true when is_over_ switch from false to true */
@@ -84,7 +84,7 @@ public:
     reply(ss.str());
   }
 
-  void SetMainStage(std::unique_ptr<Stage<StageEnum, GameEnv>>&& main_stage) { main_stage_ = std::move(main_stage); }
+  void SetMainStage(std::unique_ptr<Stage<GameEnv>>&& main_stage) { main_stage_ = std::move(main_stage); }
   void Boardcast(const std::string& msg) { boardcast_f(match_, msg); }
   void Tell(const uint64_t pid, const std::string& msg) { tell_f(match_, pid, msg); }
   std::string At(const uint64_t pid) { return at_f(match_, pid); }
@@ -93,7 +93,7 @@ public:
 private:
   void* const match_;
   const std::unique_ptr<GameEnv> game_env_;
-  std::unique_ptr<Stage<StageEnum, GameEnv>> main_stage_;
+  std::unique_ptr<Stage<GameEnv>> main_stage_;
   bool is_over_;
   std::optional<std::vector<int64_t>> scores_;
   std::unique_ptr<Timer> timer_;
