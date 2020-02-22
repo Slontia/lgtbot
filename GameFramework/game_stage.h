@@ -4,6 +4,7 @@
 #include <cassert>
 #include <variant>
 #include "timer.h"
+#include "game_main.h"
 
 template <typename RetType>
 using GameUserFuncType = RetType(const uint64_t, const bool, const std::function<void(const std::string&)>);
@@ -16,23 +17,23 @@ static std::shared_ptr<GameMsgCommand<RetType>> MakeStageCommand(Stage* stage, s
   return MakeCommand<GameUserFuncType<RetType>>(std::move(description), BindThis(stage, cb), std::move(checkers)...);
 }
 
-template <typename GameEnv> class Game;
-
-template <typename GameEnv>
 class Stage
 {
 public:
-  Stage(
-    Game<GameEnv>& game, std::string&& name) : name_(std::move(name)), is_over_(false), game_(game)
-  {}
-
+  Stage(std::string&& name) : name_(std::move(name)), is_over_(false) {}
   ~Stage() {}
-
+  virtual void Init(void* const match, const std::function<std::unique_ptr<Timer, std::function<void(Timer*)>>(const uint64_t)>& time_f)
+  {
+    match_ = match;
+    time_f_ = time_f;
+  }
   virtual void HandleTimeout() = 0;
   virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss) const = 0;
   bool IsOver() const { return is_over_; }
-
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) = 0;
+  void Boardcast(const std::string& msg) { boardcast_f(match_, msg); }
+  void Tell(const uint64_t pid, const std::string& msg) { tell_f(match_, pid, msg); }
+  std::string At(const uint64_t pid) { return at_f(match_, pid); }
 
 protected:
   uint64_t CommandInfo(uint64_t i, std::stringstream& ss, const std::shared_ptr<MsgCommandBase>& cmd) const
@@ -41,8 +42,9 @@ protected:
     return i;
   }
   virtual void Over() { is_over_ = true; }
-  Game<GameEnv>& game_;
   const std::string name_;
+  void* match_;
+  std::function<std::unique_ptr<Timer, std::function<void(Timer*)>>(const uint64_t)> time_f_;
 
 private:
   bool is_over_;
@@ -55,8 +57,8 @@ class SubStageCheckoutHelper
   virtual RetType NextSubStage(SubStage&) = 0;
 };
 
-template < typename GameEnv, typename ...SubStages>
-class CompStage : public Stage<GameEnv>,
+template <typename ...SubStages>
+class CompStage : public Stage,
   public SubStageCheckoutHelper<SubStages, std::variant<std::unique_ptr<SubStages>...>>...
 {
 public:
@@ -64,11 +66,10 @@ public:
   using SubStageCheckoutHelper<SubStages, std::variant<std::unique_ptr<SubStages>...>>::NextSubStage...;
 
   CompStage(
-    Game<GameEnv>& game,
     std::string&& name,
     std::vector<std::shared_ptr<GameMsgCommand<void>>>&& commands,
     VariantSubStage&& sub_stage)
-    : Stage<GameEnv>(game, std::move(name)), sub_stage_(std::move(sub_stage)), commands_(std::move(commands)) {}
+    : Stage(std::move(name)), sub_stage_(std::move(sub_stage)), commands_(std::move(commands)) {}
 
   ~CompStage() {}
 
@@ -97,7 +98,7 @@ public:
 
   virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss) const override
   {
-    for (const auto& cmd : commands_) { i = Stage<GameEnv>::CommandInfo(i, ss, cmd); }
+    for (const auto& cmd : commands_) { i = Stage::CommandInfo(i, ss, cmd); }
     return std::visit([&i, &ss](auto&& sub_stage) { return sub_stage->CommandInfo(i, ss); }, sub_stage_);
   }
 
@@ -110,26 +111,33 @@ public:
       sub_stage.release();
       return std::move(new_sub_stage);
     }, sub_stage_);
-    if (std::visit([](auto&& sub_stage) { return sub_stage == nullptr; }, sub_stage_)) { Stage<GameEnv>::Over(); } // no more substages
+    std::visit([this](auto&& sub_stage)
+    {
+      if (!sub_stage) { Over(); } // no more substages
+      else { sub_stage->Init(match_, time_f_); }
+    }, sub_stage_);
   }
 private:
-  using Stage<GameEnv>::Over;
+  using Stage::Over;
   VariantSubStage sub_stage_;
   std::vector<std::shared_ptr<GameMsgCommand<void>>> commands_;
 };
 
-template <typename GameEnv>
-class AtomStage : public Stage<GameEnv>
+class AtomStage : public Stage
 {
 public:
   AtomStage(
-    Game<GameEnv>& game,
     std::string&& name,
     std::vector<std::shared_ptr<GameMsgCommand<bool>>>&& commands,
     const uint64_t sec = 0)
-    : Stage<GameEnv>(game, std::move(name)), timer_(game.Time(sec)), commands_(std::move(commands)) {}
+    : Stage(std::move(name)), sec_(sec), timer_(nullptr), commands_(std::move(commands)) {}
   virtual ~AtomStage() {}
-  virtual void HandleTimeout() override final { Stage<GameEnv>::Over(); }
+  virtual void Init(void* const match, const std::function<std::unique_ptr<Timer, std::function<void(Timer*)>>(const uint64_t)>& time_f)
+  {
+    Stage::Init(match, time_f);
+    timer_ = time_f(sec_);
+  }
+  virtual void HandleTimeout() override final { Stage::Over(); }
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) override
   {
     for (const std::shared_ptr<GameMsgCommand<bool>>& command : commands_)
@@ -144,15 +152,16 @@ public:
   }
   virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss) const override
   {
-    for (const auto& cmd : commands_) { i = Stage<GameEnv>::CommandInfo(i, ss, cmd); }
+    for (const auto& cmd : commands_) { i = Stage::CommandInfo(i, ss, cmd); }
     return i;
   }
 private:
   virtual void Over() override final
   {
     timer_ = nullptr;
-    Stage<GameEnv>::Over();
+    Stage::Over();
   }
+  const uint64_t sec_;
   std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;
   std::vector<std::shared_ptr<GameMsgCommand<bool>>> commands_;
 };
