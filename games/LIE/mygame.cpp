@@ -119,19 +119,19 @@ class RoundStage : public CompStage<NumberStage, LieStage, GuessStage>
      return std::make_unique<NumberStage>(questioner_);
    }
 
-   virtual VariantSubStage NextSubStage(NumberStage& sub_stage) override
+   virtual VariantSubStage NextSubStage(NumberStage& sub_stage, const bool is_timeout) override
    {
      num_ = sub_stage.num();
      return std::make_unique<LieStage>(questioner_);
    }
 
-   virtual VariantSubStage NextSubStage(LieStage& sub_stage) override
+   virtual VariantSubStage NextSubStage(LieStage& sub_stage, const bool is_timeout) override
    {
      lie_num_ = sub_stage.lie_num();
      return std::make_unique<GuessStage>(1 - questioner_);
    }
 
-   virtual VariantSubStage NextSubStage(GuessStage& sub_stage) override
+   virtual VariantSubStage NextSubStage(GuessStage& sub_stage, const bool is_timeout) override
    {
      const bool doubt = sub_stage.doubt();
      const bool suc = doubt ^ (num_ == lie_num_);
@@ -168,7 +168,7 @@ class MainStage : public CompStage<RoundStage>
     return std::make_unique<RoundStage>(1, std::rand() % 2, player_nums_);
   }
 
-  virtual VariantSubStage NextSubStage(RoundStage& sub_stage) override
+  virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const bool is_timeout) override
   {
     questioner_ = sub_stage.loser();
     if (JudgeOver()) { return {}; }

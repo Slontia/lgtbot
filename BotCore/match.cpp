@@ -10,7 +10,7 @@ std::map<MatchId, std::shared_ptr<Match>> MatchManager::mid2match_;
 std::map<UserID, std::shared_ptr<Match>> MatchManager::uid2match_;
 std::map<GroupID, std::shared_ptr<Match>> MatchManager::gid2match_;
 MatchId MatchManager::next_mid_ = 0;
-SpinLock MatchManager::spinlock_;
+SpinLock MatchManager::spinlock_; // to lock match map
 
 std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid)
 {
@@ -90,7 +90,6 @@ void MatchManager::DeleteMatch_(const MatchId mid)
 {
   const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
   assert(match);
-  match->BoardcastPlayers("游戏结束");
 
   UnbindMatch_(mid, mid2match_);
   if (match->gid().has_value()) { UnbindMatch_(*match->gid(), gid2match_); }
@@ -210,11 +209,16 @@ std::string Match::AtPlayer(const uint64_t pid) const
 
 void Match::GameOver(const int64_t scores[])
 {
+  if (!scores)
+  {
+    BoardcastPlayers("游戏中断，该局游戏成绩无效，感谢诸位参与！");
+    return;
+  }
   assert(ready_uid_set_.size() == pid2uid_.size());
   std::ostringstream ss;
   ss << "游戏结束，公布分数：" << std::endl;
   for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) { ss << AtPlayer(pid) << " " << scores[pid] << std::endl; }
-  ss << "感谢大家参与！";
+  ss << "感谢诸位参与！";
   BoardcastPlayers(ss.str());
   //TODO: link to database
 }

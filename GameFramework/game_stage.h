@@ -31,9 +31,10 @@ public:
   virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss) const = 0;
   bool IsOver() const { return is_over_; }
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) = 0;
-  void Boardcast(const std::string& msg) { boardcast_f(match_, msg); }
-  void Tell(const uint64_t pid, const std::string& msg) { tell_f(match_, pid, msg); }
-  std::string At(const uint64_t pid) { return at_f(match_, pid); }
+  void Boardcast(const std::string& msg) const { boardcast_f(match_, msg); }
+  void Tell(const uint64_t pid, const std::string& msg) const { tell_f(match_, pid, msg); }
+  std::string At(const uint64_t pid) const { return at_f(match_, pid); }
+  void BreakOff() { game_over_f(match_, {}); }
 
 protected:
   uint64_t CommandInfo(uint64_t i, std::stringstream& ss, const std::shared_ptr<MsgCommandBase>& cmd) const
@@ -54,7 +55,7 @@ template <typename SubStage, typename RetType>
 class SubStageCheckoutHelper
 {
  public:
-  virtual RetType NextSubStage(SubStage&) = 0;
+  virtual RetType NextSubStage(SubStage& sub_stage, const bool is_timeout) = 0;
 };
 
 template <typename ...SubStages>
@@ -90,7 +91,7 @@ public:
     return std::visit([this, &reader, player_id, is_public, &reply](auto&& sub_stage)
     {
       const bool sub_stage_handled = sub_stage->HandleRequest(reader, player_id, is_public, reply);
-      if (sub_stage->IsOver()) { this->CheckoutSubStage(); }
+      if (sub_stage->IsOver()) { this->CheckoutSubStage(false); }
       return sub_stage_handled;
     }, sub_stage_);
   }
@@ -100,7 +101,7 @@ public:
     std::visit([this](auto&& sub_stage)
     {
       sub_stage->HandleTimeout();
-      if (sub_stage->IsOver()) { this->CheckoutSubStage(); }
+      if (sub_stage->IsOver()) { this->CheckoutSubStage(true); }
     }, sub_stage_);
   }
 
@@ -110,12 +111,12 @@ public:
     return std::visit([&i, &ss](auto&& sub_stage) { return sub_stage->CommandInfo(i, ss); }, sub_stage_);
   }
 
-  void CheckoutSubStage()
+  void CheckoutSubStage(const bool is_timeout)
   {
     // ensure previous substage is released before next substage built
-    sub_stage_ = std::visit([this](auto&& sub_stage)
+    sub_stage_ = std::visit([this, is_timeout](auto&& sub_stage)
     {   
-      VariantSubStage new_sub_stage = NextSubStage(*sub_stage);
+      VariantSubStage new_sub_stage = NextSubStage(*sub_stage, is_timeout);
       sub_stage.release();
       return std::move(new_sub_stage);
     }, sub_stage_);

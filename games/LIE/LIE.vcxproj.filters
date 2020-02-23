@@ -30,7 +30,7 @@
     </Text>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="RockPaperScissors.rc">
+    <ResourceCompile Include="resource.rc">
       <Filter>资源文件</Filter>
     </ResourceCompile>
   </ItemGroup>
