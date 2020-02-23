@@ -1,7 +1,6 @@
 #pragma once
 #include <string>
 
-struct GameEnv;
 class Stage;
 class Game;
 

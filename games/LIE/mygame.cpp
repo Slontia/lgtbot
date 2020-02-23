@@ -1,4 +1,3 @@
-#include "mygame.h"
 #include "game_stage.h"
 #include "msg_checker.h"
 #include "dllmain.h"
@@ -7,10 +6,6 @@
 #include <array>
 #include <functional>
 #include "resource_loader.h"
-
-/*
-1. command返回值为bool，表示阶段是否结束
-*/
 
 const std::string k_game_name = "LIE";
 const uint64_t k_min_player = 2; /* should be larger than 1 */
@@ -21,29 +16,21 @@ const char* Rule()
   return rule.c_str();
 }
 
-std::vector<int64_t> GameEnv::PlayerScores() const
-{
-  const auto score = [questioner = questioner_](const uint64_t pid)
-  {
-    return pid == questioner ? -10 : 10;
-  };
-  return {score(0), score(1)};
-}
-
-class NumberStage : public AtomStage<GameEnv>
+class NumberStage : public AtomStage
 {
  public:
-  NumberStage(Game<GameEnv>& game)
-    : AtomStage(game, "设置数字阶段",
+  NumberStage(const uint64_t questioner)
+    : AtomStage("设置数字阶段",
       {
         MakeStageCommand(this, "设置数字", &NumberStage::Number, std::make_unique<ArithChecker<int, 1, 6>>("数字")),
-      })
-  {}
+      }), questioner_(questioner), num_(0) {}
+
+  int num() const { return num_; }
 
  private:
    bool Number(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const int num)
    {
-     if (pid != game_.game_env().questioner_)
+     if (pid != questioner_)
      {
        reply("[错误] 本回合您为猜测者，无法设置数字");
        return false;
@@ -53,129 +40,167 @@ class NumberStage : public AtomStage<GameEnv>
        reply("[错误] 请私信裁判选择数字，公开选择无效");
        return false;
      }
-     game_.game_env().num_ = num;
+     num_ = num;
      reply("设置成功，请提问数字");
      return true;
    }
+
+   const uint64_t questioner_;
+   int num_;
 };
 
-class LieStage : public AtomStage<GameEnv>
+class LieStage : public AtomStage
 {
 public:
-  LieStage(Game<GameEnv>& game)
-    : AtomStage(game, "设置数字阶段",
+  LieStage(const uint64_t questioner)
+    : AtomStage("设置数字阶段",
       {
         MakeStageCommand(this, "提问数字", &LieStage::Lie, std::make_unique<ArithChecker<int, 1, 6>>("数字")),
-      })
-  {}
+      }), questioner_(questioner), lie_num_(0) {}
+
+  int lie_num() const { return lie_num_; }
 
 private:
-  bool Lie(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const int num)
+  bool Lie(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const int lie_num)
   {
-    if (pid != game_.game_env().questioner_)
+    if (pid != questioner_)
     {
       reply("[错误] 本回合您为猜测者，无法提问");
       return false;
     }
-    game_.game_env().lie_num_ = num;
-    game_.Boardcast((std::stringstream() << "玩家" << game_.At(pid) << "提问数字" << num << "，请玩家" << game_.At(1 - pid) << "相信或质疑").str());
+    lie_num_ = lie_num;
+    Boardcast((std::stringstream() << "玩家" << At(pid) << "提问数字" << lie_num << "，请玩家" << At(1 - pid) << "相信或质疑").str());
     return true;
   }
+
+  const uint64_t questioner_;
+  int lie_num_;
 };
 
-class GuessStage : public AtomStage<GameEnv>
+class GuessStage : public AtomStage
 {
 public:
-  GuessStage(Game<GameEnv>& game)
-    : AtomStage(game, "设置数字阶段",
+  GuessStage(const uint64_t guesser)
+    : AtomStage("设置数字阶段",
       {
         MakeStageCommand(this, "猜测", &GuessStage::Guess, std::make_unique<BoolChecker>("质疑", "相信")),
-      })
-  {}
+      }), guesser_(guesser) {}
+
+  bool doubt() const { return doubt_; }
 
 private:
   bool Guess(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const bool doubt)
   {
-    if (pid == game_.game_env().questioner_)
+    if (pid != guesser_)
     {
       reply("[错误] 本回合您为提问者，无法猜测");
       return false;
     }
-    const bool suc = doubt ^ (game_.game_env().num_ == game_.game_env().lie_num_);
-    const uint64_t loser = suc ? 1 - pid : pid;
-    game_.game_env().questioner_ = loser;
-    ++game_.game_env().player_nums_[loser][game_.game_env().num_ - 1];
-    std::stringstream ss;
-    ss << "实际数字为" << game_.game_env().num_ << "，"
-      << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
-      << "玩家" << game_.At(loser) << "获得数字" << game_.game_env().num_ << std::endl
-      << "数字获得情况：" << game_.At(0) << "：" << game_.At(1);
-    for (int num = 1; num <= 6; ++num)
-    {
-      ss << std::endl << game_.game_env().player_nums_[0][num - 1] << " [" << num << "] " << game_.game_env().player_nums_[1][num - 1];
-    }
-    game_.Boardcast(ss.str());
+    doubt_ = doubt;
     return true;
   }
+
+  const uint64_t guesser_;
+  bool doubt_;
 };
 
-class RoundStage : public CompStage<GameEnv, NumberStage, LieStage, GuessStage>
+class RoundStage : public CompStage<NumberStage, LieStage, GuessStage>
 {
  public:
-   RoundStage(const uint64_t round, Game<GameEnv>& game)
-     : CompStage(game, "第" + std::to_string(round) + "回合", {}, std::make_unique<NumberStage>(game))
+   RoundStage(const uint64_t round, const uint64_t questioner, std::array<std::array<int, 6>, 2>& player_nums)
+     : CompStage("第" + std::to_string(round) + "回合", {}),
+     questioner_(questioner), num_(0), lie_num_(0), player_nums_(player_nums), loser_(0) {}
+
+   uint64_t loser() const { return loser_; }
+
+   virtual VariantSubStage OnStageBegin() override
    {
-     game_.Boardcast(name_ + "开始，请玩家" + game_.At(game_.game_env().questioner_) + "私信裁判选择数字");
+     Boardcast(name_ + "开始，请玩家" + At(questioner_) + "私信裁判选择数字");
+     return std::make_unique<NumberStage>(questioner_);
    }
 
-   virtual VariantSubStage NextSubStage(NumberStage&) override { return std::make_unique<LieStage>(game_); }
-   virtual VariantSubStage NextSubStage(LieStage&) override { return std::make_unique<GuessStage>(game_); }
-   virtual VariantSubStage NextSubStage(GuessStage&) override { return {}; }
+   virtual VariantSubStage NextSubStage(NumberStage& sub_stage) override
+   {
+     num_ = sub_stage.num();
+     return std::make_unique<LieStage>(questioner_);
+   }
 
+   virtual VariantSubStage NextSubStage(LieStage& sub_stage) override
+   {
+     lie_num_ = sub_stage.lie_num();
+     return std::make_unique<GuessStage>(1 - questioner_);
+   }
+
+   virtual VariantSubStage NextSubStage(GuessStage& sub_stage) override
+   {
+     const bool doubt = sub_stage.doubt();
+     const bool suc = doubt ^ (num_ == lie_num_);
+     loser_ = suc ? questioner_ : 1 - questioner_;
+     ++player_nums_[loser_][num_ - 1];
+     std::stringstream ss;
+     ss << "实际数字为" << num_ << "，"
+       << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
+       << "玩家" << At(loser_) << "获得数字" << num_ << std::endl
+       << "数字获得情况：" << std::endl << At(0) << "：" << At(1);
+     for (int num = 1; num <= 6; ++num)
+     {
+       ss << std::endl << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
+     }
+     Boardcast(ss.str());
+     return {};
+   }
+
+private:
+  const uint64_t questioner_;
+  int num_;
+  int lie_num_;
+  std::array<std::array<int, 6>, 2>& player_nums_;
+  uint64_t loser_;
 };
 
-class MainStage : public CompStage<GameEnv, RoundStage>
+class MainStage : public CompStage<RoundStage>
 {
  public:
-  MainStage(Game<GameEnv>& game)
-    : CompStage(game, "", {}, std::make_unique<RoundStage>(1, game)), round_(1) {}
+  MainStage() : CompStage("", {}), questioner_(0), round_(1), player_nums_{ {0} } {}
 
-  virtual VariantSubStage NextSubStage(RoundStage&) override
+  virtual VariantSubStage OnStageBegin() override
   {
+    return std::make_unique<RoundStage>(1, std::rand() % 2, player_nums_);
+  }
+
+  virtual VariantSubStage NextSubStage(RoundStage& sub_stage) override
+  {
+    questioner_ = sub_stage.loser();
     if (JudgeOver()) { return {}; }
-    return std::make_unique<RoundStage>(++round_, game_);
+    return std::make_unique<RoundStage>(++round_, questioner_, player_nums_);
+  }
+
+  int64_t PlayerScore(const uint64_t pid) const
+  {
+    return pid == questioner_ ? -10 : 10;
   }
 
  private:
    bool JudgeOver()
    {
-     const std::array<int, 6>& nums = game_.game_env().player_nums_[game_.game_env().questioner_];
-     if (nums[game_.game_env().num_ - 1] >= 3) { return true; }
-     for (const int num : nums)
+     bool has_all_num = true;
+     for (const int count : player_nums_[questioner_])
      {
-       if (num == 0) { return false; }
+       if (count >= 3) { return true; }
+       else if (count == 0) { has_all_num = false; }
      }
-     return true;
+     return has_all_num;
    }
 
+   uint64_t questioner_;
    uint64_t round_;
+   std::array<std::array<int, 6>, 2> player_nums_;
 };
 
-std::unique_ptr<GameEnv> MakeGameEnv(const uint64_t player_num)
+std::pair<std::unique_ptr<Stage>, std::function<int64_t(uint64_t)>> MakeMainStage(const uint64_t player_num)
 {
   assert(player_num == 2);
-  return std::make_unique<GameEnv>();
-}
-
-std::unique_ptr<Stage<GameEnv>> MakeMainStage(Game<GameEnv>& game)
-{
-  return std::make_unique<MainStage>(game);
-}
-
-GameBase* __cdecl NewGame(void* const match, const uint64_t player_num)
-{
-  if (player_num < k_min_player || (player_num > k_max_player && k_max_player != 0)) { return nullptr; }
-  Game<GameEnv>* game = new Game<GameEnv>(match, MakeGameEnv(player_num));
-  game->SetMainStage(MakeMainStage(*game));
-  return game;
+  std::unique_ptr<MainStage> main_stage = std::make_unique<MainStage>();
+  const auto get_player_score = std::bind(&MainStage::PlayerScore, main_stage.get(), std::placeholders::_1);
+  return { static_cast<std::unique_ptr<Stage>&&>(std::move(main_stage)), get_player_score };
 }

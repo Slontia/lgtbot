@@ -1,4 +1,3 @@
-#include "mygame.h"
 #include "game_stage.h"
 #include "msg_checker.h"
 #include "dllmain.h"
@@ -39,9 +38,12 @@ class RoundStage : public AtomStage
              { "石头", ROCK_CHOISE },
              { "布", PAPER_CHOISE }
            }, "选择")),
-       }), cur_choise_{ NONE_CHOISE, NONE_CHOISE }, winner_()
+       }), cur_choise_{ NONE_CHOISE, NONE_CHOISE }, winner_() {}
+
+  uint64_t OnStageBegin()
   {
     Boardcast(name_ + "开始，请私信裁判进行选择");
+    return 0;
   }
 
   std::optional<uint64_t> Winner() const { return winner_; }
@@ -70,7 +72,8 @@ private:
     if (cur_choise_[0] == NONE_CHOISE || cur_choise_[1] == NONE_CHOISE) { return false; }
     std::stringstream ss;
     ss << "玩家" << At(0) << "：" << Choise2Str(cur_choise_[0]) << std::endl;
-    ss << "玩家" << At(1) << "：" << Choise2Str(cur_choise_[1]) << std::endl;
+    ss << "玩家" << At(1) << "：" << Choise2Str(cur_choise_[1]);
+    Boardcast(ss.str());
     const auto is_win = [&cur_choise = cur_choise_](const uint64_t pid)
     {
       const Choise& my_choise = cur_choise[pid];
@@ -91,7 +94,12 @@ private:
 class MainStage : public CompStage<RoundStage>
 {
  public:
-  MainStage() : CompStage("", {}, std::make_unique<RoundStage>(1)), round_(1), win_count_{0, 0} {}
+  MainStage() : CompStage("", {}), round_(1), win_count_{0, 0} {}
+
+  virtual VariantSubStage OnStageBegin() override
+  {
+    return std::make_unique<RoundStage>(1);
+  }
 
   virtual VariantSubStage NextSubStage(RoundStage& sub_stage) override
   {
@@ -126,5 +134,6 @@ std::pair<std::unique_ptr<Stage>, std::function<int64_t(uint64_t)>> MakeMainStag
 {
   assert(player_num == 2);
   std::unique_ptr<MainStage> main_stage = std::make_unique<MainStage>();
-  return { static_cast<std::unique_ptr<Stage>&&>(std::move(main_stage)), std::bind(&MainStage::PlayerScore, main_stage.get(), std::placeholders::_1) };
+  const auto get_player_score = std::bind(&MainStage::PlayerScore, main_stage.get(), std::placeholders::_1);
+  return { static_cast<std::unique_ptr<Stage>&&>(std::move(main_stage)), get_player_score };
 }

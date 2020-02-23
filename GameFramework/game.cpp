@@ -13,7 +13,10 @@ class Player;
 
 Game::Game(void* const match, const uint64_t player_num, std::unique_ptr<Stage>&& main_stage, const std::function<int64_t(uint64_t)>& player_score_f)
   : match_(match), player_num_(player_num), main_stage_(std::move(main_stage)), player_score_f_(player_score_f), is_over_(false), timer_(nullptr), is_busy_(false),
-  help_cmd_(MakeCommand<void(const std::function<void(const std::string&)>)>("查看游戏帮助", BindThis(this, &Game::Help), std::make_unique<VoidChecker>("帮助"))) {}
+  help_cmd_(MakeCommand<void(const std::function<void(const std::string&)>)>("查看游戏帮助", BindThis(this, &Game::Help), std::make_unique<VoidChecker>("帮助")))
+{
+  main_stage_->Init(match, std::bind(&Game::Time, this, std::placeholders::_1));
+}
 
 /* Return true when is_over_ switch from false to true */
 void __cdecl Game::HandleRequest(const uint64_t pid, const bool is_public, const char* const msg)

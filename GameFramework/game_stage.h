@@ -67,11 +67,19 @@ public:
 
   CompStage(
     std::string&& name,
-    std::vector<std::shared_ptr<GameMsgCommand<void>>>&& commands,
-    VariantSubStage&& sub_stage)
-    : Stage(std::move(name)), sub_stage_(std::move(sub_stage)), commands_(std::move(commands)) {}
+    std::vector<std::shared_ptr<GameMsgCommand<void>>>&& commands)
+    : Stage(std::move(name)), sub_stage_(), commands_(std::move(commands)) {}
 
   ~CompStage() {}
+
+  virtual VariantSubStage OnStageBegin() = 0;
+
+  virtual void Init(void* const match, const std::function<std::unique_ptr<Timer, std::function<void(Timer*)>>(const uint64_t)>& time_f)
+  {
+    Stage::Init(match, time_f);
+    sub_stage_ = OnStageBegin();
+    std::visit([match, time_f](auto&& sub_stage) { sub_stage->Init(match, time_f); }, sub_stage_);
+  }
 
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) override
   {
@@ -128,14 +136,15 @@ class AtomStage : public Stage
 public:
   AtomStage(
     std::string&& name,
-    std::vector<std::shared_ptr<GameMsgCommand<bool>>>&& commands,
-    const uint64_t sec = 0)
-    : Stage(std::move(name)), sec_(sec), timer_(nullptr), commands_(std::move(commands)) {}
+    std::vector<std::shared_ptr<GameMsgCommand<bool>>>&& commands)
+    : Stage(std::move(name)), timer_(nullptr), commands_(std::move(commands)) {}
   virtual ~AtomStage() {}
+  virtual uint64_t OnStageBegin() { return 0; };
   virtual void Init(void* const match, const std::function<std::unique_ptr<Timer, std::function<void(Timer*)>>(const uint64_t)>& time_f)
   {
     Stage::Init(match, time_f);
-    timer_ = time_f(sec_);
+    const uint64_t sec = OnStageBegin();
+    timer_ = time_f(sec);
   }
   virtual void HandleTimeout() override final { Stage::Over(); }
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) override
@@ -161,7 +170,6 @@ private:
     timer_ = nullptr;
     Stage::Over();
   }
-  const uint64_t sec_;
   std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;
   std::vector<std::shared_ptr<GameMsgCommand<bool>>> commands_;
 };
