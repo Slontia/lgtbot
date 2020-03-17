@@ -14,7 +14,7 @@ SpinLock MatchManager::spinlock_; // to lock match map
 
 std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid)
 {
-  SpinLockGuard l(spinlock_);
+  std::lock_guard<SpinLock> l(spinlock_);
   if (GetMatch_(uid, uid2match_)) { return "新建游戏失败：您已加入游戏"; }
   if (gid.has_value() && GetMatch_(*gid, gid2match_)) { return "新建游戏失败：该房间已经开始游戏"; }
 
@@ -30,7 +30,7 @@ std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID u
 
 std::string MatchManager::StartGame(const UserID uid, const std::optional<GroupID> gid)
 {
-  SpinLockGuard l(spinlock_);
+  std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
   if (!match) { return "开始游戏失败：您未加入游戏"; }
   else if (match->host_uid() != uid) { return "开始游戏失败：您不是房主，没有开始游戏的权限"; }
@@ -42,7 +42,7 @@ std::string MatchManager::StartGame(const UserID uid, const std::optional<GroupI
 
 std::string MatchManager::AddPlayerToPrivateGame(const MatchId mid, const UserID uid)
 {
-  SpinLockGuard l(spinlock_);
+  std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
   if (!match) { return "加入游戏失败：游戏ID不存在"; }
   else if (!match->IsPrivate()) { return "加入游戏失败：该游戏属于公开比赛，请前往房间加入游戏"; }
@@ -51,7 +51,7 @@ std::string MatchManager::AddPlayerToPrivateGame(const MatchId mid, const UserID
 
 std::string MatchManager::AddPlayerToPublicGame(const GroupID gid, const UserID uid)
 {
-  SpinLockGuard l(spinlock_);
+  std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(gid, gid2match_);
   if (!match) { return "加入游戏失败：该房间未进行游戏"; }
   return AddPlayer_(match, uid);
@@ -68,7 +68,7 @@ std::string MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const 
 
 std::string MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID> gid)
 {
-  SpinLockGuard l(spinlock_);
+  std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
   if (!match) { return "退出游戏失败：您未加入游戏"; }
   else if (!match->IsPrivate() && !gid.has_value()) { return "退出游戏失败：请公开退出游戏"; }
@@ -82,7 +82,7 @@ std::string MatchManager::DeletePlayer(const UserID uid, const std::optional<Gro
 
 void MatchManager::DeleteMatch(const MatchId mid)
 {
-  SpinLockGuard l(spinlock_);
+  std::lock_guard<SpinLock> l(spinlock_);
   return DeleteMatch_(mid);
 }
 
@@ -99,26 +99,26 @@ void MatchManager::DeleteMatch_(const MatchId mid)
 
 std::shared_ptr<Match> MatchManager::GetMatch(const MatchId mid)
 {
-  SpinLockGuard l(spinlock_);
+  std::lock_guard<SpinLock> l(spinlock_);
   return GetMatch_(mid, mid2match_);
 }
 
 std::shared_ptr<Match> MatchManager::GetMatch(const UserID uid, const std::optional<GroupID> gid)
 {
-  SpinLockGuard l(spinlock_);
+  std::lock_guard<SpinLock> l(spinlock_);
   std::shared_ptr<Match> match = GetMatch_(uid, uid2match_);
   return (!match || (gid.has_value() && GetMatch_(*gid, gid2match_) != match)) ? nullptr : match;
 }
 
 std::shared_ptr<Match> MatchManager::GetMatchWithGroupID(const GroupID gid)
 {
-  SpinLockGuard l(spinlock_);
+  std::lock_guard<SpinLock> l(spinlock_);
   return GetMatch_(gid, gid2match_);
 }
 
 void MatchManager::ForEachMatch(const std::function<void(const std::shared_ptr<Match>)> handle)
 {
-  SpinLockGuard l(spinlock_);
+  std::lock_guard<SpinLock> l(spinlock_);
   for (const auto&[_, match] : mid2match_) { handle(match); }
 }
 
@@ -229,4 +229,24 @@ bool Match::SwitchHost()
   host_uid_ = *ready_uid_set_.begin();
   BoardcastPlayers(At(host_uid_) + "被选为新房主");
   return true;
+}
+
+void Match::StartTimer(const uint64_t sec)
+{
+  if (sec == 0) { return; }
+  std::shared_ptr<bool> stage_is_over = std::make_shared<bool>(false);
+  std::function<void(Timer*)> deleter = [stage_is_over](Timer* timer)
+  {
+    *stage_is_over = true;
+    delete timer;
+  };
+  timer_ = std::unique_ptr<Timer, std::function<void(Timer*)>>(new Timer(sec, [match = shared_from_this(), stage_is_over]()
+  {
+    match->game_->HandleTimeout(stage_is_over.get());
+  }), std::move(deleter));
+}
+
+void Match::StopTimer()
+{
+  timer_ = nullptr;
 }

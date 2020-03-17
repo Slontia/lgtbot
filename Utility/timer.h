@@ -14,7 +14,11 @@ public:
     {
       std::unique_lock<std::mutex> lock(mutex_);
       cv_.wait_for(lock, std::chrono::seconds(sec), [this]() { return is_over_.load(); });
-      handle();
+      if (!is_over_)
+      {
+        std::thread t(handle);
+        t.detach();
+      }
     }); /* make sure thread_ is inited last */
   }
   ~Timer()

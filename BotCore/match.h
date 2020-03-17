@@ -10,6 +10,7 @@
 
 #include "lgtbot.h"
 #include "spinlock.h"
+#include "timer.h"
 
 #define INVALID_LOBBY (QQ)0
 
@@ -77,7 +78,7 @@ private:
   static SpinLock spinlock_;
 };
 
-class Match
+class Match : public std::enable_shared_from_this<Match>
 {
 public:
   Match(const MatchId id, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid);
@@ -92,6 +93,8 @@ public:
   std::string AtPlayer(const uint64_t pid) const;
   void AtPlayer(const uint64_t pid, char* buf, const uint64_t len) const;
   void GameOver(const int64_t scores[]);
+  void StartTimer(const uint64_t sec);
+  void StopTimer();
 
   bool SwitchHost();
 
@@ -105,7 +108,7 @@ public:
   UserID host_uid() const { return host_uid_; }
   const std::set<UserID>& ready_uid_set() const { return ready_uid_set_; }
 
-protected:
+private:
   const MatchId                     mid_;
   const GameHandle&                 game_handle_;
   UserID                     host_uid_;
@@ -115,4 +118,5 @@ protected:
   std::set<UserID>            ready_uid_set_;
   std::map<UserID, uint64_t>       uid2pid_;
   std::vector<UserID>              pid2uid_;
+  std::unique_ptr<Timer, std::function<void(Timer*)>>      timer_;
 };

@@ -22,10 +22,11 @@ class Stage
 public:
   Stage(std::string&& name) : name_(std::move(name)), is_over_(false) {}
   ~Stage() {}
-  virtual void Init(void* const match, const std::function<std::unique_ptr<Timer, std::function<void(Timer*)>>(const uint64_t)>& time_f)
+  virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {
     match_ = match;
-    time_f_ = time_f;
+    start_timer_f_ = start_timer_f;
+    stop_timer_f_ = stop_timer_f;
   }
   virtual void HandleTimeout() = 0;
   virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss) const = 0;
@@ -45,7 +46,8 @@ protected:
   virtual void Over() { is_over_ = true; }
   const std::string name_;
   void* match_;
-  std::function<std::unique_ptr<Timer, std::function<void(Timer*)>>(const uint64_t)> time_f_;
+  std::function<void(const uint64_t)> start_timer_f_;
+  std::function<void()> stop_timer_f_;
 
 private:
   bool is_over_;
@@ -75,11 +77,11 @@ public:
 
   virtual VariantSubStage OnStageBegin() = 0;
 
-  virtual void Init(void* const match, const std::function<std::unique_ptr<Timer, std::function<void(Timer*)>>(const uint64_t)>& time_f)
+  virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {
-    Stage::Init(match, time_f);
+    Stage::Init(match, start_timer_f, stop_timer_f);
     sub_stage_ = OnStageBegin();
-    std::visit([match, time_f](auto&& sub_stage) { sub_stage->Init(match, time_f); }, sub_stage_);
+    std::visit([match, start_timer_f, stop_timer_f](auto&& sub_stage) { sub_stage->Init(match, start_timer_f, stop_timer_f); }, sub_stage_);
   }
 
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) override
@@ -123,7 +125,7 @@ public:
     std::visit([this](auto&& sub_stage)
     {
       if (!sub_stage) { Over(); } // no more substages
-      else { sub_stage->Init(match_, time_f_); }
+      else { sub_stage->Init(match_, start_timer_f_, stop_timer_f_); }
     }, sub_stage_);
   }
 private:
@@ -139,13 +141,13 @@ public:
     std::string&& name,
     std::vector<std::shared_ptr<GameMsgCommand<bool>>>&& commands)
     : Stage(std::move(name)), timer_(nullptr), commands_(std::move(commands)) {}
-  virtual ~AtomStage() {}
+  virtual ~AtomStage() { stop_timer_f_(); }
   virtual uint64_t OnStageBegin() { return 0; };
-  virtual void Init(void* const match, const std::function<std::unique_ptr<Timer, std::function<void(Timer*)>>(const uint64_t)>& time_f)
+  virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {
-    Stage::Init(match, time_f);
+    Stage::Init(match, start_timer_f, stop_timer_f);
     const uint64_t sec = OnStageBegin();
-    timer_ = time_f(sec);
+    start_timer_f(sec);
   }
   virtual void HandleTimeout() override final { Stage::Over(); }
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) override

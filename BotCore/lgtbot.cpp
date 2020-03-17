@@ -46,6 +46,16 @@ static void MatchGameOver(void* match, const int64_t scores[])
   MatchManager::DeleteMatch(static_cast<Match*>(match)->mid());
 }
 
+static void StartTimer(void* match, const uint64_t sec)
+{
+  static_cast<Match*>(match)->StartTimer(sec);
+}
+
+static void StopTimer(void* match)
+{
+  static_cast<Match*>(match)->StopTimer();
+}
+
 static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
 {
   if (!mod)
@@ -54,7 +64,7 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
     return nullptr;
   }
 
-  typedef int (__cdecl *Init)(const boardcast, const tell, const at, const game_over);
+  typedef int (__cdecl *Init)(const boardcast, const tell, const at, const game_over, const start_timer, const stop_timer);
   typedef char* (__cdecl *GameInfo)(uint64_t*, uint64_t*, const char**);
   typedef GameBase* (__cdecl *NewGame)(void* const match, const uint64_t);
   typedef int (__cdecl *DeleteGame)(GameBase* const);
@@ -70,7 +80,7 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
     return nullptr;
   }
 
-  if (!init(&BoardcastPlayers, &TellPlayer, &AtPlayer, &MatchGameOver))
+  if (!init(&BoardcastPlayers, &TellPlayer, &AtPlayer, &MatchGameOver, &StartTimer, &StopTimer))
   {
     LOG_ERROR("Init failed");
     return nullptr;
