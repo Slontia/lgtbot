@@ -1,14 +1,4 @@
 #pragma once
-
-#include <iostream>
-#include <map>
-#include <assert.h>
-#include <set>
-#include <stack>
-#include <optional>
-#include <sstream>
-
-#include "lgtbot.h"
 #include "spinlock.h"
 #include "timer.h"
 

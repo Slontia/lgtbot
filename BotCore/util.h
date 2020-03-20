@@ -1,13 +1,6 @@
 #pragma once
-
-#include <mutex>
-#include <iostream>
-#include <string>
-#include <functional>
-#include <map>
+#include "bot_core.h"
 #include "../GameFramework/dllmain.h"
-#include <Windows.h>
-#include "dllmain.h"
 
 #define DLL_EXPORT __declspec(dllexport)
 #define DLL_IMPORT __declspec(dllimport)

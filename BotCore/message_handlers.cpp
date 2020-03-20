@@ -1,14 +1,6 @@
 #include "stdafx.h"
-
-#include <sstream>
-#include <tuple>
-#include <optional>
-#include <memory>
-#include <optional>
-
 #include "message_handlers.h"
 #include "match.h"
-#include "lgtbot.h"
 #include "log.h"
 #include "msg_checker.h"
 

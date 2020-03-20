@@ -1,15 +1,10 @@
 #include "stdafx.h"
-#include "lgtbot.h"
 #include "message_handlers.h"
-#include "../GameFrameWork/dllmain.h"
 #include "msg_checker.h"
-#include "dllmain.h"
+#include "bot_core.h"
 #include "log.h"
-
-#include <list>
-#include <sstream>
-#include <memory>
-#include <optional>
+#include "match.h"
+#include "../GameFrameWork/dllmain.h"
 
 const int32_t LGT_AC = -1;
 const UserID INVALID_USER_ID = 0;

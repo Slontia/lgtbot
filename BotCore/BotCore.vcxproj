@@ -73,12 +73,16 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>D:\Projects\includes\c++\mysql-connector-c++-8.0.11-windows-x86-64bit\include;D:\Projects\includes\c++\boost_1_72_0;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Projects\includes\c++\mysql-connector-c++-8.0.11-windows-x86-64bit\lib64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>D:\Projects\includes\c++\mysql-connector-c++-8.0.11-windows-x86-64bit\include;D:\Projects\includes\c++\boost_1_72_0;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\Projects\includes\c++\mysql-connector-c++-8.0.11-windows-x86-64bit\lib64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -119,7 +123,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;BOTCORE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -146,9 +150,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="BotCore.h" />
-    <ClInclude Include="dllmain.h" />
-    <ClInclude Include="lgtbot.h" />
+    <ClInclude Include="db_manager.h" />
+    <ClInclude Include="bot_core.h" />
+    <ClInclude Include="util.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="match.h" />
     <ClInclude Include="message_handlers.h" />
@@ -156,9 +160,8 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="BotCore.cpp" />
     <ClCompile Include="dllmain.cpp" />
-    <ClCompile Include="lgtbot.cpp" />
+    <ClCompile Include="bot_core.cpp" />
     <ClCompile Include="match.cpp" />
     <ClCompile Include="message_handlers.cpp" />
     <ClCompile Include="stdafx.cpp">

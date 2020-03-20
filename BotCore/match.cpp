@@ -2,9 +2,9 @@
 #include "match.h"
 #include "log.h"
 #include "match.h"
+#include "db_manager.h"
 #include "../GameFramework/dllmain.h"
 #include "../GameFramework/game_base.h"
-#include <optional>
 
 std::map<MatchId, std::shared_ptr<Match>> MatchManager::mid2match_;
 std::map<UserID, std::shared_ptr<Match>> MatchManager::uid2match_;

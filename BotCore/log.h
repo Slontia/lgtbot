@@ -1,5 +1,4 @@
 #pragma once
-#include "lgtbot.h"
 
 static const UserID my_uid = 654867229;
 
