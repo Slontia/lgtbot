@@ -52,5 +52,8 @@
     <ClCompile Include="bot_core.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="db_manager.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

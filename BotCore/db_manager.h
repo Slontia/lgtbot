@@ -19,16 +19,16 @@ class DBManager
    }
    ~DBManager(){}
 
-   static std::string MakeDBManager(const std::string& addr, const std::string& user, const std::string& passwd, const std::string& db_name, const bool create_if_not_found)
+   static ErrCode MakeDBManager(const std::string& addr, const std::string& user, const std::string& passwd, const std::string& db_name, const bool create_if_not_found)
    {
-     if (g_db_manager_) { return "db already connected"; }
+     if (g_db_manager_) { return EC_DB_ALREADY_CONNECTED; }
      std::unique_ptr<sql::mysql::MySQL_Driver> driver(sql::mysql::get_mysql_driver_instance());
-     if (!driver) { return "get driver failed"; }
+     if (!driver) { return EC_DB_GET_DRIVER_FAILED; }
      std::unique_ptr<sql::Connection> connection(driver->connect(addr, user, passwd));
-     if (!connection) { return "connect db failed"; }
+     if (!connection) { return EC_DB_CONNECT_FAILED; }
      connection->setAutoCommit(false);
      connection->setSchema(db_name);
-     return "";
+     return EC_OK;
      
    }
 

@@ -4,6 +4,7 @@
 #include "bot_core.h"
 #include "log.h"
 #include "match.h"
+#include "db_manager.h"
 #include "../GameFrameWork/dllmain.h"
 
 const int32_t LGT_AC = -1;
@@ -155,4 +156,9 @@ void __cdecl BOT_API::HandlePrivateRequest(const UserID uid, const char* const m
 void __cdecl BOT_API::HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
 {
   if (const std::string reply_msg = HandleRequest(uid, gid, msg); !reply_msg.empty()) { SendPublicMsg(gid, At(uid) + "\n" + reply_msg); };
+}
+
+ErrCode __cdecl BOT_API::ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const bool create_if_not_found)
+{
+  return DBManager::MakeDBManager(addr, user, passwd, db_name, create_if_not_found);
 }
