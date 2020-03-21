@@ -19,17 +19,29 @@ class DBManager
    }
    ~DBManager(){}
 
-   static ErrCode MakeDBManager(const std::string& addr, const std::string& user, const std::string& passwd, const std::string& db_name, const bool create_if_not_found)
+   static int MakeDBManager(const std::string addr, const std::string user, const std::string passwd, const std::string db_name, const bool create_if_not_found)
    {
-     if (g_db_manager_) { return EC_DB_ALREADY_CONNECTED; }
-     std::unique_ptr<sql::mysql::MySQL_Driver> driver(sql::mysql::get_mysql_driver_instance());
-     if (!driver) { return EC_DB_GET_DRIVER_FAILED; }
-     std::unique_ptr<sql::Connection> connection(driver->connect(addr, user, passwd));
-     if (!connection) { return EC_DB_CONNECT_FAILED; }
-     connection->setAutoCommit(false);
-     connection->setSchema(db_name);
+     try {
+       if (g_db_manager_) { return EC_DB_ALREADY_CONNECTED; }
+       std::unique_ptr<sql::mysql::MySQL_Driver> driver(sql::mysql::get_mysql_driver_instance());
+       if (!driver) { return EC_DB_GET_DRIVER_FAILED; }
+       std::unique_ptr<sql::Connection> connection(driver->connect(addr, user, passwd));
+       if (!connection) { return EC_DB_CONNECT_FAILED; }
+       connection->setAutoCommit(false);
+       connection->setSchema(db_name);
+       g_db_manager_ = std::make_unique<DBManager>(std::move(driver), std::move(connection));
+     }
+     catch (sql::SQLException e)
+     {
+       return e.getErrorCode();
+     }
+     catch (std::exception e)
+     {
+       std::cout << e.what() << std::endl;
+       return 1;
+     }
+
      return EC_OK;
-     
    }
 
    static std::string DestroyDBManager()
