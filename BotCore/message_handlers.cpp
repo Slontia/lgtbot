@@ -3,6 +3,7 @@
 #include "match.h"
 #include "log.h"
 #include "msg_checker.h"
+#include "db_manager.h"
 
 using MetaUserFuncType = std::string(const UserID, const std::optional<GroupID>);
 using MetaCommand = MsgCommand<MetaUserFuncType>;
@@ -14,16 +15,26 @@ static const auto make_meta_command = [](std::string&& description, const auto& 
   return MakeCommand<std::string(const UserID, const std::optional<GroupID>)>(std::move(description), cb, std::move(checkers)...);
 };
 
-static std::string help(const UserID uid, const std::optional<GroupID> gid)
+static std::string help(const UserID uid, const std::optional<GroupID> gid, const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string& type)
 {
   std::stringstream ss;
-  ss << "[可使用的元指令]";
+  ss << "[可使用的" << type << "指令]";
   int i = 0;
-  for (const std::shared_ptr<MetaCommand>& cmd : meta_cmds)
+  for (const std::shared_ptr<MetaCommand>& cmd : cmds)
   {
     ss << std::endl << "[" << (++i) << "] " << cmd->Info();
   }
   return ss.str();
+}
+
+static std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader, const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string& type)
+{
+  reader.Reset();
+  for (const std::shared_ptr<MetaCommand>& cmd : cmds)
+  {
+    if (std::optional<std::string> reply_msg = cmd->CallIfValid(reader, std::tuple{ uid, gid })) { return *reply_msg; }
+  }
+  return "[错误] 未预料的" + type + "指令";
 }
 
 static std::string show_gamelist(const UserID uid, const std::optional<GroupID> gid)
@@ -130,7 +141,7 @@ static std::string show_rule(const UserID uid, const std::optional<GroupID> gid,
 
 static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
 {
-  make_meta_command("查看帮助", help, std::make_unique<VoidChecker>("#帮助")),
+  make_meta_command("查看帮助", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, meta_cmds, "元"); }, std::make_unique<VoidChecker>("#帮助")),
   make_meta_command("显示游戏列表", show_gamelist, std::make_unique<VoidChecker>("#游戏列表")),
   make_meta_command("在当前房间建立公开游戏，或私信bot以建立私密游戏", new_game, std::make_unique<VoidChecker>("#新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
   make_meta_command("房主开始游戏", start_game, std::make_unique<VoidChecker>("#开始游戏")),
@@ -142,13 +153,31 @@ static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
   make_meta_command("查看游戏规则", show_rule, std::make_unique<VoidChecker>("#规则"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
 };
 
+static std::string release_game(const UserID uid, const std::optional<GroupID> gid, const std::string& gamename)
+{
+  if (const auto it = g_game_handles.find(gamename); it == g_game_handles.end()) { return "[错误] 未知的游戏名"; }
+  else if (std::optional<uint64_t> game_id = it->second->game_id_.load(); game_id.has_value()) { return "[错误] 游戏已发布，ID为" + std::to_string(*game_id); }
+  else if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager == nullptr) { return "[错误] 未连接数据库"; }
+  else if (game_id = db_manager->ReleaseGame(gamename); !game_id.has_value()) { return "[错误] 发布失败，请查看错误日志"; }
+  else
+  {
+    it->second->game_id_.store(game_id);
+    return "发布成功，游戏\'" + gamename + "\'的ID为" + std::to_string(*game_id);
+  }
+}
+
+static const std::vector<std::shared_ptr<MetaCommand>> admin_cmds =
+{
+  make_meta_command("查看帮助", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, admin_cmds, "管理"); }, std::make_unique<VoidChecker>("%帮助")),
+  make_meta_command("发布游戏，写入游戏信息到数据库", release_game, std::make_unique<VoidChecker>("%发布游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名"))
+};
+
 std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)
 {
+  return HandleRequest(uid, gid, reader, meta_cmds, "元");
+}
 
-  reader.Reset();
-  for (const std::shared_ptr<MetaCommand>& cmd : meta_cmds)
-  {
-    if (std::optional<std::string> reply_msg = cmd->CallIfValid(reader, std::tuple{ uid, gid })) { return *reply_msg; }
-  }
-  return "[错误] 未预料的元请求";
+std::string HandleAdminRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)
+{
+  return HandleRequest(uid, gid, reader, admin_cmds, "管理");
 }

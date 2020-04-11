@@ -13,6 +13,7 @@ const GroupID INVALID_GROUP_ID = 0;
 
 std::mutex g_mutex;
 std::map<std::string, std::unique_ptr<GameHandle>> g_game_handles;
+std::set<UserID> g_admins;
 
 AT_CALLBACK g_at_cb = nullptr;
 PRIVATE_MSG_CALLBACK g_send_pri_msg_cb = nullptr;
@@ -126,19 +127,35 @@ static void LoadGameModules()
   LOG_INFO("共加载游戏个数：" + std::to_string(g_game_handles.size()));
 }
 
+static void LoadAdmins()
+{
+  std::ifstream admin_file(".\\admins.txt");
+  if (admin_file)
+  {
+    for (uint64_t admin_uid; admin_file >> admin_uid; )
+    {
+      g_admins.emplace(admin_uid);
+    }
+  }
+}
+
 static std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)
 {
-  if (msg.empty()) { return "[错误] 空白消息"; }
-  if (std::string first_arg; std::stringstream(msg) >> first_arg && first_arg[0] == '#')
-  {
-    return HandleMetaRequest(uid, gid, MsgReader(msg));
-  }
+  if (std::string first_arg; !(std::stringstream(msg) >> first_arg) || first_arg.empty()) { return "[错误] 空白消息"; }
   else
   {
-    std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
-    if (!match) { return "[错误] 您未参与游戏"; }
-    if (match->gid() != gid && gid.has_value()) { return "[错误] 您未在本群参与游戏"; }
-    return match->Request(uid, gid, msg);
+    switch (first_arg[0])
+    {
+    case '#': return HandleMetaRequest(uid, gid, MsgReader(msg));
+    case '%':
+      if (g_admins.find(uid) == g_admins.end()) { return "[错误] 您未持有管理员权限"; }
+      return HandleAdminRequest(uid, gid, MsgReader(msg));
+    default:
+      std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
+      if (!match) { return "[错误] 您未参与游戏"; }
+      if (match->gid() != gid && gid.has_value()) { return "[错误] 您未在本群参与游戏"; }
+      return match->Request(uid, gid, msg);
+    }
   }
 }
 
@@ -150,6 +167,7 @@ bool __cdecl BOT_API::Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri
   g_send_pub_msg_cb = pub_msg_cb;
   g_at_cb = at_cb;
   LoadGameModules();
+  LoadAdmins();
   return true;
 }
 

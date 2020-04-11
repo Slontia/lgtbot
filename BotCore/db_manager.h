@@ -52,41 +52,41 @@ public:
       stmt->execute("CREATE DATABASE " + db_name);
       stmt->execute("USE " + db_name);
       stmt->execute("CREATE TABLE match_info("
-        "match_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,"
-        "game_id BIGINT UNSIGNED NOT NULL,"
-        "finish_time DATETIME DEFAULT CURRENT_TIMESTAMP,"
-        "group BIGINT UNSIGNED,"
-        "host_user_id BIGINT UNSIGNED NOT NULL,"
+        "match_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, "
+        "game_id BIGINT UNSIGNED NOT NULL, "
+        "finish_time DATETIME DEFAULT CURRENT_TIMESTAMP, "
+        "group_id BIGINT UNSIGNED, "
+        "host_user_id BIGINT UNSIGNED NOT NULL, "
         "multiple INT UNSIGNED NOT NULL)");
-      stmt->execute("CREATE TABLE match_player("
-        "match_id BIGINT UNSIGNED NOT NULL,"
-        "user_id BIGINT UNSIGNED NOT NULL,"
-        "game_score INT NOT NULL,"
-        "zero_sum_match_score BIGINT NOT NULL,"
+      stmt->execute("CREATE TABLE match_player( "
+        "match_id BIGINT UNSIGNED NOT NULL, "
+        "user_id BIGINT UNSIGNED NOT NULL, "
+        "game_score INT NOT NULL, "
+        "zero_sum_match_score BIGINT NOT NULL, "
         "posi_match_score BIGINT UNSIGNED NOT NULL)");
       stmt->execute("CREATE TABLE game_info("
-        "game_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,"
-        "name VARCHAR(100) NOT NULL UNIQUE,"
+        "game_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, "
+        "name VARCHAR(100) NOT NULL UNIQUE, "
         "release_time DATETIME DEFAULT CURRENT_TIMESTAMP)");
       stmt->execute("CREATE TABLE user_info("
-        "user_id BIGINT UNSIGNED PRIMARY KEY,"
-        "is_new_player BOOLEAN DEFAULT TRUE,"
-        "total_zero_sum_match_score BIGINT DEFAULT 0,"
-        "total_posi_match_score BIGINT DEFAULT 0,"
-        "match_count BIGINT DEFAULT 0,"
-        "logical_match_count BIGINT DEFAULT 0,"
-        "win_logical_match_count BIGINT DEFAULT 0,"
-        "lose_logical_match_count BIGINT DEFAULT 0,"
-        "win_combo BIGINT DEFAULT 0,"
-        "highest_win_combo BIGINT DEFAULT 0,"
-        "register_time DATETIME DEFAULT CURRENT_TIMESTAMP,"
+        "user_id BIGINT UNSIGNED PRIMARY KEY, "
+        "is_new_player BOOLEAN DEFAULT TRUE, "
+        "total_zero_sum_match_score BIGINT DEFAULT 0, "
+        "total_posi_match_score BIGINT DEFAULT 0, "
+        "match_count BIGINT DEFAULT 0, "
+        "logical_match_count BIGINT DEFAULT 0, "
+        "win_logical_match_count BIGINT DEFAULT 0, "
+        "lose_logical_match_count BIGINT DEFAULT 0, "
+        "win_combo BIGINT DEFAULT 0, "
+        "highest_win_combo BIGINT DEFAULT 0, "
+        "register_time DATETIME DEFAULT CURRENT_TIMESTAMP, "
         "passwd VARCHAR(100))");
       stmt->execute("CREATE TABLE achievement_info("
-        "achi_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,"
-        "achi_name VARCHAR(100) NOT NULL,"
+        "achi_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, "
+        "achi_name VARCHAR(100) NOT NULL, "
         "description VARCHAR(1000))");
       stmt->execute("CREATE TABLE user_achievement("
-        "user_id BIGINT UNSIGNED NOT NULL,"
+        "user_id BIGINT UNSIGNED NOT NULL, "
         "achi_id BIGINT UNSIGNED NOT NULL)");
     }
     catch (sql::SQLException e)
@@ -128,12 +128,12 @@ public:
     assert(score_infos.size() >= 2);
     return Transaction::ExecuteTransaction(*connection_, [&](Transaction& trans)
     {
-      trans.ExecuteOneRow<trans.STMT_UPDATE>("INSERT INTO match_info (game_id, group, host_user_id, multiple) VALUES (",
+      trans.ExecuteOneRow<trans.STMT_UPDATE>("INSERT INTO match_info (game_id, group_id, host_user_id, multiple) VALUES (",
         game_id, ", ", group_id.has_value() ? std::to_string(*group_id) : "NULL", ", ", host_uesr_id, ", ", multiple, ")");
       const uint64_t match_id = trans.GetLastInsertID()->getUInt64(1);
       for (const Match::ScoreInfo& score_info : score_infos)
       {
-        if (!trans.Exist("SELECT * FROM uesr_info WHERE user_id == ", score_info.uid_))
+        if (!trans.Exist("SELECT * FROM user_info WHERE user_id = ", score_info.uid_))
         {
           trans.ExecuteOneRow<trans.STMT_UPDATE>("INSERT INTO user_info (user_id) VALUES (", score_info.uid_, ")");
         }
@@ -146,7 +146,7 @@ public:
         {
           trans.ExecuteOneRow<trans.STMT_UPDATE>("UPDATE user_info SET "
             "win_combo = win_combo + 1, ",
-            "highest_win_combo = GREATEST(win_combo + 1, highest_win_combo), "
+            "highest_win_combo = GREATEST(win_combo, highest_win_combo), "
             "win_logical_match_count = win_logical_match_count + 1, "
             "is_new_player = FALSE " "WHERE user_id = ", score_info.uid_);
         }
@@ -157,7 +157,7 @@ public:
             "lose_logical_match_count = lose_logical_match_count + 1 " "WHERE user_id = ", score_info.uid_);
         }
         trans.ExecuteOneRow<trans.STMT_UPDATE>("INSERT INTO match_player (match_id, user_id, game_score, zero_sum_match_score, posi_match_score) VALUES (",
-          match_id, ", ", score_info.uid_, ", ", score_info.game_score_, ", ", score_info.zero_sum_match_score_, ", ", score_info.poss_match_score_);
+          match_id, ", ", score_info.uid_, ", ", score_info.game_score_, ", ", score_info.zero_sum_match_score_, ", ", score_info.poss_match_score_, ")");
       }
       return true;
     });
@@ -178,13 +178,11 @@ public:
     uint64_t game_id;
     return Transaction::ExecuteTransaction(*connection_, [&](Transaction& trans)
     {
-      trans.ExecuteOneRow<trans.STMT_UPDATE>("INSERT INTO game_info (name) VALUES (", game_name, ")");
+      trans.ExecuteOneRow<trans.STMT_UPDATE>("INSERT INTO game_info (name) VALUES (\'", game_name, "\')");
       game_id = trans.GetLastInsertID()->getUInt64(1);
       return true;
     }) ? std::optional(game_id) : std::optional<uint64_t>();
   }
-
-  
 
 private:
   class Transaction
@@ -212,7 +210,8 @@ private:
       }
       catch (sql::SQLException e)
       {
-        std::string errmsg = MakeErrorMsg(e);
+        std::cout << trans.sql_recorder_.str() << std::endl;
+        std::cout << MakeErrorMsg(e) << std::endl;
         // TODO: log error
         return false;
       }
@@ -221,7 +220,7 @@ private:
     template <typename ...StmtPart>
     bool Exist(const StmtPart&... part)
     {
-      return trans.Execute(part...)->rowsCount() > 0;
+      return Execute<STMT_QUERY>(part...)->rowsCount() > 0;
     }
 
     template <StmtType type, typename ...StmtPart>
