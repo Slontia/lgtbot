@@ -31,7 +31,7 @@ extern "C"
     static __declspec(dllexport) bool __cdecl Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, const PUBLIC_MSG_CALLBACK pub_msg_cb, const AT_CALLBACK at_cb);
     static __declspec(dllexport) void __cdecl HandlePrivateRequest(const UserID uid, const char* const msg);
     static __declspec(dllexport) void __cdecl HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg);
-    static __declspec(dllexport) ErrCode __cdecl ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const bool create_if_not_found, const char** errmsg);
+    static __declspec(dllexport) ErrCode __cdecl ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg);
   };
 }
 

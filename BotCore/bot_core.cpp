@@ -181,9 +181,9 @@ void __cdecl BOT_API::HandlePublicRequest(const UserID uid, const GroupID gid, c
   if (const std::string reply_msg = HandleRequest(uid, gid, msg); !reply_msg.empty()) { SendPublicMsg(gid, At(uid) + "\n" + reply_msg); };
 }
 
-ErrCode __cdecl BOT_API::ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const bool create_if_not_found, const char** errmsg)
+ErrCode __cdecl BOT_API::ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg)
 {
   ErrCode code;
-  std::tie(code, *errmsg) = DBManager::ConnectDB(addr, user, passwd, db_name, create_if_not_found);
+  std::tie(code, *errmsg) = DBManager::ConnectDB(addr, user, passwd, db_name);
   return code;
 }

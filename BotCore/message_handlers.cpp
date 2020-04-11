@@ -139,6 +139,12 @@ static std::string show_rule(const UserID uid, const std::optional<GroupID> gid,
   return ss.str();
 }
 
+static std::string show_profile(const UserID uid, const std::optional<GroupID> gid)
+{
+  if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager == nullptr) { return "[错误] 未连接数据库"; }
+  else { return db_manager->GetUserProfit(uid); }
+}
+
 static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
 {
   make_meta_command("查看帮助", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, meta_cmds, "元"); }, std::make_unique<VoidChecker>("#帮助")),
@@ -151,6 +157,7 @@ static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
   make_meta_command("查看当前所有未开始的私密比赛", show_private_matches, std::make_unique<VoidChecker>("#私密游戏列表")),
   make_meta_command("查看已加入，或该房间正在进行的比赛信息", show_match_status, std::make_unique<VoidChecker>("#游戏信息")),
   make_meta_command("查看游戏规则", show_rule, std::make_unique<VoidChecker>("#规则"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
+  make_meta_command("查看个人信息", show_profile, std::make_unique<VoidChecker>("#个人信息")),
 };
 
 static std::string release_game(const UserID uid, const std::optional<GroupID> gid, const std::string& gamename)
