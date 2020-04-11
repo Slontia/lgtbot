@@ -14,14 +14,15 @@ do\
 
 struct GameHandle
 {
-  GameHandle(const std::string& name, const uint64_t min_player, const uint64_t max_player, const std::string& rule,
+  GameHandle(const std::optional<uint64_t> game_id, const std::string& name, const uint64_t min_player, const uint64_t max_player, const std::string& rule,
     const std::function<GameBase*(void* const, const uint64_t)>& new_game, const std::function<void(GameBase* const)>& delete_game,
     const HINSTANCE& module)
-    : name_(name), min_player_(min_player), max_player_(max_player), rule_(rule),
+    : game_id_(game_id), name_(name), min_player_(min_player), max_player_(max_player), rule_(rule),
     new_game_(new_game), delete_game_(delete_game), module_(module) {}
   GameHandle(GameHandle&&) = delete;
   ~GameHandle() { FreeLibrary(module_); }
   
+  std::atomic<std::optional<uint64_t>> game_id_;
   const std::string name_;
   const uint64_t min_player_;
   const uint64_t max_player_;

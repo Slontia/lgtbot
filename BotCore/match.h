@@ -71,6 +71,8 @@ private:
 class Match : public std::enable_shared_from_this<Match>
 {
 public:
+  static const uint32_t kAvgScoreOffset = 10;
+
   Match(const MatchId id, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid);
   ~Match();
 
@@ -98,7 +100,16 @@ public:
   UserID host_uid() const { return host_uid_; }
   const std::set<UserID>& ready_uid_set() const { return ready_uid_set_; }
 
+  struct ScoreInfo
+  {
+    UserID uid_;
+    int64_t game_score_;
+    double zero_sum_match_score_;
+    uint64_t poss_match_score_;
+  };
 private:
+  std::vector<ScoreInfo> CalScores_(const int64_t scores[]) const;
+
   const MatchId                     mid_;
   const GameHandle&                 game_handle_;
   UserID                     host_uid_;
@@ -109,4 +120,7 @@ private:
   std::map<UserID, uint64_t>       uid2pid_;
   std::vector<UserID>              pid2uid_;
   std::unique_ptr<Timer, std::function<void(Timer*)>>      timer_;
+  std::chrono::time_point<std::chrono::system_clock> start_time_;
+  std::chrono::time_point<std::chrono::system_clock> end_time_;
+  const uint16_t multiple_;
 };

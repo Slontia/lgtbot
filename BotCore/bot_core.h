@@ -14,9 +14,11 @@ extern "C"
   enum ErrCode
   {
     EC_OK = 0,
+    EC_UNEXPECTED_ERROR = 1,
 
-    EC_DB_GET_DRIVER_FAILED = 101,
-    EC_DB_CONNECT_FAILED,
+    EC_DB_CONNECT_FAILED = 101,
+    EC_DB_CONNECT_DENIED,
+    EC_DB_INIT_FAILED,
     EC_DB_NOT_EXIST,
     EC_DB_ALREADY_CONNECTED,
     EC_DB_NOT_CONNECTED,
@@ -29,7 +31,7 @@ extern "C"
     static __declspec(dllexport) bool __cdecl Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, const PUBLIC_MSG_CALLBACK pub_msg_cb, const AT_CALLBACK at_cb);
     static __declspec(dllexport) void __cdecl HandlePrivateRequest(const UserID uid, const char* const msg);
     static __declspec(dllexport) void __cdecl HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg);
-    static __declspec(dllexport) int __cdecl ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const bool create_if_not_found);
+    static __declspec(dllexport) ErrCode __cdecl ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const bool create_if_not_found, const char** errmsg);
   };
 }
 

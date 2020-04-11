@@ -96,7 +96,12 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
     LOG_ERROR("Invalid" + std::to_string(min_player) + std::to_string(max_player));
     return nullptr;
   }
-  return std::make_unique<GameHandle>(name, min_player, max_player, rule, new_game, delete_game, mod);
+  std::optional<uint64_t> game_id;
+  if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager != nullptr)
+  {
+    game_id = db_manager->GetGameIDWithName(name);
+  }
+  return std::make_unique<GameHandle>(game_id, name, min_player, max_player, rule, new_game, delete_game, mod);
 }
 
 static void LoadGameModules()
@@ -158,7 +163,9 @@ void __cdecl BOT_API::HandlePublicRequest(const UserID uid, const GroupID gid, c
   if (const std::string reply_msg = HandleRequest(uid, gid, msg); !reply_msg.empty()) { SendPublicMsg(gid, At(uid) + "\n" + reply_msg); };
 }
 
-int __cdecl BOT_API::ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const bool create_if_not_found)
+ErrCode __cdecl BOT_API::ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const bool create_if_not_found, const char** errmsg)
 {
-  return DBManager::MakeDBManager(addr, user, passwd, db_name, create_if_not_found);
+  ErrCode code;
+  std::tie(code, *errmsg) = DBManager::ConnectDB(addr, user, passwd, db_name, create_if_not_found);
+  return code;
 }

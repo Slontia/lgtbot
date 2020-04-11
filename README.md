@@ -6,4 +6,4 @@
 
 ## includes
 
- - MySQL Connection C++ 1.0.5 win32
+ - MySQL Connection C++ 8.0.19 win64

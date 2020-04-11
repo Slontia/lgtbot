@@ -129,7 +129,7 @@ MatchId MatchManager::NewMatchID_()
 }
 
 Match::Match(const MatchId mid, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid)
-  : mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), is_started_(false), game_(nullptr) {}
+  : mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), is_started_(false), game_(nullptr), multiple_(1) {}
 
 Match::~Match()
 {
@@ -163,6 +163,7 @@ std::string Match::GameStart()
   }
   is_started_ = true;
   BoardcastPlayers("游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令");
+  start_time_ = std::chrono::system_clock::now();
   game_ = game_handle_.new_game_(this, player_num);
   return "";
 }
@@ -214,13 +215,53 @@ void Match::GameOver(const int64_t scores[])
     BoardcastPlayers("游戏中断，该局游戏成绩无效，感谢诸位参与！");
     return;
   }
+  end_time_ = std::chrono::system_clock::now();
   assert(ready_uid_set_.size() == pid2uid_.size());
+  std::vector<Match::ScoreInfo> score_info = CalScores_(scores);
   std::ostringstream ss;
   ss << "游戏结束，公布分数：" << std::endl;
   for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) { ss << AtPlayer(pid) << " " << scores[pid] << std::endl; }
   ss << "感谢诸位参与！";
   BoardcastPlayers(ss.str());
-  //TODO: link to database
+  if (auto& db_manager = DBManager::GetDBManager(); db_manager != nullptr)
+  {
+    std::optional<uint64_t> game_id = game_handle_.game_id_.load();
+    if (game_id.has_value() && !db_manager->RecordMatch(*game_id, gid_, host_uid_, multiple_, score_info))
+    {
+      ss << std::endl << "错误：游戏结果写入数据库失败，请联系管理员";
+    }
+  }
+}
+
+std::vector<Match::ScoreInfo> Match::CalScores_(const int64_t scores[]) const
+{
+  const uint64_t player_num = pid2uid_.size();
+  std::vector<Match::ScoreInfo> ret(player_num);
+  const double avg_score = [scores, player_num]
+  {
+    double score_sum = 0;
+    for (uint64_t pid = 0; pid < player_num; ++pid) { score_sum += scores[pid]; }
+    return score_sum / player_num;
+  }();
+  const double delta = [avg_score, scores, player_num]
+  {
+    double score_offset_sum = 0;
+    for (uint64_t pid = 0; pid < player_num; ++pid)
+    {
+      double offset = scores[pid] - avg_score;
+      score_offset_sum += offset > 0 ? offset : -offset;
+    }
+    return 1.0 / score_offset_sum;
+  }();
+  for (uint64_t pid = 0; pid < player_num; ++pid)
+  {
+    Match::ScoreInfo& score_info = ret[pid];
+    score_info.uid_ = pid2uid_[pid];
+    score_info.game_score_ = scores[pid];
+    score_info.zero_sum_match_score_ = delta * (scores[pid] - avg_score);
+    score_info.poss_match_score_ = 0;
+  }
+  return ret;
 }
 
 bool Match::SwitchHost()
