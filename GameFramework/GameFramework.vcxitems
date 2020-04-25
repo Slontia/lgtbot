@@ -25,6 +25,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)game.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)game_base.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)game_main.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)game_options.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)game_stage.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)targetver.h" />
   </ItemGroup>

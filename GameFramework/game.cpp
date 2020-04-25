@@ -11,11 +11,16 @@
 
 class Player;
 
-Game::Game(void* const match, const uint64_t player_num, std::unique_ptr<Stage>&& main_stage, const std::function<int64_t(uint64_t)>& player_score_f)
-  : match_(match), player_num_(player_num), main_stage_(std::move(main_stage)), player_score_f_(player_score_f), is_over_(false),
+Game::Game(void* const match, std::unique_ptr<Stage>&& main_stage, const std::function<int64_t(uint64_t)>& player_score_f)
+  : match_(match), main_stage_(std::move(main_stage)), player_score_f_(player_score_f), is_over_(false),
   help_cmd_(MakeCommand<void(const std::function<void(const std::string&)>)>("²é¿´ÓÎÏ·°ïÖú", BindThis(this, &Game::Help), std::make_unique<VoidChecker>("°ïÖú")))
 {
   main_stage_->Init(match, std::bind(start_timer_f, match_, std::placeholders::_1), std::bind(stop_timer_f, match_));
+}
+
+bool Game::StartGame(const uint64_t player_num)
+{
+  return true;
 }
 
 /* Return true when is_over_ switch from false to true */

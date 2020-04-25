@@ -1,3 +1,4 @@
+#include "options.h"
 #include "game_stage.h"
 #include "msg_checker.h"
 #include "dllmain.h"
@@ -12,6 +13,7 @@ const uint64_t k_min_player = 2; /* should be larger than 1 */
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
 const char* Rule()
 {
+  std::cout << __FILE__ << std::endl;
   static std::string rule = LoadText(IDR_TEXT1_RULE, TEXT("Text"));
   return rule.c_str();
 }
@@ -43,7 +45,7 @@ public:
   uint64_t OnStageBegin()
   {
     Boardcast(name_ + "开始，请私信裁判进行选择");
-    return 6;
+    return 60;
   }
 
   std::optional<uint64_t> Winner() const
