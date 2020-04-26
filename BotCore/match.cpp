@@ -12,19 +12,31 @@ std::map<GroupID, std::shared_ptr<Match>> MatchManager::gid2match_;
 MatchId MatchManager::next_mid_ = 0;
 SpinLock MatchManager::spinlock_; // to lock match map
 
-std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid)
+std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid, const bool skip_config)
 {
   std::lock_guard<SpinLock> l(spinlock_);
   if (GetMatch_(uid, uid2match_)) { return "新建游戏失败：您已加入游戏"; }
   if (gid.has_value() && GetMatch_(*gid, gid2match_)) { return "新建游戏失败：该房间已经开始游戏"; }
 
   const MatchId mid = NewMatchID_();
-  std::shared_ptr<Match> new_match = std::make_shared<Match>(mid, game_handle, uid, gid);
+  std::shared_ptr<Match> new_match = std::make_shared<Match>(mid, game_handle, uid, gid, skip_config);
   
   RETURN_IF_FAILED(AddPlayer_(new_match, uid));
   BindMatch_(mid, mid2match_, new_match);
   if (gid.has_value()) { BindMatch_(*gid, gid2match_, new_match); }
 
+  return "";
+}
+
+std::string MatchManager::ConfigOver(const UserID uid, const std::optional<GroupID> gid)
+{
+  std::lock_guard<SpinLock> l(spinlock_);
+  const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
+  if (!match) { return "结束配置失败：您未加入游戏"; }
+  else if (match->host_uid() != uid) { return "结束配置失败：您不是房主，没有结束配置的权限"; }
+  else if (!match->IsPrivate() && !gid.has_value()) { return "结束配置失败：请公开结束配置"; }
+  else if (match->gid() != gid) { return "结束配置失败：您未在该房间建立游戏"; }
+  RETURN_IF_FAILED(match->GameConfigOver());
   return "";
 }
 
@@ -128,8 +140,8 @@ MatchId MatchManager::NewMatchID_()
   return next_mid_;
 }
 
-Match::Match(const MatchId mid, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid)
-  : mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), is_started_(false), game_(nullptr), multiple_(1) {}
+Match::Match(const MatchId mid, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid, const bool skip_config)
+  : mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), state_(skip_config ? State::NOT_STARTED : State::IN_CONFIGURING), game_(nullptr), multiple_(1) {}
 
 Match::~Match()
 {
@@ -150,6 +162,13 @@ std::string Match::Request(const UserID uid, const std::optional<GroupID> gid, c
   return "";
 }
 
+std::string Match::GameConfigOver()
+{
+  if (state_ != State::IN_CONFIGURING) { return "结束配置失败：游戏未处于配置状态，当前状态：" + std::to_string(static_cast<char>(state_)); }
+  state_ = State::NOT_STARTED;
+  return "配置结束，现在玩家可以加入比赛";
+}
+
 std::string Match::GameStart()
 {
   if (is_started()) { return "开始游戏失败：游戏已经开始"; }
@@ -161,7 +180,7 @@ std::string Match::GameStart()
     uid2pid_.emplace(uid, pid2uid_.size());
     pid2uid_.push_back(uid);
   }
-  is_started_ = true;
+  state_ = State::IS_STARTED;
   BoardcastPlayers("游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令");
   start_time_ = std::chrono::system_clock::now();
   game_ = game_handle_.new_game_(this, player_num);

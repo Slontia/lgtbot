@@ -11,8 +11,8 @@
 
 class Player;
 
-Game::Game(void* const match, std::unique_ptr<Stage>&& main_stage, const std::function<int64_t(uint64_t)>& player_score_f)
-  : match_(match), main_stage_(std::move(main_stage)), player_score_f_(player_score_f), is_over_(false),
+Game::Game(void* const match)
+  : match_(match), main_stage_(nullptr), is_over_(false),
   help_cmd_(MakeCommand<void(const std::function<void(const std::string&)>)>("查看游戏帮助", BindThis(this, &Game::Help), std::make_unique<VoidChecker>("帮助")))
 {
   main_stage_->Init(match, std::bind(start_timer_f, match_, std::placeholders::_1), std::bind(stop_timer_f, match_));
@@ -20,7 +20,13 @@ Game::Game(void* const match, std::unique_ptr<Stage>&& main_stage, const std::fu
 
 bool Game::StartGame(const uint64_t player_num)
 {
-  return true;
+  assert(main_stage_ == nullptr);
+  if (player_num >= k_min_player && (k_max_player == 0 || player_num <= k_max_player) && options_.IsValidPlayerNum(k_min_player))
+  {
+    std::tie(main_stage_, player_score_f_) = MakeMainStage(player_num, options_);
+    return true;
+  }
+  return false;
 }
 
 /* Return true when is_over_ switch from false to true */
@@ -33,8 +39,13 @@ void __cdecl Game::HandleRequest(const uint64_t pid, const bool is_public, const
   {
     assert(msg);
     MsgReader reader(msg);
-    if (!help_cmd_->CallIfValid(reader, std::tuple{ reply }) && !main_stage_->HandleRequest(reader, pid, is_public, reply)) { reply("[错误] 未预料的游戏请求"); }
-    if (main_stage_->IsOver()) { OnGameOver(); }
+    if (help_cmd_->CallIfValid(reader, std::tuple{ reply })) { return; }
+    if (main_stage_)
+    {
+      if (!main_stage_->HandleRequest(reader, pid, is_public, reply)) { reply("[错误] 未预料的游戏请求"); }
+      if (main_stage_->IsOver()) { OnGameOver(); }
+    }
+    else if (!options_.SetOption(reader.NextArg(), reader)) { reply("[错误] 未预料的游戏设置"); }
   }
 }
 
@@ -49,7 +60,12 @@ void Game::Help(const std::function<void(const std::string&)>& reply)
   std::stringstream ss;
   ss << "[当前可使用游戏命令]";
   ss << std::endl << "[1] " << help_cmd_->Info();
-  main_stage_->CommandInfo(1, ss);
+  if (main_stage_) { main_stage_->CommandInfo(1, ss); }
+  else
+  {
+    uint32_t i = 1;
+    for (const std::string& option_info : options_.Infos()) { ss << std::endl << "[" << (++i) << "]" << option_info; }
+  }
   reply(ss.str());
 }
 

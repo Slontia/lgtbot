@@ -25,7 +25,8 @@ class MatchManager;
 class MatchManager
 {
 public:
-  static std::string NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid);
+  static std::string NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid, const bool skip_config);
+  static std::string ConfigOver(const UserID uid, const std::optional<GroupID> gid);
   static std::string StartGame(const UserID uid, const std::optional<GroupID> gid);
   static std::string AddPlayerToPrivateGame(const MatchId mid, const UserID uid);
   static std::string AddPlayerToPublicGame(const GroupID gid, const UserID uid);
@@ -73,10 +74,11 @@ class Match : public std::enable_shared_from_this<Match>
 public:
   static const uint32_t kAvgScoreOffset = 10;
 
-  Match(const MatchId id, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid);
+  Match(const MatchId id, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid, const bool skip_config);
   ~Match();
 
   std::string Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg);
+  std::string GameConfigOver();
   std::string GameStart();
   std::string Join(const UserID uid);
   std::string Leave(const UserID uid);
@@ -94,7 +96,7 @@ public:
   bool IsPrivate() const { return !gid_.has_value(); }
   const GameHandle& game_handle() const { return game_handle_; }
 
-  int is_started() const { return is_started_; }
+  int is_started() const { return state_ == State::IS_STARTED; }
   MatchId mid() const { return mid_; }
   std::optional<GroupID> gid() const { return gid_; }
   UserID host_uid() const { return host_uid_; }
@@ -114,7 +116,7 @@ private:
   const GameHandle&                 game_handle_;
   UserID                     host_uid_;
   const std::optional<GroupID> gid_;
-  bool    is_started_;
+  enum class State { IN_CONFIGURING = 'C', NOT_STARTED = 'N', IS_STARTED = 'S' } state_;
   GameBase*       game_;
   std::set<UserID>            ready_uid_set_;
   std::map<UserID, uint64_t>       uid2pid_;

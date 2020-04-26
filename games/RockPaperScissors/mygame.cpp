@@ -1,21 +1,25 @@
-#include "options.h"
+#include "game_options.h"
 #include "game_stage.h"
 #include "msg_checker.h"
 #include "dllmain.h"
 #include "resource.h"
+#include "game_options.h"
 #include <memory>
 #include <array>
 #include <functional>
 #include "resource_loader.h"
-
 const std::string k_game_name = "猜拳游戏";
 const uint64_t k_min_player = 2; /* should be larger than 1 */
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
-const char* Rule()
+
+bool GameOption::IsValidPlayerNum(const uint64_t player_num) const
 {
-  std::cout << __FILE__ << std::endl;
-  static std::string rule = LoadText(IDR_TEXT1_RULE, TEXT("Text"));
-  return rule.c_str();
+  return true;
+}
+
+const std::string GameOption::StatusInfo() const
+{
+  return "";
 }
 
 enum Choise { NONE_CHOISE, ROCK_CHOISE, SCISSORS_CHOISE, PAPER_CHOISE };
@@ -28,11 +32,11 @@ static std::string Choise2Str(const Choise& choise)
     "未选择";
 }
 
-class RoundStage : public AtomStage
+class RoundStage : public GameStage<>
 {
 public:
   RoundStage(const uint64_t round)
-    : AtomStage("第" + std::to_string(round) + "回合",
+    : GameStage("第" + std::to_string(round) + "回合",
       {
         MakeStageCommand(this, "出拳", &RoundStage::Act_,
           std::make_unique<AlterChecker<Choise>>(std::map<std::string, Choise> {
@@ -91,10 +95,10 @@ private:
   std::array<Choise, 2> cur_choise_;
 };
 
-class MainStage : public CompStage<RoundStage>
+class MainStage : public GameStage<RoundStage>
 {
 public:
-  MainStage() : CompStage("", {}), round_(1), win_count_{ 0, 0 } {}
+  MainStage(const GameOption& option) : GameStage("", {}), round_(1), win_count_{ 0, 0 } {}
 
   virtual VariantSubStage OnStageBegin() override
   {
@@ -137,10 +141,16 @@ private:
   std::array<uint64_t, 2> win_count_;
 };
 
-std::pair<std::unique_ptr<Stage>, std::function<int64_t(uint64_t)>> MakeMainStage(const uint64_t player_num)
+const char* Rule()
+{
+  static const std::string rule = LoadText(IDR_TEXT1_RULE, TEXT("Text"));
+  return rule.c_str();
+}
+
+std::pair<std::unique_ptr<StageBase>, std::function<int64_t(uint64_t)>> MakeMainStage(const uint64_t player_num, const GameOption& options)
 {
   assert(player_num == 2);
-  std::unique_ptr<MainStage> main_stage = std::make_unique<MainStage>();
+  std::unique_ptr<MainStage> main_stage = std::make_unique<MainStage>(options);
   const auto get_player_score = std::bind(&MainStage::PlayerScore, main_stage.get(), std::placeholders::_1);
-  return { static_cast<std::unique_ptr<Stage>&&>(std::move(main_stage)), get_player_score };
+  return { static_cast<std::unique_ptr<StageBase>&&>(std::move(main_stage)), get_player_score };
 }

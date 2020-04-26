@@ -13,12 +13,12 @@
 #include "spinlock.h"
 #include "game_options.h"
 
-class Stage;
+class StageBase;
 
 class Game : public GameBase
 {
 public:
-  Game(void* const match, std::unique_ptr<Stage>&& main_stage, const std::function<int64_t(uint64_t)>& player_score);
+  Game(void* const match);
   virtual ~Game() {}
   /* Return true when is_over_ switch from false to true */
   virtual bool StartGame(const uint64_t player_num);
@@ -31,10 +31,11 @@ private:
 
   void* const match_;
   uint64_t player_num_;
-  const std::unique_ptr<Stage> main_stage_;
-  const std::function<int64_t(uint64_t)> player_score_f_;
+  std::unique_ptr<StageBase> main_stage_;
+  std::function<int64_t(uint64_t)> player_score_f_;
   bool is_over_;
   std::optional<std::vector<int64_t>> scores_;
   SpinLock lock_;
   const std::shared_ptr<MsgCommand<void(const std::function<void(const std::string&)>)>> help_cmd_;
+  GameOption options_;
 };

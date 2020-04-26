@@ -17,11 +17,11 @@ static std::shared_ptr<GameMsgCommand<RetType>> MakeStageCommand(Stage* stage, s
   return MakeCommand<GameUserFuncType<RetType>>(std::move(description), BindThis(stage, cb), std::move(checkers)...);
 }
 
-class Stage
+class StageBase
 {
 public:
-  Stage(std::string&& name) : name_(std::move(name)), is_over_(false) {}
-  ~Stage() {}
+  StageBase(std::string&& name) : name_(std::move(name)), is_over_(false) {}
+  ~StageBase() {}
   virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {
     match_ = match;
@@ -60,26 +60,30 @@ class SubStageCheckoutHelper
   virtual RetType NextSubStage(SubStage& sub_stage, const bool is_timeout) = 0;
 };
 
-template <typename ...SubStages>
-class CompStage : public Stage,
-  public SubStageCheckoutHelper<SubStages, std::variant<std::unique_ptr<SubStages>...>>...
+template <typename ...SubStages> class GameStage;
+
+template <typename SubStage, typename ...SubStages>
+class GameStage<SubStage, SubStages...> : public StageBase,
+  public SubStageCheckoutHelper<SubStage, std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>>,
+  public SubStageCheckoutHelper<SubStages, std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>>...
 {
 public:
-  using VariantSubStage = std::variant<std::unique_ptr<SubStages>...>;
+  using VariantSubStage = std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>;
+  using SubStageCheckoutHelper<SubStage, std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>>::NextSubStage;
   using SubStageCheckoutHelper<SubStages, std::variant<std::unique_ptr<SubStages>...>>::NextSubStage...;
 
-  CompStage(
+  GameStage(
     std::string&& name,
     std::vector<std::shared_ptr<GameMsgCommand<void>>>&& commands)
-    : Stage(std::move(name)), sub_stage_(), commands_(std::move(commands)) {}
+    : StageBase(std::move(name)), sub_stage_(), commands_(std::move(commands)) {}
 
-  ~CompStage() {}
+  ~GameStage() {}
 
   virtual VariantSubStage OnStageBegin() = 0;
 
   virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {
-    Stage::Init(match, start_timer_f, stop_timer_f);
+    StageBase::Init(match, start_timer_f, stop_timer_f);
     sub_stage_ = OnStageBegin();
     std::visit([match, start_timer_f, stop_timer_f](auto&& sub_stage) { sub_stage->Init(match, start_timer_f, stop_timer_f); }, sub_stage_);
   }
@@ -109,7 +113,7 @@ public:
 
   virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss) const override
   {
-    for (const auto& cmd : commands_) { i = Stage::CommandInfo(i, ss, cmd); }
+    for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, ss, cmd); }
     return std::visit([&i, &ss](auto&& sub_stage) { return sub_stage->CommandInfo(i, ss); }, sub_stage_);
   }
 
@@ -129,27 +133,28 @@ public:
     }, sub_stage_);
   }
 private:
-  using Stage::Over;
+  using StageBase::Over;
   VariantSubStage sub_stage_;
   std::vector<std::shared_ptr<GameMsgCommand<void>>> commands_;
 };
 
-class AtomStage : public Stage
+template <>
+class GameStage<> : public StageBase
 {
 public:
-  AtomStage(
+  GameStage(
     std::string&& name,
     std::vector<std::shared_ptr<GameMsgCommand<bool>>>&& commands)
-    : Stage(std::move(name)), timer_(nullptr), commands_(std::move(commands)) {}
-  virtual ~AtomStage() { stop_timer_f_(); }
+    : StageBase(std::move(name)), timer_(nullptr), commands_(std::move(commands)) {}
+  virtual ~GameStage() { stop_timer_f_(); }
   virtual uint64_t OnStageBegin() { return 0; };
   virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {
-    Stage::Init(match, start_timer_f, stop_timer_f);
+    StageBase::Init(match, start_timer_f, stop_timer_f);
     const uint64_t sec = OnStageBegin();
     start_timer_f(sec);
   }
-  virtual void HandleTimeout() override final { Stage::Over(); }
+  virtual void HandleTimeout() override final { StageBase::Over(); }
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) override
   {
     for (const std::shared_ptr<GameMsgCommand<bool>>& command : commands_)
@@ -164,14 +169,14 @@ public:
   }
   virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss) const override
   {
-    for (const auto& cmd : commands_) { i = Stage::CommandInfo(i, ss, cmd); }
+    for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, ss, cmd); }
     return i;
   }
 private:
   virtual void Over() override final
   {
     timer_ = nullptr;
-    Stage::Over();
+    StageBase::Over();
   }
   std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;
   std::vector<std::shared_ptr<GameMsgCommand<bool>>> commands_;

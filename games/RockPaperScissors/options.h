@@ -1,4 +1,1 @@
-#include "msg_checker.h"
-#ifdef GAME_OPTION
-GAME_OPTION(win_count, (std::make_unique<ArithChecker<uint32_t, 1, 9>>("胜利局数")), 3)
-#endif
+GAME_OPTION("设置胜利局数", win_count, (std::make_unique<ArithChecker<uint32_t, 1, 9>>("胜利局数")), 3)
