@@ -141,12 +141,10 @@ MatchId MatchManager::NewMatchID_()
 }
 
 Match::Match(const MatchId mid, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid, const bool skip_config)
-  : mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), state_(skip_config ? State::NOT_STARTED : State::IN_CONFIGURING), game_(nullptr), multiple_(1) {}
+  : mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), state_(skip_config ? State::NOT_STARTED : State::IN_CONFIGURING),
+  game_(game_handle_.new_game_(this), game_handle_.delete_game_), multiple_(1) {}
 
-Match::~Match()
-{
-  if (game_) { game_handle_.delete_game_(game_); }
-}
+Match::~Match() {}
 
 bool Match::Has(const UserID uid) const
 {
@@ -155,42 +153,49 @@ bool Match::Has(const UserID uid) const
 
 std::string Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)
 {
-  if (!is_started()) { return "[错误] 当前游戏未处于进行状态"; }
-  const auto it = uid2pid_.find(uid);
-  assert(it != uid2pid_.end());
-  game_->HandleRequest(it->second, gid.has_value(), msg.c_str());
+  if (state_ == State::NOT_STARTED) { return "[错误] 当前阶段等待玩家加入，无法执行游戏请求"; }
+  if (state_ == State::IN_CONFIGURING) { game_->HandleRequest(0, gid.has_value(), msg.c_str()); }
+  else
+  {
+		const auto it = uid2pid_.find(uid);
+		assert(it != uid2pid_.end());
+		game_->HandleRequest(it->second, gid.has_value(), msg.c_str());
+  }
   return "";
 }
 
 std::string Match::GameConfigOver()
 {
-  if (state_ != State::IN_CONFIGURING) { return "结束配置失败：游戏未处于配置状态，当前状态：" + std::to_string(static_cast<char>(state_)); }
+  if (state_ != State::IN_CONFIGURING) { return "结束配置失败：游戏未处于配置状态"); }
   state_ = State::NOT_STARTED;
-  return "配置结束，现在玩家可以加入比赛";
+  return "配置结束，现在玩家可以加入比赛！";
 }
 
 std::string Match::GameStart()
 {
-  if (is_started()) { return "开始游戏失败：游戏已经开始"; }
+  if (state_ == State::IN_CONFIGURING) { return "开始游戏失败：游戏正处于配置阶段，请结束配置，等待玩家加入后再开始游戏"; }
+  if (state_ == State::IS_STARTED) { return "开始游戏失败：游戏已经开始"; }
   const uint64_t player_num = ready_uid_set_.size();
   if (player_num < game_handle_.min_player_) { return "开始游戏失败：玩家人数过少"; }
   assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
+  if (!game_->StartGame(player_num)) { return "开始游戏失败：不符合游戏参数的预期"; }
+
   for (UserID uid : ready_uid_set_)
   {
     uid2pid_.emplace(uid, pid2uid_.size());
     pid2uid_.push_back(uid);
   }
   state_ = State::IS_STARTED;
-  BoardcastPlayers("游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令");
+  BoardcastPlayers("游戏开始！您可以使用<帮助>命令（无#号），查看可执行命令");
   start_time_ = std::chrono::system_clock::now();
-  game_ = game_handle_.new_game_(this, player_num);
   return "";
 }
 
 std::string Match::Join(const UserID uid)
 {
   assert(!Has(uid));
-  if (is_started()) { return "加入游戏失败：游戏已经开始"; }
+  if (state_ == State::IN_CONFIGURING && uid != host_uid_) { return "加入游戏失败：房主正在配置游戏参数"; }
+  if (state_ == State::IS_STARTED) { return "加入游戏失败：游戏已经开始"; }
   if (ready_uid_set_.size() >= game_handle_.max_player_) { return "加入游戏失败：比赛人数已达到游戏上线"; }
   ready_uid_set_.emplace(uid);
   BoardcastPlayers("玩家 " + At(uid) + " 加入了游戏");
@@ -200,7 +205,8 @@ std::string Match::Join(const UserID uid)
 std::string Match::Leave(const UserID uid)
 {
   assert(Has(uid));
-  if (is_started()) { return "退出失败：游戏已经开始"; }
+  assert(state_ != State::IN_CONFIGURING);
+  if (state_ == State::IS_STARTED) { return "退出失败：游戏已经开始"; }
   BoardcastPlayers("玩家 " + At(uid) + " 退出了游戏");
   ready_uid_set_.erase(uid);
   return "";
@@ -219,7 +225,8 @@ void Match::TellPlayer(const uint64_t pid, const std::string& msg) const
 
 void Match::AtPlayer(const uint64_t pid, char* buf, const uint64_t len) const
 {
-  ::At(pid2uid_[pid], buf, len);
+  if (state_ != State::IS_STARTED) { ::At(host_uid_, buf, len); }
+  else { ::At(pid2uid_[pid], buf, len); }
 }
 
 std::string Match::AtPlayer(const uint64_t pid) const

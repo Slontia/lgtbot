@@ -63,13 +63,12 @@ class GameOption
 		return std::get<op * 2>(options_);
 	}
 
-	bool SetOption(std::string_view write_name, MsgReader& msg_reader)
+	bool SetOption(MsgReader& msg_reader)
 	{
 #define GAME_OPTION(_0, name, _1, _2)\
     static_assert(!std::is_void_v<std::decay<decltype(CHECKER_(name))>::type::arg_type>, "Checker cannot be void checker");\
-		if (#name == write_name)\
+		if (msg_reader.Reset(); #name == msg_reader.NextArg())\
 		{\
-			msg_reader.Reset();\
 			auto value = CHECKER_(name).Check(msg_reader);\
 			if (value.has_value() && !msg_reader.HasNext())\
 			{\

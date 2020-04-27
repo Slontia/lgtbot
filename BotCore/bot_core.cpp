@@ -63,7 +63,7 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
 
   typedef int (__cdecl *Init)(const boardcast, const tell, const at, const game_over, const start_timer, const stop_timer);
   typedef char* (__cdecl *GameInfo)(uint64_t*, uint64_t*, const char**);
-  typedef GameBase* (__cdecl *NewGame)(void* const match, const uint64_t);
+  typedef GameBase* (__cdecl *NewGame)(void* const match);
   typedef int (__cdecl *DeleteGame)(GameBase* const);
 
   Init init = (Init)GetProcAddress(mod, "Init");

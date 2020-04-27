@@ -93,7 +93,7 @@ static std::string show_private_matches(const UserID uid, const std::optional<Gr
   uint64_t count = 0;
   MatchManager::ForEachMatch([&ss, &count](const std::shared_ptr<Match> match)
   {
-    if (match->IsPrivate() && !match->is_started())
+    if (match->IsPrivate() && match->state() == Match::State::NOT_STARTED)
     {
       ++count;
       ss << std::endl << match->game_handle().name_ << " - [房主ID] " << match->host_uid() << " - [比赛ID] " << match->mid();
@@ -110,7 +110,8 @@ static std::string show_match_status(const UserID uid, const std::optional<Group
   if (!match && gid.has_value()) { match = MatchManager::GetMatchWithGroupID(*gid); }
   if (!match) { return "[错误] 您未加入游戏，或该房间未进行游戏"; }
   ss << "游戏名称：" << match->game_handle().name_ << std::endl;
-  ss << "游戏状态：" << (match->is_started() ? "正在进行" : "未进行") << std::endl;
+  ss << "游戏状态：" << (match->state() == Match::State::IN_CONFIGURING ? "配置中" :
+                       match->state() == Match::State::NOT_STARTED ? "未开始" : "已开始") << std::endl;
   ss << "房间号：";
   if (match->gid().has_value()) { ss << *gid << std::endl; }
   else { ss << "私密游戏" << std::endl; }
@@ -154,8 +155,8 @@ static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
   make_command("查看当前所有未开始的私密比赛", show_private_matches, std::make_unique<VoidChecker>("#私密游戏列表")),
   make_command("查看已加入，或该房间正在进行的比赛信息", show_match_status, std::make_unique<VoidChecker>("#游戏信息")),
 
-  make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏", new_game<false>, std::make_unique<VoidChecker>("#新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
-  make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏，并进行游戏参数的配置", new_game<true>, std::make_unique<VoidChecker>("#配置新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
+  make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏", new_game<true>, std::make_unique<VoidChecker>("#新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
+  make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏，并进行游戏参数的配置", new_game<false>, std::make_unique<VoidChecker>("#配置新游戏"), std::make_unique<AnyArg>("游戏名称", "某游戏名")),
   make_command("完成游戏参数配置后，允许玩家进入房间", config_over, std::make_unique<VoidChecker>("#配置完成")),
   make_command("房主开始游戏", start_game, std::make_unique<VoidChecker>("#开始游戏")),
   make_command("加入当前房间的公开游戏", join_public, std::make_unique<VoidChecker>("#加入游戏")),

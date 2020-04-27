@@ -72,6 +72,7 @@ private:
 class Match : public std::enable_shared_from_this<Match>
 {
 public:
+  enum State { IN_CONFIGURING = 'C', NOT_STARTED = 'N', IS_STARTED = 'S' };
   static const uint32_t kAvgScoreOffset = 10;
 
   Match(const MatchId id, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid, const bool skip_config);
@@ -96,11 +97,11 @@ public:
   bool IsPrivate() const { return !gid_.has_value(); }
   const GameHandle& game_handle() const { return game_handle_; }
 
-  int is_started() const { return state_ == State::IS_STARTED; }
   MatchId mid() const { return mid_; }
   std::optional<GroupID> gid() const { return gid_; }
   UserID host_uid() const { return host_uid_; }
   const std::set<UserID>& ready_uid_set() const { return ready_uid_set_; }
+  const State state() const { return state_; }
 
   struct ScoreInfo
   {
@@ -110,14 +111,23 @@ public:
     uint64_t poss_match_score_;
   };
 private:
+  std::string State2String()
+  {
+    switch (state_)
+    {
+    case State::IN_CONFIGURING: return "配置中";
+    case State::NOT_STARTED: return "未开始";
+    case State::IS_STARTED: return "已开始";
+    }
+  }
   std::vector<ScoreInfo> CalScores_(const int64_t scores[]) const;
 
   const MatchId                     mid_;
   const GameHandle&                 game_handle_;
   UserID                     host_uid_;
   const std::optional<GroupID> gid_;
-  enum class State { IN_CONFIGURING = 'C', NOT_STARTED = 'N', IS_STARTED = 'S' } state_;
-  GameBase*       game_;
+  State state_;
+  std::unique_ptr<GameBase, const std::function<void(GameBase* const)>>       game_;
   std::set<UserID>            ready_uid_set_;
   std::map<UserID, uint64_t>       uid2pid_;
   std::vector<UserID>              pid2uid_;

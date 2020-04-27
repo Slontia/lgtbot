@@ -24,6 +24,7 @@ bld/
 x64_Release/
 x64_Debug/
 Win32_Release/
+Win32_Debug/
 
 # Visual Studo 2015 cache/options directory
 .vs/

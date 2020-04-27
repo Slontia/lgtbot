@@ -14,9 +14,7 @@ class Player;
 Game::Game(void* const match)
   : match_(match), main_stage_(nullptr), is_over_(false),
   help_cmd_(MakeCommand<void(const std::function<void(const std::string&)>)>("查看游戏帮助", BindThis(this, &Game::Help), std::make_unique<VoidChecker>("帮助")))
-{
-  main_stage_->Init(match, std::bind(start_timer_f, match_, std::placeholders::_1), std::bind(stop_timer_f, match_));
-}
+{}
 
 bool Game::StartGame(const uint64_t player_num)
 {
@@ -24,6 +22,7 @@ bool Game::StartGame(const uint64_t player_num)
   if (player_num >= k_min_player && (k_max_player == 0 || player_num <= k_max_player) && options_.IsValidPlayerNum(k_min_player))
   {
     std::tie(main_stage_, player_score_f_) = MakeMainStage(player_num, options_);
+    main_stage_->Init(match_, std::bind(start_timer_f, match_, std::placeholders::_1), std::bind(stop_timer_f, match_));
     return true;
   }
   return false;
@@ -45,7 +44,8 @@ void __cdecl Game::HandleRequest(const uint64_t pid, const bool is_public, const
       if (!main_stage_->HandleRequest(reader, pid, is_public, reply)) { reply("[错误] 未预料的游戏请求"); }
       if (main_stage_->IsOver()) { OnGameOver(); }
     }
-    else if (!options_.SetOption(reader.NextArg(), reader)) { reply("[错误] 未预料的游戏设置"); }
+    else if (!options_.SetOption(reader)) { reply("[错误] 未预料的游戏设置"); }
+    else { reply("设置成功！"); }
   }
 }
 
