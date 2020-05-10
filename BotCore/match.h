@@ -90,6 +90,7 @@ public:
   void GameOver(const int64_t scores[]);
   void StartTimer(const uint64_t sec);
   void StopTimer();
+  std::string OptionInfo() const;
 
   bool SwitchHost();
 

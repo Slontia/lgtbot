@@ -9,7 +9,7 @@ extern "C"
 
   typedef void(*PRIVATE_MSG_CALLBACK)(const UserID&, const char*);
   typedef void(*PUBLIC_MSG_CALLBACK)(const GroupID&, const char*);
-  typedef void(*AT_CALLBACK)(const UserID&, char*, const uint64_t);
+  typedef const char*(*AT_CALLBACK)(const UserID&);
   
   enum ErrCode
   {

@@ -166,7 +166,7 @@ std::string Match::Request(const UserID uid, const std::optional<GroupID> gid, c
 
 std::string Match::GameConfigOver()
 {
-  if (state_ != State::IN_CONFIGURING) { return "结束配置失败：游戏未处于配置状态"); }
+  if (state_ != State::IN_CONFIGURING) { return "结束配置失败：游戏未处于配置状态"; }
   state_ = State::NOT_STARTED;
   return "配置结束，现在玩家可以加入比赛！";
 }
@@ -186,7 +186,7 @@ std::string Match::GameStart()
     pid2uid_.push_back(uid);
   }
   state_ = State::IS_STARTED;
-  BoardcastPlayers("游戏开始！您可以使用<帮助>命令（无#号），查看可执行命令");
+  BoardcastPlayers("游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令");
   start_time_ = std::chrono::system_clock::now();
   return "";
 }
@@ -225,8 +225,7 @@ void Match::TellPlayer(const uint64_t pid, const std::string& msg) const
 
 void Match::AtPlayer(const uint64_t pid, char* buf, const uint64_t len) const
 {
-  if (state_ != State::IS_STARTED) { ::At(host_uid_, buf, len); }
-  else { ::At(pid2uid_[pid], buf, len); }
+  ::At(state_ != State::IS_STARTED ? host_uid_ : pid2uid_[pid]);
 }
 
 std::string Match::AtPlayer(const uint64_t pid) const
@@ -316,4 +315,9 @@ void Match::StartTimer(const uint64_t sec)
 void Match::StopTimer()
 {
   timer_ = nullptr;
+}
+
+std::string Match::OptionInfo() const
+{
+  return game_->OptionInfo();
 }

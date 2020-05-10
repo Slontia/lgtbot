@@ -21,6 +21,7 @@ bool Game::StartGame(const uint64_t player_num)
   assert(main_stage_ == nullptr);
   if (player_num >= k_min_player && (k_max_player == 0 || player_num <= k_max_player) && options_.IsValidPlayerNum(k_min_player))
   {
+    player_num_ = player_num;
     std::tie(main_stage_, player_score_f_) = MakeMainStage(player_num, options_);
     main_stage_->Init(match_, std::bind(start_timer_f, match_, std::placeholders::_1), std::bind(stop_timer_f, match_));
     return true;
@@ -31,6 +32,7 @@ bool Game::StartGame(const uint64_t player_num)
 /* Return true when is_over_ switch from false to true */
 void __cdecl Game::HandleRequest(const uint64_t pid, const bool is_public, const char* const msg)
 {
+  using namespace std::string_literals;
   std::lock_guard<SpinLock> l(lock_);
   const auto reply = [this, pid, is_public](const std::string& msg) { is_public ? boardcast_f(match_, at_f(match_, pid) + msg) : tell_f(match_, pid, msg); };
   if (is_over_) { reply("[错误] 差一点点，游戏已经结束了哦~"); }
@@ -45,7 +47,7 @@ void __cdecl Game::HandleRequest(const uint64_t pid, const bool is_public, const
       if (main_stage_->IsOver()) { OnGameOver(); }
     }
     else if (!options_.SetOption(reader)) { reply("[错误] 未预料的游戏设置"); }
-    else { reply("设置成功！"); }
+    else { reply("设置成功！目前配置："s + OptionInfo()); }
   }
 }
 
@@ -64,9 +66,16 @@ void Game::Help(const std::function<void(const std::string&)>& reply)
   else
   {
     uint32_t i = 1;
-    for (const std::string& option_info : options_.Infos()) { ss << std::endl << "[" << (++i) << "]" << option_info; }
+    for (const std::string& option_info : options_.Infos()) { ss << std::endl << "[" << (++i) << "] " << option_info; }
   }
   reply(ss.str());
+}
+
+const char* Game::OptionInfo() const
+{
+  thread_local static std::string s;
+  s = options_.StatusInfo();
+  return s.c_str();
 }
 
 void Game::OnGameOver()

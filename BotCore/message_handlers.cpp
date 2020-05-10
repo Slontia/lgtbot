@@ -105,11 +105,13 @@ static std::string show_private_matches(const UserID uid, const std::optional<Gr
 
 static std::string show_match_status(const UserID uid, const std::optional<GroupID> gid)
 {
+  // TODO: make it thread safe
   std::stringstream ss;
   std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
   if (!match && gid.has_value()) { match = MatchManager::GetMatchWithGroupID(*gid); }
   if (!match) { return "[错误] 您未加入游戏，或该房间未进行游戏"; }
   ss << "游戏名称：" << match->game_handle().name_ << std::endl;
+  ss << "配置信息：" << match->OptionInfo() << std::endl;
   ss << "游戏状态：" << (match->state() == Match::State::IN_CONFIGURING ? "配置中" :
                        match->state() == Match::State::NOT_STARTED ? "未开始" : "已开始") << std::endl;
   ss << "房间号：";
