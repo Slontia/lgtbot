@@ -21,7 +21,7 @@ class StageBase
 {
 public:
   StageBase(std::string&& name) : name_(std::move(name)), is_over_(false) {}
-  ~StageBase() {}
+  virtual ~StageBase() {}
   virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {
     match_ = match;
@@ -77,7 +77,7 @@ public:
     std::vector<std::shared_ptr<GameMsgCommand<void>>>&& commands)
     : StageBase(std::move(name)), sub_stage_(), commands_(std::move(commands)) {}
 
-  ~GameStage() {}
+  virtual ~GameStage() {}
 
   virtual VariantSubStage OnStageBegin() = 0;
 
@@ -123,7 +123,7 @@ public:
     sub_stage_ = std::visit([this, is_timeout](auto&& sub_stage)
     {   
       VariantSubStage new_sub_stage = NextSubStage(*sub_stage, is_timeout);
-      sub_stage.release();
+      sub_stage = nullptr;
       return std::move(new_sub_stage);
     }, sub_stage_);
     std::visit([this](auto&& sub_stage)
