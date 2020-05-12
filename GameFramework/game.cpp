@@ -13,7 +13,7 @@ class Player;
 
 Game::Game(void* const match)
   : match_(match), main_stage_(nullptr), is_over_(false),
-  help_cmd_(MakeCommand<void(const std::function<void(const std::string&)>)>("查看游戏帮助", BindThis(this, &Game::Help), std::make_unique<VoidChecker>("帮助")))
+  help_cmd_(MakeCommand<void(const std::function<void(const std::string&)>)>("查看游戏帮助", BindThis(this, &Game::Help), VoidChecker("帮助")))
 {}
 
 bool Game::StartGame(const uint64_t player_num)

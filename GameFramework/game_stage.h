@@ -14,7 +14,7 @@ using GameMsgCommand = MsgCommand<GameUserFuncType<RetType>>;
 template <typename Stage, typename RetType, typename ...Args, typename ...Checkers>
 static std::shared_ptr<GameMsgCommand<RetType>> MakeStageCommand(Stage* stage, std::string&& description, RetType (Stage::*cb)(Args...), Checkers&&... checkers)
 {
-  return MakeCommand<GameUserFuncType<RetType>>(std::move(description), BindThis(stage, cb), std::move(checkers)...);
+  return MakeCommand<GameUserFuncType<RetType>>(std::move(description), BindThis(stage, cb), std::forward<Checkers>(checkers)...);
 }
 
 class StageBase

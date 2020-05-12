@@ -301,8 +301,9 @@ template <typename Callback>
 using to_func = decltype(std::function{ Callback() });
 
 template <typename UserFuncType, typename Callback, typename ...Checkers>
-static auto MakeCommand(std::string&& description, const Callback& f, std::unique_ptr<Checkers>&&... checkers)
+static auto MakeCommand(std::string&& description, const Callback& f, Checkers&&... checkers)
 {
   static_assert(std::is_same_v<typename FuncTypeHelper<UserFuncType>::ResultType, typename decltype(std::function(f))::result_type>, "differenct result type");
-  return std::make_shared<MsgCommandImpl<decltype(std::function(f)), UserFuncType, typename Checkers::arg_type...>>(std::move(description), std::function(f), std::move(checkers)...);
+  return std::make_shared<MsgCommandImpl<decltype(std::function(f)), UserFuncType, typename Checkers::arg_type...>>
+    (std::move(description), std::function(f), std::make_unique<Checkers>(std::forward<Checkers>(checkers))...);
 };
