@@ -69,8 +69,8 @@ class GameStage<SubStage, SubStages...> : public StageBase,
 {
 public:
   using VariantSubStage = std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>;
-  using SubStageCheckoutHelper<SubStage, std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>>::NextSubStage;
-  using SubStageCheckoutHelper<SubStages, std::variant<std::unique_ptr<SubStages>...>>::NextSubStage...;
+  using SubStageCheckoutHelper<SubStage, VariantSubStage>::NextSubStage;
+  using SubStageCheckoutHelper<SubStages, VariantSubStage>::NextSubStage...;
 
   GameStage(
     std::string&& name,

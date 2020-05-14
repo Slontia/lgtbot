@@ -10,19 +10,32 @@
 const std::string k_game_name = "LIE";
 const uint64_t k_min_player = 2; /* should be larger than 1 */
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
+
+bool GameOption::IsValidPlayerNum(const uint64_t player_num) const
+{
+  return true;
+}
+
+const std::string GameOption::StatusInfo() const
+{
+  std::stringstream ss;
+  if (GET_VALUE(集齐失败)) { ss << "集齐全部数字或"; }
+  ss << "单个数字达到3时玩家失败";
+  return ss.str();
+}
 const char* Rule()
 {
   static std::string rule = LoadText(IDR_TEXT1_RULE, TEXT("Text"));
   return rule.c_str();
 }
 
-class NumberStage : public AtomStage
+class NumberStage : public GameStage<>
 {
  public:
   NumberStage(const uint64_t questioner)
-    : AtomStage("设置数字阶段",
+    : GameStage("设置数字阶段",
       {
-        MakeStageCommand(this, "设置数字", &NumberStage::Number, std::make_unique<ArithChecker<int, 1, 6>>("数字")),
+        MakeStageCommand(this, "设置数字", &NumberStage::Number, ArithChecker<int, 1, 6>("数字")),
       }), questioner_(questioner), num_(0) {}
 
   int num() const { return num_; }
@@ -49,13 +62,13 @@ class NumberStage : public AtomStage
    int num_;
 };
 
-class LieStage : public AtomStage
+class LieStage : public GameStage<>
 {
 public:
   LieStage(const uint64_t questioner)
-    : AtomStage("设置数字阶段",
+    : GameStage("设置数字阶段",
       {
-        MakeStageCommand(this, "提问数字", &LieStage::Lie, std::make_unique<ArithChecker<int, 1, 6>>("数字")),
+        MakeStageCommand(this, "提问数字", &LieStage::Lie, ArithChecker<int, 1, 6>("数字")),
       }), questioner_(questioner), lie_num_(0) {}
 
   int lie_num() const { return lie_num_; }
@@ -77,13 +90,13 @@ private:
   int lie_num_;
 };
 
-class GuessStage : public AtomStage
+class GuessStage : public GameStage<>
 {
 public:
   GuessStage(const uint64_t guesser)
-    : AtomStage("设置数字阶段",
+    : GameStage("设置数字阶段",
       {
-        MakeStageCommand(this, "猜测", &GuessStage::Guess, std::make_unique<BoolChecker>("质疑", "相信")),
+        MakeStageCommand(this, "猜测", &GuessStage::Guess, BoolChecker("质疑", "相信")),
       }), guesser_(guesser) {}
 
   bool doubt() const { return doubt_; }
@@ -104,11 +117,11 @@ private:
   bool doubt_;
 };
 
-class RoundStage : public CompStage<NumberStage, LieStage, GuessStage>
+class RoundStage : public GameStage<NumberStage, LieStage, GuessStage>
 {
  public:
    RoundStage(const uint64_t round, const uint64_t questioner, std::array<std::array<int, 6>, 2>& player_nums)
-     : CompStage("第" + std::to_string(round) + "回合", {}),
+     : GameStage("第" + std::to_string(round) + "回合", {}),
      questioner_(questioner), num_(0), lie_num_(0), player_nums_(player_nums), loser_(0) {}
 
    uint64_t loser() const { return loser_; }
@@ -158,10 +171,10 @@ private:
   uint64_t loser_;
 };
 
-class MainStage : public CompStage<RoundStage>
+class MainStage : public GameStage<RoundStage>
 {
  public:
-  MainStage() : CompStage("", {}), questioner_(0), round_(1), player_nums_{ {0} } {}
+   MainStage(const GameOption& options) : GameStage("", {}), fail_if_collected_all_(options.GET_VALUE(集齐失败)), questioner_(0), round_(1), player_nums_{ {0} } {}
 
   virtual VariantSubStage OnStageBegin() override
   {
@@ -183,7 +196,7 @@ class MainStage : public CompStage<RoundStage>
  private:
    bool JudgeOver()
    {
-     bool has_all_num = true;
+     bool has_all_num = fail_if_collected_all_;
      for (const int count : player_nums_[questioner_])
      {
        if (count >= 3) { return true; }
@@ -192,15 +205,16 @@ class MainStage : public CompStage<RoundStage>
      return has_all_num;
    }
 
+   const bool fail_if_collected_all_;
    uint64_t questioner_;
    uint64_t round_;
    std::array<std::array<int, 6>, 2> player_nums_;
 };
 
-std::pair<std::unique_ptr<Stage>, std::function<int64_t(uint64_t)>> MakeMainStage(const uint64_t player_num)
+std::pair<std::unique_ptr<StageBase>, std::function<int64_t(uint64_t)>> MakeMainStage(const uint64_t player_num, const GameOption& options)
 {
   assert(player_num == 2);
-  std::unique_ptr<MainStage> main_stage = std::make_unique<MainStage>();
+  std::unique_ptr<MainStage> main_stage = std::make_unique<MainStage>(options);
   const auto get_player_score = std::bind(&MainStage::PlayerScore, main_stage.get(), std::placeholders::_1);
-  return { static_cast<std::unique_ptr<Stage>&&>(std::move(main_stage)), get_player_score };
+  return { static_cast<std::unique_ptr<StageBase>&&>(std::move(main_stage)), get_player_score };
 }

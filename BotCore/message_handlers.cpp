@@ -179,10 +179,20 @@ static std::string release_game(const UserID uid, const std::optional<GroupID> g
   }
 }
 
+static std::string interrupt_match(const UserID uid, const std::optional<GroupID> gid)
+{
+  std::string err_msg;
+  if (!gid.has_value()) { err_msg = "需要在房间中使用该指令"; }
+  else if (const auto match = MatchManager::GetMatchWithGroupID(*gid); !match) { err_msg = "该房间未进行游戏"; }
+  else { MatchManager::DeleteMatch(match->mid()); }
+  return err_msg.empty() ? "中断游戏成功" : "[错误] " + err_msg;
+}
+
 static const std::vector<std::shared_ptr<MetaCommand>> admin_cmds =
 {
   make_command("查看帮助", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, admin_cmds, "管理"); }, VoidChecker("%帮助")),
-  make_command("发布游戏，写入游戏信息到数据库", release_game, VoidChecker("%发布游戏"), AnyArg("游戏名称", "某游戏名"))
+  make_command("发布游戏，写入游戏信息到数据库", release_game, VoidChecker("%发布游戏"), AnyArg("游戏名称", "某游戏名")),
+  make_command("强制中断公开比赛", interrupt_match, VoidChecker("%中断游戏"))
 };
 
 std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)

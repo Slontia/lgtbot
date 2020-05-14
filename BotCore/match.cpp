@@ -100,13 +100,13 @@ void MatchManager::DeleteMatch(const MatchId mid)
 
 void MatchManager::DeleteMatch_(const MatchId mid)
 {
-  const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
-  assert(match);
-
-  UnbindMatch_(mid, mid2match_);
-  if (match->gid().has_value()) { UnbindMatch_(*match->gid(), gid2match_); }
-  const std::set<UserID>& ready_uid_set = match->ready_uid_set();
-  for (auto it = ready_uid_set.begin(); it != ready_uid_set.end(); ++ it) { UnbindMatch_(*it, uid2match_); }
+  if (const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_); match)
+  {
+		UnbindMatch_(mid, mid2match_);
+		if (match->gid().has_value()) { UnbindMatch_(*match->gid(), gid2match_); }
+		const std::set<UserID>& ready_uid_set = match->ready_uid_set();
+		for (auto it = ready_uid_set.begin(); it != ready_uid_set.end(); ++ it) { UnbindMatch_(*it, uid2match_); }
+  }
 }
 
 std::shared_ptr<Match> MatchManager::GetMatch(const MatchId mid)
