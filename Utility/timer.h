@@ -4,20 +4,30 @@
 #include <functional>
 #include <atomic>
 #include <chrono>
+#include <list>
 
 class Timer
 {
 public:
-  Timer(const uint64_t sec, const std::function<void()>& handle) : is_over_(false)
+  using TaskSet = std::list<std::pair<uint64_t, std::function<void()>>>;
+  Timer(const uint64_t sec, std::function<void()>&& handle) : Timer({ { sec, std::move(handle) } }) {}
+  Timer(TaskSet&& tasks) : is_over_(false)
   {
-    thread_ = std::thread([this, sec, handle]()
+    thread_ = std::thread([this, t = std::move(tasks)]()
     {
       std::unique_lock<std::mutex> lock(mutex_);
-      cv_.wait_for(lock, std::chrono::seconds(sec), [this]() { return is_over_.load(); });
-      if (!is_over_)
+      for (const auto& [sec, handle] : t)
       {
-        std::thread t(handle);
-        t.detach();
+				cv_.wait_for(lock, std::chrono::seconds(sec), [this]() { return is_over_.load(); });
+				if (!is_over_)
+				{
+					std::thread t(handle);
+					t.detach();
+				}
+        else
+        {
+          break;
+        }
       }
     }); /* make sure thread_ is inited last */
   }
@@ -37,3 +47,7 @@ private:
   std::atomic<bool> is_over_;
   std::thread thread_;
 };
+
+
+
+

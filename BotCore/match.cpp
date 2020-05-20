@@ -299,17 +299,32 @@ bool Match::SwitchHost()
 
 void Match::StartTimer(const uint64_t sec)
 {
+  static const uint64_t kMinAlertSec = 10;
   if (sec == 0) { return; }
+  Timer::TaskSet tasks;
   std::shared_ptr<bool> stage_is_over = std::make_shared<bool>(false);
   std::function<void(Timer*)> deleter = [stage_is_over](Timer* timer)
   {
     *stage_is_over = true;
     delete timer;
   };
-  timer_ = std::unique_ptr<Timer, std::function<void(Timer*)>>(new Timer(sec, [match = shared_from_this(), stage_is_over]()
+  std::function<void()> timeout_handler = [match = shared_from_this(), stage_is_over]()
   {
     match->game_->HandleTimeout(stage_is_over.get());
-  }), std::move(deleter));
+  };
+  if (kMinAlertSec > sec / 2)
+  {
+    tasks.emplace_front(sec, timeout_handler);
+  }
+  else
+  {
+    tasks.emplace_front(kMinAlertSec, timeout_handler);
+		for (uint64_t alert_sec = kMinAlertSec, sum_alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2)
+		{
+			tasks.emplace_front(alert_sec, [this, alert_sec] { BoardcastPlayers("Ê£ÓàÊ±¼ä" + std::to_string(alert_sec / 60) + "·Ö" + std::to_string(alert_sec % 60) + "Ãë"); });
+		}
+  }
+  timer_ = std::unique_ptr<Timer, std::function<void(Timer*)>>(new Timer(std::move(tasks)), std::move(deleter));
 }
 
 void Match::StopTimer()
