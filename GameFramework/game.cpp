@@ -22,7 +22,7 @@ bool Game::StartGame(const uint64_t player_num)
   if (player_num >= k_min_player && (k_max_player == 0 || player_num <= k_max_player) && options_.IsValidPlayerNum(k_min_player))
   {
     player_num_ = player_num;
-    std::tie(main_stage_, player_score_f_) = MakeMainStage(player_num, options_);
+    main_stage_ = MakeMainStage(player_num, options_);
     main_stage_->Init(match_, std::bind(start_timer_f, match_, std::placeholders::_1), std::bind(stop_timer_f, match_));
     return true;
   }
@@ -84,7 +84,7 @@ void Game::OnGameOver()
   std::vector<int64_t> scores(player_num_);
   for (uint64_t pid = 0; pid < player_num_; ++pid)
   {
-    scores[pid] = player_score_f_(pid);
+    scores[pid] = main_stage_->PlayerScore(pid);
   }
   game_over_f(match_, scores);
 }

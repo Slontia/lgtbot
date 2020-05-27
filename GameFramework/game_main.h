@@ -2,7 +2,7 @@
 #include "game_options.h"
 #include <string>
 
-class StageBase;
+class MainStageBase;
 class Game;
 
 extern std::function<void(void*, const std::string&)> boardcast_f;
@@ -17,5 +17,5 @@ extern const uint64_t k_min_player;
 extern const uint64_t k_max_player;
 extern const char* Rule();
 
-std::pair<std::unique_ptr<StageBase>, std::function<int64_t(uint64_t)>> MakeMainStage(const uint64_t player_num, const GameOption& options);
+std::unique_ptr<MainStageBase> MakeMainStage(const uint64_t player_num, const GameOption& options);
 

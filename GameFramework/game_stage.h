@@ -20,7 +20,7 @@ static std::shared_ptr<GameMsgCommand<RetType>> MakeStageCommand(Stage* stage, s
 class StageBase
 {
 public:
-  StageBase(std::string&& name) : name_(std::move(name)), is_over_(false) {}
+  StageBase(std::string&& name) : name_(std::move(name)), match_(nullptr), is_over_(false) {}
   virtual ~StageBase() {}
   virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {
@@ -53,6 +53,13 @@ private:
   bool is_over_;
 };
 
+class MainStageBase : public StageBase
+{
+ public:
+   using StageBase::StageBase;
+  virtual int64_t PlayerScore(const uint64_t pid) const = 0;
+};
+
 template <typename SubStage, typename RetType>
 class SubStageCheckoutHelper
 {
@@ -60,13 +67,18 @@ class SubStageCheckoutHelper
   virtual RetType NextSubStage(SubStage& sub_stage, const bool is_timeout) = 0;
 };
 
-template <typename ...SubStages> class GameStage;
+template <bool IsMain, typename ...SubStages> class GameStage;
 
-template <typename SubStage, typename ...SubStages>
-class GameStage<SubStage, SubStages...> : public StageBase,
+template <typename ...SubStages> using SubGameStage = GameStage<false, SubStages...>;
+template <typename ...SubStages> using MainGameStage = GameStage<true, SubStages...>;
+
+template <bool IsMain, typename SubStage, typename ...SubStages>
+class GameStage<IsMain, SubStage, SubStages...> : public std::conditional_t<IsMain, MainStageBase, StageBase>,
   public SubStageCheckoutHelper<SubStage, std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>>,
   public SubStageCheckoutHelper<SubStages, std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>>...
 {
+private:
+  using Base = std::conditional_t<IsMain, MainStageBase, StageBase>;
 public:
   using VariantSubStage = std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>;
   using SubStageCheckoutHelper<SubStage, VariantSubStage>::NextSubStage;
@@ -75,7 +87,7 @@ public:
   GameStage(
     std::string&& name,
     std::vector<std::shared_ptr<GameMsgCommand<void>>>&& commands)
-    : StageBase(std::move(name)), sub_stage_(), commands_(std::move(commands)) {}
+    : Base(std::move(name)), sub_stage_(), commands_(std::move(commands)) {}
 
   virtual ~GameStage() {}
 
@@ -129,7 +141,7 @@ public:
     std::visit([this](auto&& sub_stage)
     {
       if (!sub_stage) { Over(); } // no more substages
-      else { sub_stage->Init(match_, start_timer_f_, stop_timer_f_); }
+      else { sub_stage->Init(Base::match_, Base::start_timer_f_, Base::stop_timer_f_); }
     }, sub_stage_);
   }
 private:
@@ -138,15 +150,17 @@ private:
   std::vector<std::shared_ptr<GameMsgCommand<void>>> commands_;
 };
 
-template <>
-class GameStage<> : public StageBase
+template <bool IsMain>
+class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, StageBase>
 {
+private:
+  using Base = std::conditional_t<IsMain, MainStageBase, StageBase>;
 public:
   GameStage(
     std::string&& name,
     std::vector<std::shared_ptr<GameMsgCommand<bool>>>&& commands)
-    : StageBase(std::move(name)), timer_(nullptr), commands_(std::move(commands)) {}
-  virtual ~GameStage() { stop_timer_f_(); }
+    : Base(std::move(name)), timer_(nullptr), commands_(std::move(commands)) {}
+  virtual ~GameStage() { Base::stop_timer_f_(); }
   virtual uint64_t OnStageBegin() { return 0; };
   virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {

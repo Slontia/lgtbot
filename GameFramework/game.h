@@ -32,8 +32,7 @@ private:
 
   void* const match_;
   uint64_t player_num_;
-  std::unique_ptr<StageBase> main_stage_;
-  std::function<int64_t(uint64_t)> player_score_f_;
+  std::unique_ptr<MainStageBase> main_stage_;
   bool is_over_;
   std::optional<std::vector<int64_t>> scores_;
   SpinLock lock_;

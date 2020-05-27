@@ -33,7 +33,7 @@ static std::string Choise2Str(const Choise& choise)
     "Î´Ñ¡Ôñ";
 }
 
-class RoundStage : public GameStage<>
+class RoundStage : public SubGameStage<>
 {
 public:
   RoundStage(const uint64_t round, const uint32_t max_round_sec)
@@ -97,7 +97,7 @@ private:
   std::array<Choise, 2> cur_choise_;
 };
 
-class MainStage : public GameStage<RoundStage>
+class MainStage : public MainGameStage<RoundStage>
 {
 public:
   MainStage(const GameOption& option) : GameStage("", {}),
@@ -152,10 +152,8 @@ const char* Rule()
   return rule.c_str();
 }
 
-std::pair<std::unique_ptr<StageBase>, std::function<int64_t(uint64_t)>> MakeMainStage(const uint64_t player_num, const GameOption& options)
+std::unique_ptr<MainStageBase> MakeMainStage(const uint64_t player_num, const GameOption& options)
 {
   assert(player_num == 2);
-  std::unique_ptr<MainStage> main_stage = std::make_unique<MainStage>(options);
-  const auto get_player_score = std::bind(&MainStage::PlayerScore, main_stage.get(), std::placeholders::_1);
-  return { static_cast<std::unique_ptr<StageBase>&&>(std::move(main_stage)), get_player_score };
+  return std::make_unique<MainStage>(options);
 }

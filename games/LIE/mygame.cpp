@@ -29,7 +29,7 @@ const char* Rule()
   return rule.c_str();
 }
 
-class NumberStage : public GameStage<>
+class NumberStage : public SubGameStage<>
 {
  public:
   NumberStage(const uint64_t questioner)
@@ -38,6 +38,7 @@ class NumberStage : public GameStage<>
         MakeStageCommand(this, "设置数字", &NumberStage::Number, ArithChecker<int, 1, 6>("数字")),
       }), questioner_(questioner), num_(0) {}
 
+  virtual uint64_t OnStageBegin() override { return 60; }
   int num() const { return num_; }
 
  private:
@@ -62,7 +63,7 @@ class NumberStage : public GameStage<>
    int num_;
 };
 
-class LieStage : public GameStage<>
+class LieStage : public SubGameStage<>
 {
 public:
   LieStage(const uint64_t questioner)
@@ -71,6 +72,7 @@ public:
         MakeStageCommand(this, "提问数字", &LieStage::Lie, ArithChecker<int, 1, 6>("数字")),
       }), questioner_(questioner), lie_num_(0) {}
 
+  virtual uint64_t OnStageBegin() override { return 60; }
   int lie_num() const { return lie_num_; }
 
 private:
@@ -90,7 +92,7 @@ private:
   int lie_num_;
 };
 
-class GuessStage : public GameStage<>
+class GuessStage : public SubGameStage<>
 {
 public:
   GuessStage(const uint64_t guesser)
@@ -98,6 +100,8 @@ public:
       {
         MakeStageCommand(this, "猜测", &GuessStage::Guess, BoolChecker("质疑", "相信")),
       }), guesser_(guesser) {}
+
+  virtual uint64_t OnStageBegin() override { return 60; }
 
   bool doubt() const { return doubt_; }
 
@@ -117,7 +121,7 @@ private:
   bool doubt_;
 };
 
-class RoundStage : public GameStage<NumberStage, LieStage, GuessStage>
+class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
 {
  public:
    RoundStage(const uint64_t round, const uint64_t questioner, std::array<std::array<int, 6>, 2>& player_nums)
@@ -171,7 +175,7 @@ private:
   uint64_t loser_;
 };
 
-class MainStage : public GameStage<RoundStage>
+class MainStage : public MainGameStage<RoundStage>
 {
  public:
    MainStage(const GameOption& options) : GameStage("", {}), fail_if_collected_all_(options.GET_VALUE(集齐失败)), questioner_(0), round_(1), player_nums_{ {0} } {}
@@ -211,10 +215,8 @@ class MainStage : public GameStage<RoundStage>
    std::array<std::array<int, 6>, 2> player_nums_;
 };
 
-std::pair<std::unique_ptr<StageBase>, std::function<int64_t(uint64_t)>> MakeMainStage(const uint64_t player_num, const GameOption& options)
+std::unique_ptr<MainStageBase> MakeMainStage(const uint64_t player_num, const GameOption& options)
 {
   assert(player_num == 2);
-  std::unique_ptr<MainStage> main_stage = std::make_unique<MainStage>(options);
-  const auto get_player_score = std::bind(&MainStage::PlayerScore, main_stage.get(), std::placeholders::_1);
-  return { static_cast<std::unique_ptr<StageBase>&&>(std::move(main_stage)), get_player_score };
+  return std::make_unique<MainStage>(options);
 }
