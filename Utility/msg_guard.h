@@ -22,6 +22,9 @@ public:
     ss_ << os;
     return *this;
   }
+
+  std::stringstream& ss() { return ss_; }
+
 private:
   MsgHandle handle_;
   std::stringstream ss_;

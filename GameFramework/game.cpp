@@ -71,9 +71,15 @@ void Game::HandleTimeout(const bool* const stage_is_over)
 void Game::Help(const reply_type reply)
 {
   auto r = reply();
+  if (main_stage_)
+  {
+    r << std::endl << "[当前阶段]" << std::endl;
+    main_stage_->StageInfo(r.ss());
+    r << std::endl << std::endl;
+  }
   r << "[当前可使用游戏命令]";
   r << std::endl << "[1] " << help_cmd_->Info();
-  if (main_stage_) { main_stage_->CommandInfo(1, r); }
+  if (main_stage_) { main_stage_->CommandInfo(1, r.ss()); }
   else
   {
     uint32_t i = 1;

@@ -55,7 +55,6 @@ class NumberStage : public SubGameStage<>
        return false;
      }
      num_ = num;
-     reply() << "设置成功，请提问数字";
      return true;
    }
 
@@ -84,7 +83,6 @@ private:
       return false;
     }
     lie_num_ = lie_num;
-    Boardcast() << "玩家" << At(pid) << "提问数字" << lie_num << "，请玩家" << At(1 - pid) << "相信或质疑";
     return true;
   }
 
@@ -138,19 +136,23 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
 
    virtual VariantSubStage NextSubStage(NumberStage& sub_stage, const bool is_timeout) override
    {
-     num_ = sub_stage.num();
+     num_ = is_timeout ? 1 : sub_stage.num();
+     Tell(questioner_) << (is_timeout ? "设置超时，数字设置为默认值1，请提问数字" : "设置成功，请提问数字");
      return std::make_unique<LieStage>(questioner_);
    }
 
    virtual VariantSubStage NextSubStage(LieStage& sub_stage, const bool is_timeout) override
    {
-     lie_num_ = sub_stage.lie_num();
+     lie_num_ = is_timeout ? 1 : sub_stage.lie_num();
+     if (is_timeout) { Tell(questioner_) << "提问超时，默认提问数字1"; }
+     Boardcast() << "玩家" << At(questioner_) << "提问数字" << lie_num_ << "，请玩家" << At(1 - questioner_) << "相信或质疑";
      return std::make_unique<GuessStage>(1 - questioner_);
    }
 
    virtual VariantSubStage NextSubStage(GuessStage& sub_stage, const bool is_timeout) override
    {
-     const bool doubt = sub_stage.doubt();
+     const bool doubt = is_timeout ? false : sub_stage.doubt();
+     if (is_timeout) { Tell(questioner_) << "选择超时，默认为相信"; }
      const bool suc = doubt ^ (num_ == lie_num_);
      loser_ = suc ? questioner_ : 1 - questioner_;
      ++player_nums_[loser_][num_ - 1];

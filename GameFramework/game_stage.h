@@ -21,7 +21,7 @@ static std::shared_ptr<GameMsgCommand<RetType>> MakeStageCommand(Stage* stage, s
 class StageBase
 {
 public:
-  StageBase(std::string&& name) : name_(std::move(name)), match_(nullptr), is_over_(false) {}
+  StageBase(std::string&& name) : name_(name.empty() ? "£¨ÄäÃû½×¶Î£©" : std::move(name)), match_(nullptr), is_over_(false) {}
   virtual ~StageBase() {}
   virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {
@@ -30,16 +30,17 @@ public:
     stop_timer_f_ = stop_timer_f;
   }
   virtual void HandleTimeout() = 0;
-  virtual uint64_t CommandInfo(uint64_t i, reply_type::result_type& ss) const = 0;
-  bool IsOver() const { return is_over_; }
+  virtual uint64_t CommandInfo(uint64_t i, std::ostream& ss) const = 0;
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const reply_type& reply) = 0;
+  virtual void StageInfo(std::ostream& ss) const = 0;
+  bool IsOver() const { return is_over_; }
   auto Boardcast() const { return MsgGuard(std::bind(boardcast_f, match_, std::placeholders::_1)); }
   auto Tell(const uint64_t pid) const { return MsgGuard(std::bind(tell_f, match_, pid, std::placeholders::_1)); }
   std::string At(const uint64_t pid) const { return at_f(match_, pid); }
   void BreakOff() { game_over_f(match_, {}); }
 
 protected:
-  uint64_t CommandInfo(uint64_t i, reply_type::result_type& ss, const std::shared_ptr<MsgCommandBase>& cmd) const
+  uint64_t CommandInfo(uint64_t i, std::ostream& ss, const std::shared_ptr<MsgCommandBase>& cmd) const
   {
     ss << std::endl << "[" << (++i) << "] " << cmd->Info();
     return i;
@@ -57,7 +58,7 @@ private:
 class MainStageBase : public StageBase
 {
  public:
-   using StageBase::StageBase;
+  MainStageBase(std::string&& name) : StageBase(name.empty() ? "£¨Ö÷½×¶Î£©" : std::move(name)) {}
   virtual int64_t PlayerScore(const uint64_t pid) const = 0;
 };
 
@@ -124,10 +125,16 @@ public:
     }, sub_stage_);
   }
 
-  virtual uint64_t CommandInfo(uint64_t i, reply_type::result_type& ss) const override
+  virtual uint64_t CommandInfo(uint64_t i, std::ostream& ss) const override
   {
     for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, ss, cmd); }
     return std::visit([&i, &ss](auto&& sub_stage) { return sub_stage->CommandInfo(i, ss); }, sub_stage_);
+  }
+
+  virtual void StageInfo(std::ostream& ss) const override
+  {
+    ss << Base::name_ << " - ";
+    std::visit([&ss](auto&& sub_stage) { sub_stage->StageInfo(ss); }, sub_stage_);
   }
 
   void CheckoutSubStage(const bool is_timeout)
@@ -182,11 +189,13 @@ public:
     }
     return false;
   }
-  virtual uint64_t CommandInfo(uint64_t i, reply_type::result_type& ss) const override
+  virtual uint64_t CommandInfo(uint64_t i, std::ostream& ss) const override
   {
     for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, ss, cmd); }
     return i;
   }
+  virtual void StageInfo(std::ostream& ss) const override { ss << Base::name_ << " Ê£ÓàÊ±¼ä£º£¿£¿£¿"; }
+
 private:
   virtual void Over() override final
   {
