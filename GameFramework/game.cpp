@@ -13,7 +13,7 @@ class Player;
 
 Game::Game(void* const match)
   : match_(match), main_stage_(nullptr), is_over_(false),
-  help_cmd_(MakeCommand<void(const std::function<void(const std::string&)>)>("查看游戏帮助", BindThis(this, &Game::Help), VoidChecker("帮助")))
+  help_cmd_(MakeCommand<void(const reply_type)>("查看游戏帮助", BindThis(this, &Game::Help), VoidChecker("帮助")))
 {}
 
 bool Game::StartGame(const uint64_t player_num)
@@ -29,13 +29,24 @@ bool Game::StartGame(const uint64_t player_num)
   return false;
 }
 
+
 /* Return true when is_over_ switch from false to true */
 void __cdecl Game::HandleRequest(const uint64_t pid, const bool is_public, const char* const msg)
 {
   using namespace std::string_literals;
   std::lock_guard<SpinLock> l(lock_);
-  const auto reply = [this, pid, is_public](const std::string& msg) { is_public ? boardcast_f(match_, at_f(match_, pid) + msg) : tell_f(match_, pid, msg); };
-  if (is_over_) { reply("[错误] 差一点点，游戏已经结束了哦~"); }
+  const reply_type reply = [this, pid, is_public]() -> reply_type::result_type
+  {
+    std::function<void(const std::string&)> handle;
+    if (is_public)
+    {
+      auto msg_guard = reply_type::result_type(std::bind(boardcast_f, match_, std::placeholders::_1));
+      msg_guard << at_f(match_, pid);
+      return msg_guard;
+    }
+    return reply_type::result_type(std::bind(tell_f, match_, pid, std::placeholders::_1));
+  };
+  if (is_over_) { reply() << "[错误] 差一点点，游戏已经结束了哦~"; }
   else
   {
     assert(msg);
@@ -43,11 +54,11 @@ void __cdecl Game::HandleRequest(const uint64_t pid, const bool is_public, const
     if (help_cmd_->CallIfValid(reader, std::tuple{ reply })) { return; }
     if (main_stage_)
     {
-      if (!main_stage_->HandleRequest(reader, pid, is_public, reply)) { reply("[错误] 未预料的游戏请求"); }
+      if (!main_stage_->HandleRequest(reader, pid, is_public, reply)) { reply() << "[错误] 未预料的游戏请求"; }
       if (main_stage_->IsOver()) { OnGameOver(); }
     }
-    else if (!options_.SetOption(reader)) { reply("[错误] 未预料的游戏设置"); }
-    else { reply("设置成功！目前配置："s + OptionInfo()); }
+    else if (!options_.SetOption(reader)) { reply() << "[错误] 未预料的游戏设置"; }
+    else { reply() << "设置成功！目前配置："s << OptionInfo(); }
   }
 }
 
@@ -57,18 +68,17 @@ void Game::HandleTimeout(const bool* const stage_is_over)
   if (!*stage_is_over) { main_stage_->HandleTimeout(); }
 }
 
-void Game::Help(const std::function<void(const std::string&)>& reply)
+void Game::Help(const reply_type reply)
 {
-  std::stringstream ss;
-  ss << "[当前可使用游戏命令]";
-  ss << std::endl << "[1] " << help_cmd_->Info();
-  if (main_stage_) { main_stage_->CommandInfo(1, ss); }
+  auto r = reply();
+  r << "[当前可使用游戏命令]";
+  r << std::endl << "[1] " << help_cmd_->Info();
+  if (main_stage_) { main_stage_->CommandInfo(1, r); }
   else
   {
     uint32_t i = 1;
-    for (const std::string& option_info : options_.Infos()) { ss << std::endl << "[" << (++i) << "] " << option_info; }
+    for (const std::string& option_info : options_.Infos()) { r << std::endl << "[" << (++i) << "] " << option_info; }
   }
-  reply(ss.str());
 }
 
 const char* Game::OptionInfo() const

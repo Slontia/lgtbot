@@ -223,14 +223,9 @@ void Match::TellPlayer(const uint64_t pid, const std::string& msg) const
   SendPrivateMsg(pid2uid_[pid], msg);
 }
 
-void Match::AtPlayer(const uint64_t pid, char* buf, const uint64_t len) const
-{
-  ::At(state_ != State::IS_STARTED ? host_uid_ : pid2uid_[pid]);
-}
-
 std::string Match::AtPlayer(const uint64_t pid) const
 {
-  return ::At(pid2uid_[pid]);
+  return ::At(state_ != State::IS_STARTED ? host_uid_ : pid2uid_[pid]);
 }
 
 void Match::GameOver(const int64_t scores[])

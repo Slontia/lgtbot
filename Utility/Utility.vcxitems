@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)msg_checker.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)msg_guard.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)spinlock.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)timer.h" />
   </ItemGroup>

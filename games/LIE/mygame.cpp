@@ -42,20 +42,20 @@ class NumberStage : public SubGameStage<>
   int num() const { return num_; }
 
  private:
-   bool Number(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const int num)
+   bool Number(const uint64_t pid, const bool is_public, const reply_type reply, const int num)
    {
      if (pid != questioner_)
      {
-       reply("[错误] 本回合您为猜测者，无法设置数字");
+       reply() << "[错误] 本回合您为猜测者，无法设置数字";
        return false;
      }
      if (is_public)
      {
-       reply("[错误] 请私信裁判选择数字，公开选择无效");
+       reply() << "[错误] 请私信裁判选择数字，公开选择无效";
        return false;
      }
      num_ = num;
-     reply("设置成功，请提问数字");
+     reply() << "设置成功，请提问数字";
      return true;
    }
 
@@ -76,15 +76,15 @@ public:
   int lie_num() const { return lie_num_; }
 
 private:
-  bool Lie(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const int lie_num)
+  bool Lie(const uint64_t pid, const bool is_public, const reply_type reply, const int lie_num)
   {
     if (pid != questioner_)
     {
-      reply("[错误] 本回合您为猜测者，无法提问");
+      reply() << "[错误] 本回合您为猜测者，无法提问";
       return false;
     }
     lie_num_ = lie_num;
-    Boardcast((std::stringstream() << "玩家" << At(pid) << "提问数字" << lie_num << "，请玩家" << At(1 - pid) << "相信或质疑").str());
+    Boardcast() << "玩家" << At(pid) << "提问数字" << lie_num << "，请玩家" << At(1 - pid) << "相信或质疑";
     return true;
   }
 
@@ -106,11 +106,11 @@ public:
   bool doubt() const { return doubt_; }
 
 private:
-  bool Guess(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, const bool doubt)
+  bool Guess(const uint64_t pid, const bool is_public, const reply_type reply, const bool doubt)
   {
     if (pid != guesser_)
     {
-      reply("[错误] 本回合您为提问者，无法猜测");
+      reply() << "[错误] 本回合您为提问者，无法猜测";
       return false;
     }
     doubt_ = doubt;
@@ -132,7 +132,7 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
 
    virtual VariantSubStage OnStageBegin() override
    {
-     Boardcast(name_ + "开始，请玩家" + At(questioner_) + "私信裁判选择数字");
+     Boardcast() << name_ << "开始，请玩家" << At(questioner_) << "私信裁判选择数字";
      return std::make_unique<NumberStage>(questioner_);
    }
 
@@ -154,16 +154,15 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
      const bool suc = doubt ^ (num_ == lie_num_);
      loser_ = suc ? questioner_ : 1 - questioner_;
      ++player_nums_[loser_][num_ - 1];
-     std::stringstream ss;
-     ss << "实际数字为" << num_ << "，"
+     auto boardcast = Boardcast();
+     boardcast << "实际数字为" << num_ << "，"
        << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
        << "玩家" << At(loser_) << "获得数字" << num_ << std::endl
        << "数字获得情况：" << std::endl << At(0) << "：" << At(1);
      for (int num = 1; num <= 6; ++num)
      {
-       ss << std::endl << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
+       boardcast << std::endl << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
      }
-     Boardcast(ss.str());
      return {};
    }
 

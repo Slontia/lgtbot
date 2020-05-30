@@ -6,7 +6,7 @@ extern "C"
 {
   typedef void (*boardcast)(void* match, const char* const msg);
   typedef void (*tell)(void* match, const uint64_t pid, const char* const msg);
-  typedef void (*at)(void* match, const uint64_t pid, char* buf, const uint64_t len);
+  typedef const char* (*at)(void* match, const uint64_t pid);
   typedef void (*game_over)(void* match, const int64_t scores[]);
   typedef void (*start_timer)(void* match, const uint64_t sec);
   typedef void (*stop_timer)(void* match);

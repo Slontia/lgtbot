@@ -158,6 +158,10 @@ private:
         return { EC_DB_CONNECT_FAILED, MakeErrorMsg(e), nullptr };
       }
     }
+    catch (std::exception e)
+    {
+      return { EC_UNEXPECTED_ERROR, (errmsg_ = e.what()).c_str(), nullptr };
+    }
   }
 
   static std::pair<ErrCode, const char*> UseDB(sql::Connection& connection, const std::string& db_name)

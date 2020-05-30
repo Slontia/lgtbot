@@ -86,7 +86,6 @@ public:
   void BoardcastPlayers(const std::string& msg) const;
   void TellPlayer(const uint64_t pid, const std::string& msg) const;
   std::string AtPlayer(const uint64_t pid) const;
-  void AtPlayer(const uint64_t pid, char* buf, const uint64_t len) const;
   void GameOver(const int64_t scores[]);
   void StartTimer(const uint64_t sec);
   void StopTimer();

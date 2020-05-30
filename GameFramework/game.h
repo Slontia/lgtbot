@@ -25,7 +25,7 @@ public:
   virtual void __cdecl HandleRequest(const uint64_t pid, const bool is_public, const char* const msg) override;
   virtual void __cdecl HandleTimeout(const bool* const stage_is_over) override;
   virtual const char* __cdecl OptionInfo() const override;
-  void Help(const std::function<void(const std::string&)>& reply);
+  void Help(const reply_type reply);
 
 private:
   void OnGameOver();
@@ -36,6 +36,6 @@ private:
   bool is_over_;
   std::optional<std::vector<int64_t>> scores_;
   SpinLock lock_;
-  const std::shared_ptr<MsgCommand<void(const std::function<void(const std::string&)>)>> help_cmd_;
+  const std::shared_ptr<MsgCommand<void(const reply_type)>> help_cmd_;
   GameOption options_;
 };

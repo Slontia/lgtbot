@@ -32,9 +32,11 @@ static void TellPlayer(void* match, const uint64_t pid, const char* const msg)
   static_cast<Match*>(match)->TellPlayer(pid, msg);
 }
 
-static void AtPlayer(void* match, const uint64_t pid, char* buf, const uint64_t len)
+static const char* AtPlayer(void* match, const uint64_t pid)
 {
-  static_cast<Match*>(match)->AtPlayer(pid, buf, len);
+  static thread_local std::string at_s;
+  at_s = static_cast<Match*>(match)->AtPlayer(pid);
+  return at_s.c_str();
 }
 
 static void MatchGameOver(void* match, const int64_t scores[])

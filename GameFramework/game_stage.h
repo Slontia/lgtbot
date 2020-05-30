@@ -5,9 +5,10 @@
 #include <variant>
 #include "timer.h"
 #include "game_main.h"
+#include "msg_guard.h"
 
 template <typename RetType>
-using GameUserFuncType = RetType(const uint64_t, const bool, const std::function<void(const std::string&)>);
+using GameUserFuncType = RetType(const uint64_t, const bool, const reply_type);
 template <typename RetType>
 using GameMsgCommand = MsgCommand<GameUserFuncType<RetType>>;
 
@@ -29,16 +30,16 @@ public:
     stop_timer_f_ = stop_timer_f;
   }
   virtual void HandleTimeout() = 0;
-  virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss) const = 0;
+  virtual uint64_t CommandInfo(uint64_t i, reply_type::result_type& ss) const = 0;
   bool IsOver() const { return is_over_; }
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) = 0;
-  void Boardcast(const std::string& msg) const { boardcast_f(match_, msg); }
-  void Tell(const uint64_t pid, const std::string& msg) const { tell_f(match_, pid, msg); }
+  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const reply_type& reply) = 0;
+  auto Boardcast() const { return MsgGuard(std::bind(boardcast_f, match_, std::placeholders::_1)); }
+  auto Tell(const uint64_t pid) const { return MsgGuard(std::bind(tell_f, match_, pid, std::placeholders::_1)); }
   std::string At(const uint64_t pid) const { return at_f(match_, pid); }
   void BreakOff() { game_over_f(match_, {}); }
 
 protected:
-  uint64_t CommandInfo(uint64_t i, std::stringstream& ss, const std::shared_ptr<MsgCommandBase>& cmd) const
+  uint64_t CommandInfo(uint64_t i, reply_type::result_type& ss, const std::shared_ptr<MsgCommandBase>& cmd) const
   {
     ss << std::endl << "[" << (++i) << "] " << cmd->Info();
     return i;
@@ -100,7 +101,7 @@ public:
     std::visit([match, start_timer_f, stop_timer_f](auto&& sub_stage) { sub_stage->Init(match, start_timer_f, stop_timer_f); }, sub_stage_);
   }
 
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) override
+  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const reply_type& reply) override
   {
     for (const std::shared_ptr<GameMsgCommand<void>>& command : commands_)
     {
@@ -123,7 +124,7 @@ public:
     }, sub_stage_);
   }
 
-  virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss) const override
+  virtual uint64_t CommandInfo(uint64_t i, reply_type::result_type& ss) const override
   {
     for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, ss, cmd); }
     return std::visit([&i, &ss](auto&& sub_stage) { return sub_stage->CommandInfo(i, ss); }, sub_stage_);
@@ -169,7 +170,7 @@ public:
     start_timer_f(sec);
   }
   virtual void HandleTimeout() override final { StageBase::Over(); }
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const std::function<void(const std::string&)>& reply) override
+  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const reply_type& reply) override
   {
     for (const std::shared_ptr<GameMsgCommand<bool>>& command : commands_)
     {
@@ -181,7 +182,7 @@ public:
     }
     return false;
   }
-  virtual uint64_t CommandInfo(uint64_t i, std::stringstream& ss) const override
+  virtual uint64_t CommandInfo(uint64_t i, reply_type::result_type& ss) const override
   {
     for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, ss, cmd); }
     return i;

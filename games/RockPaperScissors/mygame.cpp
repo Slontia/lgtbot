@@ -49,17 +49,15 @@ public:
 
   uint64_t OnStageBegin()
   {
-    Boardcast(name_ + "开始，请私信裁判进行选择");
+    Boardcast() << name_ << "开始，请私信裁判进行选择";
     return max_round_sec_;
   }
 
   std::optional<uint64_t> Winner() const
   {
     if (cur_choise_[0] == NONE_CHOISE && cur_choise_[1] == NONE_CHOISE) { return {}; }
-    std::stringstream ss;
-    ss << "玩家" << At(0) << "：" << Choise2Str(cur_choise_[0]) << std::endl;
-    ss << "玩家" << At(1) << "：" << Choise2Str(cur_choise_[1]);
-    Boardcast(ss.str());
+    Boardcast() << "玩家" << At(0) << "：" << Choise2Str(cur_choise_[0]) << std::endl
+      << "玩家" << At(1) << "：" << Choise2Str(cur_choise_[1]);
     const auto is_win = [&cur_choise = cur_choise_](const uint64_t pid)
     {
       const Choise& my_choise = cur_choise[pid];
@@ -75,21 +73,21 @@ public:
   }
 
 private:
-  bool Act_(const uint64_t pid, const bool is_public, const std::function<void(const std::string&)> reply, Choise choise)
+  bool Act_(const uint64_t pid, const bool is_public, const reply_type reply, Choise choise)
   {
     if (is_public)
     {
-      reply("请私信裁判选择，公开选择无效");
+      reply() << "请私信裁判选择，公开选择无效";
       return false;
     }
     Choise& cur_choise = cur_choise_[pid];
     if (cur_choise != NONE_CHOISE)
     {
-      reply("您已经进行过选择了");
+      reply() << "您已经进行过选择了";
       return false;
     }
     cur_choise = choise;
-    reply("选择成功");
+    reply() << "选择成功";
     return cur_choise_[0] != NONE_CHOISE && cur_choise_[1] != NONE_CHOISE;
   }
 
@@ -113,7 +111,7 @@ public:
     std::optional<uint64_t> winner = sub_stage.Winner();
     if (is_timeout && !winner.has_value())
     {
-      Boardcast("双方无响应");
+      Boardcast() << "双方无响应";
       BreakOff();
       return {};
     }
@@ -127,17 +125,16 @@ public:
 private:
   void HandleRoundResult_(const std::optional<uint64_t>& winner)
   {
-    std::stringstream ss;
-    const auto on_win = [this, &ss, &win_count = win_count_](const uint64_t pid)
+    auto boardcast = Boardcast();
+    const auto on_win = [this, &boardcast, &win_count = win_count_](const uint64_t pid)
     {
-      ss << "玩家" << At(pid) << "胜利" << std::endl;
+      boardcast << "玩家" << At(pid) << "胜利" << std::endl;
       ++win_count[pid];
     };
     if (winner.has_value()) { on_win(*winner); }
-    else { ss << "平局" << std::endl; }
-    ss << "目前比分：" << std::endl;
-    ss << At(0) << " " << win_count_[0] << " - " << win_count_[1] << " " << At(1);
-    Boardcast(ss.str());
+    else { boardcast << "平局" << std::endl; }
+    boardcast << "目前比分：" << std::endl;
+    boardcast << At(0) << " " << win_count_[0] << " - " << win_count_[1] << " " << At(1);
   }
 
   const uint32_t k_max_win_count_;

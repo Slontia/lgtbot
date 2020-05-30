@@ -1,5 +1,6 @@
 #pragma once
 #include "game_options.h"
+#include "msg_guard.h"
 #include <string>
 
 class MainStageBase;
@@ -17,5 +18,6 @@ extern const uint64_t k_min_player;
 extern const uint64_t k_max_player;
 extern const char* Rule();
 
+using reply_type = std::function<MsgGuard<std::function<void(const std::string&)>>()>;
 std::unique_ptr<MainStageBase> MakeMainStage(const uint64_t player_num, const GameOption& options);
 
