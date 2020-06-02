@@ -3,6 +3,7 @@
 #include <optional>
 #include <cassert>
 #include <variant>
+#include <chrono>
 #include "timer.h"
 #include "game_main.h"
 #include "msg_guard.h"
@@ -174,6 +175,7 @@ public:
   {
     StageBase::Init(match, start_timer_f, stop_timer_f);
     const uint64_t sec = OnStageBegin();
+    finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
     start_timer_f(sec);
   }
   virtual void HandleTimeout() override final { StageBase::Over(); }
@@ -194,7 +196,11 @@ public:
     for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, ss, cmd); }
     return i;
   }
-  virtual void StageInfo(std::ostream& ss) const override { ss << Base::name_ << " 剩余时间：？？？"; }
+  virtual void StageInfo(std::ostream& ss) const override
+  {
+    ss << Base::name_;
+    if (finish_time_.has_value()) { ss << " 剩余时间：" << std::chrono::duration_cast<std::chrono::seconds>(*finish_time_ - std::chrono::steady_clock::now()).count() << "秒"; }
+  }
 
 private:
   virtual void Over() override final
@@ -204,5 +210,6 @@ private:
   }
   std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;
   std::vector<std::shared_ptr<GameMsgCommand<bool>>> commands_;
+  std::optional<std::chrono::time_point<std::chrono::steady_clock>> finish_time_;
 };
 

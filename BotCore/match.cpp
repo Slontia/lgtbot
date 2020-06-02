@@ -314,10 +314,12 @@ void Match::StartTimer(const uint64_t sec)
   else
   {
     tasks.emplace_front(kMinAlertSec, timeout_handler);
-		for (uint64_t alert_sec = kMinAlertSec, sum_alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2)
+    uint64_t sum_alert_sec = kMinAlertSec;
+		for (uint64_t alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2)
 		{
 			tasks.emplace_front(alert_sec, [this, alert_sec] { BoardcastPlayers("Ê£ÓàÊ±¼ä" + std::to_string(alert_sec / 60) + "·Ö" + std::to_string(alert_sec % 60) + "Ãë"); });
-		}
+    }
+    tasks.emplace_front(sec - sum_alert_sec, [] {});
   }
   timer_ = std::unique_ptr<Timer, std::function<void(Timer*)>>(new Timer(std::move(tasks)), std::move(deleter));
 }
