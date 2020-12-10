@@ -220,12 +220,12 @@ void Match::BoardcastPlayers(const std::string& msg) const
 
 void Match::TellPlayer(const uint64_t pid, const std::string& msg) const
 {
-  SendPrivateMsg(pid2uid_[pid], msg);
+  SendPrivateMsg(state_ == State::IS_STARTED ? pid2uid_[pid] : host_uid_, msg);
 }
 
 std::string Match::AtPlayer(const uint64_t pid) const
 {
-  return ::At(state_ != State::IS_STARTED ? host_uid_ : pid2uid_[pid]);
+  return ::At(state_ == State::IS_STARTED ? pid2uid_[pid] : host_uid_);
 }
 
 void Match::GameOver(const int64_t scores[])
