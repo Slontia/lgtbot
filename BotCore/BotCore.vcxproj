@@ -49,7 +49,7 @@
     <UseOfMfc>false</UseOfMfc>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -77,41 +77,41 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files\MySQL\MySQL Server 5.7\lib;D:\Projects\includes\c++\mysql-connector-c++-8.0.19-win32\lib\vs14;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Program Files\MySQL\Connector C++ 8.0\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\MySQL\MySQL Server 8.0\lib;C:\Program Files\MySQL\Connector C++ 8.0\lib64\vs14;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\</OutDir>
     <IntDir>$(platform)_$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files\MySQL\MySQL Server 5.7\lib;D:\Projects\includes\c++\mysql-connector-c++-8.0.19-winx64\lib64\vs14;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Program Files\MySQL\Connector C++ 8.0\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\MySQL\MySQL Server 8.0\lib;C:\Program Files\MySQL\Connector C++ 8.0\lib64\vs14;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\</OutDir>
     <IntDir>$(platform)_$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files\MySQL\MySQL Server 5.7\lib;D:\Projects\includes\c++\mysql-connector-c++-8.0.19-win32\lib\vs14;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Program Files\MySQL\Connector C++ 8.0\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\MySQL\MySQL Server 8.0\lib;C:\Program Files\MySQL\Connector C++ 8.0\lib64\vs14;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\</OutDir>
     <IntDir>$(platform)_$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Program Files\MySQL\MySQL Server 5.7\lib;D:\Projects\includes\c++\mysql-connector-c++-8.0.19-winx64\lib64\vs14;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Program Files\MySQL\Connector C++ 8.0\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files\MySQL\MySQL Server 8.0\lib;C:\Program Files\MySQL\Connector C++ 8.0\lib64\vs14;$(LibraryPath)</LibraryPath>
     <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\</OutDir>
     <IntDir>$(platform)_$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;BOTCORE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);CPPDBC_PUBLIC_FUNC=;CPPDBC_PUBLIC_FUNC=</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>D:\Projects\includes\c++\mysql-connector-c++-8.0.19-winx64\include;D:\Projects\includes\c++\boost_1_72_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -121,13 +121,13 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;BOTCORE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);;CPPDBC_PUBLIC_FUNC=</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>D:\Projects\includes\c++\mysql-connector-c++-8.0.19-winx64\include;D:\Projects\includes\c++\boost_1_72_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -137,7 +137,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -145,7 +145,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;BOTCORE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);CPPDBC_PUBLIC_FUNC=;CPPDBC_PUBLIC_FUNC=</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>D:\Projects\includes\c++\mysql-connector-c++-8.0.19-winx64\include;D:\Projects\includes\c++\boost_1_72_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -158,7 +158,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -167,7 +167,7 @@
       <PreprocessorDefinitions>NDEBUG;BOTCORE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);CPPDBC_PUBLIC_FUNC=;CPPDBC_PUBLIC_FUNC=</PreprocessorDefinitions>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <AdditionalIncludeDirectories>D:\Projects\includes\c++\mysql-connector-c++-8.0.19-winx64\include;D:\Projects\includes\c++\boost_1_72_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -180,6 +180,7 @@
   <ItemGroup>
     <ClInclude Include="db_manager.h" />
     <ClInclude Include="bot_core.h" />
+    <ClInclude Include="options.h" />
     <ClInclude Include="util.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="match.h" />
@@ -191,6 +192,7 @@
     <ClCompile Include="db_manager.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="bot_core.cpp" />
+    <ClCompile Include="log.cpp" />
     <ClCompile Include="match.cpp" />
     <ClCompile Include="message_handlers.cpp" />
     <ClCompile Include="stdafx.cpp">

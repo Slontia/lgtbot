@@ -102,10 +102,10 @@ void MatchManager::DeleteMatch_(const MatchId mid)
 {
   if (const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_); match)
   {
-		UnbindMatch_(mid, mid2match_);
-		if (match->gid().has_value()) { UnbindMatch_(*match->gid(), gid2match_); }
-		const std::set<UserID>& ready_uid_set = match->ready_uid_set();
-		for (auto it = ready_uid_set.begin(); it != ready_uid_set.end(); ++ it) { UnbindMatch_(*it, uid2match_); }
+	UnbindMatch_(mid, mid2match_);
+	if (match->gid().has_value()) { UnbindMatch_(*match->gid(), gid2match_); }
+	const std::set<UserID>& ready_uid_set = match->ready_uid_set();
+	for (auto it = ready_uid_set.begin(); it != ready_uid_set.end(); ++ it) { UnbindMatch_(*it, uid2match_); }
   }
 }
 
@@ -157,9 +157,9 @@ std::string Match::Request(const UserID uid, const std::optional<GroupID> gid, c
   if (state_ == State::IN_CONFIGURING) { game_->HandleRequest(0, gid.has_value(), msg.c_str()); }
   else
   {
-		const auto it = uid2pid_.find(uid);
-		assert(it != uid2pid_.end());
-		game_->HandleRequest(it->second, gid.has_value(), msg.c_str());
+	const auto it = uid2pid_.find(uid);
+	assert(it != uid2pid_.end());
+	game_->HandleRequest(it->second, gid.has_value(), msg.c_str());
   }
   return "";
 }
@@ -315,9 +315,9 @@ void Match::StartTimer(const uint64_t sec)
   {
     tasks.emplace_front(kMinAlertSec, timeout_handler);
     uint64_t sum_alert_sec = kMinAlertSec;
-		for (uint64_t alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2)
-		{
-			tasks.emplace_front(alert_sec, [this, alert_sec] { BoardcastPlayers("剩余时间" + std::to_string(alert_sec / 60) + "分" + std::to_string(alert_sec % 60) + "秒"); });
+	for (uint64_t alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2)
+	{
+	  tasks.emplace_front(alert_sec, [this, alert_sec] { BoardcastPlayers("剩余时间" + std::to_string(alert_sec / 60) + "分" + std::to_string(alert_sec % 60) + "秒"); });
     }
     tasks.emplace_front(sec - sum_alert_sec, [] {});
   }

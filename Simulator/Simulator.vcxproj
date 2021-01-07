@@ -95,6 +95,7 @@
     <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\</OutDir>
     <IntDir>$(platform)_$(Configuration)\</IntDir>
     <ExecutablePath>$(ExecutablePath)</ExecutablePath>
+    <ReferencePath>$(SolutionDir)BotCore\;$(VC_ReferencesPath_x86);</ReferencePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -102,6 +103,7 @@
     <OutDir>$(SolutionDir)build\$(Platform)_$(Configuration)\</OutDir>
     <IntDir>$(platform)_$(Configuration)\</IntDir>
     <ExecutablePath>$(ExecutablePath)</ExecutablePath>
+    <ReferencePath>$(SolutionDir)BotCore\;$(VC_ReferencesPath_x64);</ReferencePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

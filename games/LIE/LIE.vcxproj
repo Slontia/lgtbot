@@ -115,7 +115,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;ROCKPAPERSCISSORS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);GAME_OPTIONS_HEADER="$(ProjectDir)options.h"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;ROCKPAPERSCISSORS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);GAME_OPTIONS_HEADER="$(ProjectDir)options.h";GAME_OPTIONS_HEADER="$(ProjectDir)options.h"</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
@@ -156,7 +156,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;ROCKPAPERSCISSORS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);GAME_OPTIONS_HEADER="$(ProjectDir)options.h"</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;ROCKPAPERSCISSORS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions);GAME_OPTIONS_HEADER="$(ProjectDir)options.h";GAME_OPTIONS_HEADER="$(ProjectDir)options.h"</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>

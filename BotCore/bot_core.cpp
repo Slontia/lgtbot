@@ -6,6 +6,7 @@
 #include "match.h"
 #include "db_manager.h"
 #include "../GameFrameWork/dllmain.h"
+#include <gflags/gflags.h>
 
 const int32_t LGT_AC = -1;
 const UserID INVALID_USER_ID = 0;
@@ -59,7 +60,7 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
 {
   if (!mod)
   {
-    LOG_ERROR("Load mod failed");
+    ErrorLog() << "Load mod failed";
     return nullptr;
   }
 
@@ -75,13 +76,13 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
 
   if (!init || !game_info || !new_game || !delete_game)
   {
-    LOG_ERROR("Invalid Plugin DLL: some interface not be defined." + std::to_string((bool)new_game));
+    ErrorLog() << "Invalid Plugin DLL: some interface not be defined." << std::boolalpha << static_cast<bool>(new_game);
     return nullptr;
   }
 
   if (!init(&BoardcastPlayers, &TellPlayer, &AtPlayer, &MatchGameOver, &StartTimer, &StopTimer))
   {
-    LOG_ERROR("Init failed");
+    ErrorLog() << "Init failed";
     return nullptr;
   }
 
@@ -91,12 +92,12 @@ static std::unique_ptr<GameHandle> LoadGame(HINSTANCE mod)
   char* name = game_info(&min_player, &max_player, &rule);
   if (!name)
   {
-    LOG_ERROR("Cannot get game game");
+    ErrorLog() << "Cannot get game game";
     return nullptr;
   }
   if (min_player == 0 || max_player < min_player)
   {
-    LOG_ERROR("Invalid" + std::to_string(min_player) + std::to_string(max_player));
+    ErrorLog() << "Invalid min_player:" << min_player << " max_player:" << max_player;
     return nullptr;
   }
   std::optional<uint64_t> game_id;
@@ -117,16 +118,16 @@ static void LoadGameModules()
     std::unique_ptr<GameHandle> game_handle = LoadGame(LoadLibrary(dll_path.c_str()));
     if (!game_handle)
     {
-      LOG_ERROR(std::string(dll_path.begin(), dll_path.end()) + " loaded failed!\n");
+      ErrorLog() << std::string(dll_path.begin(), dll_path.end()) << " loaded failed!";
     }
     else
     {
       g_game_handles.emplace(game_handle->name_, std::move(game_handle));
-      LOG_INFO(std::string(dll_path.begin(), dll_path.end()) + " loaded success!\n");
+      InfoLog() << std::string(dll_path.begin(), dll_path.end()) << " loaded successfully!";
     }    
   } while (FindNextFile(file_handle, &file_data));
   FindClose(file_handle);
-  LOG_INFO("共加载游戏个数：" + std::to_string(g_game_handles.size()));
+  InfoLog() << "Load module count: " << g_game_handles.size();
 }
 
 static void LoadAdmins()
@@ -161,7 +162,7 @@ static std::string HandleRequest(const UserID uid, const std::optional<GroupID> 
   }
 }
 
-bool __cdecl BOT_API::Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, const PUBLIC_MSG_CALLBACK pub_msg_cb, const AT_CALLBACK at_cb)
+bool __cdecl BOT_API::Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, const PUBLIC_MSG_CALLBACK pub_msg_cb, const AT_CALLBACK at_cb, int argc, char** argv)
 {
   if (this_uid == INVALID_USER_ID || !pri_msg_cb || !pub_msg_cb || !at_cb) { return false; }
   g_this_uid = this_uid;
@@ -170,6 +171,10 @@ bool __cdecl BOT_API::Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri
   g_at_cb = at_cb;
   LoadGameModules();
   LoadAdmins();
+      EmplaceLogger<GLogger>("lgtbot");
+      EmplaceLogger<PrivateMsgLogger>(654867229);
+  ErrorLog() << "TestLog";
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   return true;
 }
 

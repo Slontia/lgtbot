@@ -27,7 +27,7 @@ static std::string help(const UserID uid, const std::optional<GroupID> gid, cons
   return ss.str();
 }
 
-static std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader, const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string& type)
+std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader, const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string& type)
 {
   reader.Reset();
   for (const std::shared_ptr<MetaCommand>& cmd : cmds)
@@ -148,7 +148,7 @@ static std::string show_profile(const UserID uid, const std::optional<GroupID> g
   else { return db_manager->GetUserProfit(uid); }
 }
 
-static const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
+const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
 {
   make_command("查看帮助", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, meta_cmds, "元"); }, VoidChecker("#帮助")),
   make_command("查看个人信息", show_profile, VoidChecker("#个人信息")),
@@ -188,14 +188,15 @@ static std::string interrupt_match(const UserID uid, const std::optional<GroupID
   return err_msg.empty() ? "中断游戏成功" : "[错误] " + err_msg;
 }
 
-static const std::vector<std::shared_ptr<MetaCommand>> admin_cmds =
+const std::vector<std::shared_ptr<MetaCommand>> admin_cmds =
 {
   make_command("查看帮助", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, admin_cmds, "管理"); }, VoidChecker("%帮助")),
   make_command("发布游戏，写入游戏信息到数据库", release_game, VoidChecker("%发布游戏"), AnyArg("游戏名称", "某游戏名")),
   make_command("强制中断公开比赛", interrupt_match, VoidChecker("%中断游戏"))
 };
 
-std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)
+template <typename Reader> requires std::is_same_v<std::unwrap_ref_decay_t<Reader>, MsgReader>
+std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, Reader&& reader)
 {
   return HandleRequest(uid, gid, reader, meta_cmds, "元");
 }

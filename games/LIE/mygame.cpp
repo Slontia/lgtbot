@@ -97,7 +97,7 @@ public:
     : GameStage("设置数字阶段",
       {
         MakeStageCommand(this, "猜测", &GuessStage::Guess, BoolChecker("质疑", "相信")),
-      }), guesser_(guesser) {}
+      }), guesser_(guesser), doubt_(false) {}
 
   virtual uint64_t OnStageBegin() override { return 60; }
 
