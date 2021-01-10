@@ -38,7 +38,7 @@ extern std::vector<std::unique_ptr<Logger>> loggers_;
 template <typename MyLogger, typename ...Args>
 Logger& EmplaceLogger(Args&&... args) { return *loggers_.emplace_back(std::make_unique<MyLogger>(args...)); }
 
-auto Log(const LogLevel level)
+inline auto Log(const LogLevel level)
 {
   return MsgGuard([level, &loggers = loggers_](const std::string_view sv)
     {
@@ -46,7 +46,8 @@ auto Log(const LogLevel level)
     });
 }
 
-auto InfoLog() { return Log(LogLevel::I); }
-auto WarnLog() { return Log(LogLevel::W); }
-auto ErrorLog() { return Log(LogLevel::E); }
-auto FatalLog() { return Log(LogLevel::F); }
+inline auto DebugLog() { return Log(LogLevel::D); }
+inline auto InfoLog() { return Log(LogLevel::I); }
+inline auto WarnLog() { return Log(LogLevel::W); }
+inline auto ErrorLog() { return Log(LogLevel::E); }
+inline auto FatalLog() { return Log(LogLevel::F); }

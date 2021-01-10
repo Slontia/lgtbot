@@ -3,11 +3,11 @@
 #include "../GameFramework/dllmain.h"
 #include <functional>
 #include <optional>
-#include <windows.h>
 #include <map>
-
-#define DLL_EXPORT __declspec(dllexport)
-#define DLL_IMPORT __declspec(dllimport)
+#include <functional>
+#include <optional>
+#include <mutex>
+#include <atomic>
 
 #define RETURN_IF_FAILED(str) \
 do\
@@ -16,15 +16,16 @@ do\
     return err;\
 } while (0);
 
+using ModGuard = std::function<void()>;
+
 struct GameHandle
 {
   GameHandle(const std::optional<uint64_t> game_id, const std::string& name, const uint64_t min_player, const uint64_t max_player, const std::string& rule,
     const std::function<GameBase*(void* const)>& new_game, const std::function<void(GameBase* const)>& delete_game,
-    const HINSTANCE& mod)
+    ModGuard&& mod_guard)
     : game_id_(game_id), name_(name), min_player_(min_player), max_player_(max_player), rule_(rule),
-    new_game_(new_game), delete_game_(delete_game), module_(mod) {}
+    new_game_(new_game), delete_game_(delete_game), mod_guard_(std::forward<ModGuard>(mod_guard)) {}
   GameHandle(GameHandle&&) = delete;
-  ~GameHandle() { FreeLibrary(module_); }
   
   std::atomic<std::optional<uint64_t>> game_id_;
   const std::string name_;
@@ -33,7 +34,7 @@ struct GameHandle
   const std::string rule_;
   const std::function<GameBase*(void* const)> new_game_;
   const std::function<void(GameBase* const)> delete_game_;
-  const HINSTANCE module_;
+  ModGuard mod_guard_;
 };
 
 extern const int32_t LGT_AC;

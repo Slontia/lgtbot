@@ -2,6 +2,12 @@
 #include <stdint.h>
 #include "game_base.h"
 
+#ifdef _WIN32
+#define DLLEXPORT(type) __declspec(dllexport) type __cdecl
+#else
+#define DLLEXPORT(type) type
+#endif
+
 extern "C"
 {
   typedef void (*boardcast)(void* match, const char* const msg);
@@ -11,10 +17,10 @@ extern "C"
   typedef void (*start_timer)(void* match, const uint64_t sec);
   typedef void (*stop_timer)(void* match);
  
-  __declspec(dllexport) bool __cdecl Init(const boardcast boardcast, const tell tell, const at at, const game_over game_over, const start_timer, const stop_timer);
-  __declspec(dllexport) const char* __cdecl GameInfo(uint64_t* min_player, uint64_t* max_player, const char** rule);
-  __declspec(dllexport) GameBase* __cdecl NewGame(void* const match);
+  DLLEXPORT(bool) Init(const boardcast boardcast, const tell tell, const at at, const game_over game_over, const start_timer, const stop_timer);
+  DLLEXPORT(const char*) GameInfo(uint64_t* min_player, uint64_t* max_player, const char** rule);
+  DLLEXPORT(GameBase*) NewGame(void* const match);
   /* game should be delete in game dll */
-  __declspec(dllexport) void __cdecl DeleteGame(GameBase* const game);
+  DLLEXPORT(void) DeleteGame(GameBase* const game);
 
 }

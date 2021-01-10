@@ -4,6 +4,7 @@
 #include <jdbc/cppconn/statement.h>
 #include <jdbc/cppconn/prepared_statement.h>
 #include <type_traits>
+#include <sstream>
 #include "match.h"
 
 #define FAIL_THROW(sql_func, ...) \
@@ -254,15 +255,15 @@ private:
     }
 
     template <typename ...StmtPart>
-    bool Exist(const StmtPart&... part)
+    bool Exist(StmtPart&&... part)
     {
-      return Execute<STMT_QUERY>(part...)->rowsCount() > 0;
+      return Execute<STMT_QUERY>(std::forward<StmtPart>(part)...)->rowsCount() > 0;
     }
 
     template <StmtType type, typename ...StmtPart>
-    std::conditional_t<type == STMT_UPDATE, void, std::unique_ptr<sql::ResultSet>> ExecuteOneRow(const StmtPart&... part)
+    std::conditional_t<type == STMT_UPDATE, void, std::unique_ptr<sql::ResultSet>> ExecuteOneRow(StmtPart&&... part)
     {
-      auto ret = Execute<type>(part...);
+      auto ret = Execute<type>(std::forward<StmtPart>(part)...);
       if constexpr (type == STMT_UPDATE)
       {
         if (ret != 1) { throw sql::SQLException("Update one row failed: row count = " + std::to_string(ret)); }
@@ -278,9 +279,9 @@ private:
     }
 
     template <typename ...StmtPart>
-    std::unique_ptr<sql::ResultSet> ExecuteQueryLessThanOneRow(const StmtPart&... part)
+    std::unique_ptr<sql::ResultSet> ExecuteQueryLessThanOneRow(StmtPart&&... part)
     {
-      auto ret = Execute<STMT_QUERY>(part...);
+      auto ret = Execute<STMT_QUERY>(std::forward<StmtPart>(part)...);
       if (!ret) { throw sql::SQLException("Null result"); }
       if (ret->rowsCount() > 1) { throw sql::SQLException("Query less than one row failed: row count = " + std::to_string(ret->rowsCount())); }
       if (ret->rowsCount() == 0) { return nullptr; }
@@ -289,9 +290,11 @@ private:
     }
 
     template <StmtType type, typename ...StmtPart>
-    std::conditional_t<type == STMT_UPDATE, int, std::unique_ptr<sql::ResultSet>> Execute(const StmtPart&... part)
+    std::conditional_t<type == STMT_UPDATE, int, std::unique_ptr<sql::ResultSet>> Execute(StmtPart&&... part)
     {
-      std::string sql((std::stringstream() << ... << part).str());
+      std::stringstream ss;
+      (ss << ... << part);
+      std::string sql = ss.str();
       sql_recorder_ << sql << std::endl;
       if constexpr (type == STMT_UPDATE) { return stmt_->executeUpdate(sql); }
       else { return std::unique_ptr<sql::ResultSet>(stmt_->executeQuery(sql)); }

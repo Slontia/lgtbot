@@ -1,6 +1,10 @@
 #pragma once
-#include "spinlock.h"
-#include "timer.h"
+#include "Utility/spinlock.h"
+#include "Utility/timer.h"
+#include "bot_core.h"
+#include <assert.h>
+#include <set>
+#include <map>
 
 #define INVALID_LOBBY (QQ)0
 
@@ -21,6 +25,7 @@ class PrivateMatch;
 class GroupMatch;
 class DiscussMatch;
 class MatchManager;
+class GameHandle;
 
 class MatchManager
 {
@@ -40,26 +45,12 @@ public:
 private:
   static std::string AddPlayer_(const std::shared_ptr<Match>& match, const UserID);
   static void DeleteMatch_(const MatchId id);
-
   template <typename IDType>
-  static std::shared_ptr<Match> GetMatch_(const IDType id, const std::map<IDType, std::shared_ptr<Match>>& id2match)
-  {
-    const auto it = id2match.find(id);
-    return (it == id2match.end()) ? nullptr : it->second;
-  }
-
+  static std::shared_ptr<Match> GetMatch_(const IDType id, const std::map<IDType, std::shared_ptr<Match>>& id2match);
   template <typename IDType>
-  static void BindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match, std::shared_ptr<Match> match)
-  {
-    if (!id2match.emplace(id, match).second) { assert(false); }
-  }
-
+  static void BindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match, std::shared_ptr<Match> match);
   template <typename IDType>
-  static void UnbindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match)
-  {
-    id2match.erase(id);
-  }
-
+  static void UnbindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match);
   static MatchId NewMatchID_();
 
   static std::map<MatchId, std::shared_ptr<Match>> mid2match_;

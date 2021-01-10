@@ -1,9 +1,10 @@
-#include "stdafx.h"
 #include "message_handlers.h"
 #include "match.h"
 #include "log.h"
-#include "msg_checker.h"
+#include "Utility/msg_checker.h"
 #include "db_manager.h"
+#include "bot_core.h"
+#include "util.h"
 
 using MetaUserFuncType = std::string(const UserID, const std::optional<GroupID>);
 using MetaCommand = MsgCommand<MetaUserFuncType>;

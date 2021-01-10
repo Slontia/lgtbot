@@ -230,7 +230,7 @@ private:
 
   static typename MsgCommand<UserFuncType>::CommandResultType NotMatch()
   {
-    if constexpr (std::is_void_v<MsgCommand<UserFuncType>::ResultType>) { return false; }
+    if constexpr (std::is_void_v<typename MsgCommand<UserFuncType>::ResultType>) { return false; }
     else { return {}; }
   }
 
@@ -241,7 +241,7 @@ private:
     {
       if (msg_reader.HasNext()) { return NotMatch(); }
       const auto unpack_callback = [&callback = callback_, &args...](auto&... user_args) { return callback(user_args..., args...); };
-      if constexpr (std::is_void_v<MsgCommand<UserFuncType>::ResultType>)
+      if constexpr (std::is_void_v<typename MsgCommand<UserFuncType>::ResultType>)
       {
         std::apply(unpack_callback, user_args_tuple);
         return true;

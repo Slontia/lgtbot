@@ -1,5 +1,6 @@
 #pragma once
-#include "msg_checker.h"
+#include "bot_core.h"
+#include "Utility/msg_checker.h"
 #include <type_traits>
 
 template <typename TRef, typename T> concept UniRef = std::is_same_v<std::decay_t<TRef>, T>;

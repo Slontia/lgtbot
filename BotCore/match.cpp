@@ -1,10 +1,11 @@
-#include "stdafx.h"
 #include "match.h"
 #include "log.h"
 #include "match.h"
 #include "db_manager.h"
-#include "../GameFramework/dllmain.h"
-#include "../GameFramework/game_base.h"
+#include "util.h"
+#include "GameFramework/dllmain.h"
+#include "GameFramework/game_base.h"
+#include <assert.h>
 
 std::map<MatchId, std::shared_ptr<Match>> MatchManager::mid2match_;
 std::map<UserID, std::shared_ptr<Match>> MatchManager::uid2match_;
@@ -138,6 +139,25 @@ MatchId MatchManager::NewMatchID_()
 {
   while (mid2match_.find(++ next_mid_) != mid2match_.end());
   return next_mid_;
+}
+
+template <typename IDType>
+std::shared_ptr<Match> MatchManager::GetMatch_(const IDType id, const std::map<IDType, std::shared_ptr<Match>>& id2match)
+{
+  const auto it = id2match.find(id);
+  return (it == id2match.end()) ? nullptr : it->second;
+}
+
+template <typename IDType>
+void MatchManager::BindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match, std::shared_ptr<Match> match)
+{
+  if (!id2match.emplace(id, match).second) { assert(false); }
+}
+
+template <typename IDType>
+void MatchManager::UnbindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match)
+{
+  id2match.erase(id);
 }
 
 Match::Match(const MatchId mid, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid, const bool skip_config)
