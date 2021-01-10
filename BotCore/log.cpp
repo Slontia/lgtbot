@@ -1,5 +1,6 @@
-#include "log.h"
 #include <glog/logging.h>
+#include <memory>
+#include "log.h"
 #include "util.h"
 
 std::vector<std::unique_ptr<Logger>> loggers_;

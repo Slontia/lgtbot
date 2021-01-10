@@ -16,8 +16,8 @@ SpinLock MatchManager::spinlock_; // to lock match map
 std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid, const bool skip_config)
 {
   std::lock_guard<SpinLock> l(spinlock_);
-  if (GetMatch_(uid, uid2match_)) { return "ĞÂ½¨ÓÎÏ·Ê§°Ü£ºÄúÒÑ¼ÓÈëÓÎÏ·"; }
-  if (gid.has_value() && GetMatch_(*gid, gid2match_)) { return "ĞÂ½¨ÓÎÏ·Ê§°Ü£º¸Ã·¿¼äÒÑ¾­¿ªÊ¼ÓÎÏ·"; }
+  if (GetMatch_(uid, uid2match_)) { return "æ–°å»ºæ¸¸æˆå¤±è´¥ï¼šæ‚¨å·²åŠ å…¥æ¸¸æˆ"; }
+  if (gid.has_value() && GetMatch_(*gid, gid2match_)) { return "æ–°å»ºæ¸¸æˆå¤±è´¥ï¼šè¯¥æˆ¿é—´å·²ç»å¼€å§‹æ¸¸æˆ"; }
 
   const MatchId mid = NewMatchID_();
   std::shared_ptr<Match> new_match = std::make_shared<Match>(mid, game_handle, uid, gid, skip_config);
@@ -33,10 +33,10 @@ std::string MatchManager::ConfigOver(const UserID uid, const std::optional<Group
 {
   std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
-  if (!match) { return "½áÊøÅäÖÃÊ§°Ü£ºÄúÎ´¼ÓÈëÓÎÏ·"; }
-  else if (match->host_uid() != uid) { return "½áÊøÅäÖÃÊ§°Ü£ºÄú²»ÊÇ·¿Ö÷£¬Ã»ÓĞ½áÊøÅäÖÃµÄÈ¨ÏŞ"; }
-  else if (!match->IsPrivate() && !gid.has_value()) { return "½áÊøÅäÖÃÊ§°Ü£ºÇë¹«¿ª½áÊøÅäÖÃ"; }
-  else if (match->gid() != gid) { return "½áÊøÅäÖÃÊ§°Ü£ºÄúÎ´ÔÚ¸Ã·¿¼ä½¨Á¢ÓÎÏ·"; }
+  if (!match) { return "ç»“æŸé…ç½®å¤±è´¥ï¼šæ‚¨æœªåŠ å…¥æ¸¸æˆ"; }
+  else if (match->host_uid() != uid) { return "ç»“æŸé…ç½®å¤±è´¥ï¼šæ‚¨ä¸æ˜¯æˆ¿ä¸»ï¼Œæ²¡æœ‰ç»“æŸé…ç½®çš„æƒé™"; }
+  else if (!match->IsPrivate() && !gid.has_value()) { return "ç»“æŸé…ç½®å¤±è´¥ï¼šè¯·å…¬å¼€ç»“æŸé…ç½®"; }
+  else if (match->gid() != gid) { return "ç»“æŸé…ç½®å¤±è´¥ï¼šæ‚¨æœªåœ¨è¯¥æˆ¿é—´å»ºç«‹æ¸¸æˆ"; }
   RETURN_IF_FAILED(match->GameConfigOver());
   return "";
 }
@@ -45,10 +45,10 @@ std::string MatchManager::StartGame(const UserID uid, const std::optional<GroupI
 {
   std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
-  if (!match) { return "¿ªÊ¼ÓÎÏ·Ê§°Ü£ºÄúÎ´¼ÓÈëÓÎÏ·"; }
-  else if (match->host_uid() != uid) { return "¿ªÊ¼ÓÎÏ·Ê§°Ü£ºÄú²»ÊÇ·¿Ö÷£¬Ã»ÓĞ¿ªÊ¼ÓÎÏ·µÄÈ¨ÏŞ"; }
-  else if (!match->IsPrivate() && !gid.has_value()) { return "¿ªÊ¼ÓÎÏ·Ê§°Ü£ºÇë¹«¿ª¿ªÊ¼ÓÎÏ·"; }
-  else if (match->gid() != gid) { return "¿ªÊ¼ÓÎÏ·Ê§°Ü£ºÄúÎ´ÔÚ¸Ã·¿¼ä½¨Á¢ÓÎÏ·"; }
+  if (!match) { return "å¼€å§‹æ¸¸æˆå¤±è´¥ï¼šæ‚¨æœªåŠ å…¥æ¸¸æˆ"; }
+  else if (match->host_uid() != uid) { return "å¼€å§‹æ¸¸æˆå¤±è´¥ï¼šæ‚¨ä¸æ˜¯æˆ¿ä¸»ï¼Œæ²¡æœ‰å¼€å§‹æ¸¸æˆçš„æƒé™"; }
+  else if (!match->IsPrivate() && !gid.has_value()) { return "å¼€å§‹æ¸¸æˆå¤±è´¥ï¼šè¯·å…¬å¼€å¼€å§‹æ¸¸æˆ"; }
+  else if (match->gid() != gid) { return "å¼€å§‹æ¸¸æˆå¤±è´¥ï¼šæ‚¨æœªåœ¨è¯¥æˆ¿é—´å»ºç«‹æ¸¸æˆ"; }
   RETURN_IF_FAILED(match->GameStart());
   return "";
 }
@@ -57,8 +57,8 @@ std::string MatchManager::AddPlayerToPrivateGame(const MatchId mid, const UserID
 {
   std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
-  if (!match) { return "¼ÓÈëÓÎÏ·Ê§°Ü£ºÓÎÏ·ID²»´æÔÚ"; }
-  else if (!match->IsPrivate()) { return "¼ÓÈëÓÎÏ·Ê§°Ü£º¸ÃÓÎÏ·ÊôÓÚ¹«¿ª±ÈÈü£¬ÇëÇ°Íù·¿¼ä¼ÓÈëÓÎÏ·"; }
+  if (!match) { return "åŠ å…¥æ¸¸æˆå¤±è´¥ï¼šæ¸¸æˆIDä¸å­˜åœ¨"; }
+  else if (!match->IsPrivate()) { return "åŠ å…¥æ¸¸æˆå¤±è´¥ï¼šè¯¥æ¸¸æˆå±äºå…¬å¼€æ¯”èµ›ï¼Œè¯·å‰å¾€æˆ¿é—´åŠ å…¥æ¸¸æˆ"; }
   return AddPlayer_(match, uid);
 }
 
@@ -66,14 +66,14 @@ std::string MatchManager::AddPlayerToPublicGame(const GroupID gid, const UserID 
 {
   std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(gid, gid2match_);
-  if (!match) { return "¼ÓÈëÓÎÏ·Ê§°Ü£º¸Ã·¿¼äÎ´½øĞĞÓÎÏ·"; }
+  if (!match) { return "åŠ å…¥æ¸¸æˆå¤±è´¥ï¼šè¯¥æˆ¿é—´æœªè¿›è¡Œæ¸¸æˆ"; }
   return AddPlayer_(match, uid);
 }
 
 std::string MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const UserID uid)
 {
   assert(match);
-  if (GetMatch_(uid, uid2match_)) { return "¼ÓÈëÓÎÏ·Ê§°Ü£ºÄúÒÑ¼ÓÈëÆäËüÓÎÏ·£¬ÇëÏÈÍË³ö"; }
+  if (GetMatch_(uid, uid2match_)) { return "åŠ å…¥æ¸¸æˆå¤±è´¥ï¼šæ‚¨å·²åŠ å…¥å…¶å®ƒæ¸¸æˆï¼Œè¯·å…ˆé€€å‡º"; }
   RETURN_IF_FAILED(match->Join(uid));
   BindMatch_(uid, uid2match_, match);
   return "";
@@ -83,9 +83,9 @@ std::string MatchManager::DeletePlayer(const UserID uid, const std::optional<Gro
 {
   std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
-  if (!match) { return "ÍË³öÓÎÏ·Ê§°Ü£ºÄúÎ´¼ÓÈëÓÎÏ·"; }
-  else if (!match->IsPrivate() && !gid.has_value()) { return "ÍË³öÓÎÏ·Ê§°Ü£ºÇë¹«¿ªÍË³öÓÎÏ·"; }
-  else if (match->gid() != gid) { return "ÍË³öÓÎÏ·Ê§°Ü£ºÄúÎ´¼ÓÈë±¾·¿¼äÓÎÏ·"; }
+  if (!match) { return "é€€å‡ºæ¸¸æˆå¤±è´¥ï¼šæ‚¨æœªåŠ å…¥æ¸¸æˆ"; }
+  else if (!match->IsPrivate() && !gid.has_value()) { return "é€€å‡ºæ¸¸æˆå¤±è´¥ï¼šè¯·å…¬å¼€é€€å‡ºæ¸¸æˆ"; }
+  else if (match->gid() != gid) { return "é€€å‡ºæ¸¸æˆå¤±è´¥ï¼šæ‚¨æœªåŠ å…¥æœ¬æˆ¿é—´æ¸¸æˆ"; }
   RETURN_IF_FAILED(match->Leave(uid));
   UnbindMatch_(uid, uid2match_);
   /* If host quit, switch host. */
@@ -173,7 +173,7 @@ bool Match::Has(const UserID uid) const
 
 std::string Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)
 {
-  if (state_ == State::NOT_STARTED) { return "[´íÎó] µ±Ç°½×¶ÎµÈ´ıÍæ¼Ò¼ÓÈë£¬ÎŞ·¨Ö´ĞĞÓÎÏ·ÇëÇó"; }
+  if (state_ == State::NOT_STARTED) { return "[é”™è¯¯] å½“å‰é˜¶æ®µç­‰å¾…ç©å®¶åŠ å…¥ï¼Œæ— æ³•æ‰§è¡Œæ¸¸æˆè¯·æ±‚"; }
   if (state_ == State::IN_CONFIGURING) { game_->HandleRequest(0, gid.has_value(), msg.c_str()); }
   else
   {
@@ -186,19 +186,19 @@ std::string Match::Request(const UserID uid, const std::optional<GroupID> gid, c
 
 std::string Match::GameConfigOver()
 {
-  if (state_ != State::IN_CONFIGURING) { return "½áÊøÅäÖÃÊ§°Ü£ºÓÎÏ·Î´´¦ÓÚÅäÖÃ×´Ì¬"; }
+  if (state_ != State::IN_CONFIGURING) { return "ç»“æŸé…ç½®å¤±è´¥ï¼šæ¸¸æˆæœªå¤„äºé…ç½®çŠ¶æ€"; }
   state_ = State::NOT_STARTED;
-  return "ÅäÖÃ½áÊø£¬ÏÖÔÚÍæ¼Ò¿ÉÒÔ¼ÓÈë±ÈÈü£¡";
+  return "é…ç½®ç»“æŸï¼Œç°åœ¨ç©å®¶å¯ä»¥åŠ å…¥æ¯”èµ›ï¼";
 }
 
 std::string Match::GameStart()
 {
-  if (state_ == State::IN_CONFIGURING) { return "¿ªÊ¼ÓÎÏ·Ê§°Ü£ºÓÎÏ·Õı´¦ÓÚÅäÖÃ½×¶Î£¬Çë½áÊøÅäÖÃ£¬µÈ´ıÍæ¼Ò¼ÓÈëºóÔÙ¿ªÊ¼ÓÎÏ·"; }
-  if (state_ == State::IS_STARTED) { return "¿ªÊ¼ÓÎÏ·Ê§°Ü£ºÓÎÏ·ÒÑ¾­¿ªÊ¼"; }
+  if (state_ == State::IN_CONFIGURING) { return "å¼€å§‹æ¸¸æˆå¤±è´¥ï¼šæ¸¸æˆæ­£å¤„äºé…ç½®é˜¶æ®µï¼Œè¯·ç»“æŸé…ç½®ï¼Œç­‰å¾…ç©å®¶åŠ å…¥åå†å¼€å§‹æ¸¸æˆ"; }
+  if (state_ == State::IS_STARTED) { return "å¼€å§‹æ¸¸æˆå¤±è´¥ï¼šæ¸¸æˆå·²ç»å¼€å§‹"; }
   const uint64_t player_num = ready_uid_set_.size();
-  if (player_num < game_handle_.min_player_) { return "¿ªÊ¼ÓÎÏ·Ê§°Ü£ºÍæ¼ÒÈËÊı¹ıÉÙ"; }
+  if (player_num < game_handle_.min_player_) { return "å¼€å§‹æ¸¸æˆå¤±è´¥ï¼šç©å®¶äººæ•°è¿‡å°‘"; }
   assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
-  if (!game_->StartGame(player_num)) { return "¿ªÊ¼ÓÎÏ·Ê§°Ü£º²»·ûºÏÓÎÏ·²ÎÊıµÄÔ¤ÆÚ"; }
+  if (!game_->StartGame(player_num)) { return "å¼€å§‹æ¸¸æˆå¤±è´¥ï¼šä¸ç¬¦åˆæ¸¸æˆå‚æ•°çš„é¢„æœŸ"; }
 
   for (UserID uid : ready_uid_set_)
   {
@@ -206,7 +206,7 @@ std::string Match::GameStart()
     pid2uid_.push_back(uid);
   }
   state_ = State::IS_STARTED;
-  BoardcastPlayers("ÓÎÏ·¿ªÊ¼£¬Äú¿ÉÒÔÊ¹ÓÃ<°ïÖú>ÃüÁî£¨ÎŞ#ºÅ£©£¬²é¿´¿ÉÖ´ĞĞÃüÁî");
+  BoardcastPlayers("æ¸¸æˆå¼€å§‹ï¼Œæ‚¨å¯ä»¥ä½¿ç”¨<å¸®åŠ©>å‘½ä»¤ï¼ˆæ— #å·ï¼‰ï¼ŒæŸ¥çœ‹å¯æ‰§è¡Œå‘½ä»¤");
   start_time_ = std::chrono::system_clock::now();
   return "";
 }
@@ -214,11 +214,11 @@ std::string Match::GameStart()
 std::string Match::Join(const UserID uid)
 {
   assert(!Has(uid));
-  if (state_ == State::IN_CONFIGURING && uid != host_uid_) { return "¼ÓÈëÓÎÏ·Ê§°Ü£º·¿Ö÷ÕıÔÚÅäÖÃÓÎÏ·²ÎÊı"; }
-  if (state_ == State::IS_STARTED) { return "¼ÓÈëÓÎÏ·Ê§°Ü£ºÓÎÏ·ÒÑ¾­¿ªÊ¼"; }
-  if (ready_uid_set_.size() >= game_handle_.max_player_) { return "¼ÓÈëÓÎÏ·Ê§°Ü£º±ÈÈüÈËÊıÒÑ´ïµ½ÓÎÏ·ÉÏÏß"; }
+  if (state_ == State::IN_CONFIGURING && uid != host_uid_) { return "åŠ å…¥æ¸¸æˆå¤±è´¥ï¼šæˆ¿ä¸»æ­£åœ¨é…ç½®æ¸¸æˆå‚æ•°"; }
+  if (state_ == State::IS_STARTED) { return "åŠ å…¥æ¸¸æˆå¤±è´¥ï¼šæ¸¸æˆå·²ç»å¼€å§‹"; }
+  if (ready_uid_set_.size() >= game_handle_.max_player_) { return "åŠ å…¥æ¸¸æˆå¤±è´¥ï¼šæ¯”èµ›äººæ•°å·²è¾¾åˆ°æ¸¸æˆä¸Šçº¿"; }
   ready_uid_set_.emplace(uid);
-  BoardcastPlayers("Íæ¼Ò " + At(uid) + " ¼ÓÈëÁËÓÎÏ·");
+  BoardcastPlayers("ç©å®¶ " + At(uid) + " åŠ å…¥äº†æ¸¸æˆ");
   return "";
 }
 
@@ -226,8 +226,8 @@ std::string Match::Leave(const UserID uid)
 {
   assert(Has(uid));
   assert(state_ != State::IN_CONFIGURING);
-  if (state_ == State::IS_STARTED) { return "ÍË³öÊ§°Ü£ºÓÎÏ·ÒÑ¾­¿ªÊ¼"; }
-  BoardcastPlayers("Íæ¼Ò " + At(uid) + " ÍË³öÁËÓÎÏ·");
+  if (state_ == State::IS_STARTED) { return "é€€å‡ºå¤±è´¥ï¼šæ¸¸æˆå·²ç»å¼€å§‹"; }
+  BoardcastPlayers("ç©å®¶ " + At(uid) + " é€€å‡ºäº†æ¸¸æˆ");
   ready_uid_set_.erase(uid);
   return "";
 }
@@ -252,23 +252,23 @@ void Match::GameOver(const int64_t scores[])
 {
   if (!scores)
   {
-    BoardcastPlayers("ÓÎÏ·ÖĞ¶Ï£¬¸Ã¾ÖÓÎÏ·³É¼¨ÎŞĞ§£¬¸ĞĞ»ÖîÎ»²ÎÓë£¡");
+    BoardcastPlayers("æ¸¸æˆä¸­æ–­ï¼Œè¯¥å±€æ¸¸æˆæˆç»©æ— æ•ˆï¼Œæ„Ÿè°¢è¯¸ä½å‚ä¸ï¼");
     return;
   }
   end_time_ = std::chrono::system_clock::now();
   assert(ready_uid_set_.size() == pid2uid_.size());
   std::vector<Match::ScoreInfo> score_info = CalScores_(scores);
   std::ostringstream ss;
-  ss << "ÓÎÏ·½áÊø£¬¹«²¼·ÖÊı£º" << std::endl;
+  ss << "æ¸¸æˆç»“æŸï¼Œå…¬å¸ƒåˆ†æ•°ï¼š" << std::endl;
   for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) { ss << AtPlayer(pid) << " " << scores[pid] << std::endl; }
-  ss << "¸ĞĞ»ÖîÎ»²ÎÓë£¡";
+  ss << "æ„Ÿè°¢è¯¸ä½å‚ä¸ï¼";
   BoardcastPlayers(ss.str());
   if (auto& db_manager = DBManager::GetDBManager(); db_manager != nullptr)
   {
     std::optional<uint64_t> game_id = game_handle_.game_id_.load();
     if (game_id.has_value() && !db_manager->RecordMatch(*game_id, gid_, host_uid_, multiple_, score_info))
     {
-      ss << std::endl << "´íÎó£ºÓÎÏ·½á¹ûĞ´ÈëÊı¾İ¿âÊ§°Ü£¬ÇëÁªÏµ¹ÜÀíÔ±";
+      ss << std::endl << "é”™è¯¯ï¼šæ¸¸æˆç»“æœå†™å…¥æ•°æ®åº“å¤±è´¥ï¼Œè¯·è”ç³»ç®¡ç†å‘˜";
     }
   }
 }
@@ -308,7 +308,7 @@ bool Match::SwitchHost()
 {
   if (ready_uid_set_.empty()) { return false; }
   host_uid_ = *ready_uid_set_.begin();
-  BoardcastPlayers(At(host_uid_) + "±»Ñ¡ÎªĞÂ·¿Ö÷");
+  BoardcastPlayers(At(host_uid_) + "è¢«é€‰ä¸ºæ–°æˆ¿ä¸»");
   return true;
 }
 
@@ -337,7 +337,7 @@ void Match::StartTimer(const uint64_t sec)
     uint64_t sum_alert_sec = kMinAlertSec;
 	for (uint64_t alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2)
 	{
-	  tasks.emplace_front(alert_sec, [this, alert_sec] { BoardcastPlayers("Ê£ÓàÊ±¼ä" + std::to_string(alert_sec / 60) + "·Ö" + std::to_string(alert_sec % 60) + "Ãë"); });
+	  tasks.emplace_front(alert_sec, [this, alert_sec] { BoardcastPlayers("å‰©ä½™æ—¶é—´" + std::to_string(alert_sec / 60) + "åˆ†" + std::to_string(alert_sec % 60) + "ç§’"); });
     }
     tasks.emplace_front(sec - sum_alert_sec, [] {});
   }

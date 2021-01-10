@@ -19,7 +19,7 @@ static const auto make_command = [](std::string&& description, const auto& cb, a
 static std::string help(const UserID uid, const std::optional<GroupID> gid, const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string& type)
 {
   std::stringstream ss;
-  ss << "[¿ÉÊ¹ÓÃµÄ" << type << "Ö¸Áî]";
+  ss << "[å¯ä½¿ç”¨çš„" << type << "æŒ‡ä»¤]";
   int i = 0;
   for (const std::shared_ptr<MetaCommand>& cmd : cmds)
   {
@@ -35,14 +35,14 @@ std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, Ms
   {
     if (std::optional<std::string> reply_msg = cmd->CallIfValid(reader, std::tuple{ uid, gid })) { return *reply_msg; }
   }
-  return "[´íÎó] Î´Ô¤ÁÏµÄ" + type + "Ö¸Áî";
+  return "[é”™è¯¯] æœªé¢„æ–™çš„" + type + "æŒ‡ä»¤";
 }
 
 static std::string show_gamelist(const UserID uid, const std::optional<GroupID> gid)
 {
   std::stringstream ss;
   int i = 0;
-  ss << "ÓÎÏ·ÁĞ±í£º";
+  ss << "æ¸¸æˆåˆ—è¡¨ï¼š";
   for (const auto& [name, _] : g_game_handles)
   {
     ss << std::endl << (++i) << ". " << name;
@@ -54,38 +54,38 @@ template <bool skip_config>
 static std::string new_game(const UserID uid, const std::optional<GroupID> gid, const std::string& gamename)
 {
   const auto it = g_game_handles.find(gamename);
-  std::string err_msg = (it != g_game_handles.end()) ? MatchManager::NewMatch(*it->second, uid, gid, skip_config) : "´´½¨ÓÎÏ·Ê§°Ü£ºÎ´ÖªµÄÓÎÏ·Ãû";
-  return err_msg.empty() ? "´´½¨ÓÎÏ·³É¹¦" : "[´íÎó] " + err_msg;
+  std::string err_msg = (it != g_game_handles.end()) ? MatchManager::NewMatch(*it->second, uid, gid, skip_config) : "åˆ›å»ºæ¸¸æˆå¤±è´¥ï¼šæœªçŸ¥çš„æ¸¸æˆå";
+  return err_msg.empty() ? "åˆ›å»ºæ¸¸æˆæˆåŠŸ" : "[é”™è¯¯] " + err_msg;
 }
 
 static std::string config_over(const UserID uid, const std::optional<GroupID> gid)
 {
   std::string err_msg = MatchManager::ConfigOver(uid, gid);
-  return err_msg.empty() ? "" : "[´íÎó] " + err_msg;
+  return err_msg.empty() ? "" : "[é”™è¯¯] " + err_msg;
 }
 
 static std::string start_game(const UserID uid, const std::optional<GroupID> gid)
 {
   std::string err_msg = MatchManager::StartGame(uid, gid);
-  return err_msg.empty() ? "" : "[´íÎó] " + err_msg;
+  return err_msg.empty() ? "" : "[é”™è¯¯] " + err_msg;
 }
 
 static std::string leave(const UserID uid, const std::optional<GroupID> gid)
 {
   std::string err_msg = MatchManager::DeletePlayer(uid, gid);
-  return err_msg.empty() ? "" : "[´íÎó] " + err_msg;
+  return err_msg.empty() ? "" : "[é”™è¯¯] " + err_msg;
 }
 
 static std::string join_private(const UserID uid, const std::optional<GroupID> gid, const MatchId match_id)
 {
-  std::string err_msg = !gid.has_value() ? MatchManager::AddPlayerToPrivateGame(match_id, uid) : "¼ÓÈëÓÎÏ·Ê§°Ü£ºÇëË½ĞÅ²ÃÅĞ¼ÓÈëË½ÃÜÓÎÏ·£¬»òÈ¥µô±ÈÈüIDÒÔ¼ÓÈëµ±Ç°·¿¼äÓÎÏ·";
-  return err_msg.empty() ? "" : "[´íÎó] " + err_msg;
+  std::string err_msg = !gid.has_value() ? MatchManager::AddPlayerToPrivateGame(match_id, uid) : "åŠ å…¥æ¸¸æˆå¤±è´¥ï¼šè¯·ç§ä¿¡è£åˆ¤åŠ å…¥ç§å¯†æ¸¸æˆï¼Œæˆ–å»æ‰æ¯”èµ›IDä»¥åŠ å…¥å½“å‰æˆ¿é—´æ¸¸æˆ";
+  return err_msg.empty() ? "" : "[é”™è¯¯] " + err_msg;
 }
 
 static std::string join_public(const UserID uid, const std::optional<GroupID> gid)
 {
-  std::string err_msg = gid.has_value() ? MatchManager::AddPlayerToPublicGame(*gid, uid) : "¼ÓÈëË½ÃÜÓÎÏ·£¬ÇëÖ¸Ã÷±ÈÈüID";
-  return err_msg.empty() ? "¼ÓÈë³É¹¦" : "[´íÎó] " + err_msg;
+  std::string err_msg = gid.has_value() ? MatchManager::AddPlayerToPublicGame(*gid, uid) : "åŠ å…¥ç§å¯†æ¸¸æˆï¼Œè¯·æŒ‡æ˜æ¯”èµ›ID";
+  return err_msg.empty() ? "åŠ å…¥æˆåŠŸ" : "[é”™è¯¯] " + err_msg;
 }
 
 static std::string show_private_matches(const UserID uid, const std::optional<GroupID> gid)
@@ -97,11 +97,11 @@ static std::string show_private_matches(const UserID uid, const std::optional<Gr
     if (match->IsPrivate() && match->state() == Match::State::NOT_STARTED)
     {
       ++count;
-      ss << std::endl << match->game_handle().name_ << " - [·¿Ö÷ID] " << match->host_uid() << " - [±ÈÈüID] " << match->mid();
+      ss << std::endl << match->game_handle().name_ << " - [æˆ¿ä¸»ID] " << match->host_uid() << " - [æ¯”èµ›ID] " << match->mid();
     }
   });
-  if (ss.rdbuf()->in_avail() == 0) { return "µ±Ç°ÎŞÎ´¿ªÊ¼µÄË½ÃÜ±ÈÈü"; }
-  else { return "¹²" + std::to_string(count) + "³¡£º" + ss.str(); }
+  if (ss.rdbuf()->in_avail() == 0) { return "å½“å‰æ— æœªå¼€å§‹çš„ç§å¯†æ¯”èµ›"; }
+  else { return "å…±" + std::to_string(count) + "åœºï¼š" + ss.str(); }
 }
 
 static std::string show_match_status(const UserID uid, const std::optional<GroupID> gid)
@@ -110,21 +110,21 @@ static std::string show_match_status(const UserID uid, const std::optional<Group
   std::stringstream ss;
   std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
   if (!match && gid.has_value()) { match = MatchManager::GetMatchWithGroupID(*gid); }
-  if (!match) { return "[´íÎó] ÄúÎ´¼ÓÈëÓÎÏ·£¬»ò¸Ã·¿¼äÎ´½øĞĞÓÎÏ·"; }
-  ss << "ÓÎÏ·Ãû³Æ£º" << match->game_handle().name_ << std::endl;
-  ss << "ÅäÖÃĞÅÏ¢£º" << match->OptionInfo() << std::endl;
-  ss << "ÓÎÏ·×´Ì¬£º" << (match->state() == Match::State::IN_CONFIGURING ? "ÅäÖÃÖĞ" :
-                       match->state() == Match::State::NOT_STARTED ? "Î´¿ªÊ¼" : "ÒÑ¿ªÊ¼") << std::endl;
-  ss << "·¿¼äºÅ£º";
+  if (!match) { return "[é”™è¯¯] æ‚¨æœªåŠ å…¥æ¸¸æˆï¼Œæˆ–è¯¥æˆ¿é—´æœªè¿›è¡Œæ¸¸æˆ"; }
+  ss << "æ¸¸æˆåç§°ï¼š" << match->game_handle().name_ << std::endl;
+  ss << "é…ç½®ä¿¡æ¯ï¼š" << match->OptionInfo() << std::endl;
+  ss << "æ¸¸æˆçŠ¶æ€ï¼š" << (match->state() == Match::State::IN_CONFIGURING ? "é…ç½®ä¸­" :
+                       match->state() == Match::State::NOT_STARTED ? "æœªå¼€å§‹" : "å·²å¼€å§‹") << std::endl;
+  ss << "æˆ¿é—´å·ï¼š";
   if (match->gid().has_value()) { ss << *gid << std::endl; }
-  else { ss << "Ë½ÃÜÓÎÏ·" << std::endl; }
-  ss << "¿É²Î¼ÓÈËÊı£º" << match->game_handle().min_player_;
+  else { ss << "ç§å¯†æ¸¸æˆ" << std::endl; }
+  ss << "å¯å‚åŠ äººæ•°ï¼š" << match->game_handle().min_player_;
   if (const uint64_t max_player = match->game_handle().max_player_; max_player > match->game_handle().min_player_) { ss << "~" << max_player; }
   else if (max_player == 0) { ss << "+"; }
-  ss << "ÈË" << std::endl;
-  ss << "·¿Ö÷£º" << match->host_uid() << std::endl;
+  ss << "äºº" << std::endl;
+  ss << "æˆ¿ä¸»ï¼š" << match->host_uid() << std::endl;
   const std::set<uint64_t>& ready_uid_set = match->ready_uid_set();
-  ss << "ÒÑ²Î¼ÓÍæ¼Ò£º" << ready_uid_set.size() << "ÈË";
+  ss << "å·²å‚åŠ ç©å®¶ï¼š" << ready_uid_set.size() << "äºº";
   for (const uint64_t uid : ready_uid_set) { ss << std::endl << uid; }
   return ss.str();
 }
@@ -133,76 +133,76 @@ static std::string show_rule(const UserID uid, const std::optional<GroupID> gid,
 {
   std::stringstream ss;
   const auto it = g_game_handles.find(gamename);
-  if (it == g_game_handles.end()) { return "[´íÎó] Î´ÖªµÄÓÎÏ·Ãû"; }
-  ss << "¿É²Î¼ÓÈËÊı£º" << it->second->min_player_;
+  if (it == g_game_handles.end()) { return "[é”™è¯¯] æœªçŸ¥çš„æ¸¸æˆå"; }
+  ss << "å¯å‚åŠ äººæ•°ï¼š" << it->second->min_player_;
   if (const uint64_t max_player = it->second->max_player_; max_player > it->second->min_player_) { ss << "~" << max_player; }
   else if (max_player == 0) { ss << "+"; }
-  ss << "ÈË" << std::endl;
-  ss << "ÏêÏ¸¹æÔò£º" << std::endl;
+  ss << "äºº" << std::endl;
+  ss << "è¯¦ç»†è§„åˆ™ï¼š" << std::endl;
   ss << it->second->rule_;
   return ss.str();
 }
 
 static std::string show_profile(const UserID uid, const std::optional<GroupID> gid)
 {
-  if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager == nullptr) { return "[´íÎó] Î´Á¬½ÓÊı¾İ¿â"; }
+  if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager == nullptr) { return "[é”™è¯¯] æœªè¿æ¥æ•°æ®åº“"; }
   else { return db_manager->GetUserProfit(uid); }
 }
 
 const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
 {
-  make_command("²é¿´°ïÖú", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, meta_cmds, "Ôª"); }, VoidChecker("#°ïÖú")),
-  make_command("²é¿´¸öÈËĞÅÏ¢", show_profile, VoidChecker("#¸öÈËĞÅÏ¢")),
-  make_command("²é¿´ÓÎÏ·ÁĞ±í", show_gamelist, VoidChecker("#ÓÎÏ·ÁĞ±í")),
-  make_command("²é¿´ÓÎÏ·¹æÔò", show_rule, VoidChecker("#¹æÔò"), AnyArg("ÓÎÏ·Ãû³Æ", "Ä³ÓÎÏ·Ãû")),
-  make_command("²é¿´µ±Ç°ËùÓĞÎ´¿ªÊ¼µÄË½ÃÜ±ÈÈü", show_private_matches, VoidChecker("#Ë½ÃÜÓÎÏ·ÁĞ±í")),
-  make_command("²é¿´ÒÑ¼ÓÈë£¬»ò¸Ã·¿¼äÕıÔÚ½øĞĞµÄ±ÈÈüĞÅÏ¢", show_match_status, VoidChecker("#ÓÎÏ·ĞÅÏ¢")),
+  make_command("æŸ¥çœ‹å¸®åŠ©", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, meta_cmds, "å…ƒ"); }, VoidChecker("#å¸®åŠ©")),
+  make_command("æŸ¥çœ‹ä¸ªäººä¿¡æ¯", show_profile, VoidChecker("#ä¸ªäººä¿¡æ¯")),
+  make_command("æŸ¥çœ‹æ¸¸æˆåˆ—è¡¨", show_gamelist, VoidChecker("#æ¸¸æˆåˆ—è¡¨")),
+  make_command("æŸ¥çœ‹æ¸¸æˆè§„åˆ™", show_rule, VoidChecker("#è§„åˆ™"), AnyArg("æ¸¸æˆåç§°", "æŸæ¸¸æˆå")),
+  make_command("æŸ¥çœ‹å½“å‰æ‰€æœ‰æœªå¼€å§‹çš„ç§å¯†æ¯”èµ›", show_private_matches, VoidChecker("#ç§å¯†æ¸¸æˆåˆ—è¡¨")),
+  make_command("æŸ¥çœ‹å·²åŠ å…¥ï¼Œæˆ–è¯¥æˆ¿é—´æ­£åœ¨è¿›è¡Œçš„æ¯”èµ›ä¿¡æ¯", show_match_status, VoidChecker("#æ¸¸æˆä¿¡æ¯")),
 
-  make_command("ÔÚµ±Ç°·¿¼ä½¨Á¢¹«¿ªÓÎÏ·£¬»òË½ĞÅbotÒÔ½¨Á¢Ë½ÃÜÓÎÏ·", new_game<true>, VoidChecker("#ĞÂÓÎÏ·"), AnyArg("ÓÎÏ·Ãû³Æ", "Ä³ÓÎÏ·Ãû")),
-  make_command("ÔÚµ±Ç°·¿¼ä½¨Á¢¹«¿ªÓÎÏ·£¬»òË½ĞÅbotÒÔ½¨Á¢Ë½ÃÜÓÎÏ·£¬²¢½øĞĞÓÎÏ·²ÎÊıµÄÅäÖÃ", new_game<false>, VoidChecker("#ÅäÖÃĞÂÓÎÏ·"), AnyArg("ÓÎÏ·Ãû³Æ", "Ä³ÓÎÏ·Ãû")),
-  make_command("Íê³ÉÓÎÏ·²ÎÊıÅäÖÃºó£¬ÔÊĞíÍæ¼Ò½øÈë·¿¼ä", config_over, VoidChecker("#ÅäÖÃÍê³É")),
-  make_command("·¿Ö÷¿ªÊ¼ÓÎÏ·", start_game, VoidChecker("#¿ªÊ¼ÓÎÏ·")),
-  make_command("¼ÓÈëµ±Ç°·¿¼äµÄ¹«¿ªÓÎÏ·", join_public, VoidChecker("#¼ÓÈëÓÎÏ·")),
-  make_command("Ë½ĞÅbotÒÔ¼ÓÈëË½ÃÜÓÎÏ·", join_private, VoidChecker("#¼ÓÈëÓÎÏ·"), BasicChecker<MatchId>("Ë½ÃÜ±ÈÈü±àºÅ")),
-  make_command("ÔÚÓÎÏ·¿ªÊ¼Ç°ÍË³öÓÎÏ·", leave, VoidChecker("#ÍË³öÓÎÏ·")),
+  make_command("åœ¨å½“å‰æˆ¿é—´å»ºç«‹å…¬å¼€æ¸¸æˆï¼Œæˆ–ç§ä¿¡botä»¥å»ºç«‹ç§å¯†æ¸¸æˆ", new_game<true>, VoidChecker("#æ–°æ¸¸æˆ"), AnyArg("æ¸¸æˆåç§°", "æŸæ¸¸æˆå")),
+  make_command("åœ¨å½“å‰æˆ¿é—´å»ºç«‹å…¬å¼€æ¸¸æˆï¼Œæˆ–ç§ä¿¡botä»¥å»ºç«‹ç§å¯†æ¸¸æˆï¼Œå¹¶è¿›è¡Œæ¸¸æˆå‚æ•°çš„é…ç½®", new_game<false>, VoidChecker("#é…ç½®æ–°æ¸¸æˆ"), AnyArg("æ¸¸æˆåç§°", "æŸæ¸¸æˆå")),
+  make_command("å®Œæˆæ¸¸æˆå‚æ•°é…ç½®åï¼Œå…è®¸ç©å®¶è¿›å…¥æˆ¿é—´", config_over, VoidChecker("#é…ç½®å®Œæˆ")),
+  make_command("æˆ¿ä¸»å¼€å§‹æ¸¸æˆ", start_game, VoidChecker("#å¼€å§‹æ¸¸æˆ")),
+  make_command("åŠ å…¥å½“å‰æˆ¿é—´çš„å…¬å¼€æ¸¸æˆ", join_public, VoidChecker("#åŠ å…¥æ¸¸æˆ")),
+  make_command("ç§ä¿¡botä»¥åŠ å…¥ç§å¯†æ¸¸æˆ", join_private, VoidChecker("#åŠ å…¥æ¸¸æˆ"), BasicChecker<MatchId>("ç§å¯†æ¯”èµ›ç¼–å·")),
+  make_command("åœ¨æ¸¸æˆå¼€å§‹å‰é€€å‡ºæ¸¸æˆ", leave, VoidChecker("#é€€å‡ºæ¸¸æˆ")),
 };
 
 static std::string release_game(const UserID uid, const std::optional<GroupID> gid, const std::string& gamename)
 {
-  if (const auto it = g_game_handles.find(gamename); it == g_game_handles.end()) { return "[´íÎó] Î´ÖªµÄÓÎÏ·Ãû"; }
-  else if (std::optional<uint64_t> game_id = it->second->game_id_.load(); game_id.has_value()) { return "[´íÎó] ÓÎÏ·ÒÑ·¢²¼£¬IDÎª" + std::to_string(*game_id); }
-  else if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager == nullptr) { return "[´íÎó] Î´Á¬½ÓÊı¾İ¿â"; }
-  else if (game_id = db_manager->ReleaseGame(gamename); !game_id.has_value()) { return "[´íÎó] ·¢²¼Ê§°Ü£¬Çë²é¿´´íÎóÈÕÖ¾"; }
+  if (const auto it = g_game_handles.find(gamename); it == g_game_handles.end()) { return "[é”™è¯¯] æœªçŸ¥çš„æ¸¸æˆå"; }
+  else if (std::optional<uint64_t> game_id = it->second->game_id_.load(); game_id.has_value()) { return "[é”™è¯¯] æ¸¸æˆå·²å‘å¸ƒï¼ŒIDä¸º" + std::to_string(*game_id); }
+  else if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager == nullptr) { return "[é”™è¯¯] æœªè¿æ¥æ•°æ®åº“"; }
+  else if (game_id = db_manager->ReleaseGame(gamename); !game_id.has_value()) { return "[é”™è¯¯] å‘å¸ƒå¤±è´¥ï¼Œè¯·æŸ¥çœ‹é”™è¯¯æ—¥å¿—"; }
   else
   {
     it->second->game_id_.store(game_id);
-    return "·¢²¼³É¹¦£¬ÓÎÏ·\'" + gamename + "\'µÄIDÎª" + std::to_string(*game_id);
+    return "å‘å¸ƒæˆåŠŸï¼Œæ¸¸æˆ\'" + gamename + "\'çš„IDä¸º" + std::to_string(*game_id);
   }
 }
 
 static std::string interrupt_match(const UserID uid, const std::optional<GroupID> gid)
 {
   std::string err_msg;
-  if (!gid.has_value()) { err_msg = "ĞèÒªÔÚ·¿¼äÖĞÊ¹ÓÃ¸ÃÖ¸Áî"; }
-  else if (const auto match = MatchManager::GetMatchWithGroupID(*gid); !match) { err_msg = "¸Ã·¿¼äÎ´½øĞĞÓÎÏ·"; }
+  if (!gid.has_value()) { err_msg = "éœ€è¦åœ¨æˆ¿é—´ä¸­ä½¿ç”¨è¯¥æŒ‡ä»¤"; }
+  else if (const auto match = MatchManager::GetMatchWithGroupID(*gid); !match) { err_msg = "è¯¥æˆ¿é—´æœªè¿›è¡Œæ¸¸æˆ"; }
   else { MatchManager::DeleteMatch(match->mid()); }
-  return err_msg.empty() ? "ÖĞ¶ÏÓÎÏ·³É¹¦" : "[´íÎó] " + err_msg;
+  return err_msg.empty() ? "ä¸­æ–­æ¸¸æˆæˆåŠŸ" : "[é”™è¯¯] " + err_msg;
 }
 
 const std::vector<std::shared_ptr<MetaCommand>> admin_cmds =
 {
-  make_command("²é¿´°ïÖú", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, admin_cmds, "¹ÜÀí"); }, VoidChecker("%°ïÖú")),
-  make_command("·¢²¼ÓÎÏ·£¬Ğ´ÈëÓÎÏ·ĞÅÏ¢µ½Êı¾İ¿â", release_game, VoidChecker("%·¢²¼ÓÎÏ·"), AnyArg("ÓÎÏ·Ãû³Æ", "Ä³ÓÎÏ·Ãû")),
-  make_command("Ç¿ÖÆÖĞ¶Ï¹«¿ª±ÈÈü", interrupt_match, VoidChecker("%ÖĞ¶ÏÓÎÏ·"))
+  make_command("æŸ¥çœ‹å¸®åŠ©", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, admin_cmds, "ç®¡ç†"); }, VoidChecker("%å¸®åŠ©")),
+  make_command("å‘å¸ƒæ¸¸æˆï¼Œå†™å…¥æ¸¸æˆä¿¡æ¯åˆ°æ•°æ®åº“", release_game, VoidChecker("%å‘å¸ƒæ¸¸æˆ"), AnyArg("æ¸¸æˆåç§°", "æŸæ¸¸æˆå")),
+  make_command("å¼ºåˆ¶ä¸­æ–­å…¬å¼€æ¯”èµ›", interrupt_match, VoidChecker("%ä¸­æ–­æ¸¸æˆ"))
 };
 
 template <typename Reader> requires std::is_same_v<std::unwrap_ref_decay_t<Reader>, MsgReader>
 std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, Reader&& reader)
 {
-  return HandleRequest(uid, gid, reader, meta_cmds, "Ôª");
+  return HandleRequest(uid, gid, reader, meta_cmds, "å…ƒ");
 }
 
 std::string HandleAdminRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)
 {
-  return HandleRequest(uid, gid, reader, admin_cmds, "¹ÜÀí");
+  return HandleRequest(uid, gid, reader, admin_cmds, "ç®¡ç†");
 }

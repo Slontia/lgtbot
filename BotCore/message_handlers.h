@@ -16,11 +16,11 @@ extern std::string HandleRequest(const UserID uid, const std::optional<GroupID> 
 template <UniRef<MsgReader> ReaderRef>
 std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, ReaderRef&& reader)
 {
-	return HandleRequest(uid, gid, reader, meta_cmds, "Ôª");
+	return HandleRequest(uid, gid, reader, meta_cmds, "å…ƒ");
 }
 
 template <UniRef<MsgReader> ReaderRef>
 std::string HandleAdminRequest(const UserID uid, const std::optional<GroupID> gid, ReaderRef&& reader)
 {
-	return HandleRequest(uid, gid, reader, admin_cmds, "¹ÜÀí");
+	return HandleRequest(uid, gid, reader, admin_cmds, "ç®¡ç†");
 }

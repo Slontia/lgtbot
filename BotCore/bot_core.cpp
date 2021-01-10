@@ -39,19 +39,19 @@ static void LoadAdmins()
 
 static std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)
 {
-  if (std::string first_arg; !(std::stringstream(msg) >> first_arg) || first_arg.empty()) { return "[´íÎó] ¿Õ°×ÏûÏ¢"; }
+  if (std::string first_arg; !(std::stringstream(msg) >> first_arg) || first_arg.empty()) { return "[é”™è¯¯] ç©ºç™½æ¶ˆæ¯"; }
   else
   {
     switch (first_arg[0])
     {
     case '#': return HandleMetaRequest(uid, gid, MsgReader(msg));
     case '%':
-      if (g_admins.find(uid) == g_admins.end()) { return "[´íÎó] ÄúÎ´³ÖÓĞ¹ÜÀíÔ±È¨ÏŞ"; }
+      if (g_admins.find(uid) == g_admins.end()) { return "[é”™è¯¯] æ‚¨æœªæŒæœ‰ç®¡ç†å‘˜æƒé™"; }
       return HandleAdminRequest(uid, gid, MsgReader(msg));
     default:
       std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
-      if (!match) { return "[´íÎó] ÄúÎ´²ÎÓëÓÎÏ·"; }
-      if (match->gid() != gid && gid.has_value()) { return "[´íÎó] ÄúÎ´ÔÚ±¾Èº²ÎÓëÓÎÏ·"; }
+      if (!match) { return "[é”™è¯¯] æ‚¨æœªå‚ä¸æ¸¸æˆ"; }
+      if (match->gid() != gid && gid.has_value()) { return "[é”™è¯¯] æ‚¨æœªåœ¨æœ¬ç¾¤å‚ä¸æ¸¸æˆ"; }
       return match->Request(uid, gid, msg);
     }
   }
@@ -60,6 +60,7 @@ static std::string HandleRequest(const UserID uid, const std::optional<GroupID> 
 bool /*__cdecl*/ BOT_API::Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, const PUBLIC_MSG_CALLBACK pub_msg_cb, const AT_CALLBACK at_cb, int argc, char** argv)
 {
   if (this_uid == INVALID_USER_ID || !pri_msg_cb || !pub_msg_cb || !at_cb) { return false; }
+  std::locale::global(std::locale(""));
   g_this_uid = this_uid;
   g_send_pri_msg_cb = pri_msg_cb;
   g_send_pub_msg_cb = pub_msg_cb;
