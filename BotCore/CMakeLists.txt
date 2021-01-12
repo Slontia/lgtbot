@@ -16,7 +16,6 @@ list(APPEND SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/match.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/message_handlers.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/load_game_modules.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/log.cpp
 )
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
   list(APPEND SOURCE_FLIES ${CMAKE_CURRENT_SOURCE_DIR}/dllmain.cpp)

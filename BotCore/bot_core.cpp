@@ -65,11 +65,10 @@ bool /*__cdecl*/ BOT_API::Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK
   g_send_pri_msg_cb = pri_msg_cb;
   g_send_pub_msg_cb = pub_msg_cb;
   g_at_cb = at_cb;
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
+  google::InitGoogleLogging(argv[0]);
   LoadGameModules();
   LoadAdmins();
-  EmplaceLogger<GLogger>("lgtbot");
-  EmplaceLogger<PrivateMsgLogger>(654867229);
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
   return true;
 }
 
