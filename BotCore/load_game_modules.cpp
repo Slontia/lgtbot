@@ -56,7 +56,11 @@ static void LoadGame(HINSTANCE mod)
 {
   if (!mod)
   {
+#ifdef __linux__
+    ErrorLog() << "Load mod failed: " << dlerror();
+#else
     ErrorLog() << "Load mod failed";
+#endif
     return;
   }
 
@@ -131,12 +135,12 @@ void LoadGameModules()
   for (dirent* dp = nullptr; (dp = readdir(d)) != NULL; )
   {
     std::string name(dp->d_name);
-    if (std::regex_match(name, base_match, base_regex); !base_match.empty())
+    if (std::regex_match(name, base_match, base_regex); base_match.empty())
     {
       DebugLog() << "Find irrelevant file " << name << ", skip";
       continue;
     }
-    if (stat(dp->d_name, &st); !S_ISDIR(st.st_mode))
+    if (stat(dp->d_name, &st); S_ISDIR(st.st_mode))
     {
       DebugLog() << "Find directory " << name << ", skip";
       continue;
@@ -144,6 +148,7 @@ void LoadGameModules()
     InfoLog() << "Loading library " << name;
     LoadGame(dlopen((std::string("./plugins/") + name).c_str(), RTLD_LAZY));
   }
+  InfoLog() << "Loading finished.";
   closedir(d);
 #endif
 }

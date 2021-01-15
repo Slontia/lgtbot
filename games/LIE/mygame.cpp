@@ -1,11 +1,9 @@
-#include "game_stage.h"
-#include "msg_checker.h"
-#include "dllmain.h"
-#include "resource.h"
+#include "GameFramework/game_stage.h"
+#include "Utility/msg_checker.h"
+#include "GameFramework/dllmain.h"
 #include <memory>
 #include <array>
 #include <functional>
-#include "resource_loader.h"
 
 const std::string k_game_name = "LIE";
 const uint64_t k_min_player = 2; /* should be larger than 1 */
@@ -19,23 +17,18 @@ bool GameOption::IsValidPlayerNum(const uint64_t player_num) const
 const std::string GameOption::StatusInfo() const
 {
   std::stringstream ss;
-  if (GET_VALUE(¼¯ÆëÊ§°Ü)) { ss << "¼¯ÆëÈ«²¿Êı×Ö»ò"; }
-  ss << "µ¥¸öÊı×Ö´ïµ½3Ê±Íæ¼ÒÊ§°Ü";
+  if (GET_VALUE(é›†é½å¤±è´¥)) { ss << "é›†é½å…¨éƒ¨æ•°å­—æˆ–"; }
+  ss << "å•ä¸ªæ•°å­—è¾¾åˆ°3æ—¶ç©å®¶å¤±è´¥";
   return ss.str();
-}
-const char* Rule()
-{
-  static std::string rule = LoadText(IDR_TEXT1_RULE, TEXT("Text"));
-  return rule.c_str();
 }
 
 class NumberStage : public SubGameStage<>
 {
  public:
   NumberStage(const uint64_t questioner)
-    : GameStage("ÉèÖÃÊı×Ö½×¶Î",
+    : GameStage("è®¾ç½®æ•°å­—é˜¶æ®µ",
       {
-        MakeStageCommand(this, "ÉèÖÃÊı×Ö", &NumberStage::Number, ArithChecker<int, 1, 6>("Êı×Ö")),
+        MakeStageCommand(this, "è®¾ç½®æ•°å­—", &NumberStage::Number, ArithChecker<int, 1, 6>("æ•°å­—")),
       }), questioner_(questioner), num_(0) {}
 
   virtual uint64_t OnStageBegin() override { return 60; }
@@ -46,12 +39,12 @@ class NumberStage : public SubGameStage<>
    {
      if (pid != questioner_)
      {
-       reply() << "[´íÎó] ±¾»ØºÏÄúÎª²Â²âÕß£¬ÎŞ·¨ÉèÖÃÊı×Ö";
+       reply() << "[é”™è¯¯] æœ¬å›åˆæ‚¨ä¸ºçŒœæµ‹è€…ï¼Œæ— æ³•è®¾ç½®æ•°å­—";
        return false;
      }
      if (is_public)
      {
-       reply() << "[´íÎó] ÇëË½ĞÅ²ÃÅĞÑ¡ÔñÊı×Ö£¬¹«¿ªÑ¡ÔñÎŞĞ§";
+       reply() << "[é”™è¯¯] è¯·ç§ä¿¡è£åˆ¤é€‰æ‹©æ•°å­—ï¼Œå…¬å¼€é€‰æ‹©æ— æ•ˆ";
        return false;
      }
      num_ = num;
@@ -66,9 +59,9 @@ class LieStage : public SubGameStage<>
 {
 public:
   LieStage(const uint64_t questioner)
-    : GameStage("ÉèÖÃÊı×Ö½×¶Î",
+    : GameStage("è®¾ç½®æ•°å­—é˜¶æ®µ",
       {
-        MakeStageCommand(this, "ÌáÎÊÊı×Ö", &LieStage::Lie, ArithChecker<int, 1, 6>("Êı×Ö")),
+        MakeStageCommand(this, "æé—®æ•°å­—", &LieStage::Lie, ArithChecker<int, 1, 6>("æ•°å­—")),
       }), questioner_(questioner), lie_num_(0) {}
 
   virtual uint64_t OnStageBegin() override { return 60; }
@@ -79,7 +72,7 @@ private:
   {
     if (pid != questioner_)
     {
-      reply() << "[´íÎó] ±¾»ØºÏÄúÎª²Â²âÕß£¬ÎŞ·¨ÌáÎÊ";
+      reply() << "[é”™è¯¯] æœ¬å›åˆæ‚¨ä¸ºçŒœæµ‹è€…ï¼Œæ— æ³•æé—®";
       return false;
     }
     lie_num_ = lie_num;
@@ -94,9 +87,9 @@ class GuessStage : public SubGameStage<>
 {
 public:
   GuessStage(const uint64_t guesser)
-    : GameStage("ÉèÖÃÊı×Ö½×¶Î",
+    : GameStage("è®¾ç½®æ•°å­—é˜¶æ®µ",
       {
-        MakeStageCommand(this, "²Â²â", &GuessStage::Guess, BoolChecker("ÖÊÒÉ", "ÏàĞÅ")),
+        MakeStageCommand(this, "çŒœæµ‹", &GuessStage::Guess, BoolChecker("è´¨ç–‘", "ç›¸ä¿¡")),
       }), guesser_(guesser), doubt_(false) {}
 
   virtual uint64_t OnStageBegin() override { return 60; }
@@ -108,7 +101,7 @@ private:
   {
     if (pid != guesser_)
     {
-      reply() << "[´íÎó] ±¾»ØºÏÄúÎªÌáÎÊÕß£¬ÎŞ·¨²Â²â";
+      reply() << "[é”™è¯¯] æœ¬å›åˆæ‚¨ä¸ºæé—®è€…ï¼Œæ— æ³•çŒœæµ‹";
       return false;
     }
     doubt_ = doubt;
@@ -123,44 +116,44 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
 {
  public:
    RoundStage(const uint64_t round, const uint64_t questioner, std::array<std::array<int, 6>, 2>& player_nums)
-     : GameStage("µÚ" + std::to_string(round) + "»ØºÏ", {}),
+     : GameStage("ç¬¬" + std::to_string(round) + "å›åˆ"),
      questioner_(questioner), num_(0), lie_num_(0), player_nums_(player_nums), loser_(0) {}
 
    uint64_t loser() const { return loser_; }
 
    virtual VariantSubStage OnStageBegin() override
    {
-     Boardcast() << name_ << "¿ªÊ¼£¬ÇëÍæ¼Ò" << At(questioner_) << "Ë½ĞÅ²ÃÅĞÑ¡ÔñÊı×Ö";
+     Boardcast() << name_ << "å¼€å§‹ï¼Œè¯·ç©å®¶" << At(questioner_) << "ç§ä¿¡è£åˆ¤é€‰æ‹©æ•°å­—";
      return std::make_unique<NumberStage>(questioner_);
    }
 
    virtual VariantSubStage NextSubStage(NumberStage& sub_stage, const bool is_timeout) override
    {
      num_ = is_timeout ? 1 : sub_stage.num();
-     Tell(questioner_) << (is_timeout ? "ÉèÖÃ³¬Ê±£¬Êı×ÖÉèÖÃÎªÄ¬ÈÏÖµ1£¬ÇëÌáÎÊÊı×Ö" : "ÉèÖÃ³É¹¦£¬ÇëÌáÎÊÊı×Ö");
+     Tell(questioner_) << (is_timeout ? "è®¾ç½®è¶…æ—¶ï¼Œæ•°å­—è®¾ç½®ä¸ºé»˜è®¤å€¼1ï¼Œè¯·æé—®æ•°å­—" : "è®¾ç½®æˆåŠŸï¼Œè¯·æé—®æ•°å­—");
      return std::make_unique<LieStage>(questioner_);
    }
 
    virtual VariantSubStage NextSubStage(LieStage& sub_stage, const bool is_timeout) override
    {
      lie_num_ = is_timeout ? 1 : sub_stage.lie_num();
-     if (is_timeout) { Tell(questioner_) << "ÌáÎÊ³¬Ê±£¬Ä¬ÈÏÌáÎÊÊı×Ö1"; }
-     Boardcast() << "Íæ¼Ò" << At(questioner_) << "ÌáÎÊÊı×Ö" << lie_num_ << "£¬ÇëÍæ¼Ò" << At(1 - questioner_) << "ÏàĞÅ»òÖÊÒÉ";
+     if (is_timeout) { Tell(questioner_) << "æé—®è¶…æ—¶ï¼Œé»˜è®¤æé—®æ•°å­—1"; }
+     Boardcast() << "ç©å®¶" << At(questioner_) << "æé—®æ•°å­—" << lie_num_ << "ï¼Œè¯·ç©å®¶" << At(1 - questioner_) << "ç›¸ä¿¡æˆ–è´¨ç–‘";
      return std::make_unique<GuessStage>(1 - questioner_);
    }
 
    virtual VariantSubStage NextSubStage(GuessStage& sub_stage, const bool is_timeout) override
    {
      const bool doubt = is_timeout ? false : sub_stage.doubt();
-     if (is_timeout) { Tell(questioner_) << "Ñ¡Ôñ³¬Ê±£¬Ä¬ÈÏÎªÏàĞÅ"; }
+     if (is_timeout) { Tell(questioner_) << "é€‰æ‹©è¶…æ—¶ï¼Œé»˜è®¤ä¸ºç›¸ä¿¡"; }
      const bool suc = doubt ^ (num_ == lie_num_);
      loser_ = suc ? questioner_ : 1 - questioner_;
      ++player_nums_[loser_][num_ - 1];
      auto boardcast = Boardcast();
-     boardcast << "Êµ¼ÊÊı×ÖÎª" << num_ << "£¬"
-       << (doubt ? "»³ÒÉ" : "ÏàĞÅ") << (suc ? "³É¹¦" : "Ê§°Ü") << "£¬"
-       << "Íæ¼Ò" << At(loser_) << "»ñµÃÊı×Ö" << num_ << std::endl
-       << "Êı×Ö»ñµÃÇé¿ö£º" << std::endl << At(0) << "£º" << At(1);
+     boardcast << "å®é™…æ•°å­—ä¸º" << num_ << "ï¼Œ"
+       << (doubt ? "æ€€ç–‘" : "ç›¸ä¿¡") << (suc ? "æˆåŠŸ" : "å¤±è´¥") << "ï¼Œ"
+       << "ç©å®¶" << At(loser_) << "è·å¾—æ•°å­—" << num_ << std::endl
+       << "æ•°å­—è·å¾—æƒ…å†µï¼š" << std::endl << At(0) << "ï¼š" << At(1);
      for (int num = 1; num <= 6; ++num)
      {
        boardcast << std::endl << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
@@ -179,7 +172,7 @@ private:
 class MainStage : public MainGameStage<RoundStage>
 {
  public:
-   MainStage(const GameOption& options) : GameStage("", {}), fail_if_collected_all_(options.GET_VALUE(¼¯ÆëÊ§°Ü)), questioner_(0), round_(1), player_nums_{ {0} } {}
+   MainStage(const GameOption& options) : fail_if_collected_all_(options.GET_VALUE(é›†é½å¤±è´¥)), questioner_(0), round_(1), player_nums_{ {0} } {}
 
   virtual VariantSubStage OnStageBegin() override
   {

@@ -1,14 +1,11 @@
-#include "game_options.h"
-#include "game_stage.h"
-#include "msg_checker.h"
-#include "dllmain.h"
-#include "resource.h"
-#include "game_options.h"
+#include "GameFramework/game_stage.h"
+#include "Utility/msg_checker.h"
+#include "GameFramework/dllmain.h"
 #include <memory>
 #include <array>
 #include <functional>
-#include "resource_loader.h"
-const std::string k_game_name = "²ÂÈ­ÓÎÏ·";
+
+const std::string k_game_name = "çŒœæ‹³æ¸¸æˆ";
 const uint64_t k_min_player = 2; /* should be larger than 1 */
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
 
@@ -19,45 +16,47 @@ bool GameOption::IsValidPlayerNum(const uint64_t player_num) const
 
 const std::string GameOption::StatusInfo() const
 {
-  const auto max_win_count = GET_VALUE(Ê¤Àû¾ÖÊı);
-  return (std::stringstream() << 2 * max_win_count - 1 << "¾Ö" << max_win_count << "Ê¤£¬¾ÖÊ±" << GET_VALUE(¾ÖÊ±) << "Ãë").str();
+  std::stringstream ss;
+  const auto max_win_count = GET_VALUE(èƒœåˆ©å±€æ•°);
+  ss << 2 * max_win_count - 1 << "å±€" << max_win_count << "èƒœï¼Œå±€æ—¶" << GET_VALUE(å±€æ—¶) << "ç§’";
+  return ss.str();
 }
 
 enum Choise { NONE_CHOISE, ROCK_CHOISE, SCISSORS_CHOISE, PAPER_CHOISE };
 
 static std::string Choise2Str(const Choise& choise)
 {
-  return choise == SCISSORS_CHOISE ? "¼ôµ¶" :
-    choise == ROCK_CHOISE ? "Ê¯Í·" :
-    choise == PAPER_CHOISE ? "²¼" :
-    "Î´Ñ¡Ôñ";
+  return choise == SCISSORS_CHOISE ? "å‰ªåˆ€" :
+    choise == ROCK_CHOISE ? "çŸ³å¤´" :
+    choise == PAPER_CHOISE ? "å¸ƒ" :
+    "æœªé€‰æ‹©";
 }
 
 class RoundStage : public SubGameStage<>
 {
 public:
   RoundStage(const uint64_t round, const uint32_t max_round_sec)
-    : GameStage("µÚ" + std::to_string(round) + "»ØºÏ",
+    : GameStage("ç¬¬" + std::to_string(round) + "å›åˆ",
       {
-        MakeStageCommand(this, "³öÈ­", &RoundStage::Act_,
+        MakeStageCommand(this, "å‡ºæ‹³", &RoundStage::Act_,
           AlterChecker<Choise>(std::map<std::string, Choise> {
-            { "¼ôµ¶", SCISSORS_CHOISE},
-            { "Ê¯Í·", ROCK_CHOISE },
-            { "²¼", PAPER_CHOISE }
-          }, "Ñ¡Ôñ")),
+            { "å‰ªåˆ€", SCISSORS_CHOISE},
+            { "çŸ³å¤´", ROCK_CHOISE },
+            { "å¸ƒ", PAPER_CHOISE }
+          }, "é€‰æ‹©")),
       }), max_round_sec_(max_round_sec), cur_choise_{ NONE_CHOISE, NONE_CHOISE } {}
 
   uint64_t OnStageBegin()
   {
-    Boardcast() << name_ << "¿ªÊ¼£¬ÇëË½ĞÅ²ÃÅĞ½øĞĞÑ¡Ôñ";
+    Boardcast() << name_ << "å¼€å§‹ï¼Œè¯·ç§ä¿¡è£åˆ¤è¿›è¡Œé€‰æ‹©";
     return max_round_sec_;
   }
 
   std::optional<uint64_t> Winner() const
   {
     if (cur_choise_[0] == NONE_CHOISE && cur_choise_[1] == NONE_CHOISE) { return {}; }
-    Boardcast() << "Íæ¼Ò" << At(0) << "£º" << Choise2Str(cur_choise_[0]) << std::endl
-      << "Íæ¼Ò" << At(1) << "£º" << Choise2Str(cur_choise_[1]);
+    Boardcast() << "ç©å®¶" << At(0) << "ï¼š" << Choise2Str(cur_choise_[0]) << std::endl
+      << "ç©å®¶" << At(1) << "ï¼š" << Choise2Str(cur_choise_[1]);
     const auto is_win = [&cur_choise = cur_choise_](const uint64_t pid)
     {
       const Choise& my_choise = cur_choise[pid];
@@ -77,17 +76,17 @@ private:
   {
     if (is_public)
     {
-      reply() << "ÇëË½ĞÅ²ÃÅĞÑ¡Ôñ£¬¹«¿ªÑ¡ÔñÎŞĞ§";
+      reply() << "è¯·ç§ä¿¡è£åˆ¤é€‰æ‹©ï¼Œå…¬å¼€é€‰æ‹©æ— æ•ˆ";
       return false;
     }
     Choise& cur_choise = cur_choise_[pid];
     if (cur_choise != NONE_CHOISE)
     {
-      reply() << "ÄúÒÑ¾­½øĞĞ¹ıÑ¡ÔñÁË";
+      reply() << "æ‚¨å·²ç»è¿›è¡Œè¿‡é€‰æ‹©äº†";
       return false;
     }
     cur_choise = choise;
-    reply() << "Ñ¡Ôñ³É¹¦";
+    reply() << "é€‰æ‹©æˆåŠŸ";
     return cur_choise_[0] != NONE_CHOISE && cur_choise_[1] != NONE_CHOISE;
   }
 
@@ -98,8 +97,8 @@ private:
 class MainStage : public MainGameStage<RoundStage>
 {
 public:
-  MainStage(const GameOption& option) : GameStage("", {}),
-    k_max_win_count_(option.GET_VALUE(Ê¤Àû¾ÖÊı)), k_max_round_sec_(option.GET_VALUE(¾ÖÊ±)), round_(1), win_count_{ 0, 0 } {}
+  MainStage(const GameOption& option) :
+    k_max_win_count_(option.GET_VALUE(èƒœåˆ©å±€æ•°)), k_max_round_sec_(option.GET_VALUE(å±€æ—¶)), round_(1), win_count_{ 0, 0 } {}
 
   virtual VariantSubStage OnStageBegin() override
   {
@@ -111,7 +110,7 @@ public:
     std::optional<uint64_t> winner = sub_stage.Winner();
     if (is_timeout && !winner.has_value())
     {
-      Boardcast() << "Ë«·½ÎŞÏìÓ¦";
+      Boardcast() << "åŒæ–¹æ— å“åº”";
       BreakOff();
       return {};
     }
@@ -128,12 +127,12 @@ private:
     auto boardcast = Boardcast();
     const auto on_win = [this, &boardcast, &win_count = win_count_](const uint64_t pid)
     {
-      boardcast << "Íæ¼Ò" << At(pid) << "Ê¤Àû" << std::endl;
+      boardcast << "ç©å®¶" << At(pid) << "èƒœåˆ©" << std::endl;
       ++win_count[pid];
     };
     if (winner.has_value()) { on_win(*winner); }
-    else { boardcast << "Æ½¾Ö" << std::endl; }
-    boardcast << "Ä¿Ç°±È·Ö£º" << std::endl;
+    else { boardcast << "å¹³å±€" << std::endl; }
+    boardcast << "ç›®å‰æ¯”åˆ†ï¼š" << std::endl;
     boardcast << At(0) << " " << win_count_[0] << " - " << win_count_[1] << " " << At(1);
   }
 
@@ -142,12 +141,6 @@ private:
   uint64_t round_;
   std::array<uint64_t, 2> win_count_;
 };
-
-const char* Rule()
-{
-  static const std::string rule = LoadText(IDR_TEXT1_RULE, TEXT("Text"));
-  return rule.c_str();
-}
 
 std::unique_ptr<MainStageBase> MakeMainStage(const uint64_t player_num, const GameOption& options)
 {

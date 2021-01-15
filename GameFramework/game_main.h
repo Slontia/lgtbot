@@ -1,6 +1,6 @@
 #pragma once
 #include "game_options.h"
-#include "msg_guard.h"
+#include "Utility/msg_guard.h"
 #include <string>
 
 class MainStageBase;

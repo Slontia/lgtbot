@@ -57,7 +57,7 @@ public:
 class AnyArg : public MsgArgChecker<std::string>
 {
 public:
-  AnyArg(const std::string& meaning = "×Ö·û´®", const std::string& example = "×Ö·û´®") : meaning_(meaning), example_(example) {}
+  AnyArg(const std::string& meaning = "å­—ç¬¦ä¸²", const std::string& example = "å­—ç¬¦ä¸²") : meaning_(meaning), example_(example) {}
   virtual ~AnyArg() {}
   virtual std::string FormatInfo() const override { return "<" + meaning_ + ">"; }
   virtual std::string ExampleInfo() const override { return example_; }
@@ -97,14 +97,14 @@ template <typename T>
 class AlterChecker : public MsgArgChecker<T>
 {
 public:
-  AlterChecker(std::map<std::string, T>&& arg_map, const std::string& meaning = "Ñ¡Ôñ")
+  AlterChecker(std::map<std::string, T>&& arg_map, const std::string& meaning = "é€‰æ‹©")
     : arg_map_(arg_map), meaning_(meaning) {}
   virtual ~AlterChecker() {}
   virtual std::string FormatInfo() const override
   {
     std::stringstream ss;
-    ss << "<" << meaning_ << "£º";
-    if (arg_map_.empty()) { ss << "(´íÎó£¬¿ÉÑ¡ÏîÎª¿Õ)"; }
+    ss << "<" << meaning_ << "ï¼š";
+    if (arg_map_.empty()) { ss << "(é”™è¯¯ï¼Œå¯é€‰é¡¹ä¸ºç©º)"; }
     else
     {
       bool is_first = true;
@@ -118,7 +118,7 @@ public:
     ss << ">";
     return ss.str();
   }
-  virtual std::string ExampleInfo() const override { return arg_map_.empty() ? "£¨´íÎó£¬¿ÉÑ¡ÏîÎª¿Õ£©" : arg_map_.begin()->first; }
+  virtual std::string ExampleInfo() const override { return arg_map_.empty() ? "ï¼ˆé”™è¯¯ï¼Œå¯é€‰é¡¹ä¸ºç©ºï¼‰" : arg_map_.begin()->first; }
   virtual std::optional<T> Check(MsgReader& reader) const
   {
     if (!reader.HasNext()) { return std::optional<T>(); }
@@ -136,9 +136,9 @@ template <typename T, T Min, T Max, bool Optional = false, typename = typename s
 class ArithChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
 public:
-  ArithChecker(const std::string meaning = "Êý×Ö") : meaning_(meaning) { static_assert(Max >= Min, "Invalid Range"); }
+  ArithChecker(const std::string meaning = "æ•°å­—") : meaning_(meaning) { static_assert(Max >= Min, "Invalid Range"); }
   virtual ~ArithChecker() {}
-  virtual std::string FormatInfo() const override { return "<" + meaning_ + "£º" + std::to_string(Min) + "~" + std::to_string(Max) + ">"; }
+  virtual std::string FormatInfo() const override { return "<" + meaning_ + "ï¼š" + std::to_string(Min) + "~" + std::to_string(Max) + ">"; }
   virtual std::string ExampleInfo() const override { return std::to_string((Min + Max) / 2); }
   virtual std::optional<std::conditional_t<Optional, std::optional<T>, T>> Check(MsgReader& reader) const
   {
@@ -157,7 +157,7 @@ template <typename T, bool Optional = false, typename = typename std::enable_if_
 class BasicChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
 public:
-  BasicChecker(const std::string meaning = "¶ÔÏó") : meaning_(meaning) {}
+  BasicChecker(const std::string meaning = "å¯¹è±¡") : meaning_(meaning) {}
   virtual ~BasicChecker() {}
   virtual std::string FormatInfo() const override
   {
@@ -283,10 +283,10 @@ public:
   {
     std::stringstream ss;
     ss << description_ << std::endl;
-    ss << "¸ñÊ½£º";
+    ss << "æ ¼å¼ï¼š";
     std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers->FormatInfo() + " ")); }, checkers_);
     ss << std::endl;
-    ss << "ÀýÈç£º";
+    ss << "ä¾‹å¦‚ï¼š";
     std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers->ExampleInfo() + " ")); }, checkers_);
     return ss.str();
   }

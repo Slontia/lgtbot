@@ -1,11 +1,10 @@
-#pragma once
 #include <cassert>
 #include <iostream>
 #include <vector>
 #include <memory>
 #include <functional>
 #include "game_stage.h"
-#include "msg_checker.h"
+#include "Utility/msg_checker.h"
 #include "game_base.h"
 #include "game.h"
 
@@ -13,7 +12,7 @@ class Player;
 
 Game::Game(void* const match)
   : match_(match), main_stage_(nullptr), is_over_(false),
-  help_cmd_(MakeCommand<void(const reply_type)>("查看游戏帮助", BindThis(this, &Game::Help), VoidChecker("帮助")))
+  help_cmd_(MakeCommand<void(const reply_type)>("鏌ョ湅娓告垙甯姪", BindThis(this, &Game::Help), VoidChecker("甯姪")))
 {}
 
 bool Game::StartGame(const uint64_t player_num)
@@ -31,7 +30,7 @@ bool Game::StartGame(const uint64_t player_num)
 
 
 /* Return true when is_over_ switch from false to true */
-void __cdecl Game::HandleRequest(const uint64_t pid, const bool is_public, const char* const msg)
+void /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public, const char* const msg)
 {
   using namespace std::string_literals;
   std::lock_guard<SpinLock> l(lock_);
@@ -46,7 +45,7 @@ void __cdecl Game::HandleRequest(const uint64_t pid, const bool is_public, const
     }
     return reply_type::result_type(std::bind(tell_f, match_, pid, std::placeholders::_1));
   };
-  if (is_over_) { reply() << "[错误] 差一点点，游戏已经结束了哦~"; }
+  if (is_over_) { reply() << "[閿欒] 宸竴鐐圭偣锛屾父鎴忓凡缁忕粨鏉熶簡鍝"; }
   else
   {
     assert(msg);
@@ -54,11 +53,11 @@ void __cdecl Game::HandleRequest(const uint64_t pid, const bool is_public, const
     if (help_cmd_->CallIfValid(reader, std::tuple{ reply })) { return; }
     if (main_stage_)
     {
-      if (!main_stage_->HandleRequest(reader, pid, is_public, reply)) { reply() << "[错误] 未预料的游戏请求"; }
+      if (!main_stage_->HandleRequest(reader, pid, is_public, reply)) { reply() << "[閿欒] 鏈鏂欑殑娓告垙璇锋眰"; }
       if (main_stage_->IsOver()) { OnGameOver(); }
     }
-    else if (!options_.SetOption(reader)) { reply() << "[错误] 未预料的游戏设置"; }
-    else { reply() << "设置成功！目前配置："s << OptionInfo(); }
+    else if (!options_.SetOption(reader)) { reply() << "[閿欒] 鏈鏂欑殑娓告垙璁剧疆"; }
+    else { reply() << "璁剧疆鎴愬姛锛佺洰鍓嶉厤缃細"s << OptionInfo(); }
   }
 }
 
@@ -73,11 +72,11 @@ void Game::Help(const reply_type reply)
   auto r = reply();
   if (main_stage_)
   {
-    r << std::endl << "[当前阶段]" << std::endl;
+    r << std::endl << "[褰撳墠闃舵]" << std::endl;
     main_stage_->StageInfo(r.ss());
     r << std::endl << std::endl;
   }
-  r << "[当前可使用游戏命令]";
+  r << "[褰撳墠鍙娇鐢ㄦ父鎴忓懡浠";
   r << std::endl << "[1] " << help_cmd_->Info();
   if (main_stage_) { main_stage_->CommandInfo(1, r.ss()); }
   else

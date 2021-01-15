@@ -66,7 +66,7 @@ bool /*__cdecl*/ BOT_API::Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK
   g_send_pub_msg_cb = pub_msg_cb;
   g_at_cb = at_cb;
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
+  ::google::InitGoogleLogging(argv[0]);
   LoadGameModules();
   LoadAdmins();
   return true;

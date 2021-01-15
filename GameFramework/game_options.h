@@ -1,11 +1,7 @@
 #pragma once
-#include "msg_checker.h"
+#include "Utility/msg_checker.h"
 #include <string_view>
 #include <array>
-
-#ifndef GAME_OPTIONS_HEADER
-#error GAME_OPTIONS_HEADER is not defined
-#endif
 
 #define OPTION_(name) OPTION_##name
 #define CHECKER_(name) (*std::get<OPTION_(name) * 2 + 1>(options_))
@@ -19,7 +15,7 @@ class GameOption
 	{
 		INVALID_OPTION = -1,
 #define GAME_OPTION(_0, name, _1, _2) OPTION_(name),
-#include GAME_OPTIONS_HEADER
+#include "options.h"
 #undef GAME_OPTION
 		MAX_OPTION
 	};
@@ -28,7 +24,7 @@ class GameOption
 	 GameOption() : options_
 	 {
 #define GAME_OPTION(_0, _1, checker, default_value) default_value, std::move(checker),
-#include GAME_OPTIONS_HEADER
+#include "options.h"
 #undef GAME_OPTION
 	 }, infos_
 	 {
@@ -36,11 +32,11 @@ class GameOption
 {\
 	std::stringstream ss;\
 	ss << description << std::endl;\
-	ss << "¸ñÊ½£º" << #name << " " << CHECKER_(name).FormatInfo() << std::endl;\
-	ss << "ÀýÈç£º" << #name << " " << CHECKER_(name).ExampleInfo();\
+	ss << "æ ¼å¼ï¼š" << #name << " " << CHECKER_(name).FormatInfo() << std::endl;\
+	ss << "ä¾‹å¦‚ï¼š" << #name << " " << CHECKER_(name).ExampleInfo();\
 	return ss.str();\
 }(),
-#include GAME_OPTIONS_HEADER
+#include "options.h"
 #undef GAME_OPTION
 	 } {};
 
@@ -66,7 +62,7 @@ class GameOption
 				return true;\
 			}\
 		}
-#include GAME_OPTIONS_HEADER
+#include "options.h"
 #undef GAME_OPTION
 		return false;
 	}
@@ -81,7 +77,7 @@ class GameOption
  #define GAME_OPTION(_0, _1, checker, default_value)\
 			static_cast<std::decay<decltype(*checker)>::type::arg_type>(default_value),\
 			static_cast<std::unique_ptr<MsgArgChecker<std::decay<decltype(*checker)>::type::arg_type>>>(checker),
- #include GAME_OPTIONS_HEADER
+ #include "options.h"
  #undef GAME_OPTION
 	 }) options_;
 	 std::array<std::string, Option::MAX_OPTION> infos_;

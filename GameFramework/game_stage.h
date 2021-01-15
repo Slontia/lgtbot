@@ -1,12 +1,12 @@
 #pragma once
-#include "msg_checker.h"
+#include "Utility/msg_checker.h"
 #include <optional>
 #include <cassert>
 #include <variant>
 #include <chrono>
-#include "timer.h"
+#include "Utility/timer.h"
 #include "game_main.h"
-#include "msg_guard.h"
+#include "Utility/msg_guard.h"
 
 template <typename RetType>
 using GameUserFuncType = RetType(const uint64_t, const bool, const reply_type);
@@ -22,7 +22,7 @@ static std::shared_ptr<GameMsgCommand<RetType>> MakeStageCommand(Stage* stage, s
 class StageBase
 {
 public:
-  StageBase(std::string&& name) : name_(name.empty() ? "£¨ÄäÃû½×¶Î£©" : std::move(name)), match_(nullptr), is_over_(false) {}
+  StageBase(std::string&& name) : name_(name.empty() ? "ï¼ˆåŒ¿åé˜¶æ®µï¼‰" : std::move(name)), match_(nullptr), is_over_(false) {}
   virtual ~StageBase() {}
   virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {
@@ -59,7 +59,7 @@ private:
 class MainStageBase : public StageBase
 {
  public:
-  MainStageBase(std::string&& name) : StageBase(name.empty() ? "£¨Ö÷½×¶Î£©" : std::move(name)) {}
+  MainStageBase(std::string&& name) : StageBase(name.empty() ? "ï¼ˆä¸»é˜¶æ®µï¼‰" : std::move(name)) {}
   virtual int64_t PlayerScore(const uint64_t pid) const = 0;
 };
 
@@ -87,9 +87,7 @@ public:
   using SubStageCheckoutHelper<SubStage, VariantSubStage>::NextSubStage;
   using SubStageCheckoutHelper<SubStages, VariantSubStage>::NextSubStage...;
 
-  GameStage(
-    std::string&& name,
-    std::vector<std::shared_ptr<GameMsgCommand<void>>>&& commands)
+  GameStage(std::string&& name = "", std::initializer_list<std::shared_ptr<GameMsgCommand<void>>>&& commands = {})
     : Base(std::move(name)), sub_stage_(), commands_(std::move(commands)) {}
 
   virtual ~GameStage() {}
@@ -165,9 +163,7 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
 private:
   using Base = std::conditional_t<IsMain, MainStageBase, StageBase>;
 public:
-  GameStage(
-    std::string&& name,
-    std::vector<std::shared_ptr<GameMsgCommand<bool>>>&& commands)
+  GameStage(std::string&& name, std::initializer_list<std::shared_ptr<GameMsgCommand<bool>>>&& commands)
     : Base(std::move(name)), timer_(nullptr), commands_(std::move(commands)) {}
   virtual ~GameStage() { Base::stop_timer_f_(); }
   virtual uint64_t OnStageBegin() { return 0; };
@@ -199,7 +195,7 @@ public:
   virtual void StageInfo(std::ostream& ss) const override
   {
     ss << Base::name_;
-    if (finish_time_.has_value()) { ss << " Ê£ÓàÊ±¼ä£º" << std::chrono::duration_cast<std::chrono::seconds>(*finish_time_ - std::chrono::steady_clock::now()).count() << "Ãë"; }
+    if (finish_time_.has_value()) { ss << " å‰©ä½™æ—¶é—´ï¼š" << std::chrono::duration_cast<std::chrono::seconds>(*finish_time_ - std::chrono::steady_clock::now()).count() << "ç§’"; }
   }
 
 private:
