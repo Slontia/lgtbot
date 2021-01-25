@@ -5,11 +5,10 @@
 #include <variant>
 #include <chrono>
 #include "Utility/timer.h"
-#include "game_main.h"
-#include "Utility/msg_guard.h"
+#include "util.h"
 
 template <typename RetType>
-using GameUserFuncType = RetType(const uint64_t, const bool, const reply_type);
+using GameUserFuncType = RetType(const uint64_t, const bool, const replier_t);
 template <typename RetType>
 using GameMsgCommand = MsgCommand<GameUserFuncType<RetType>>;
 
@@ -32,13 +31,12 @@ public:
   }
   virtual void HandleTimeout() = 0;
   virtual uint64_t CommandInfo(uint64_t i, std::ostream& ss) const = 0;
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const reply_type& reply) = 0;
+  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) = 0;
   virtual void StageInfo(std::ostream& ss) const = 0;
   bool IsOver() const { return is_over_; }
-  auto Boardcast() const { return MsgGuard(std::bind(boardcast_f, match_, std::placeholders::_1)); }
-  auto Tell(const uint64_t pid) const { return MsgGuard(std::bind(tell_f, match_, pid, std::placeholders::_1)); }
-  std::string At(const uint64_t pid) const { return at_f(match_, pid); }
-  void BreakOff() { game_over_f(match_, {}); }
+  auto Boardcast() const { return ::Boardcast(match_); }
+  auto Tell(const uint64_t pid) const { return ::Tell(match_, pid); }
+  void BreakOff() { g_game_over_cb(match_, nullptr); }
 
 protected:
   uint64_t CommandInfo(uint64_t i, std::ostream& ss, const std::shared_ptr<MsgCommandBase>& cmd) const
@@ -101,7 +99,7 @@ public:
     std::visit([match, start_timer_f, stop_timer_f](auto&& sub_stage) { sub_stage->Init(match, start_timer_f, stop_timer_f); }, sub_stage_);
   }
 
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const reply_type& reply) override
+  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) override
   {
     for (const std::shared_ptr<GameMsgCommand<void>>& command : commands_)
     {
@@ -175,7 +173,7 @@ public:
     start_timer_f(sec);
   }
   virtual void HandleTimeout() override final { StageBase::Over(); }
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const reply_type& reply) override
+  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) override
   {
     for (const std::shared_ptr<GameMsgCommand<bool>>& command : commands_)
     {

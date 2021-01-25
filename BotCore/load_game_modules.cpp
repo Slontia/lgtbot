@@ -3,6 +3,7 @@
 #include "log.h"
 #include "match.h"
 #include "db_manager.h"
+#include "Utility/msg_sender.h"
 #include <regex>
 
 #ifdef _WIN32
@@ -19,21 +20,42 @@
 static_assert(false, "Not support OS");
 #endif
 
-static void BoardcastPlayers(void* match, const char* const msg)
+template <typename Sender>
+class MsgSenderForGame : public MsgSender
 {
-  static_cast<Match*>(match)->BoardcastPlayers(msg);
+ public:
+  MsgSenderForGame(Match& match, Sender&& sender) : match_(match), sender_(std::forward<Sender>(sender)) {}
+  virtual ~MsgSenderForGame() {}
+
+  virtual void SendString(const char* const str, const size_t len)
+  {
+    sender_ << std::string_view(str, len);
+  }
+
+  virtual void SendAt(const uint64_t pid)
+  {
+    sender_ << AtMsg(match_.pid2uid(pid));
+  }
+ private:
+  Match& match_;
+  Sender sender_;
+};
+
+static MsgSender* Boardcast(void* match_p)
+{
+  Match& match = *static_cast<Match*>(match_p);
+  return new MsgSenderForGame(match, match.Boardcast());
 }
 
-static void TellPlayer(void* match, const uint64_t pid, const char* const msg)
+static MsgSender* Tell(void* match_p, const uint64_t pid)
 {
-  static_cast<Match*>(match)->TellPlayer(pid, msg);
+  Match& match = *static_cast<Match*>(match_p);
+  return new MsgSenderForGame(match, match.Tell(pid));
 }
 
-static const char* AtPlayer(void* match, const uint64_t pid)
+static void DeleteMsgSender(MsgSender* const msg_sender)
 {
-  static thread_local std::string at_s;
-  at_s = static_cast<Match*>(match)->AtPlayer(pid);
-  return at_s.c_str();
+  delete msg_sender;
 }
 
 static void MatchGameOver(void* match, const int64_t scores[])
@@ -64,7 +86,7 @@ static void LoadGame(HINSTANCE mod)
     return;
   }
 
-  typedef int (/*__cdecl*/ *Init)(const boardcast, const tell, const at, const game_over, const start_timer, const stop_timer);
+  typedef int (/*__cdecl*/ *Init)(const NEW_BOARDCAST_MSG_SENDER_CALLBACK, const NEW_TELL_MSG_SENDER_CALLBACK, const DELETE_MSG_SENDER_CALLBACK, const GAME_OVER_CALLBACK, const START_TIMER_CALLBACK, const STOP_TIMER_CALLBACK);
   typedef char* (/*__cdecl*/ *GameInfo)(uint64_t*, uint64_t*, const char**);
   typedef GameBase* (/*__cdecl*/ *NewGame)(void* const match);
   typedef int (/*__cdecl*/ *DeleteGame)(GameBase* const);
@@ -80,7 +102,7 @@ static void LoadGame(HINSTANCE mod)
     return;
   }
 
-  if (!init(&BoardcastPlayers, &TellPlayer, &AtPlayer, &MatchGameOver, &StartTimer, &StopTimer))
+  if (!init(&Boardcast, &Tell, &DeleteMsgSender, &MatchGameOver, &StartTimer, &StopTimer))
   {
     ErrorLog() << "Load failed: init failed";
     return;

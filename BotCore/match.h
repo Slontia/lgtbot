@@ -2,6 +2,7 @@
 #include "Utility/spinlock.h"
 #include "Utility/timer.h"
 #include "bot_core.h"
+#include "Utility/msg_sender.h"
 #include <assert.h>
 #include <set>
 #include <map>
@@ -74,8 +75,8 @@ public:
   std::string GameStart();
   std::string Join(const UserID uid);
   std::string Leave(const UserID uid);
-  void BoardcastPlayers(const std::string& msg) const;
-  void TellPlayer(const uint64_t pid, const std::string& msg) const;
+  MsgSenderWrapperBatch Boardcast() const;
+  MsgSenderWrapper Tell(const uint64_t pid) const;
   std::string AtPlayer(const uint64_t pid) const;
   void GameOver(const int64_t scores[]);
   void StartTimer(const uint64_t sec);
@@ -93,6 +94,7 @@ public:
   UserID host_uid() const { return host_uid_; }
   const std::set<UserID>& ready_uid_set() const { return ready_uid_set_; }
   const State state() const { return state_; }
+  const UserID pid2uid(const uint64_t pid) const { return state_ == State::IS_STARTED ? pid2uid_[pid] : host_uid_; }
 
   struct ScoreInfo
   {

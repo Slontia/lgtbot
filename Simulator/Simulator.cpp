@@ -1,26 +1,51 @@
 // Simulator.cpp: 定义控制台应用程序的入口点。
 //
 
-#include "../BotCore/bot_core.h"
+#include "BotCore/bot_core.h"
+#include "Utility/msg_sender.h"
 #include <iostream>
 #include <sstream>
 #include <cassert>
+#include <vector>
 
-const char* at_cq(const UserID& usr_qq)
+class MyMsgSender : public MsgSender
 {
-  static thread_local std::string at_s;
-  at_s = "<@" + std::to_string(usr_qq) + ">";
-  return at_s.c_str();
+ public:
+  MyMsgSender(const Target target, const uint64_t id) : target_(target), id_(id) {}
+  virtual ~MyMsgSender()
+  {
+    if (target_ == TO_USER)
+    {
+      std::cout << "[private -> user: " << id_ << "]" << std::endl << ss_.str() << std::endl;
+    }
+    else if (target_ == TO_GROUP)
+    {
+      std::cout << "[public -> group: " << id_ << "]" << std::endl << ss_.str() << std::endl;
+    }
+  }
+  virtual void SendString(const char* const str, const size_t len) override
+  {
+    ss_ << std::string_view(str, len);
+  }
+  virtual void SendAt(const uint64_t uid) override
+  {
+    ss_ << "<@" << uid << ">";
+  }
+
+ private:
+  const Target target_;
+  const uint64_t id_;
+  std::stringstream ss_;
+};
+
+MsgSender* create_msg_sender(const Target target, const UserID id)
+{
+  return new MyMsgSender(target, id);
 }
 
-void send_private_msg(const UserID& usr_qq, const char* msg)
+void delete_msg_sender(MsgSender* const msg_sender)
 {
-  std::cout << "[private -> user: " << usr_qq << "]" << std::endl << msg << std::endl;
-}
-
-void send_group_msg(const UserID& group_qq, const char* msg)
-{
-  std::cout << "[public -> group: " << group_qq << "]" << std::endl << msg << std::endl;
+  delete msg_sender;
 }
 
 void bug()
@@ -61,15 +86,13 @@ void init_bot(int argc, char** argv)
   const char* errmsg = nullptr;
   //std::cout << "code: " << BOT_API::ConnectDatabase("cdb-e4pq5sf8.cd.tencentcdb.com:10083", "root", "i8349276i", "lgt_bot_test", &errmsg) << std::endl;
   std::cout << "errmsg: " << (errmsg ? errmsg : "(null)");
-  BOT_API::Init(114514, send_private_msg, send_group_msg, at_cq, argc, argv);
+  BOT_API::Init(114514, create_msg_sender, delete_msg_sender, argc, argv);
   lie_commands();
 }
 
 int main(int argc, char** argv)
 {
   std::locale::global(std::locale(""));
-
-  std::cout << "中文支持" << std::endl;
 
   init_bot(argc, argv);
   std::cout << ">>> ";

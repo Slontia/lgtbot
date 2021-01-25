@@ -3,7 +3,7 @@
 #include "match.h"
 #include "db_manager.h"
 #include "util.h"
-#include "GameFramework/dllmain.h"
+#include "GameFramework/game_main.h"
 #include "GameFramework/game_base.h"
 #include <assert.h>
 
@@ -206,7 +206,7 @@ std::string Match::GameStart()
     pid2uid_.push_back(uid);
   }
   state_ = State::IS_STARTED;
-  BoardcastPlayers("游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令");
+  Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
   start_time_ = std::chrono::system_clock::now();
   return "";
 }
@@ -218,7 +218,7 @@ std::string Match::Join(const UserID uid)
   if (state_ == State::IS_STARTED) { return "加入游戏失败：游戏已经开始"; }
   if (ready_uid_set_.size() >= game_handle_.max_player_) { return "加入游戏失败：比赛人数已达到游戏上线"; }
   ready_uid_set_.emplace(uid);
-  BoardcastPlayers("玩家 " + At(uid) + " 加入了游戏");
+  Boardcast() << "玩家 " << AtMsg(uid) << " 加入了游戏";
   return "";
 }
 
@@ -227,48 +227,53 @@ std::string Match::Leave(const UserID uid)
   assert(Has(uid));
   assert(state_ != State::IN_CONFIGURING);
   if (state_ == State::IS_STARTED) { return "退出失败：游戏已经开始"; }
-  BoardcastPlayers("玩家 " + At(uid) + " 退出了游戏");
+  Boardcast() << "玩家 " << AtMsg(uid) << " 退出了游戏";
   ready_uid_set_.erase(uid);
   return "";
 }
 
-void Match::BoardcastPlayers(const std::string& msg) const
+MsgSenderWrapperBatch Match::Boardcast() const
 {
-  if (gid_.has_value()) { SendPublicMsg(*gid_, msg); }
-  else { for (const UserID uid : ready_uid_set_) { SendPrivateMsg(uid, msg); } }
+  std::vector<MsgSenderWrapper> senders;
+  if (gid_.has_value())
+  {
+    senders.emplace_back(ToGroup(*gid_));
+  }
+  else
+  {
+    for (const UserID uid : ready_uid_set_)
+    {
+      senders.emplace_back(ToUser(uid));
+    }
+  }
+  return MsgSenderWrapperBatch(std::move(senders));
 }
 
-void Match::TellPlayer(const uint64_t pid, const std::string& msg) const
+MsgSenderWrapper Match::Tell(const uint64_t pid) const
 {
-  SendPrivateMsg(state_ == State::IS_STARTED ? pid2uid_[pid] : host_uid_, msg);
-}
-
-std::string Match::AtPlayer(const uint64_t pid) const
-{
-  return ::At(state_ == State::IS_STARTED ? pid2uid_[pid] : host_uid_);
+  return ToUser(pid2uid(pid));
 }
 
 void Match::GameOver(const int64_t scores[])
 {
   if (!scores)
   {
-    BoardcastPlayers("游戏中断，该局游戏成绩无效，感谢诸位参与！");
+    Boardcast() << "游戏中断，该局游戏成绩无效，感谢诸位参与！";
     return;
   }
   end_time_ = std::chrono::system_clock::now();
   assert(ready_uid_set_.size() == pid2uid_.size());
   std::vector<Match::ScoreInfo> score_info = CalScores_(scores);
-  std::ostringstream ss;
-  ss << "游戏结束，公布分数：" << std::endl;
-  for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) { ss << AtPlayer(pid) << " " << scores[pid] << std::endl; }
-  ss << "感谢诸位参与！";
-  BoardcastPlayers(ss.str());
+  auto sender = Boardcast();
+  sender << "游戏结束，公布分数：\n";
+  for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) { sender << AtMsg(pid2uid_[pid]) << " " << scores[pid] << "\n"; }
+  sender << "感谢诸位参与！";
   if (auto& db_manager = DBManager::GetDBManager(); db_manager != nullptr)
   {
     std::optional<uint64_t> game_id = game_handle_.game_id_.load();
     if (game_id.has_value() && !db_manager->RecordMatch(*game_id, gid_, host_uid_, multiple_, score_info))
     {
-      ss << std::endl << "错误：游戏结果写入数据库失败，请联系管理员";
+      sender << "\n错误：游戏结果写入数据库失败，请联系管理员";
     }
   }
 }
@@ -308,7 +313,7 @@ bool Match::SwitchHost()
 {
   if (ready_uid_set_.empty()) { return false; }
   host_uid_ = *ready_uid_set_.begin();
-  BoardcastPlayers(At(host_uid_) + "被选为新房主");
+  Boardcast() << AtMsg(host_uid_) << "被选为新房主";
   return true;
 }
 
@@ -335,9 +340,12 @@ void Match::StartTimer(const uint64_t sec)
   {
     tasks.emplace_front(kMinAlertSec, timeout_handler);
     uint64_t sum_alert_sec = kMinAlertSec;
-	for (uint64_t alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2)
-	{
-	  tasks.emplace_front(alert_sec, [this, alert_sec] { BoardcastPlayers("剩余时间" + std::to_string(alert_sec / 60) + "分" + std::to_string(alert_sec % 60) + "秒"); });
+    for (uint64_t alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2)
+    {
+      tasks.emplace_front(alert_sec, [this, alert_sec]
+          {
+            Boardcast() << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) << "秒";
+          });
     }
     tasks.emplace_front(sec - sum_alert_sec, [] {});
   }

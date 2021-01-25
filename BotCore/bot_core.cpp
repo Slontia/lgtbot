@@ -5,7 +5,8 @@
 #include "db_manager.h"
 #include "util.h"
 #include "load_game_modules.h"
-#include "GameFramework/dllmain.h"
+#include "Utility/msg_sender.h"
+#include "GameFramework/game_main.h"
 #include "Utility/msg_checker.h"
 #include <gflags/gflags.h>
 #include <fstream>
@@ -18,9 +19,8 @@ std::mutex g_mutex;
 std::map<std::string, std::unique_ptr<GameHandle>> g_game_handles;
 std::set<UserID> g_admins;
 
-AT_CALLBACK g_at_cb = nullptr;
-PRIVATE_MSG_CALLBACK g_send_pri_msg_cb = nullptr;
-PUBLIC_MSG_CALLBACK g_send_pub_msg_cb = nullptr;
+NEW_MSG_SENDER_CALLBACK g_new_msg_sender_cb = nullptr;
+DELETE_MSG_SENDER_CALLBACK g_delete_msg_sender_cb = nullptr;
 UserID g_this_uid = INVALID_USER_ID;
 
 MatchManager match_manager;
@@ -57,14 +57,16 @@ static std::string HandleRequest(const UserID uid, const std::optional<GroupID> 
   }
 }
 
-bool /*__cdecl*/ BOT_API::Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, const PUBLIC_MSG_CALLBACK pub_msg_cb, const AT_CALLBACK at_cb, int argc, char** argv)
+bool /*__cdecl*/ BOT_API::Init(
+    const UserID this_uid,
+    const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
+    const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb,
+    int argc, char** argv)
 {
-  if (this_uid == INVALID_USER_ID || !pri_msg_cb || !pub_msg_cb || !at_cb) { return false; }
-  std::locale::global(std::locale(""));
+  if (this_uid == INVALID_USER_ID || !new_msg_sender_cb || !delete_msg_sender_cb) { return false; }
   g_this_uid = this_uid;
-  g_send_pri_msg_cb = pri_msg_cb;
-  g_send_pub_msg_cb = pub_msg_cb;
-  g_at_cb = at_cb;
+  g_new_msg_sender_cb = new_msg_sender_cb;
+  g_delete_msg_sender_cb = delete_msg_sender_cb;
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   ::google::InitGoogleLogging(argv[0]);
   LoadGameModules();
@@ -74,12 +76,18 @@ bool /*__cdecl*/ BOT_API::Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK
 
 void /*__cdecl*/ BOT_API::HandlePrivateRequest(const UserID uid, const char* const msg)
 {
-  if (const std::string reply_msg = HandleRequest(uid, {}, msg); !reply_msg.empty()) { SendPrivateMsg(uid, reply_msg); }
+  if (const std::string reply_msg = HandleRequest(uid, {}, msg); !reply_msg.empty())
+  {
+    ToUser(uid) << reply_msg;
+  }
 }
 
 void /*__cdecl*/ BOT_API::HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
 {
-  if (const std::string reply_msg = HandleRequest(uid, gid, msg); !reply_msg.empty()) { SendPublicMsg(gid, At(uid) + "\n" + reply_msg); };
+  if (const std::string reply_msg = HandleRequest(uid, gid, msg); !reply_msg.empty())
+  {
+    ToGroup(gid) << AtMsg(uid) << "\n" << reply_msg;
+  };
 }
 
 ErrCode /*__cdecl*/ BOT_API::ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg)

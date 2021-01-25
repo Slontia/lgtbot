@@ -5,6 +5,7 @@
 #include <map>
 
 class GameHandle;
+class MsgSender;
 
 extern "C"
 {
@@ -12,9 +13,9 @@ extern "C"
   typedef uint64_t GroupID;
   typedef uint64_t MatchId;
 
-  typedef void(*PRIVATE_MSG_CALLBACK)(const UserID&, const char*);
-  typedef void(*PUBLIC_MSG_CALLBACK)(const GroupID&, const char*);
-  typedef const char*(*AT_CALLBACK)(const UserID&);
+  enum Target { TO_USER, TO_GROUP };
+  typedef MsgSender*(*NEW_MSG_SENDER_CALLBACK)(const Target, const UserID);
+  typedef void(*DELETE_MSG_SENDER_CALLBACK)(MsgSender* const msg_sender);
 
   enum ErrCode
   {
@@ -39,7 +40,7 @@ extern "C"
   class BOT_API
   {
    public:
-    static DLLEXPORT(bool) Init(const UserID this_uid, const PRIVATE_MSG_CALLBACK pri_msg_cb, const PUBLIC_MSG_CALLBACK pub_msg_cb, const AT_CALLBACK at_cb, int argc, char** argv);
+    static DLLEXPORT(bool) Init( const UserID this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb, const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, int argc, char** argv);
     static DLLEXPORT(void) HandlePrivateRequest(const UserID uid, const char* const msg);
     static DLLEXPORT(void) HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg);
     static DLLEXPORT(ErrCode) ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg);

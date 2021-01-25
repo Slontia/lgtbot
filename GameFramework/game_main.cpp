@@ -4,29 +4,30 @@
 #include <vector>
 #include <iostream>
 #include "game.h"
-#include "dllmain.h"
 #include "game_main.h"
+#include "util.h"
 
-typedef void (*request_f)(char const* msg);
+NEW_BOARDCAST_MSG_SENDER_CALLBACK g_new_boardcast_msg_sender_cb = nullptr;
+NEW_TELL_MSG_SENDER_CALLBACK g_new_tell_msg_sender_cb = nullptr;
+DELETE_MSG_SENDER_CALLBACK g_delete_msg_sender_cb = nullptr;
+GAME_OVER_CALLBACK g_game_over_cb = nullptr;
+START_TIMER_CALLBACK g_start_timer_cb = nullptr;
+STOP_TIMER_CALLBACK g_stop_timer_cb = nullptr;
 
-std::function<void(void*, const std::string&)> boardcast_f;
-std::function<void(void*, const uint64_t, const std::string&)> tell_f;
-std::function<std::string(void*, const uint64_t)> at_f;
-std::function<void(void*, const std::vector<int64_t>&)> game_over_f;
-std::function<void(void*, const uint64_t)> start_timer_f;
-std::function<void(void*)> stop_timer_f;
-
-bool /*__cdecl*/ Init(const boardcast boardcast, const tell tell, const at at, const game_over game_over, const start_timer start_timer, const stop_timer stop_timer)
+bool /*__cdecl*/ Init(
+    const NEW_BOARDCAST_MSG_SENDER_CALLBACK new_boardcast_msg_sender,
+    const NEW_TELL_MSG_SENDER_CALLBACK new_tell_msg_sender,
+    const DELETE_MSG_SENDER_CALLBACK delete_msg_sender,
+    const GAME_OVER_CALLBACK game_over,
+    const START_TIMER_CALLBACK start_timer,
+    const STOP_TIMER_CALLBACK stop_timer)
 {
-  boardcast_f = [boardcast](void* match, const std::string& msg) { boardcast(match, msg.c_str()); };
-  tell_f = [tell](void* match, const uint64_t pid, const std::string& msg) { tell(match, pid, msg.c_str()); };
-  at_f = [at](void* match, const uint64_t pid) { return at(match, pid); };
-  game_over_f = [game_over](void* match, const std::vector<int64_t>& scores)
-  {
-    game_over(match, scores.empty() ? nullptr : scores.data());
-  };
-  start_timer_f = start_timer;
-  stop_timer_f = stop_timer;
+  g_new_boardcast_msg_sender_cb = new_boardcast_msg_sender;
+  g_new_tell_msg_sender_cb = new_tell_msg_sender;
+  g_delete_msg_sender_cb = delete_msg_sender;
+  g_game_over_cb = game_over;
+  g_start_timer_cb = start_timer;
+  g_stop_timer_cb = stop_timer;
   return true;
 }
 

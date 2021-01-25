@@ -1,23 +1,28 @@
 #pragma once
-#include "game_options.h"
-#include "Utility/msg_guard.h"
-#include <string>
+#include <stdint.h>
+#include "game_base.h"
 
-class MainStageBase;
-class Game;
+#ifdef _WIN32
+#define DLLEXPORT(type) __declspec(dllexport) type __cdecl
+#else
+#define DLLEXPORT(type) type
+#endif
 
-extern std::function<void(void*, const std::string&)> boardcast_f;
-extern std::function<void(void*, const uint64_t, const std::string&)> tell_f;
-extern std::function<std::string(void*, const uint64_t)> at_f;
-extern std::function<void(void*, const std::vector<int64_t>&)> game_over_f;
-extern std::function<void(void*, const uint64_t)> start_timer_f;
-extern std::function<void(void*)> stop_timer_f;
+class MsgSender;
 
-extern const std::string k_game_name;
-extern const uint64_t k_min_player;
-extern const uint64_t k_max_player;
-extern const char* Rule();
+extern "C"
+{
+  typedef MsgSender* (*NEW_BOARDCAST_MSG_SENDER_CALLBACK)(void* match);
+  typedef MsgSender* (*NEW_TELL_MSG_SENDER_CALLBACK)(void* match, const uint64_t pid);
+  typedef void (*DELETE_MSG_SENDER_CALLBACK)(MsgSender* const msg_sender);
+  typedef void (*GAME_OVER_CALLBACK)(void* match, const int64_t scores[]);
+  typedef void (*START_TIMER_CALLBACK)(void* match, const uint64_t sec);
+  typedef void (*STOP_TIMER_CALLBACK)(void* match);
+ 
+  DLLEXPORT(bool) Init(const NEW_BOARDCAST_MSG_SENDER_CALLBACK, const NEW_TELL_MSG_SENDER_CALLBACK, const DELETE_MSG_SENDER_CALLBACK, const GAME_OVER_CALLBACK, const START_TIMER_CALLBACK, const STOP_TIMER_CALLBACK);
+  DLLEXPORT(const char*) GameInfo(uint64_t* min_player, uint64_t* max_player, const char** rule);
+  DLLEXPORT(GameBase*) NewGame(void* const match);
+  /* game should be delete in game dll */
+  DLLEXPORT(void) DeleteGame(GameBase* const game);
 
-using reply_type = std::function<MsgGuard<std::function<void(const std::string&)>>()>;
-std::unique_ptr<MainStageBase> MakeMainStage(const uint64_t player_num, const GameOption& options);
-
+}

@@ -1,6 +1,6 @@
 #include "GameFramework/game_stage.h"
 #include "Utility/msg_checker.h"
-#include "GameFramework/dllmain.h"
+#include "GameFramework/game_main.h"
 #include <memory>
 #include <array>
 #include <functional>
@@ -35,7 +35,7 @@ class NumberStage : public SubGameStage<>
   int num() const { return num_; }
 
  private:
-   bool Number(const uint64_t pid, const bool is_public, const reply_type reply, const int num)
+   bool Number(const uint64_t pid, const bool is_public, const replier_t reply, const int num)
    {
      if (pid != questioner_)
      {
@@ -68,7 +68,7 @@ public:
   int lie_num() const { return lie_num_; }
 
 private:
-  bool Lie(const uint64_t pid, const bool is_public, const reply_type reply, const int lie_num)
+  bool Lie(const uint64_t pid, const bool is_public, const replier_t reply, const int lie_num)
   {
     if (pid != questioner_)
     {
@@ -97,7 +97,7 @@ public:
   bool doubt() const { return doubt_; }
 
 private:
-  bool Guess(const uint64_t pid, const bool is_public, const reply_type reply, const bool doubt)
+  bool Guess(const uint64_t pid, const bool is_public, const replier_t reply, const bool doubt)
   {
     if (pid != guesser_)
     {
@@ -123,7 +123,7 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
 
    virtual VariantSubStage OnStageBegin() override
    {
-     Boardcast() << name_ << "开始，请玩家" << At(questioner_) << "私信裁判选择数字";
+     Boardcast() << name_ << "开始，请玩家" << AtMsg(questioner_) << "私信裁判选择数字";
      return std::make_unique<NumberStage>(questioner_);
    }
 
@@ -138,7 +138,7 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
    {
      lie_num_ = is_timeout ? 1 : sub_stage.lie_num();
      if (is_timeout) { Tell(questioner_) << "提问超时，默认提问数字1"; }
-     Boardcast() << "玩家" << At(questioner_) << "提问数字" << lie_num_ << "，请玩家" << At(1 - questioner_) << "相信或质疑";
+     Boardcast() << "玩家" << AtMsg(questioner_) << "提问数字" << lie_num_ << "，请玩家" << AtMsg(1 - questioner_) << "相信或质疑";
      return std::make_unique<GuessStage>(1 - questioner_);
    }
 
@@ -152,11 +152,11 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
      auto boardcast = Boardcast();
      boardcast << "实际数字为" << num_ << "，"
        << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
-       << "玩家" << At(loser_) << "获得数字" << num_ << std::endl
-       << "数字获得情况：" << std::endl << At(0) << "：" << At(1);
+       << "玩家" << AtMsg(loser_) << "获得数字" << num_
+       << "\n数字获得情况：\n" << AtMsg(0) << "：" << AtMsg(1);
      for (int num = 1; num <= 6; ++num)
      {
-       boardcast << std::endl << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
+       boardcast << "\n" << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
      }
      return {};
    }

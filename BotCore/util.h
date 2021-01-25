@@ -1,6 +1,8 @@
 #pragma once
 #include "bot_core.h"
-#include "../GameFramework/dllmain.h"
+#include "Utility/msg_sender.h"
+#include "GameFramework/game_main.h"
+#include "Utility/msg_sender.h"
 #include <functional>
 #include <optional>
 #include <map>
@@ -44,11 +46,17 @@ extern const GroupID INVALID_GROUP_ID;
 extern std::mutex g_mutex;
 extern std::map<std::string, std::unique_ptr<GameHandle>> g_game_handles;
 
-extern AT_CALLBACK g_at_cb;
-extern PRIVATE_MSG_CALLBACK g_send_pri_msg_cb;
-extern PUBLIC_MSG_CALLBACK g_send_pub_msg_cb;
+extern NEW_MSG_SENDER_CALLBACK g_new_msg_sender_cb;
+extern DELETE_MSG_SENDER_CALLBACK g_delete_msg_sender_cb;
+
 extern UserID g_this_uid;
 
-static std::string At(const UserID uid) { return g_at_cb(uid); }
-static void SendPrivateMsg(const UserID uid, const std::string& msg) { return g_send_pri_msg_cb(uid, msg.c_str()); }
-static void SendPublicMsg(const GroupID gid, const std::string& msg) { return g_send_pub_msg_cb(gid, msg.c_str()); }
+inline MsgSenderWrapper ToUser(const UserID uid)
+{
+  return MsgSenderWrapper(std::unique_ptr<MsgSender, void (*)(MsgSender* const)>(g_new_msg_sender_cb(Target::TO_USER, uid), g_delete_msg_sender_cb));
+}
+
+inline MsgSenderWrapper ToGroup(const GroupID gid)
+{
+  return MsgSenderWrapper(std::unique_ptr<MsgSender, void (*)(MsgSender* const)>(g_new_msg_sender_cb(Target::TO_GROUP, gid), g_delete_msg_sender_cb));
+}

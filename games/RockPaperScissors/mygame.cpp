@@ -1,6 +1,6 @@
 #include "GameFramework/game_stage.h"
 #include "Utility/msg_checker.h"
-#include "GameFramework/dllmain.h"
+#include "GameFramework/game_main.h"
 #include <memory>
 #include <array>
 #include <functional>
@@ -55,8 +55,8 @@ public:
   std::optional<uint64_t> Winner() const
   {
     if (cur_choise_[0] == NONE_CHOISE && cur_choise_[1] == NONE_CHOISE) { return {}; }
-    Boardcast() << "玩家" << At(0) << "：" << Choise2Str(cur_choise_[0]) << std::endl
-      << "玩家" << At(1) << "：" << Choise2Str(cur_choise_[1]);
+    Boardcast() << "玩家" << AtMsg(0) << "：" << Choise2Str(cur_choise_[0])
+      << "\n玩家" << AtMsg(1) << "：" << Choise2Str(cur_choise_[1]);
     const auto is_win = [&cur_choise = cur_choise_](const uint64_t pid)
     {
       const Choise& my_choise = cur_choise[pid];
@@ -72,7 +72,7 @@ public:
   }
 
 private:
-  bool Act_(const uint64_t pid, const bool is_public, const reply_type reply, Choise choise)
+  bool Act_(const uint64_t pid, const bool is_public, const replier_t reply, Choise choise)
   {
     if (is_public)
     {
@@ -127,13 +127,13 @@ private:
     auto boardcast = Boardcast();
     const auto on_win = [this, &boardcast, &win_count = win_count_](const uint64_t pid)
     {
-      boardcast << "玩家" << At(pid) << "胜利" << std::endl;
+      boardcast << "玩家" << AtMsg(pid) << "胜利\n";
       ++win_count[pid];
     };
     if (winner.has_value()) { on_win(*winner); }
-    else { boardcast << "平局" << std::endl; }
-    boardcast << "目前比分：" << std::endl;
-    boardcast << At(0) << " " << win_count_[0] << " - " << win_count_[1] << " " << At(1);
+    else { boardcast << "平局\n"; }
+    boardcast << "目前比分：\n";
+    boardcast << AtMsg(0) << " " << win_count_[0] << " - " << win_count_[1] << " " << AtMsg(1);
   }
 
   const uint32_t k_max_win_count_;
