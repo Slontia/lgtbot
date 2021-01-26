@@ -14,7 +14,7 @@ add_subdirectory(BotCore)
 add_subdirectory(Simulator)
 
 set(LIBRARY_OUTPUT_PATH  ${CMAKE_BINARY_DIR}/games)
-file(GLOB GAMES games/*)
+file(GLOB GAMES plugins/*)
 foreach (GAME ${GAMES})
   if (IS_DIRECTORY ${GAME})
     add_subdirectory(${GAME})
