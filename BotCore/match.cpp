@@ -225,7 +225,6 @@ std::string Match::Join(const UserID uid)
 std::string Match::Leave(const UserID uid)
 {
   assert(Has(uid));
-  assert(state_ != State::IN_CONFIGURING);
   if (state_ == State::IS_STARTED) { return "退出失败：游戏已经开始"; }
   Boardcast() << "玩家 " << AtMsg(uid) << " 退出了游戏";
   ready_uid_set_.erase(uid);
