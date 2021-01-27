@@ -4,6 +4,7 @@
 #include "match.h"
 #include "db_manager.h"
 #include "Utility/msg_sender.h"
+#include "options.h"
 #include <regex>
 
 #ifdef _WIN32
@@ -145,7 +146,7 @@ void LoadGameModules()
   FindClose(file_handle);
   InfoLog() << "Load module count: " << g_game_handles.size();
 #elif __linux__
-  DIR *d = opendir("./plugins/");
+  DIR *d = opendir(FLAGS_game_path.c_str());
   if (!d)
   {
     ErrorLog() << "opendir failed";

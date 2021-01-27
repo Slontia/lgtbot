@@ -32,6 +32,7 @@ static void LoadAdmins()
   {
     for (uint64_t admin_uid; admin_file >> admin_uid; )
     {
+      InfoLog() << "管理员：" << admin_uid;
       g_admins.emplace(admin_uid);
     }
   }
