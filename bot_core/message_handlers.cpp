@@ -1,7 +1,7 @@
 #include "message_handlers.h"
 #include "match.h"
 #include "log.h"
-#include "Utility/msg_checker.h"
+#include "utility/msg_checker.h"
 #include "db_manager.h"
 #include "bot_core.h"
 #include "util.h"

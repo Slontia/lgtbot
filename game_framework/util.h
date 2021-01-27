@@ -1,6 +1,6 @@
 #pragma once
 #include "game_options.h"
-#include "Utility/msg_sender.h"
+#include "utility/msg_sender.h"
 #include "game_main.h"
 #include <string>
 

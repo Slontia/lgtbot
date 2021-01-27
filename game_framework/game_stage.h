@@ -1,10 +1,10 @@
 #pragma once
-#include "Utility/msg_checker.h"
+#include "utility/msg_checker.h"
 #include <optional>
 #include <cassert>
 #include <variant>
 #include <chrono>
-#include "Utility/timer.h"
+#include "utility/timer.h"
 #include "util.h"
 
 template <typename RetType>

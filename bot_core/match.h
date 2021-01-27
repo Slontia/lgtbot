@@ -1,8 +1,8 @@
 #pragma once
-#include "Utility/spinlock.h"
-#include "Utility/timer.h"
+#include "utility/spinlock.h"
+#include "utility/timer.h"
 #include "bot_core.h"
-#include "Utility/msg_sender.h"
+#include "utility/msg_sender.h"
 #include <assert.h>
 #include <set>
 #include <map>

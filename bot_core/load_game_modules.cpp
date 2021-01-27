@@ -3,7 +3,7 @@
 #include "log.h"
 #include "match.h"
 #include "db_manager.h"
-#include "Utility/msg_sender.h"
+#include "utility/msg_sender.h"
 #include "options.h"
 #include <regex>
 

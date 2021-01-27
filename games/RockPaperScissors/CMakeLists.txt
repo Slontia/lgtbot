@@ -14,9 +14,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
 
 list(APPEND SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/mygame.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../GameFramework/game.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../GameFramework/game_main.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../GameFramework/resource_loader.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../game_framework/game.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../game_framework/game_main.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../game_framework/resource_loader.cpp
 )
 
 include_directories(./ ${CMAKE_CURRENT_SOURCE_DIR}/../../)

@@ -1,8 +1,8 @@
 #pragma once
 #include "bot_core.h"
-#include "Utility/msg_sender.h"
-#include "GameFramework/game_main.h"
-#include "Utility/msg_sender.h"
+#include "utility/msg_sender.h"
+#include "game_framework/game_main.h"
+#include "utility/msg_sender.h"
 #include <functional>
 #include <optional>
 #include <map>

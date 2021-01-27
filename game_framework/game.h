@@ -6,11 +6,11 @@
 #include <functional>
 #include <mutex>
 #include <atomic>
-#include "Utility/msg_checker.h"
+#include "utility/msg_checker.h"
 #include "game_base.h"
 #include "game_stage.h"
-#include "Utility/timer.h"
-#include "Utility/spinlock.h"
+#include "utility/timer.h"
+#include "utility/spinlock.h"
 #include "game_options.h"
 
 class StageBase;

@@ -1,8 +1,8 @@
 // Simulator.cpp: 定义控制台应用程序的入口点。
 //
 
-#include "BotCore/bot_core.h"
-#include "Utility/msg_sender.h"
+#include "bot_core/bot_core.h"
+#include "utility/msg_sender.h"
 #include <iostream>
 #include <sstream>
 #include <cassert>

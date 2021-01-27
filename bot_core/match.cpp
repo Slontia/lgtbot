@@ -3,8 +3,8 @@
 #include "match.h"
 #include "db_manager.h"
 #include "util.h"
-#include "GameFramework/game_main.h"
-#include "GameFramework/game_base.h"
+#include "game_framework/game_main.h"
+#include "game_framework/game_base.h"
 #include <assert.h>
 
 std::map<MatchId, std::shared_ptr<Match>> MatchManager::mid2match_;

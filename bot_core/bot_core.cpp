@@ -5,9 +5,9 @@
 #include "db_manager.h"
 #include "util.h"
 #include "load_game_modules.h"
-#include "Utility/msg_sender.h"
-#include "GameFramework/game_main.h"
-#include "Utility/msg_checker.h"
+#include "utility/msg_sender.h"
+#include "game_framework/game_main.h"
+#include "utility/msg_checker.h"
 #include <gflags/gflags.h>
 #include <fstream>
 

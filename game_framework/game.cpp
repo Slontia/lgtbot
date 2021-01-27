@@ -4,7 +4,7 @@
 #include <memory>
 #include <functional>
 #include "game_stage.h"
-#include "Utility/msg_checker.h"
+#include "utility/msg_checker.h"
 #include "game_base.h"
 #include "game.h"
 

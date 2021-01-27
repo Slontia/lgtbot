@@ -1,6 +1,6 @@
-#include "GameFramework/game_stage.h"
-#include "Utility/msg_checker.h"
-#include "GameFramework/game_main.h"
+#include "game_framework/game_stage.h"
+#include "utility/msg_checker.h"
+#include "game_framework/game_main.h"
 #include <memory>
 #include <array>
 #include <functional>
