@@ -10,10 +10,15 @@ endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
 
-set(SOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/simulator.cpp)
+set(SOURCE_FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/simulator.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/linenoise/linenoise.c
+)
+
+find_package(gflags REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
 
-add_executable(simul ${SOURCE_FILES})
-target_link_libraries(simul game_core_static)
+add_executable(simulator ${SOURCE_FILES})
+target_link_libraries(simulator game_core_static gflags)
 

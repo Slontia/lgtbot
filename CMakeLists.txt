@@ -11,7 +11,7 @@ endif()
 set(EXECUTABLE_OUTPUT_PATH  ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH  ${CMAKE_BINARY_DIR})
 add_subdirectory(bot_core)
-add_subdirectory(simulator)
+add_subdirectory(bot_simulator)
 
 set(LIBRARY_OUTPUT_PATH  ${CMAKE_BINARY_DIR}/plugins)
 file(GLOB GAMES ${CMAKE_CURRENT_SOURCE_DIR}/games/*)

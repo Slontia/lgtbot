@@ -201,3 +201,7 @@ FakesAssemblies/
 
 # Linux
 *.o
+
+# Cmake
+CMakeFiles/
+CMakeCache.txt
