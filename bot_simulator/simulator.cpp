@@ -11,6 +11,15 @@ DEFINE_string(history_filename, ".simulator_history.txt", "The file saving histo
 DEFINE_bool(color, true, "Enable color");
 DEFINE_uint64(bot_uid, 114514, "The UserID of bot");
 
+const char* Red() { return FLAGS_color ? "\033[31m" : ""; }
+const char* Blue() { return FLAGS_color ? "\033[34m" : ""; }
+const char* Purple() { return FLAGS_color ? "\033[35m" : ""; }
+const char* LightPink() { return FLAGS_color ? "\033[1;95m" : ""; }
+const char* LightCyan() { return FLAGS_color ? "\033[96m" : ""; }
+const char* Default() { return FLAGS_color ? "\033[0m" : ""; }
+
+std::ostream& Error() { return std::cerr << Red() << "[ERROR] " << Default(); }
+
 class MyMsgSender : public MsgSender
 {
  public:
@@ -19,11 +28,11 @@ class MyMsgSender : public MsgSender
   {
     if (target_ == TO_USER)
     {
-      std::cout << "[private -> user: " << id_ << "]" << std::endl << ss_.str() << std::endl;
+      std::cout << Blue() << "[private -> user: " << id_ << "]" << Default() << std::endl << ss_.str() << std::endl;
     }
     else if (target_ == TO_GROUP)
     {
-      std::cout << "[public -> group: " << id_ << "]" << std::endl << ss_.str() << std::endl;
+      std::cout << Purple() << "[public -> group: " << id_ << "]" << Default() << std::endl << ss_.str() << std::endl;
     }
   }
   virtual void SendString(const char* const str, const size_t len) override
@@ -32,7 +41,7 @@ class MyMsgSender : public MsgSender
   }
   virtual void SendAt(const uint64_t uid) override
   {
-    ss_ << "<@" << uid << ">";
+    ss_ << LightPink() << "@" << uid << Default();
   }
 
  private:
@@ -80,7 +89,7 @@ bool handle_request(const std::string_view line)
 
   if (gid_s.empty() || uid_s.empty() || request_s.empty())
   {
-    std::cerr << "[ERROR] Invalid request format" << std::endl;
+    Error() << "Invalid request format" << std::endl;
     return false;
   }
 
@@ -93,7 +102,7 @@ bool handle_request(const std::string_view line)
   }
   catch (const std::invalid_argument& e)
   {
-    std::cerr << "[ERROR] Invalid GroupID \'" << gid_s << "\', can only be integer or \'pri\'" << std::endl;;
+    Error() << "Invalid GroupID \'" << gid_s << "\', can only be integer or \'pri\'" << std::endl;;
     return false;
   }
 
@@ -103,7 +112,7 @@ bool handle_request(const std::string_view line)
   }
   catch (const std::invalid_argument& e)
   {
-    std::cerr << "[ERROR] Invalid UserID \'" << uid_s << "\', can only be integer" << std::endl;;
+    Error() << "Invalid UserID \'" << uid_s << "\', can only be integer" << std::endl;;
     return false;
   }
 
@@ -124,6 +133,7 @@ int main(int argc, char** argv)
   init_bot(argc, argv);
 
   linenoiseHistoryLoad(FLAGS_history_filename.c_str());
+
   for (char* line_cstr = nullptr; (line_cstr = linenoise("Simulator>>> ")) != nullptr; )
   {
     const std::string_view line(line_cstr);
@@ -144,7 +154,7 @@ int main(int argc, char** argv)
     }
     else
     {
-      std::cerr << "[ERROR] Usage: <GroupID | \'pri\'> <UserID> <arg1> <arg2> ..." << std::endl;
+      Error() << "Usage: <GroupID | \'pri\'> <UserID> <arg1> <arg2> ..." << std::endl;
     }
     free(line_cstr);
   }
