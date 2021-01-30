@@ -6,152 +6,187 @@
 #include "bot_core.h"
 #include "util.h"
 
-using MetaUserFuncType = std::string(const UserID, const std::optional<GroupID>);
-using MetaCommand = MsgCommand<MetaUserFuncType>;
-
-extern const std::vector<std::shared_ptr<MetaCommand>> meta_cmds;
-
 static const auto make_command = [](std::string&& description, const auto& cb, auto&&... checkers) -> std::shared_ptr<MetaCommand>
 {
-  return MakeCommand<std::string(const UserID, const std::optional<GroupID>)>(std::move(description), cb, std::move(checkers)...);
+  return MakeCommand<ErrCode(const UserID, const std::optional<GroupID>, MsgSenderWrapper*)>(std::move(description), cb, std::move(checkers)...);
 };
 
-static std::string help(const UserID uid, const std::optional<GroupID> gid, const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string& type)
+static ErrCode help(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender,
+    const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string& type)
 {
-  std::stringstream ss;
-  ss << "[可使用的" << type << "指令]";
+  *sender << "[可使用的" << type << "指令]";
   int i = 0;
   for (const std::shared_ptr<MetaCommand>& cmd : cmds)
   {
-    ss << std::endl << "[" << (++i) << "] " << cmd->Info();
+    *sender << "\n[" << (++i) << "] " << cmd->Info();
   }
-  return ss.str();
+  return EC_OK;
 }
 
-std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader, const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string& type)
+ErrCode HandleRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader,
+    MsgSenderWrapper& sender, const std::vector<std::shared_ptr<MetaCommand>>& cmds,
+    const std::string_view type)
 {
   reader.Reset();
   for (const std::shared_ptr<MetaCommand>& cmd : cmds)
   {
-    if (std::optional<std::string> reply_msg = cmd->CallIfValid(reader, std::tuple{ uid, gid })) { return *reply_msg; }
+    const std::optional<ErrCode> errcode = cmd->CallIfValid(reader, std::tuple{ uid, gid, &sender });
+    if (errcode.has_value()) { return *errcode; }
   }
-  return "[错误] 未预料的" + type + "指令";
+  sender << "[错误] 未预料的" << type << "指令";
+  return EC_REQUEST_NOT_FOUND;
 }
 
-static std::string show_gamelist(const UserID uid, const std::optional<GroupID> gid)
+static ErrCode show_gamelist(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
-  std::stringstream ss;
   int i = 0;
-  ss << "游戏列表：";
+  if (g_game_handles.empty())
+  {
+    *sender << "未载入任何游戏";
+    return EC_OK;
+  }
+  *sender << "游戏列表：";
   for (const auto& [name, _] : g_game_handles)
   {
-    ss << std::endl << (++i) << ". " << name;
+    *sender << "\n" << (++i) << ". " << name;
   }
-  return ss.str();
+  return EC_OK;
 }
 
 template <bool skip_config>
-static std::string new_game(const UserID uid, const std::optional<GroupID> gid, const std::string& gamename)
+static ErrCode new_game(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender,
+    const std::string& gamename)
 {
   const auto it = g_game_handles.find(gamename);
-  std::string err_msg = (it != g_game_handles.end()) ? MatchManager::NewMatch(*it->second, uid, gid, skip_config) : "创建游戏失败：未知的游戏名";
-  return err_msg.empty() ? "创建游戏成功" : "[错误] " + err_msg;
+  if (it == g_game_handles.end())
+  {
+    *sender << "[错误] 创建失败：未知的游戏名";
+    return EC_REQUEST_UNKNOWN_GAME;
+  };
+  return MatchManager::NewMatch(*it->second, uid, gid, skip_config, sender);
 }
 
-static std::string config_over(const UserID uid, const std::optional<GroupID> gid)
+static ErrCode config_over(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
-  std::string err_msg = MatchManager::ConfigOver(uid, gid);
-  return err_msg.empty() ? "" : "[错误] " + err_msg;
+  return MatchManager::ConfigOver(uid, gid, sender);
 }
 
-static std::string start_game(const UserID uid, const std::optional<GroupID> gid)
+static ErrCode start_game(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
-  std::string err_msg = MatchManager::StartGame(uid, gid);
-  return err_msg.empty() ? "" : "[错误] " + err_msg;
+  return MatchManager::StartGame(uid, gid, sender);
 }
 
-static std::string leave(const UserID uid, const std::optional<GroupID> gid)
+static ErrCode leave(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
-  std::string err_msg = MatchManager::DeletePlayer(uid, gid);
-  return err_msg.empty() ? "" : "[错误] " + err_msg;
+  return MatchManager::DeletePlayer(uid, gid, sender);
 }
 
-static std::string join_private(const UserID uid, const std::optional<GroupID> gid, const MatchId match_id)
+static ErrCode join_private(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender, const MatchId match_id)
 {
-  std::string err_msg = !gid.has_value() ? MatchManager::AddPlayerToPrivateGame(match_id, uid) : "加入游戏失败：请私信裁判加入私密游戏，或去掉比赛ID以加入当前房间游戏";
-  return err_msg.empty() ? "" : "[错误] " + err_msg;
+  if (gid.has_value())
+  {
+    *sender << "[错误] 加入失败：请私信裁判加入私密游戏，或去掉比赛ID以加入当前房间游戏";
+    return EC_MATCH_NEED_REQUEST_PRIVATRE;
+  };
+  return MatchManager::AddPlayerToPrivateGame(match_id, uid, sender);
 }
 
-static std::string join_public(const UserID uid, const std::optional<GroupID> gid)
+static ErrCode join_public(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
-  std::string err_msg = gid.has_value() ? MatchManager::AddPlayerToPublicGame(*gid, uid) : "加入私密游戏，请指明比赛ID";
-  return err_msg.empty() ? "加入成功" : "[错误] " + err_msg;
+  if (!gid.has_value())
+  {
+    *sender << "[错误] 加入失败：若要加入私密游戏，请指明比赛ID";
+    return EC_MATCH_NEED_ID;
+  };
+  return MatchManager::AddPlayerToPublicGame(*gid, uid, sender);
 }
 
-static std::string show_private_matches(const UserID uid, const std::optional<GroupID> gid)
+static ErrCode show_private_matches(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
-  std::stringstream ss;
   uint64_t count = 0;
-  MatchManager::ForEachMatch([&ss, &count](const std::shared_ptr<Match> match)
+  MatchManager::ForEachMatch([&sender, &count](const std::shared_ptr<Match> match)
   {
     if (match->IsPrivate() && match->state() == Match::State::NOT_STARTED)
     {
       ++count;
-      ss << std::endl << match->game_handle().name_ << " - [房主ID] " << match->host_uid() << " - [比赛ID] " << match->mid();
+      *sender << match->game_handle().name_ << " - [房主ID] " << match->host_uid() << " - [比赛ID] " << match->mid() << "\n";
     }
   });
-  if (ss.rdbuf()->in_avail() == 0) { return "当前无未开始的私密比赛"; }
-  else { return "共" + std::to_string(count) + "场：" + ss.str(); }
+  if (count == 0)
+  {
+    *sender << "[错误] 查看失败：当前无未开始的私密比赛";
+    return EC_MATCH_NO_PRIVATE_MATCH;
+  };
+  *sender << "共" << count << "场";
+  return EC_OK;
 }
 
-static std::string show_match_status(const UserID uid, const std::optional<GroupID> gid)
+static ErrCode show_match_status(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
   // TODO: make it thread safe
-  std::stringstream ss;
   std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
   if (!match && gid.has_value()) { match = MatchManager::GetMatchWithGroupID(*gid); }
-  if (!match) { return "[错误] 您未加入游戏，或该房间未进行游戏"; }
-  ss << "游戏名称：" << match->game_handle().name_ << std::endl;
-  ss << "配置信息：" << match->OptionInfo() << std::endl;
-  ss << "游戏状态：" << (match->state() == Match::State::IN_CONFIGURING ? "配置中" :
-                       match->state() == Match::State::NOT_STARTED ? "未开始" : "已开始") << std::endl;
-  ss << "房间号：";
-  if (match->gid().has_value()) { ss << *gid << std::endl; }
-  else { ss << "私密游戏" << std::endl; }
-  ss << "可参加人数：" << match->game_handle().min_player_;
-  if (const uint64_t max_player = match->game_handle().max_player_; max_player > match->game_handle().min_player_) { ss << "~" << max_player; }
-  else if (max_player == 0) { ss << "+"; }
-  ss << "人" << std::endl;
-  ss << "房主：" << match->host_uid() << std::endl;
+  if (!match && gid.has_value())
+  {
+    *sender << "[错误] 查看失败：该房间未进行游戏";
+    return EC_MATCH_GROUP_NOT_IN_MATCH;
+  };
+  if (!match && !gid.has_value())
+  {
+    *sender << "[错误] 查看失败：您未加入游戏";
+    return EC_MATCH_USER_NOT_IN_MATCH;
+  };
+  *sender << "游戏名称：" << match->game_handle().name_ << "\n";
+  *sender << "配置信息：" << match->OptionInfo() << "\n";
+  *sender << "游戏状态：" << (match->state() == Match::State::IN_CONFIGURING ? "配置中" :
+                       match->state() == Match::State::NOT_STARTED ? "未开始" : "已开始") << "\n";
+  *sender << "房间号：";
+  if (match->gid().has_value()) { *sender << *gid << "\n"; }
+  else { *sender << "私密游戏" << "\n"; }
+  *sender << "可参加人数：" << match->game_handle().min_player_;
+  if (const uint64_t max_player = match->game_handle().max_player_; max_player > match->game_handle().min_player_) { *sender << "~" << max_player; }
+  else if (max_player == 0) { *sender << "+"; }
+  *sender << "人" << "\n";
+  *sender << "房主：" << match->host_uid() << "\n";
   const std::set<uint64_t>& ready_uid_set = match->ready_uid_set();
-  ss << "已参加玩家：" << ready_uid_set.size() << "人";
-  for (const uint64_t uid : ready_uid_set) { ss << std::endl << uid; }
-  return ss.str();
+  *sender << "已参加玩家：" << ready_uid_set.size() << "人";
+  for (const uint64_t uid : ready_uid_set) { *sender << "\n" << uid; }
+  return EC_OK;
 }
 
-static std::string show_rule(const UserID uid, const std::optional<GroupID> gid, const std::string& gamename)
+static ErrCode show_rule(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender, const std::string& gamename)
 {
-  std::stringstream ss;
   const auto it = g_game_handles.find(gamename);
-  if (it == g_game_handles.end()) { return "[错误] 未知的游戏名"; }
-  ss << "可参加人数：" << it->second->min_player_;
-  if (const uint64_t max_player = it->second->max_player_; max_player > it->second->min_player_) { ss << "~" << max_player; }
-  else if (max_player == 0) { ss << "+"; }
-  ss << "人" << std::endl;
-  ss << "详细规则：" << std::endl;
-  ss << it->second->rule_;
-  return ss.str();
+  if (it == g_game_handles.end())
+  {
+    *sender << "[错误] 查看失败：未知的游戏名";
+    return EC_REQUEST_UNKNOWN_GAME;
+  };
+  *sender << "可参加人数：" << it->second->min_player_;
+  if (const uint64_t max_player = it->second->max_player_; max_player > it->second->min_player_) { *sender << "~" << max_player; }
+  else if (max_player == 0) { *sender << "+"; }
+  *sender << "人\n";
+  *sender << "详细规则：\n";
+  *sender << it->second->rule_;
+  return EC_OK;
 }
 
-static std::string show_profile(const UserID uid, const std::optional<GroupID> gid)
+static ErrCode show_profile(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
-  if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager == nullptr) { return "[错误] 未连接数据库"; }
-  else { return db_manager->GetUserProfit(uid); }
+  const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager();
+  if (db_manager == nullptr)
+  {
+    *sender << "[错误] 查看失败：未连接数据库";
+    return EC_DB_NOT_CONNECTED;
+  };
+  db_manager->GetUserProfit(uid); // TODO: pass sender
+  return EC_OK;
 }
 
 const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
 {
-  make_command("查看帮助", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, meta_cmds, "元"); }, VoidChecker("#帮助")),
+  make_command("查看帮助", [](const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
+      { return help(uid, gid, sender, meta_cmds, "元"); }, VoidChecker("#帮助")),
   make_command("查看个人信息", show_profile, VoidChecker("#个人信息")),
   make_command("查看游戏列表", show_gamelist, VoidChecker("#游戏列表")),
   make_command("查看游戏规则", show_rule, VoidChecker("#规则"), AnyArg("游戏名称", "某游戏名")),
@@ -167,42 +202,57 @@ const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
   make_command("在游戏开始前退出游戏", leave, VoidChecker("#退出游戏")),
 };
 
-static std::string release_game(const UserID uid, const std::optional<GroupID> gid, const std::string& gamename)
+static ErrCode release_game(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender, const std::string& gamename)
 {
-  if (const auto it = g_game_handles.find(gamename); it == g_game_handles.end()) { return "[错误] 未知的游戏名"; }
-  else if (std::optional<uint64_t> game_id = it->second->game_id_.load(); game_id.has_value()) { return "[错误] 游戏已发布，ID为" + std::to_string(*game_id); }
-  else if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager == nullptr) { return "[错误] 未连接数据库"; }
-  else if (game_id = db_manager->ReleaseGame(gamename); !game_id.has_value()) { return "[错误] 发布失败，请查看错误日志"; }
-  else
+  const auto it = g_game_handles.find(gamename); 
+  if (it == g_game_handles.end())
   {
-    it->second->game_id_.store(game_id);
-    return "发布成功，游戏\'" + gamename + "\'的ID为" + std::to_string(*game_id);
+    *sender << "[错误] 发布失败：未知的游戏名";
+    return EC_REQUEST_UNKNOWN_GAME;
   }
+  std::optional<uint64_t> game_id = it->second->game_id_.load(); 
+  if (game_id.has_value())
+  {
+    *sender << "[错误] 发布失败：游戏已发布，ID为" << *game_id;
+    return EC_GAME_ALREADY_RELEASE;
+  }
+  const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); 
+  if (db_manager == nullptr)
+  {
+    *sender << "[错误] 发布失败：未连接数据库";
+    return EC_DB_NOT_CONNECTED;
+  };
+  if (!(game_id = db_manager->ReleaseGame(gamename)).has_value())
+  {
+    *sender << "[错误] 发布失败：发布失败，请查看错误日志";
+    return EC_DB_RELEASE_GAME_FAILED;
+  };
+  it->second->game_id_.store(game_id);
+  *sender << "发布成功，游戏\'" << gamename << "\'的ID为" << *game_id;
+  return EC_OK;
 }
 
-static std::string interrupt_match(const UserID uid, const std::optional<GroupID> gid)
+static ErrCode interrupt_match(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
-  std::string err_msg;
-  if (!gid.has_value()) { err_msg = "需要在房间中使用该指令"; }
-  else if (const auto match = MatchManager::GetMatchWithGroupID(*gid); !match) { err_msg = "该房间未进行游戏"; }
-  else { MatchManager::DeleteMatch(match->mid()); }
-  return err_msg.empty() ? "中断游戏成功" : "[错误] " + err_msg;
+  if (!gid.has_value())
+  {
+    *sender << "[错误] 游戏失败：需要在房间中使用该指令";
+    return EC_MATCH_NEED_REQUEST_PUBLIC;
+  };
+  const auto match = MatchManager::GetMatchWithGroupID(*gid);
+  if (!match)
+  {
+    *sender << "[错误] 游戏失败：该房间未进行游戏";
+    return EC_MATCH_GROUP_NOT_IN_MATCH;
+  };
+  return MatchManager::DeleteMatch(match->mid());
 }
 
 const std::vector<std::shared_ptr<MetaCommand>> admin_cmds =
 {
-  make_command("查看帮助", [](const UserID uid, const std::optional<GroupID> gid) { return help(uid, gid, admin_cmds, "管理"); }, VoidChecker("%帮助")),
+  make_command("查看帮助", [](const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
+      { return help(uid, gid, sender, admin_cmds, "管理"); }, VoidChecker("%帮助")),
   make_command("发布游戏，写入游戏信息到数据库", release_game, VoidChecker("%发布游戏"), AnyArg("游戏名称", "某游戏名")),
   make_command("强制中断公开比赛", interrupt_match, VoidChecker("%中断游戏"))
 };
 
-template <typename Reader> requires std::is_same_v<std::unwrap_ref_decay_t<Reader>, MsgReader>
-std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, Reader&& reader)
-{
-  return HandleRequest(uid, gid, reader, meta_cmds, "元");
-}
-
-std::string HandleAdminRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader)
-{
-  return HandleRequest(uid, gid, reader, admin_cmds, "管理");
-}

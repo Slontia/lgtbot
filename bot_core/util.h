@@ -11,14 +11,10 @@
 #include <mutex>
 #include <atomic>
 
-#define RETURN_IF_FAILED(str) \
-do\
-{\
-  if (const std::string& err = (str); !err.empty())\
-    return err;\
-} while (0);
 
 using ModGuard = std::function<void()>;
+
+template <typename TRef, typename T> concept UniRef = std::is_same_v<std::decay_t<TRef>, T>;
 
 struct GameHandle
 {
@@ -28,7 +24,7 @@ struct GameHandle
     : game_id_(game_id), name_(name), min_player_(min_player), max_player_(max_player), rule_(rule),
     new_game_(new_game), delete_game_(delete_game), mod_guard_(std::forward<ModGuard>(mod_guard)) {}
   GameHandle(GameHandle&&) = delete;
-  
+
   std::atomic<std::optional<uint64_t>> game_id_;
   const std::string name_;
   const uint64_t min_player_;

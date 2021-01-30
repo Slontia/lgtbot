@@ -1,26 +1,29 @@
 #pragma once
+#include "util.h"
 #include "bot_core.h"
 #include "utility/msg_checker.h"
+#include "utility/msg_sender.h"
 #include <type_traits>
 
-template <typename TRef, typename T> concept UniRef = std::is_same_v<std::decay_t<TRef>, T>;
-
-using MetaUserFuncType = std::string(const UserID, const std::optional<GroupID>);
+using MetaUserFuncType = ErrCode(const UserID, const std::optional<GroupID>, MsgSenderWrapper*);
 using MetaCommand = MsgCommand<MetaUserFuncType>;
 
 extern const std::vector<std::shared_ptr<MetaCommand>> meta_cmds;
 extern const std::vector<std::shared_ptr<MetaCommand>> admin_cmds;
 
-extern std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader, const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string& type);
+ErrCode HandleRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader,
+    MsgSenderWrapper& sender, const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string_view type);
 
 template <UniRef<MsgReader> ReaderRef>
-std::string HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid, ReaderRef&& reader)
+ErrCode HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid,
+    ReaderRef&& reader, MsgSenderWrapper& sender)
 {
-	return HandleRequest(uid, gid, reader, meta_cmds, "元");
+	return HandleRequest(uid, gid, reader, sender, meta_cmds, "元");
 }
 
 template <UniRef<MsgReader> ReaderRef>
-std::string HandleAdminRequest(const UserID uid, const std::optional<GroupID> gid, ReaderRef&& reader)
+ErrCode HandleAdminRequest(const UserID uid, const std::optional<GroupID> gid,
+    ReaderRef&& reader, MsgSenderWrapper& sender)
 {
-	return HandleRequest(uid, gid, reader, admin_cmds, "管理");
+	return HandleRequest(uid, gid, reader, sender, admin_cmds, "管理");
 }

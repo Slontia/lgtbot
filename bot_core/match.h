@@ -31,20 +31,20 @@ class GameHandle;
 class MatchManager
 {
 public:
-  static std::string NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid, const bool skip_config);
-  static std::string ConfigOver(const UserID uid, const std::optional<GroupID> gid);
-  static std::string StartGame(const UserID uid, const std::optional<GroupID> gid);
-  static std::string AddPlayerToPrivateGame(const MatchId mid, const UserID uid);
-  static std::string AddPlayerToPublicGame(const GroupID gid, const UserID uid);
-  static std::string DeletePlayer(const UserID uid, const std::optional<GroupID> gid);
-  static void DeleteMatch(const MatchId id);
+  static ErrCode NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid, const bool skip_config, MsgSenderWrapper* sender);
+  static ErrCode ConfigOver(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender);
+  static ErrCode StartGame(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender);
+  static ErrCode AddPlayerToPrivateGame(const MatchId mid, const UserID uid, MsgSenderWrapper* sender);
+  static ErrCode AddPlayerToPublicGame(const GroupID gid, const UserID uid, MsgSenderWrapper* sender);
+  static ErrCode DeletePlayer(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender);
+  static ErrCode DeleteMatch(const MatchId id);
   static std::shared_ptr<Match> GetMatch(const MatchId mid);
   static std::shared_ptr<Match> GetMatch(const UserID uid, const std::optional<GroupID> gid);
   static std::shared_ptr<Match> GetMatchWithGroupID(const GroupID gid);
   static void ForEachMatch(const std::function<void(const std::shared_ptr<Match>)>);
 
 private:
-  static std::string AddPlayer_(const std::shared_ptr<Match>& match, const UserID);
+  static ErrCode AddPlayer_(const std::shared_ptr<Match>& match, const UserID, MsgSenderWrapper* sender);
   static void DeleteMatch_(const MatchId id);
   template <typename IDType>
   static std::shared_ptr<Match> GetMatch_(const IDType id, const std::map<IDType, std::shared_ptr<Match>>& id2match);
@@ -70,14 +70,14 @@ public:
   Match(const MatchId id, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid, const bool skip_config);
   ~Match();
 
-  std::string Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg);
-  std::string GameConfigOver();
-  std::string GameStart();
-  std::string Join(const UserID uid);
-  std::string Leave(const UserID uid);
+  ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSenderWrapper* sender);
+  ErrCode GameConfigOver(MsgSenderWrapper* sender);
+  ErrCode GameStart(MsgSenderWrapper* sender);
+  ErrCode Join(const UserID uid, MsgSenderWrapper* sender);
+  ErrCode Leave(const UserID uid, MsgSenderWrapper* sender);
   MsgSenderWrapperBatch Boardcast() const;
   MsgSenderWrapper Tell(const uint64_t pid) const;
-  std::string AtPlayer(const uint64_t pid) const;
+  ErrCode AtPlayer(const uint64_t pid) const;
   void GameOver(const int64_t scores[]);
   void StartTimer(const uint64_t sec);
   void StopTimer();

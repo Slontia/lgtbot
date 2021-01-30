@@ -38,22 +38,40 @@ static void LoadAdmins()
   }
 }
 
-static std::string HandleRequest(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)
+template <UniRef<MsgSenderWrapper> SenderRef>
+static ErrCode HandleRequest(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, SenderRef&& sender)
 {
-  if (std::string first_arg; !(std::stringstream(msg) >> first_arg) || first_arg.empty()) { return "[错误] 空白消息"; }
+  if (std::string first_arg; !(std::stringstream(msg) >> first_arg) || first_arg.empty())
+  {
+    sender << "[错误] 我不理解，所以你是想表达什么？";
+    return EC_REQUEST_EMPTY;
+  }
   else
   {
     switch (first_arg[0])
     {
-    case '#': return HandleMetaRequest(uid, gid, MsgReader(msg));
+    case '#':
+      return HandleMetaRequest(uid, gid, MsgReader(msg), sender);
     case '%':
-      if (g_admins.find(uid) == g_admins.end()) { return "[错误] 您未持有管理员权限"; }
-      return HandleAdminRequest(uid, gid, MsgReader(msg));
+      if (g_admins.find(uid) == g_admins.end())
+      {
+        sender << "[错误] 您未持有管理员权限";
+        return EC_REQUEST_NOT_ADMIN;
+      }
+      return HandleAdminRequest(uid, gid, MsgReader(msg), sender);
     default:
       std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
-      if (!match) { return "[错误] 您未参与游戏"; }
-      if (match->gid() != gid && gid.has_value()) { return "[错误] 您未在本群参与游戏"; }
-      return match->Request(uid, gid, msg);
+      if (!match)
+      {
+        sender << "[错误] 您未参与游戏";
+        return EC_MATCH_USER_NOT_IN_MATCH;
+      }
+      if (match->gid() != gid && gid.has_value())
+      {
+        sender << "[错误] 您未在本群参与游戏";
+        return EC_MATCH_NOT_THIS_GROUP;
+      }
+      return match->Request(uid, gid, msg, &sender);
     }
   }
 }
@@ -77,18 +95,12 @@ bool /*__cdecl*/ BOT_API::Init(
 
 void /*__cdecl*/ BOT_API::HandlePrivateRequest(const UserID uid, const char* const msg)
 {
-  if (const std::string reply_msg = HandleRequest(uid, {}, msg); !reply_msg.empty())
-  {
-    ToUser(uid) << reply_msg;
-  }
+  HandleRequest(uid, {}, msg, ToUser(uid));
 }
 
 void /*__cdecl*/ BOT_API::HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
 {
-  if (const std::string reply_msg = HandleRequest(uid, gid, msg); !reply_msg.empty())
-  {
-    ToGroup(gid) << AtMsg(uid) << "\n" << reply_msg;
-  };
+  HandleRequest(uid, gid, msg, ToGroup(gid) << AtMsg(uid) << "\n");
 }
 
 ErrCode /*__cdecl*/ BOT_API::ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg)

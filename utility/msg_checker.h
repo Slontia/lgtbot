@@ -54,6 +54,8 @@ public:
   virtual std::optional<T> Check(MsgReader& reader) const = 0;
 };
 
+// Require: has next argument
+// Return: the next argument
 class AnyArg : public MsgArgChecker<std::string>
 {
 public:
@@ -72,6 +74,8 @@ private:
   const std::string example_;
 };
 
+// Request: the argument should be <true_str> or <false_str>
+// Return: if argument is <true_str>, return true; if argument is <false_str>, return false
 class BoolChecker : public MsgArgChecker<bool>
 {
 public:
@@ -93,6 +97,8 @@ private:
   const std::string false_str_;
 };
 
+// Requires: the argument is one of the key in <arg_map>
+// Return: the value to the key
 template <typename T>
 class AlterChecker : public MsgArgChecker<T>
 {
@@ -132,6 +138,8 @@ private:
   const std::string meaning_;
 };
 
+// Require: the argument can be convert to a number in [<Min>, <Max>], or no more arguments and <Optional> is true
+// Return: the converted number wrapped in std::optional, or an empty std::optional if no more arguments
 template <typename T, T Min, T Max, bool Optional = false, typename = typename std::enable_if_t<std::is_arithmetic_v<T>>>
 class ArithChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
@@ -153,6 +161,8 @@ private:
   const std::string meaning_;
 };
 
+// Require: type argument can be convert to type <T>, or no more arguments and <Optional> is true
+// Return: the converted object <T> wrapped in std::optional, or an empty std::optional if no more arguments
 template <typename T, bool Optional = false, typename = typename std::enable_if_t<std::is_arithmetic_v<T>>>
 class BasicChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
@@ -179,6 +189,8 @@ private:
 
 using VoidChecker = MsgArgChecker<void>;
 
+// Require: the argument is equal to <const_arg>
+// Return: nothing
 template <>
 class MsgArgChecker<void> final
 {

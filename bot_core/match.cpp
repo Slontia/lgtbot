@@ -7,96 +7,154 @@
 #include "game_framework/game_base.h"
 #include <assert.h>
 
+// func can appear only once
+#define RETURN_IF_FAILED(func) \
+do\
+{\
+  if (const auto ret = (func); ret != EC_OK)\
+    return ret;\
+} while (0);
+
 std::map<MatchId, std::shared_ptr<Match>> MatchManager::mid2match_;
 std::map<UserID, std::shared_ptr<Match>> MatchManager::uid2match_;
 std::map<GroupID, std::shared_ptr<Match>> MatchManager::gid2match_;
 MatchId MatchManager::next_mid_ = 0;
 SpinLock MatchManager::spinlock_; // to lock match map
 
-std::string MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid, const bool skip_config)
+ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid, const bool skip_config, MsgSenderWrapper* sender)
 {
   std::lock_guard<SpinLock> l(spinlock_);
-  if (GetMatch_(uid, uid2match_)) { return "新建游戏失败：您已加入游戏"; }
-  if (gid.has_value() && GetMatch_(*gid, gid2match_)) { return "新建游戏失败：该房间已经开始游戏"; }
-
+  if (GetMatch_(uid, uid2match_))
+  {
+    *sender << "[错误] 建立失败：您已加入游戏";
+    return EC_MATCH_USER_ALREADY_IN_MATCH;
+  }
+  if (gid.has_value() && GetMatch_(*gid, gid2match_))
+  {
+    *sender << "[错误] 建立失败：该房间已经开始游戏";
+    return EC_MATCH_ALREADY_BEGIN;
+  }
   const MatchId mid = NewMatchID_();
   std::shared_ptr<Match> new_match = std::make_shared<Match>(mid, game_handle, uid, gid, skip_config);
-  
-  RETURN_IF_FAILED(AddPlayer_(new_match, uid));
+  RETURN_IF_FAILED(AddPlayer_(new_match, uid, sender));
   BindMatch_(mid, mid2match_, new_match);
   if (gid.has_value()) { BindMatch_(*gid, gid2match_, new_match); }
-
-  return "";
+  return EC_OK;
 }
 
-std::string MatchManager::ConfigOver(const UserID uid, const std::optional<GroupID> gid)
+ErrCode MatchManager::ConfigOver(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
   std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
-  if (!match) { return "结束配置失败：您未加入游戏"; }
-  else if (match->host_uid() != uid) { return "结束配置失败：您不是房主，没有结束配置的权限"; }
-  else if (!match->IsPrivate() && !gid.has_value()) { return "结束配置失败：请公开结束配置"; }
-  else if (match->gid() != gid) { return "结束配置失败：您未在该房间建立游戏"; }
-  RETURN_IF_FAILED(match->GameConfigOver());
-  return "";
+  if (!match)
+  {
+    *sender << "[错误] 结束失败：您未加入游戏";
+    return EC_MATCH_USER_NOT_IN_MATCH;
+  }
+  if (match->host_uid() != uid)
+  {
+    *sender << "[错误] 结束失败：您不是房主，没有结束配置的权限";
+    return EC_MATCH_NOT_HOST;
+  }
+  if (match->gid() != gid)
+  {
+    *sender << "[错误] 结束失败：您未在该房间建立游戏";
+    return EC_MATCH_NOT_THIS_GROUP;
+  }
+  RETURN_IF_FAILED(match->GameConfigOver(sender));
+  return EC_OK;
 }
 
-std::string MatchManager::StartGame(const UserID uid, const std::optional<GroupID> gid)
+ErrCode MatchManager::StartGame(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
   std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
-  if (!match) { return "开始游戏失败：您未加入游戏"; }
-  else if (match->host_uid() != uid) { return "开始游戏失败：您不是房主，没有开始游戏的权限"; }
-  else if (!match->IsPrivate() && !gid.has_value()) { return "开始游戏失败：请公开开始游戏"; }
-  else if (match->gid() != gid) { return "开始游戏失败：您未在该房间建立游戏"; }
-  RETURN_IF_FAILED(match->GameStart());
-  return "";
+  if (!match)
+  {
+    *sender << "[错误] 开始失败：您未加入游戏";
+    return EC_MATCH_USER_NOT_IN_MATCH;
+  }
+  if (match->host_uid() != uid)
+  {
+    *sender << "[错误] 开始失败：开始游戏失败：您不是房主，没有开始游戏的权限";
+    return EC_MATCH_NOT_HOST;
+  }
+  if (match->gid() != gid)
+  {
+    *sender << "[错误] 开始失败：开始游戏失败：您未在该房间建立游戏";
+    return EC_MATCH_NOT_THIS_GROUP;
+  }
+  return match->GameStart(sender);
 }
 
-std::string MatchManager::AddPlayerToPrivateGame(const MatchId mid, const UserID uid)
+ErrCode MatchManager::AddPlayerToPrivateGame(const MatchId mid, const UserID uid, MsgSenderWrapper* sender)
 {
   std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
-  if (!match) { return "加入游戏失败：游戏ID不存在"; }
-  else if (!match->IsPrivate()) { return "加入游戏失败：该游戏属于公开比赛，请前往房间加入游戏"; }
-  return AddPlayer_(match, uid);
+  if (!match)
+  {
+    *sender << "[错误] 加入失败：游戏ID不存在";
+    return EC_MATCH_NOT_EXIST;
+  }
+  if (!match->IsPrivate())
+  {
+    *sender << "[错误] 加入失败：该游戏属于公开比赛，请前往房间加入游戏";
+    return EC_MATCH_NEED_REQUEST_PUBLIC;
+  }
+  return AddPlayer_(match, uid, sender);
 }
 
-std::string MatchManager::AddPlayerToPublicGame(const GroupID gid, const UserID uid)
+ErrCode MatchManager::AddPlayerToPublicGame(const GroupID gid, const UserID uid, MsgSenderWrapper* sender)
 {
   std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match> match = GetMatch_(gid, gid2match_);
-  if (!match) { return "加入游戏失败：该房间未进行游戏"; }
-  return AddPlayer_(match, uid);
+  if (!match)
+  {
+    *sender << "[错误] 加入失败：该房间未进行游戏";
+    return EC_MATCH_GROUP_NOT_IN_MATCH;
+  }
+  return AddPlayer_(match, uid, sender);
 }
 
-std::string MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const UserID uid)
+ErrCode MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const UserID uid, MsgSenderWrapper* sender)
 {
   assert(match);
-  if (GetMatch_(uid, uid2match_)) { return "加入游戏失败：您已加入其它游戏，请先退出"; }
-  RETURN_IF_FAILED(match->Join(uid));
+  if (GetMatch_(uid, uid2match_))
+  {
+    *sender << "[错误] 加入失败：您已加入其它游戏，请先退出";
+    return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
+  }
+  RETURN_IF_FAILED(match->Join(uid, sender));
   BindMatch_(uid, uid2match_, match);
-  return "";
+  return EC_OK;
 }
 
-std::string MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID> gid)
+ErrCode MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID> gid, MsgSenderWrapper* sender)
 {
   std::lock_guard<SpinLock> l(spinlock_);
   const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
-  if (!match) { return "退出游戏失败：您未加入游戏"; }
-  else if (!match->IsPrivate() && !gid.has_value()) { return "退出游戏失败：请公开退出游戏"; }
-  else if (match->gid() != gid) { return "退出游戏失败：您未加入本房间游戏"; }
-  RETURN_IF_FAILED(match->Leave(uid));
+  if (!match)
+  {
+    *sender << "[错误] 退出失败：您未加入游戏";
+    return EC_MATCH_USER_NOT_IN_MATCH;
+  }
+  if (match->gid() != gid)
+  {
+    *sender << "[错误] 退出失败：您未加入本房间游戏";
+    return EC_MATCH_NOT_THIS_GROUP;
+  }
+  RETURN_IF_FAILED(match->Leave(uid, sender));
   UnbindMatch_(uid, uid2match_);
   /* If host quit, switch host. */
   if (uid == match->host_uid() && !match->SwitchHost()) { DeleteMatch_(match->mid()); }
-  return "";
+  return EC_OK;
 }
 
-void MatchManager::DeleteMatch(const MatchId mid)
+ErrCode MatchManager::DeleteMatch(const MatchId mid)
 {
   std::lock_guard<SpinLock> l(spinlock_);
-  return DeleteMatch_(mid);
+  DeleteMatch_(mid);
+  return EC_OK;
 }
 
 void MatchManager::DeleteMatch_(const MatchId mid)
@@ -171,34 +229,61 @@ bool Match::Has(const UserID uid) const
   return ready_uid_set_.find(uid) != ready_uid_set_.end();
 }
 
-std::string Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg)
+ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSenderWrapper* sender)
 {
-  if (state_ == State::NOT_STARTED) { return "[错误] 当前阶段等待玩家加入，无法执行游戏请求"; }
-  if (state_ == State::IN_CONFIGURING) { game_->HandleRequest(0, gid.has_value(), msg.c_str()); }
+  if (state_ == State::NOT_STARTED)
+  {
+    *sender << "[错误] 当前阶段等待玩家加入，无法执行游戏请求";
+    return EC_MATCH_NOT_BEGIN;
+  }
+  if (state_ == State::IN_CONFIGURING)
+  {
+    game_->HandleRequest(0, gid.has_value(), msg.c_str());
+  }
   else
   {
-	const auto it = uid2pid_.find(uid);
-	assert(it != uid2pid_.end());
-	game_->HandleRequest(it->second, gid.has_value(), msg.c_str());
+    const auto it = uid2pid_.find(uid);
+    assert(it != uid2pid_.end());
+    game_->HandleRequest(it->second, gid.has_value(), msg.c_str());
   }
-  return "";
+  return EC_OK;
 }
 
-std::string Match::GameConfigOver()
+ErrCode Match::GameConfigOver(MsgSenderWrapper* sender)
 {
-  if (state_ != State::IN_CONFIGURING) { return "结束配置失败：游戏未处于配置状态"; }
+  if (state_ != State::IN_CONFIGURING)
+  {
+    *sender << "[错误] 结束配置失败：游戏未处于配置状态";
+    return EC_MATCH_NOT_IN_CONFIG;
+  }
   state_ = State::NOT_STARTED;
-  return "配置结束，现在玩家可以加入比赛！";
+  return EC_OK;
 }
 
-std::string Match::GameStart()
+ErrCode Match::GameStart(MsgSenderWrapper* sender)
 {
-  if (state_ == State::IN_CONFIGURING) { return "开始游戏失败：游戏正处于配置阶段，请结束配置，等待玩家加入后再开始游戏"; }
-  if (state_ == State::IS_STARTED) { return "开始游戏失败：游戏已经开始"; }
+  if (state_ == State::IN_CONFIGURING)
+  {
+    *sender << "[错误] 开始失败：游戏正处于配置阶段，请结束配置，等待玩家加入后再开始游戏";
+    return EC_MATCH_IN_CONFIG;
+  }
+  if (state_ == State::IS_STARTED)
+  {
+    *sender << "[错误] 开始失败：游戏已经开始";
+    return EC_MATCH_ALREADY_BEGIN;
+  }
   const uint64_t player_num = ready_uid_set_.size();
-  if (player_num < game_handle_.min_player_) { return "开始游戏失败：玩家人数过少"; }
+  if (player_num < game_handle_.min_player_)
+  {
+    *sender << "[错误] 开始失败：玩家人数过少";
+    return EC_MATCH_TOO_FEW_PLAYER;
+  }
   assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
-  if (!game_->StartGame(player_num)) { return "开始游戏失败：不符合游戏参数的预期"; }
+  if (!game_->StartGame(player_num))
+  {
+    *sender << "[错误] 开始失败：不符合游戏参数的预期";
+    return EC_MATCH_UNEXPECTED_CONFIG;
+  }
 
   for (UserID uid : ready_uid_set_)
   {
@@ -208,27 +293,43 @@ std::string Match::GameStart()
   state_ = State::IS_STARTED;
   Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
   start_time_ = std::chrono::system_clock::now();
-  return "";
+  return EC_OK;
 }
 
-std::string Match::Join(const UserID uid)
+ErrCode Match::Join(const UserID uid, MsgSenderWrapper* sender)
 {
   assert(!Has(uid));
-  if (state_ == State::IN_CONFIGURING && uid != host_uid_) { return "加入游戏失败：房主正在配置游戏参数"; }
-  if (state_ == State::IS_STARTED) { return "加入游戏失败：游戏已经开始"; }
-  if (ready_uid_set_.size() >= game_handle_.max_player_) { return "加入游戏失败：比赛人数已达到游戏上线"; }
+  if (state_ == State::IN_CONFIGURING && uid != host_uid_)
+  {
+    *sender << "[错误] 加入失败：房主正在配置游戏参数";
+    return EC_MATCH_IN_CONFIG;
+  }
+  if (state_ == State::IS_STARTED)
+  {
+    *sender << "[错误] 加入失败：游戏已经开始";
+    return EC_MATCH_ALREADY_BEGIN;
+  }
+  if (ready_uid_set_.size() >= game_handle_.max_player_)
+  {
+    *sender << "[错误] 加入失败：比赛人数已达到游戏上线";
+    return EC_MATCH_ACHIEVE_MAX_PLAYER;
+  }
   ready_uid_set_.emplace(uid);
   Boardcast() << "玩家 " << AtMsg(uid) << " 加入了游戏";
-  return "";
+  return EC_OK;
 }
 
-std::string Match::Leave(const UserID uid)
+ErrCode Match::Leave(const UserID uid, MsgSenderWrapper* sender)
 {
   assert(Has(uid));
-  if (state_ == State::IS_STARTED) { return "退出失败：游戏已经开始"; }
+  if (state_ == State::IS_STARTED)
+  {
+    *sender << "[错误] 退出失败：游戏已经开始";
+    return EC_MATCH_ALREADY_BEGIN;
+  }
   Boardcast() << "玩家 " << AtMsg(uid) << " 退出了游戏";
   ready_uid_set_.erase(uid);
-  return "";
+  return EC_OK;
 }
 
 MsgSenderWrapperBatch Match::Boardcast() const
@@ -272,7 +373,7 @@ void Match::GameOver(const int64_t scores[])
     std::optional<uint64_t> game_id = game_handle_.game_id_.load();
     if (game_id.has_value() && !db_manager->RecordMatch(*game_id, gid_, host_uid_, multiple_, score_info))
     {
-      sender << "\n错误：游戏结果写入数据库失败，请联系管理员";
+      sender << "\n[错误] 游戏结果写入数据库失败，请联系管理员";
     }
   }
 }
@@ -312,7 +413,7 @@ bool Match::SwitchHost()
 {
   if (ready_uid_set_.empty()) { return false; }
   host_uid_ = *ready_uid_set_.begin();
-  Boardcast() << AtMsg(host_uid_) << "被选为新房主";
+  Boardcast() << AtMsg(host_uid_) << "被选为新房主" ;
   return true;
 }
 
