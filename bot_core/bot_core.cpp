@@ -93,14 +93,14 @@ bool /*__cdecl*/ BOT_API::Init(
   return true;
 }
 
-void /*__cdecl*/ BOT_API::HandlePrivateRequest(const UserID uid, const char* const msg)
+ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(const UserID uid, const char* const msg)
 {
-  HandleRequest(uid, {}, msg, ToUser(uid));
+  return HandleRequest(uid, {}, msg, ToUser(uid));
 }
 
-void /*__cdecl*/ BOT_API::HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
+ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
 {
-  HandleRequest(uid, gid, msg, ToGroup(gid) << AtMsg(uid) << "\n");
+  return HandleRequest(uid, gid, msg, ToGroup(gid) << AtMsg(uid) << "\n");
 }
 
 ErrCode /*__cdecl*/ BOT_API::ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg)

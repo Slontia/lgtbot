@@ -32,7 +32,7 @@ extern "C"
     EC_DB_RELEASE_GAME_FAILED,
 
     // user error
-    EC_MATCH_NOT_EXIST,
+    EC_MATCH_NOT_EXIST = 201,
     EC_MATCH_USER_ALREADY_IN_MATCH,
     EC_MATCH_USER_NOT_IN_MATCH,
     EC_MATCH_USER_ALREADY_IN_OTHER_MATCH,
@@ -51,12 +51,12 @@ extern "C"
     EC_MATCH_UNEXPECTED_CONFIG,
     EC_MATCH_NO_PRIVATE_MATCH,
 
-    EC_REQUEST_EMPTY,
+    EC_REQUEST_EMPTY = 301,
     EC_REQUEST_NOT_ADMIN,
     EC_REQUEST_NOT_FOUND,
     EC_REQUEST_UNKNOWN_GAME,
 
-    EC_GAME_ALREADY_RELEASE,
+    EC_GAME_ALREADY_RELEASE = 401,
   };
 
 #ifdef _WIN32
@@ -69,8 +69,8 @@ extern "C"
   {
    public:
     static DLLEXPORT(bool) Init( const UserID this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb, const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, int argc, char** argv);
-    static DLLEXPORT(void) HandlePrivateRequest(const UserID uid, const char* const msg);
-    static DLLEXPORT(void) HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg);
+    static DLLEXPORT(ErrCode) HandlePrivateRequest(const UserID uid, const char* const msg);
+    static DLLEXPORT(ErrCode) HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg);
     static DLLEXPORT(ErrCode) ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg);
   };
 

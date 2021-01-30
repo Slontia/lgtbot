@@ -12,6 +12,7 @@ DEFINE_bool(color, true, "Enable color");
 DEFINE_uint64(bot_uid, 114514, "The UserID of bot");
 
 const char* Red() { return FLAGS_color ? "\033[31m" : ""; }
+const char* Green() { return FLAGS_color ? "\033[32m" : ""; }
 const char* Blue() { return FLAGS_color ? "\033[34m" : ""; }
 const char* Purple() { return FLAGS_color ? "\033[35m" : ""; }
 const char* LightPink() { return FLAGS_color ? "\033[1;95m" : ""; }
@@ -66,24 +67,24 @@ void init_bot(int argc, char** argv)
   BOT_API::Init(FLAGS_bot_uid, create_msg_sender, delete_msg_sender, argc, argv);
 }
 
+std::pair<std::string_view, std::string_view> cut(const std::string_view line)
+{
+  if (const auto start_pos = line.find_first_not_of(' '); start_pos == std::string_view::npos)
+  {
+    return { std::string_view(), std::string_view() };
+  }
+  else if (const auto end_pos = line.find_first_of(' ', start_pos); end_pos == std::string_view::npos)
+  {
+    return { line.substr(start_pos), std::string_view() };
+  }
+  else
+  {
+    return { line.substr(start_pos, end_pos - start_pos), line.substr(end_pos) };
+  }
+};
+
 bool handle_request(const std::string_view line)
 {
-  const auto cut = [](const std::string_view line) -> std::pair<std::string_view, std::string_view>
-  {
-    if (const auto start_pos = line.find_first_not_of(' '); start_pos == std::string_view::npos)
-    {
-      return { std::string_view(), std::string_view() };
-    }
-    else if (const auto end_pos = line.find_first_of(' ', start_pos); end_pos == std::string_view::npos)
-    {
-      return { line.substr(start_pos), std::string_view() };
-    }
-    else
-    {
-      return { line.substr(start_pos, end_pos - start_pos), line.substr(end_pos) };
-    }
-  };
-
   const auto [gid_s, gid_remain_s] = cut(line);
   const auto [uid_s, request_s] = cut(gid_remain_s);
 
@@ -116,14 +117,10 @@ bool handle_request(const std::string_view line)
     return false;
   }
 
-  if (gid.has_value())
-  {
-    BOT_API::HandlePublicRequest(uid, gid.value(), request_s.data());
-  }
-  else
-  {
-    BOT_API::HandlePrivateRequest(uid, request_s.data());
-  }
+  ErrCode errcode = gid.has_value() ? BOT_API::HandlePublicRequest(uid, gid.value(), request_s.data()) :
+                                      BOT_API::HandlePrivateRequest(uid, request_s.data());
+  std::cout << (errcode == EC_OK ? Green() : Red()) << "Error Code: " << errcode << Default() << std::endl;
+
   return true;
 }
 
