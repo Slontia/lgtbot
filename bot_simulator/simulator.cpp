@@ -119,7 +119,7 @@ bool handle_request(const std::string_view line)
 
   ErrCode errcode = gid.has_value() ? BOT_API::HandlePublicRequest(uid, gid.value(), request_s.data()) :
                                       BOT_API::HandlePrivateRequest(uid, request_s.data());
-  std::cout << (errcode == EC_OK ? Green() : Red()) << "Error Code: " << errcode << Default() << std::endl;
+  std::cout << (errcode == EC_OK ? Green() : Red()) << "Error Code: " << errcode2str(errcode) << Default() << std::endl;
 
   return true;
 }
