@@ -4,12 +4,13 @@
 #include "match.h"
 #include "db_manager.h"
 #include "util.h"
-#include "load_game_modules.h"
 #include "utility/msg_sender.h"
 #include "game_framework/game_main.h"
 #include "utility/msg_checker.h"
 #include <gflags/gflags.h>
 #include <fstream>
+
+extern void LoadGameModules();
 
 const int32_t LGT_AC = -1;
 const UserID INVALID_USER_ID = 0;

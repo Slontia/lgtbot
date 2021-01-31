@@ -20,5 +20,5 @@ find_package(gflags REQUIRED)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
 
 add_executable(simulator ${SOURCE_FILES})
-target_link_libraries(simulator game_core_static gflags)
+target_link_libraries(simulator bot_core_static gflags)
 

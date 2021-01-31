@@ -140,7 +140,7 @@ int main(int argc, char** argv)
     }
     else if (line == "quit")
     {
-      free(line_cstr);
+      linenoiseFree(line_cstr);
       std::cout << "Bye." << std::endl;
       break;
     }
@@ -153,7 +153,7 @@ int main(int argc, char** argv)
     {
       Error() << "Usage: <GroupID | \'pri\'> <UserID> <arg1> <arg2> ..." << std::endl;
     }
-    free(line_cstr);
+    linenoiseFree(line_cstr);
   }
 
   return 0;
