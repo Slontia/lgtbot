@@ -67,25 +67,23 @@ void Game::HandleTimeout(const bool* const stage_is_over)
 
 void Game::Help(const replier_t reply)
 {
-  auto r = reply();
+  auto sender = reply();
   if (main_stage_)
   {
-    std::stringstream ss;
-    main_stage_->StageInfo(ss);
-    r << "\n[当前阶段]\n" << ss.str() << "\n\n";
+    sender << "\n[当前阶段]\n";
+    main_stage_->StageInfo(sender);
+    sender << "\n\n";
   }
-  r << "[当前可使用游戏命令]";
-  r << "\n[1] " << help_cmd_->Info();
+  sender << "[当前可使用游戏命令]";
+  sender << "\n[1] " << help_cmd_->Info();
   if (main_stage_)
   {
-    std::stringstream ss;
-    main_stage_->CommandInfo(1, ss);
-    r << ss.str();
+    main_stage_->CommandInfo(1, sender);
   }
   else
   {
     uint32_t i = 1;
-    for (const std::string& option_info : options_.Infos()) { r << "\n[" << (++i) << "] " << option_info; }
+    for (const std::string& option_info : options_.Infos()) { sender << "\n[" << (++i) << "] " << option_info; }
   }
 }
 

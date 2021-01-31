@@ -30,18 +30,18 @@ public:
     stop_timer_f_ = stop_timer_f;
   }
   virtual void HandleTimeout() = 0;
-  virtual uint64_t CommandInfo(uint64_t i, std::ostream& ss) const = 0;
+  virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper& sender) const = 0;
   virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) = 0;
-  virtual void StageInfo(std::ostream& ss) const = 0;
+  virtual void StageInfo(MsgSenderWrapper& sender) const = 0;
   bool IsOver() const { return is_over_; }
   auto Boardcast() const { return ::Boardcast(match_); }
   auto Tell(const uint64_t pid) const { return ::Tell(match_, pid); }
   void BreakOff() { g_game_over_cb(match_, nullptr); }
 
 protected:
-  uint64_t CommandInfo(uint64_t i, std::ostream& ss, const std::shared_ptr<MsgCommandBase>& cmd) const
+  static uint64_t CommandInfo(uint64_t i, MsgSenderWrapper& sender, const std::shared_ptr<MsgCommandBase>& cmd)
   {
-    ss << std::endl << "[" << (++i) << "] " << cmd->Info();
+    sender << "\n[" << (++i) << "] " << cmd->Info();
     return i;
   }
   virtual void Over() { is_over_ = true; }
@@ -122,23 +122,23 @@ public:
     }, sub_stage_);
   }
 
-  virtual uint64_t CommandInfo(uint64_t i, std::ostream& ss) const override
+  virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper& sender) const override
   {
-    for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, ss, cmd); }
-    return std::visit([&i, &ss](auto&& sub_stage) { return sub_stage->CommandInfo(i, ss); }, sub_stage_);
+    for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, sender, cmd); }
+    return std::visit([&i, &sender](auto&& sub_stage) { return sub_stage->CommandInfo(i, sender); }, sub_stage_);
   }
 
-  virtual void StageInfo(std::ostream& ss) const override
+  virtual void StageInfo(MsgSenderWrapper& sender) const override
   {
-    ss << Base::name_ << " - ";
-    std::visit([&ss](auto&& sub_stage) { sub_stage->StageInfo(ss); }, sub_stage_);
+    sender << Base::name_ << " - ";
+    std::visit([&sender](auto&& sub_stage) { sub_stage->StageInfo(sender); }, sub_stage_);
   }
 
   void CheckoutSubStage(const bool is_timeout)
   {
     // ensure previous substage is released before next substage built
     sub_stage_ = std::visit([this, is_timeout](auto&& sub_stage)
-    {   
+    {
       VariantSubStage new_sub_stage = NextSubStage(*sub_stage, is_timeout);
       sub_stage = nullptr;
       return std::move(new_sub_stage);
@@ -185,15 +185,15 @@ public:
     }
     return false;
   }
-  virtual uint64_t CommandInfo(uint64_t i, std::ostream& ss) const override
+  virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper& sender) const override
   {
-    for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, ss, cmd); }
+    for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, sender, cmd); }
     return i;
   }
-  virtual void StageInfo(std::ostream& ss) const override
+  virtual void StageInfo(MsgSenderWrapper& sender) const override
   {
-    ss << Base::name_;
-    if (finish_time_.has_value()) { ss << " 剩余时间：" << std::chrono::duration_cast<std::chrono::seconds>(*finish_time_ - std::chrono::steady_clock::now()).count() << "秒"; }
+    sender << Base::name_;
+    if (finish_time_.has_value()) { sender << " 剩余时间：" << std::chrono::duration_cast<std::chrono::seconds>(*finish_time_ - std::chrono::steady_clock::now()).count() << "秒"; }
   }
 
 private:
@@ -203,6 +203,7 @@ private:
     StageBase::Over();
   }
   std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;
+  // if command return true, the stage will be over
   std::vector<std::shared_ptr<GameMsgCommand<bool>>> commands_;
   std::optional<std::chrono::time_point<std::chrono::steady_clock>> finish_time_;
 };
