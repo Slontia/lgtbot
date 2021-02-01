@@ -5,25 +5,26 @@
 #include "utility/msg_sender.h"
 #include <type_traits>
 
-using MetaUserFuncType = ErrCode(const UserID, const std::optional<GroupID>, MsgSenderWrapper*);
+using MetaUserFuncType = ErrCode(const UserID, const std::optional<GroupID>, const replier_t);
 using MetaCommand = MsgCommand<MetaUserFuncType>;
 
 extern const std::vector<std::shared_ptr<MetaCommand>> meta_cmds;
 extern const std::vector<std::shared_ptr<MetaCommand>> admin_cmds;
 
 ErrCode HandleRequest(const UserID uid, const std::optional<GroupID> gid, MsgReader& reader,
-    MsgSenderWrapper& sender, const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string_view type);
+   const replier_t reply, const std::vector<std::shared_ptr<MetaCommand>>& cmds,
+   const std::string_view type);
 
-template <UniRef<MsgReader> ReaderRef>
+template <UniRef<MsgReader> ReaderRef, typename Reply>
 ErrCode HandleMetaRequest(const UserID uid, const std::optional<GroupID> gid,
-    ReaderRef&& reader, MsgSenderWrapper& sender)
+    ReaderRef&& reader, Reply&& reply)
 {
-	return HandleRequest(uid, gid, reader, sender, meta_cmds, "元");
+	return HandleRequest(uid, gid, reader, std::forward<Reply>(reply), meta_cmds, "元");
 }
 
-template <UniRef<MsgReader> ReaderRef>
+template <UniRef<MsgReader> ReaderRef, typename Reply>
 ErrCode HandleAdminRequest(const UserID uid, const std::optional<GroupID> gid,
-    ReaderRef&& reader, MsgSenderWrapper& sender)
+    ReaderRef&& reader, Reply&& reply)
 {
-	return HandleRequest(uid, gid, reader, sender, admin_cmds, "管理");
+	return HandleRequest(uid, gid, reader, std::forward<Reply>(reply), admin_cmds, "管理");
 }

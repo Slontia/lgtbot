@@ -38,7 +38,7 @@ void /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public, c
     if (is_public)
     {
       auto sender = ::Boardcast(match_);
-      sender << AtMsg(pid);
+      sender << AtMsg(pid) << "\n";
       return sender;
     }
     return ::Tell(match_, pid);

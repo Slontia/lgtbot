@@ -2,7 +2,6 @@
 #include "bot_core.h"
 #include "utility/msg_sender.h"
 #include "game_framework/game_main.h"
-#include "utility/msg_sender.h"
 #include <functional>
 #include <optional>
 #include <map>
@@ -13,6 +12,7 @@
 
 
 using ModGuard = std::function<void()>;
+using replier_t = std::function<MsgSenderWrapper()>;
 
 template <typename TRef, typename T> concept UniRef = std::is_same_v<std::decay_t<TRef>, T>;
 
