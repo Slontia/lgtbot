@@ -28,46 +28,13 @@ class DiscussMatch;
 class MatchManager;
 class GameHandle;
 
-class MatchManager
-{
-public:
-  static ErrCode NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid, const bool skip_config, const replier_t reply);
-  static ErrCode ConfigOver(const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
-  static ErrCode StartGame(const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
-  static ErrCode AddPlayerToPrivateGame(const MatchId mid, const UserID uid, const replier_t reply);
-  static ErrCode AddPlayerToPublicGame(const GroupID gid, const UserID uid, const replier_t reply);
-  static ErrCode DeletePlayer(const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
-  static ErrCode DeleteMatch(const MatchId id);
-  static std::shared_ptr<Match> GetMatch(const MatchId mid);
-  static std::shared_ptr<Match> GetMatch(const UserID uid, const std::optional<GroupID> gid);
-  static std::shared_ptr<Match> GetMatchWithGroupID(const GroupID gid);
-  static void ForEachMatch(const std::function<void(const std::shared_ptr<Match>)>);
-
-private:
-  static ErrCode AddPlayer_(const std::shared_ptr<Match>& match, const UserID, const replier_t reply);
-  static void DeleteMatch_(const MatchId id);
-  template <typename IDType>
-  static std::shared_ptr<Match> GetMatch_(const IDType id, const std::map<IDType, std::shared_ptr<Match>>& id2match);
-  template <typename IDType>
-  static void BindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match, std::shared_ptr<Match> match);
-  template <typename IDType>
-  static void UnbindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match);
-  static MatchId NewMatchID_();
-
-  static std::map<MatchId, std::shared_ptr<Match>> mid2match_;
-  static std::map<UserID, std::shared_ptr<Match>> uid2match_;
-  static std::map<GroupID, std::shared_ptr<Match>> gid2match_;
-  static MatchId next_mid_;
-  static SpinLock spinlock_;
-};
-
 class Match : public std::enable_shared_from_this<Match>
 {
 public:
   enum State { IN_CONFIGURING = 'C', NOT_STARTED = 'N', IS_STARTED = 'S' };
   static const uint32_t kAvgScoreOffset = 10;
 
-  Match(const MatchId id, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid, const bool skip_config);
+  Match(BotCtx& bot, const MatchId id, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid, const bool skip_config);
   ~Match();
 
   ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, const replier_t reply);
@@ -95,6 +62,7 @@ public:
   const std::set<UserID>& ready_uid_set() const { return ready_uid_set_; }
   const State state() const { return state_; }
   const UserID pid2uid(const uint64_t pid) const { return state_ == State::IS_STARTED ? pid2uid_[pid] : host_uid_; }
+  MatchManager& match_manager() { return bot_.match_manager(); }
 
   struct ScoreInfo
   {
@@ -115,6 +83,7 @@ private:
   }
   std::vector<ScoreInfo> CalScores_(const int64_t scores[]) const;
 
+  BotCtx& bot_;
   const MatchId                     mid_;
   const GameHandle&                 game_handle_;
   UserID                     host_uid_;

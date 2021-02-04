@@ -4,7 +4,6 @@
 #include "match.h"
 #include "db_manager.h"
 #include "utility/msg_sender.h"
-#include "options.h"
 #include <regex>
 
 #ifdef _WIN32
@@ -61,8 +60,9 @@ static void DeleteMsgSender(MsgSender* const msg_sender)
 
 static void MatchGameOver(void* match, const int64_t scores[])
 {
-  static_cast<Match*>(match)->GameOver(scores);
-  MatchManager::DeleteMatch(static_cast<Match*>(match)->mid());
+  Match& match_ref = *static_cast<Match*>(match);
+  match_ref.GameOver(scores);
+  match_ref.match_manager().DeleteMatch(match_ref.mid());
 }
 
 static void StartTimer(void* match, const uint64_t sec)
@@ -75,7 +75,7 @@ static void StopTimer(void* match)
   static_cast<Match*>(match)->StopTimer();
 }
 
-static void LoadGame(HINSTANCE mod)
+static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
 {
   if (!mod)
   {
@@ -128,25 +128,25 @@ static void LoadGame(HINSTANCE mod)
   {
     game_id = db_manager->GetGameIDWithName(name);
   }
-  g_game_handles.emplace(name, std::make_unique<GameHandle>(game_id, name, min_player, max_player, rule, new_game, delete_game, [mod] { FreeLibrary(mod); }));
+  game_handles.emplace(name, std::make_unique<GameHandle>(game_id, name, min_player, max_player, rule, new_game, delete_game, [mod] { FreeLibrary(mod); }));
   InfoLog() << "Loaded successfully!";
 }
 
-void LoadGameModules()
+void BotCtx::LoadGameModules_(const std::string_view games_path)
 {
 #ifdef _WIN32
   WIN32_FIND_DATA file_data;
-  HANDLE file_handle = FindFirstFile(L".\\plugins\\*.dll", &file_data);
+  HANDLE file_handle = FindFirstFile(games_path + L"\\*.dll", &file_data);
   if (file_handle == INVALID_HANDLE_VALUE) { return; }
   do
   {
     std::wstring dll_path = L".\\plugins\\" + std::wstring(file_data.cFileName);
-    LoadGame(LoadLibrary(dll_path.c_str()));
+    LoadGame(LoadLibrary(dll_path.c_str()), game_handles_);
   } while (FindNextFile(file_handle, &file_data));
   FindClose(file_handle);
-  InfoLog() << "Load module count: " << g_game_handles.size();
+  InfoLog() << "Load module count: " << game_handles_.size();
 #elif __linux__
-  DIR *d = opendir(FLAGS_game_path.c_str());
+  DIR *d = opendir(games_path.data());
   if (!d)
   {
     ErrorLog() << "opendir failed";
@@ -169,7 +169,7 @@ void LoadGameModules()
       continue;
     }
     InfoLog() << "Loading library " << name;
-    LoadGame(dlopen((std::string("./plugins/") + name).c_str(), RTLD_LAZY));
+    LoadGame(dlopen((std::string("./plugins/") + name).c_str(), RTLD_LAZY), game_handles_);
   }
   InfoLog() << "Loading finished.";
   closedir(d);

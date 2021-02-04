@@ -7,7 +7,6 @@
 #include "utility/msg_sender.h"
 #include "game_framework/game_main.h"
 #include "utility/msg_checker.h"
-#include <gflags/gflags.h>
 #include <fstream>
 
 extern void LoadGameModules();
@@ -16,31 +15,18 @@ const int32_t LGT_AC = -1;
 const UserID INVALID_USER_ID = 0;
 const GroupID INVALID_GROUP_ID = 0;
 
-std::mutex g_mutex;
-std::map<std::string, std::unique_ptr<GameHandle>> g_game_handles;
-std::set<UserID> g_admins;
-
-NEW_MSG_SENDER_CALLBACK g_new_msg_sender_cb = nullptr;
-DELETE_MSG_SENDER_CALLBACK g_delete_msg_sender_cb = nullptr;
-UserID g_this_uid = INVALID_USER_ID;
-
-MatchManager match_manager;
-
-static void LoadAdmins()
+void BotCtx::LoadAdmins_(uint64_t* const admins, const uint64_t admin_count)
 {
-  std::ifstream admin_file(".\\admins.txt");
-  if (admin_file)
+  if (admins == nullptr) { return; }
+  for (uint64_t i = 0; i < admin_count; ++ i)
   {
-    for (uint64_t admin_uid; admin_file >> admin_uid; )
-    {
-      InfoLog() << "管理员：" << admin_uid;
-      g_admins.emplace(admin_uid);
-    }
+    InfoLog() << "管理员：" << admins[i];
+    admins_.emplace(admins[i]);
   }
 }
 
 template <typename Reply>
-static ErrCode HandleRequest(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, Reply&& reply)
+static ErrCode HandleRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, const std::string& msg, Reply&& reply)
 {
   if (std::string first_arg; !(std::stringstream(msg) >> first_arg) || first_arg.empty())
   {
@@ -52,16 +38,16 @@ static ErrCode HandleRequest(const UserID uid, const std::optional<GroupID> gid,
     switch (first_arg[0])
     {
     case '#':
-      return HandleMetaRequest(uid, gid, MsgReader(msg), reply);
+      return HandleMetaRequest(bot, uid, gid, MsgReader(msg), reply);
     case '%':
-      if (g_admins.find(uid) == g_admins.end())
+      if (!bot.HasAdmin(uid))
       {
         reply() << "[错误] 您未持有管理员权限";
         return EC_REQUEST_NOT_ADMIN;
       }
-      return HandleAdminRequest(uid, gid, MsgReader(msg), reply);
+      return HandleAdminRequest(bot, uid, gid, MsgReader(msg), reply);
     default:
-      std::shared_ptr<Match> match = MatchManager::GetMatch(uid, gid);
+      std::shared_ptr<Match> match = bot.match_manager().GetMatch(uid, gid);
       if (!match)
       {
         reply() << "[错误] 您未参与游戏";
@@ -77,39 +63,43 @@ static ErrCode HandleRequest(const UserID uid, const std::optional<GroupID> gid,
   }
 }
 
-bool /*__cdecl*/ BOT_API::Init(
+void* /*__cdecl*/ BOT_API::Init(
     const UserID this_uid,
     const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
     const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb,
-    int argc, char** argv)
+    const char* const game_path,
+    uint64_t* const admins,
+    const uint64_t admin_count)
 {
-  if (this_uid == INVALID_USER_ID || !new_msg_sender_cb || !delete_msg_sender_cb) { return false; }
-  g_this_uid = this_uid;
-  g_new_msg_sender_cb = new_msg_sender_cb;
-  g_delete_msg_sender_cb = delete_msg_sender_cb;
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  ::google::InitGoogleLogging(argv[0]);
-  LoadGameModules();
-  LoadAdmins();
-  return true;
+  if (this_uid == INVALID_USER_ID || !new_msg_sender_cb || !delete_msg_sender_cb || !game_path)
+  {
+    return nullptr;
+  }
+  return new BotCtx(this_uid, new_msg_sender_cb, delete_msg_sender_cb, game_path, admins, admin_count);
 }
 
-ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(const UserID uid, const char* const msg)
+void /*__cdelcl*/ BOT_API::Release(void* const bot) { delete static_cast<BotCtx*>(bot); }
+
+ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const UserID uid, const char* const msg)
 {
-  return HandleRequest(uid, {}, msg, [uid] { return ToUser(uid); });
+  if (!bot_p) { return EC_NOT_INIT; }
+  BotCtx& bot = *static_cast<BotCtx*>(bot_p);
+  return HandleRequest(bot, uid, {}, msg, [uid, &bot] { return bot.ToUser(uid); });
 }
 
-ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg)
+ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const UserID uid, const GroupID gid, const char* const msg)
 {
-  return HandleRequest(uid, gid, msg,
-      [uid, gid] {
-        auto sender = ToGroup(gid);
+  if (!bot_p) { return EC_NOT_INIT; }
+  BotCtx& bot = *static_cast<BotCtx*>(bot_p);
+  return HandleRequest(bot, uid, gid, msg,
+      [uid, gid, &bot] {
+        auto sender = bot.ToGroup(gid);
         sender << AtMsg(uid) << "\n";
         return sender;
       });
 }
 
-ErrCode /*__cdecl*/ BOT_API::ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg)
+ErrCode /*__cdecl*/ BOT_API::ConnectDatabase(void* const bot, const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg)
 {
   ErrCode code;
   std::tie(code, *errmsg) = DBManager::ConnectDB(addr, user, passwd, db_name);

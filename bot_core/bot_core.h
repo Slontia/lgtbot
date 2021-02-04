@@ -2,6 +2,7 @@
 
 ERRCODE_DEF_V(EC_OK, 0)
 ERRCODE_DEF(EC_UNEXPECTED_ERROR)
+ERRCODE_DEF(EC_NOT_INIT)
 
 // system error
 ERRCODE_DEF_V(EC_DB_CONNECT_FAILED, 101)
@@ -91,13 +92,12 @@ extern "C"
   class BOT_API
   {
    public:
-    static DLLEXPORT(bool) Init( const UserID this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb, const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, int argc, char** argv);
-    static DLLEXPORT(ErrCode) HandlePrivateRequest(const UserID uid, const char* const msg);
-    static DLLEXPORT(ErrCode) HandlePublicRequest(const UserID uid, const GroupID gid, const char* const msg);
-    static DLLEXPORT(ErrCode) ConnectDatabase(const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg);
+    static DLLEXPORT(void*) Init(const UserID this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb, const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const char* const game_path, uint64_t* const admins, const uint64_t admin_count);
+    static DLLEXPORT(void) Release(void* bot);
+    static DLLEXPORT(ErrCode) HandlePrivateRequest(void* bot, const UserID uid, const char* const msg);
+    static DLLEXPORT(ErrCode) HandlePublicRequest(void* bot, const UserID uid, const GroupID gid, const char* const msg);
+    static DLLEXPORT(ErrCode) ConnectDatabase(void* bot, const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg);
   };
-
-  extern std::map<std::string, std::unique_ptr<GameHandle>> g_game_handles;
 
 #undef DLLEXPORT
 }

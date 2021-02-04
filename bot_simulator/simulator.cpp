@@ -7,9 +7,11 @@
 #include <vector>
 #include <gflags/gflags.h>
 
+DEFINE_string(game_path, "plugins", "The path of game modules");
 DEFINE_string(history_filename, ".simulator_history.txt", "The file saving history commands");
 DEFINE_bool(color, true, "Enable color");
 DEFINE_uint64(bot_uid, 114514, "The UserID of bot");
+DEFINE_uint64(admin_uid, 1919810, "The UserID of administor");
 
 const char* Red() { return FLAGS_color ? "\033[31m" : ""; }
 const char* Green() { return FLAGS_color ? "\033[32m" : ""; }
@@ -61,10 +63,10 @@ void delete_msg_sender(MsgSender* const msg_sender)
   delete msg_sender;
 }
 
-void init_bot(int argc, char** argv)
+auto init_bot(int argc, char** argv)
 {
   const char* errmsg = nullptr;
-  BOT_API::Init(FLAGS_bot_uid, create_msg_sender, delete_msg_sender, argc, argv);
+  return BOT_API::Init(FLAGS_bot_uid, create_msg_sender, delete_msg_sender, FLAGS_game_path.c_str(), &FLAGS_admin_uid, 1);
 }
 
 std::pair<std::string_view, std::string_view> cut(const std::string_view line)
@@ -83,7 +85,7 @@ std::pair<std::string_view, std::string_view> cut(const std::string_view line)
   }
 };
 
-bool handle_request(const std::string_view line)
+bool handle_request(void* bot, const std::string_view line)
 {
   const auto [gid_s, gid_remain_s] = cut(line);
   const auto [uid_s, request_s] = cut(gid_remain_s);
@@ -117,8 +119,8 @@ bool handle_request(const std::string_view line)
     return false;
   }
 
-  ErrCode errcode = gid.has_value() ? BOT_API::HandlePublicRequest(uid, gid.value(), request_s.data()) :
-                                      BOT_API::HandlePrivateRequest(uid, request_s.data());
+  ErrCode errcode = gid.has_value() ? BOT_API::HandlePublicRequest(bot, uid, gid.value(), request_s.data()) :
+                                      BOT_API::HandlePrivateRequest(bot, uid, request_s.data());
   std::cout << (errcode == EC_OK ? Green() : Red()) << "Error Code: " << errcode2str(errcode) << Default() << std::endl;
 
   return true;
@@ -127,7 +129,7 @@ bool handle_request(const std::string_view line)
 int main(int argc, char** argv)
 {
   std::locale::global(std::locale(""));
-  init_bot(argc, argv);
+  auto bot = init_bot(argc, argv);
 
   linenoiseHistoryLoad(FLAGS_history_filename.c_str());
 
@@ -144,7 +146,7 @@ int main(int argc, char** argv)
       std::cout << "Bye." << std::endl;
       break;
     }
-    else if (handle_request(line))
+    else if (handle_request(bot, line))
     {
       linenoiseHistoryAdd(line_cstr);
       linenoiseHistorySave(FLAGS_history_filename.c_str());

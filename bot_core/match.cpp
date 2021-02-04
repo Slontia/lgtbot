@@ -15,12 +15,6 @@ do\
     return ret;\
 } while (0);
 
-std::map<MatchId, std::shared_ptr<Match>> MatchManager::mid2match_;
-std::map<UserID, std::shared_ptr<Match>> MatchManager::uid2match_;
-std::map<GroupID, std::shared_ptr<Match>> MatchManager::gid2match_;
-MatchId MatchManager::next_mid_ = 0;
-SpinLock MatchManager::spinlock_; // to lock match map
-
 ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid, const bool skip_config, const replier_t reply)
 {
   std::lock_guard<SpinLock> l(spinlock_);
@@ -35,7 +29,7 @@ ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, 
     return EC_MATCH_ALREADY_BEGIN;
   }
   const MatchId mid = NewMatchID_();
-  std::shared_ptr<Match> new_match = std::make_shared<Match>(mid, game_handle, uid, gid, skip_config);
+  std::shared_ptr<Match> new_match = std::make_shared<Match>(bot_, mid, game_handle, uid, gid, skip_config);
   RETURN_IF_FAILED(AddPlayer_(new_match, uid, reply));
   BindMatch_(mid, mid2match_, new_match);
   if (gid.has_value()) { BindMatch_(*gid, gid2match_, new_match); }
@@ -218,8 +212,8 @@ void MatchManager::UnbindMatch_(const IDType id, std::map<IDType, std::shared_pt
   id2match.erase(id);
 }
 
-Match::Match(const MatchId mid, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid, const bool skip_config)
-  : mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), state_(skip_config ? State::NOT_STARTED : State::IN_CONFIGURING),
+Match::Match(BotCtx& bot, const MatchId mid, const GameHandle& game_handle, const UserID host_uid, const std::optional<GroupID> gid, const bool skip_config)
+  : bot_(bot), mid_(mid), game_handle_(game_handle), host_uid_(host_uid), gid_(gid), state_(skip_config ? State::NOT_STARTED : State::IN_CONFIGURING),
   game_(game_handle_.new_game_(this), game_handle_.delete_game_), multiple_(1) {}
 
 Match::~Match() {}
@@ -337,13 +331,13 @@ MsgSenderWrapperBatch Match::Boardcast() const
   std::vector<MsgSenderWrapper> senders;
   if (gid_.has_value())
   {
-    senders.emplace_back(ToGroup(*gid_));
+    senders.emplace_back(bot_.ToGroup(*gid_));
   }
   else
   {
     for (const UserID uid : ready_uid_set_)
     {
-      senders.emplace_back(ToUser(uid));
+      senders.emplace_back(bot_.ToUser(uid));
     }
   }
   return MsgSenderWrapperBatch(std::move(senders));
@@ -351,7 +345,7 @@ MsgSenderWrapperBatch Match::Boardcast() const
 
 MsgSenderWrapper Match::Tell(const uint64_t pid) const
 {
-  return ToUser(pid2uid(pid));
+  return bot_.ToUser(pid2uid(pid));
 }
 
 void Match::GameOver(const int64_t scores[])
