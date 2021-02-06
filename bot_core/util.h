@@ -87,7 +87,7 @@ class BotCtx
          const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
          const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb,
          const std::string_view game_path,
-         uint64_t* const admins,
+         const uint64_t* const admins,
          const uint64_t admin_count)
     : this_uid_(this_uid), new_msg_sender_cb_(new_msg_sender_cb), delete_msg_sender_cb_(delete_msg_sender_cb), match_manager_(*this)
   {
@@ -114,7 +114,7 @@ class BotCtx
 
  private:
   void LoadGameModules_(const std::string_view games_path);
-  void LoadAdmins_(uint64_t* const admins, const uint64_t admin_count);
+  void LoadAdmins_(const uint64_t* const admins, const uint64_t admin_count);
 
   const UserID this_uid_;
   const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb_;

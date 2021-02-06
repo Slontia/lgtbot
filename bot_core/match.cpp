@@ -73,7 +73,7 @@ ErrCode MatchManager::StartGame(const UserID uid, const std::optional<GroupID> g
     reply() << "[错误] 开始失败：开始游戏失败：您不是房主，没有开始游戏的权限";
     return EC_MATCH_NOT_HOST;
   }
-  if (match->gid() != gid)
+  if (gid.has_value() && match->gid() != gid)
   {
     reply() << "[错误] 开始失败：开始游戏失败：您未在该房间建立游戏";
     return EC_MATCH_NOT_THIS_GROUP;
@@ -113,7 +113,12 @@ ErrCode MatchManager::AddPlayerToPublicGame(const GroupID gid, const UserID uid,
 ErrCode MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const UserID uid, const replier_t reply)
 {
   assert(match);
-  if (GetMatch_(uid, uid2match_))
+  if (const std::shared_ptr<Match>& user_match = GetMatch_(uid, uid2match_); user_match == match)
+  {
+    reply() << "[错误] 加入失败：您已加入该游戏";
+    return EC_MATCH_USER_ALREADY_IN_MATCH;
+  }
+  else if (user_match != nullptr)
   {
     reply() << "[错误] 加入失败：您已加入其它游戏，请先退出";
     return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;

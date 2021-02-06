@@ -88,7 +88,7 @@ static ErrCode join_private(BotCtx* const bot, const UserID uid, const std::opti
   if (gid.has_value())
   {
     reply() << "[错误] 加入失败：请私信裁判加入私密游戏，或去掉比赛ID以加入当前房间游戏";
-    return EC_MATCH_NEED_REQUEST_PRIVATRE;
+    return EC_MATCH_NEED_REQUEST_PRIVATE;
   }
   return bot->match_manager().AddPlayerToPrivateGame(match_id, uid, reply);
 }

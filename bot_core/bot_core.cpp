@@ -15,18 +15,18 @@ const int32_t LGT_AC = -1;
 const UserID INVALID_USER_ID = 0;
 const GroupID INVALID_GROUP_ID = 0;
 
-void BotCtx::LoadAdmins_(uint64_t* const admins, const uint64_t admin_count)
+void BotCtx::LoadAdmins_(const uint64_t* const admins, const uint64_t admin_count)
 {
   if (admins == nullptr) { return; }
   for (uint64_t i = 0; i < admin_count; ++ i)
   {
-    InfoLog() << "管理员：" << admins[i];
+    InfoLog() << "New administor: " << admins[i];
     admins_.emplace(admins[i]);
   }
 }
 
 template <typename Reply>
-static ErrCode HandleRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, const std::string& msg, Reply&& reply)
+static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, const UserID uid, const std::string& msg, Reply&& reply)
 {
   if (std::string first_arg; !(std::stringstream(msg) >> first_arg) || first_arg.empty())
   {
@@ -68,7 +68,7 @@ void* /*__cdecl*/ BOT_API::Init(
     const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
     const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb,
     const char* const game_path,
-    uint64_t* const admins,
+    const uint64_t* const admins,
     const uint64_t admin_count)
 {
   if (this_uid == INVALID_USER_ID || !new_msg_sender_cb || !delete_msg_sender_cb || !game_path)
@@ -84,14 +84,14 @@ ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const UserI
 {
   if (!bot_p) { return EC_NOT_INIT; }
   BotCtx& bot = *static_cast<BotCtx*>(bot_p);
-  return HandleRequest(bot, uid, {}, msg, [uid, &bot] { return bot.ToUser(uid); });
+  return HandleRequest(bot, {}, uid, msg, [uid, &bot] { return bot.ToUser(uid); });
 }
 
-ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const UserID uid, const GroupID gid, const char* const msg)
+ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const GroupID gid, const UserID uid, const char* const msg)
 {
   if (!bot_p) { return EC_NOT_INIT; }
   BotCtx& bot = *static_cast<BotCtx*>(bot_p);
-  return HandleRequest(bot, uid, gid, msg,
+  return HandleRequest(bot, gid, uid, msg,
       [uid, gid, &bot] {
         auto sender = bot.ToGroup(gid);
         sender << AtMsg(uid) << "\n";

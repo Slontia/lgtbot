@@ -22,7 +22,7 @@ ERRCODE_DEF(EC_MATCH_NOT_THIS_GROUP)
 ERRCODE_DEF(EC_MATCH_GROUP_NOT_IN_MATCH)
 ERRCODE_DEF(EC_MATCH_NOT_HOST)
 ERRCODE_DEF(EC_MATCH_NEED_REQUEST_PUBLIC)
-ERRCODE_DEF(EC_MATCH_NEED_REQUEST_PRIVATRE)
+ERRCODE_DEF(EC_MATCH_NEED_REQUEST_PRIVATE)
 ERRCODE_DEF(EC_MATCH_NEED_ID)
 ERRCODE_DEF(EC_MATCH_ALREADY_BEGIN)
 ERRCODE_DEF(EC_MATCH_NOT_BEGIN)
@@ -92,10 +92,10 @@ extern "C"
   class BOT_API
   {
    public:
-    static DLLEXPORT(void*) Init(const UserID this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb, const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const char* const game_path, uint64_t* const admins, const uint64_t admin_count);
+    static DLLEXPORT(void*) Init(const UserID this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb, const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const char* const game_path, const uint64_t* const admins, const uint64_t admin_count);
     static DLLEXPORT(void) Release(void* bot);
     static DLLEXPORT(ErrCode) HandlePrivateRequest(void* bot, const UserID uid, const char* const msg);
-    static DLLEXPORT(ErrCode) HandlePublicRequest(void* bot, const UserID uid, const GroupID gid, const char* const msg);
+    static DLLEXPORT(ErrCode) HandlePublicRequest(void* bot, const GroupID gid, const UserID uid, const char* const msg);
     static DLLEXPORT(ErrCode) ConnectDatabase(void* bot, const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg);
   };
 

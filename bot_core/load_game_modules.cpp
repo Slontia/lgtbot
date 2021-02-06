@@ -163,11 +163,6 @@ void BotCtx::LoadGameModules_(const std::string_view games_path)
       DebugLog() << "Find irrelevant file " << name << ", skip";
       continue;
     }
-    if (stat(dp->d_name, &st); S_ISDIR(st.st_mode))
-    {
-      DebugLog() << "Find directory " << name << ", skip";
-      continue;
-    }
     InfoLog() << "Loading library " << name;
     LoadGame(dlopen((std::string("./plugins/") + name).c_str(), RTLD_LAZY), game_handles_);
   }
