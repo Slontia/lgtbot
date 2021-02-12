@@ -21,6 +21,7 @@ static std::shared_ptr<GameMsgCommand<RetType>> MakeStageCommand(Stage* stage, s
 class StageBase
 {
 public:
+  enum class StageErrCode { OK, CHECKOUT, FAILED, NOT_FOUND, UNKNOWN };
   StageBase(std::string&& name) : name_(name.empty() ? "（匿名阶段）" : std::move(name)), match_(nullptr), is_over_(false) {}
   virtual ~StageBase() {}
   virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
@@ -31,7 +32,7 @@ public:
   }
   virtual void HandleTimeout() = 0;
   virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper& sender) const = 0;
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) = 0;
+  virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) = 0;
   virtual void StageInfo(MsgSenderWrapper& sender) const = 0;
   bool IsOver() const { return is_over_; }
   auto Boardcast() const { return ::Boardcast(match_); }
@@ -80,12 +81,14 @@ class GameStage<IsMain, SubStage, SubStages...> : public std::conditional_t<IsMa
 {
 private:
   using Base = std::conditional_t<IsMain, MainStageBase, StageBase>;
+protected:
+  enum CompStageErrCode { OK, FAILED };
 public:
   using VariantSubStage = std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>;
   using SubStageCheckoutHelper<SubStage, VariantSubStage>::NextSubStage;
   using SubStageCheckoutHelper<SubStages, VariantSubStage>::NextSubStage...;
 
-  GameStage(std::string&& name = "", std::initializer_list<std::shared_ptr<GameMsgCommand<void>>>&& commands = {})
+  GameStage(std::string&& name = "", std::initializer_list<std::shared_ptr<GameMsgCommand<CompStageErrCode>>>&& commands = {})
     : Base(std::move(name)), sub_stage_(), commands_(std::move(commands)) {}
 
   virtual ~GameStage() {}
@@ -99,17 +102,17 @@ public:
     std::visit([match, start_timer_f, stop_timer_f](auto&& sub_stage) { sub_stage->Init(match, start_timer_f, stop_timer_f); }, sub_stage_);
   }
 
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) override
+  virtual StageBase::StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) override
   {
-    for (const std::shared_ptr<GameMsgCommand<void>>& command : commands_)
+    for (const auto& cmd : commands_)
     {
-      if (command->CallIfValid(reader, std::tuple{ player_id, is_public, reply })) { return true; }
+      if (const auto rc = cmd->CallIfValid(reader, std::tuple{ player_id, is_public, reply }); rc.has_value()) { return ToStageErrCode(*rc); }
     }
     return std::visit([this, &reader, player_id, is_public, &reply](auto&& sub_stage)
     {
-      const bool sub_stage_handled = sub_stage->HandleRequest(reader, player_id, is_public, reply);
+      const auto rc = sub_stage->HandleRequest(reader, player_id, is_public, reply);
       if (sub_stage->IsOver()) { this->CheckoutSubStage(false); }
-      return sub_stage_handled;
+      return rc;
     }, sub_stage_);
   }
 
@@ -149,10 +152,23 @@ public:
       else { sub_stage->Init(Base::match_, Base::start_timer_f_, Base::stop_timer_f_); }
     }, sub_stage_);
   }
+
 private:
   using StageBase::Over;
+  static StageBase::StageErrCode ToStageErrCode(const CompStageErrCode rc)
+  {
+    switch (rc)
+    {
+      case OK: return StageBase::StageErrCode::OK;
+      case FAILED: return StageBase::StageErrCode::FAILED;
+      default:
+        assert(false);
+        return MainStageBase::StageErrCode::UNKNOWN;
+    }
+    // no more error code
+  }
   VariantSubStage sub_stage_;
-  std::vector<std::shared_ptr<GameMsgCommand<void>>> commands_;
+  std::vector<std::shared_ptr<GameMsgCommand<CompStageErrCode>>> commands_;
 };
 
 template <bool IsMain>
@@ -160,8 +176,10 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
 {
 private:
   using Base = std::conditional_t<IsMain, MainStageBase, StageBase>;
+protected:
+  enum AtomStageErrCode { OK, CHECKOUT, FAILED };
 public:
-  GameStage(std::string&& name, std::initializer_list<std::shared_ptr<GameMsgCommand<bool>>>&& commands)
+  GameStage(std::string&& name, std::initializer_list<std::shared_ptr<GameMsgCommand<AtomStageErrCode>>>&& commands)
     : Base(std::move(name)), timer_(nullptr), commands_(std::move(commands)) {}
   virtual ~GameStage() { Base::stop_timer_f_(); }
   virtual uint64_t OnStageBegin() { return 0; };
@@ -173,17 +191,17 @@ public:
     start_timer_f(sec);
   }
   virtual void HandleTimeout() override final { StageBase::Over(); }
-  virtual bool HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) override
+  virtual StageBase::StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) override
   {
-    for (const std::shared_ptr<GameMsgCommand<bool>>& command : commands_)
+    for (const auto& cmd : commands_)
     {
-      if (std::optional<bool> over = command->CallIfValid(reader, std::tuple{ player_id, is_public, reply }); over.has_value())
-      { 
-        if (*over) { Over(); }
-        return true;
+      if (const auto rc = cmd->CallIfValid(reader, std::tuple{ player_id, is_public, reply }); rc.has_value())
+      {
+        if (*rc == CHECKOUT) { Over(); }
+        return ToStageErrCode(*rc);
       }
     }
-    return false;
+    return StageBase::StageErrCode::NOT_FOUND;
   }
   virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper& sender) const override
   {
@@ -197,6 +215,19 @@ public:
   }
 
 private:
+  static StageBase::StageErrCode ToStageErrCode(const AtomStageErrCode rc)
+  {
+    switch (rc)
+    {
+      case OK: return StageBase::StageErrCode::OK;
+      case CHECKOUT: return StageBase::StageErrCode::CHECKOUT;
+      case FAILED: return StageBase::StageErrCode::FAILED;
+      default:
+        assert(false);
+        return MainStageBase::StageErrCode::UNKNOWN;
+    }
+    // no more error code
+  }
   virtual void Over() override final
   {
     timer_ = nullptr;
@@ -204,7 +235,7 @@ private:
   }
   std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;
   // if command return true, the stage will be over
-  std::vector<std::shared_ptr<GameMsgCommand<bool>>> commands_;
+  std::vector<std::shared_ptr<GameMsgCommand<AtomStageErrCode>>> commands_;
   std::optional<std::chrono::time_point<std::chrono::steady_clock>> finish_time_;
 };
 

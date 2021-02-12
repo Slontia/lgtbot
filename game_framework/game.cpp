@@ -18,10 +18,10 @@ Game::Game(void* const match)
 bool Game::StartGame(const uint64_t player_num)
 {
   assert(main_stage_ == nullptr);
-  if (player_num >= k_min_player && (k_max_player == 0 || player_num <= k_max_player) && options_.IsValidPlayerNum(k_min_player))
+  if (player_num >= k_min_player && (k_max_player == 0 || player_num <= k_max_player) && options_.SetPlayerNum(player_num))
   {
     player_num_ = player_num;
-    main_stage_ = MakeMainStage(player_num, options_);
+    main_stage_ = MakeMainStage(options_);
     main_stage_->Init(match_, std::bind(g_start_timer_cb, match_, std::placeholders::_1), std::bind(g_stop_timer_cb, match_));
     return true;
   }
@@ -29,7 +29,7 @@ bool Game::StartGame(const uint64_t player_num)
 }
 
 /* Return true when is_over_ switch from false to true */
-void /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public, const char* const msg)
+ErrCode /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public, const char* const msg)
 {
   using namespace std::string_literals;
   std::lock_guard<SpinLock> l(lock_);
@@ -43,20 +43,50 @@ void /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public, c
     }
     return ::Tell(match_, pid);
   }; // we must convert lambda to std::function to pass it into CallIfValid
-  if (is_over_) { reply() << "[错误] 差一点点，游戏已经结束了哦~"; }
+
+  ErrCode rc = EC_GAME_REQUEST_OK;
+  if (is_over_)
+  {
+    reply() << "[错误] 差一点点，游戏已经结束了哦~";
+    rc = EC_MATCH_ALREADY_OVER;
+  }
   else
   {
     assert(msg);
     MsgReader reader(msg);
-    if (help_cmd_->CallIfValid(reader, std::tuple{ reply })) { return; }
+    if (help_cmd_->CallIfValid(reader, std::tuple{ reply })) { return EC_GAME_REQUEST_OK; }
     if (main_stage_)
     {
-      if (!main_stage_->HandleRequest(reader, pid, is_public, reply)) { reply() << "[错误] 未预料的游戏请求"; }
+      switch (main_stage_->HandleRequest(reader, pid, is_public, reply))
+      {
+        case StageBase::StageErrCode::OK:
+          rc = EC_GAME_REQUEST_OK;
+          break;
+        case StageBase::StageErrCode::CHECKOUT:
+          rc = EC_GAME_REQUEST_CHECKOUT;
+          break;
+        case StageBase::StageErrCode::FAILED:
+          rc = EC_GAME_REQUEST_FAILED;
+          break;
+        case StageBase::StageErrCode::NOT_FOUND:
+          reply() << "[错误] 未预料的游戏请求";
+          rc = EC_GAME_REQUEST_NOT_FOUND;
+          break;
+        default:
+          reply() << "[错误] 游戏请求执行失败，未知的错误，请联系管理员";
+          rc = EC_GAME_REQUEST_UNKNOWN;
+          break;
+      }
       if (main_stage_->IsOver()) { OnGameOver(); }
     }
-    else if (!options_.SetOption(reader)) { reply() << "[错误] 未预料的游戏设置"; }
+    else if (!options_.SetOption(reader))
+    {
+      reply() << "[错误] 未预料的游戏设置";
+      rc = EC_GAME_REQUEST_NOT_FOUND;
+    }
     else { reply() << "设置成功！目前配置："s << OptionInfo(); }
   }
+  return rc;
 }
 
 void Game::HandleTimeout(const bool* const stage_is_over)

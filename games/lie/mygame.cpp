@@ -28,27 +28,27 @@ class NumberStage : public SubGameStage<>
   NumberStage(const uint64_t questioner)
     : GameStage("设置数字阶段",
       {
-        MakeStageCommand(this, "设置数字", &NumberStage::Number, ArithChecker<int, 1, 6>("数字")),
+        MakeStageCommand(this, "设置数字", &NumberStage::Number_, ArithChecker<int, 1, 6>("数字")),
       }), questioner_(questioner), num_(0) {}
 
   virtual uint64_t OnStageBegin() override { return 60; }
   int num() const { return num_; }
 
  private:
-   bool Number(const uint64_t pid, const bool is_public, const replier_t reply, const int num)
+   AtomStageErrCode Number_(const uint64_t pid, const bool is_public, const replier_t reply, const int num)
    {
      if (pid != questioner_)
      {
        reply() << "[错误] 本回合您为猜测者，无法设置数字";
-       return false;
+       return FAILED;
      }
      if (is_public)
      {
        reply() << "[错误] 请私信裁判选择数字，公开选择无效";
-       return false;
+       return FAILED;
      }
      num_ = num;
-     return true;
+     return CHECKOUT;
    }
 
    const uint64_t questioner_;
@@ -61,22 +61,22 @@ public:
   LieStage(const uint64_t questioner)
     : GameStage("设置数字阶段",
       {
-        MakeStageCommand(this, "提问数字", &LieStage::Lie, ArithChecker<int, 1, 6>("数字")),
+        MakeStageCommand(this, "提问数字", &LieStage::Lie_, ArithChecker<int, 1, 6>("数字")),
       }), questioner_(questioner), lie_num_(0) {}
 
   virtual uint64_t OnStageBegin() override { return 60; }
   int lie_num() const { return lie_num_; }
 
 private:
-  bool Lie(const uint64_t pid, const bool is_public, const replier_t reply, const int lie_num)
+  AtomStageErrCode Lie_(const uint64_t pid, const bool is_public, const replier_t reply, const int lie_num)
   {
     if (pid != questioner_)
     {
       reply() << "[错误] 本回合您为猜测者，无法提问";
-      return false;
+      return FAILED;
     }
     lie_num_ = lie_num;
-    return true;
+    return CHECKOUT;
   }
 
   const uint64_t questioner_;
@@ -89,7 +89,7 @@ public:
   GuessStage(const uint64_t guesser)
     : GameStage("设置数字阶段",
       {
-        MakeStageCommand(this, "猜测", &GuessStage::Guess, BoolChecker("质疑", "相信")),
+        MakeStageCommand(this, "猜测", &GuessStage::Guess_, BoolChecker("质疑", "相信")),
       }), guesser_(guesser), doubt_(false) {}
 
   virtual uint64_t OnStageBegin() override { return 60; }
@@ -97,15 +97,15 @@ public:
   bool doubt() const { return doubt_; }
 
 private:
-  bool Guess(const uint64_t pid, const bool is_public, const replier_t reply, const bool doubt)
+  AtomStageErrCode Guess_(const uint64_t pid, const bool is_public, const replier_t reply, const bool doubt)
   {
     if (pid != guesser_)
     {
       reply() << "[错误] 本回合您为提问者，无法猜测";
-      return false;
+      return FAILED;
     }
     doubt_ = doubt;
-    return true;
+    return CHECKOUT;
   }
 
   const uint64_t guesser_;
@@ -209,8 +209,7 @@ class MainStage : public MainGameStage<RoundStage>
    std::array<std::array<int, 6>, 2> player_nums_;
 };
 
-std::unique_ptr<MainStageBase> MakeMainStage(const uint64_t player_num, const GameOption& options)
+std::unique_ptr<MainStageBase> MakeMainStage(const GameOption& options)
 {
-  assert(player_num == 2);
   return std::make_unique<MainStage>(options);
 }

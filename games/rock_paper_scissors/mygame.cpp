@@ -72,22 +72,22 @@ public:
   }
 
 private:
-  bool Act_(const uint64_t pid, const bool is_public, const replier_t reply, Choise choise)
+  AtomStageErrCode Act_(const uint64_t pid, const bool is_public, const replier_t reply, Choise choise)
   {
     if (is_public)
     {
       reply() << "请私信裁判选择，公开选择无效";
-      return false;
+      return FAILED;
     }
     Choise& cur_choise = cur_choise_[pid];
     if (cur_choise != NONE_CHOISE)
     {
       reply() << "您已经进行过选择了";
-      return false;
+      return FAILED;
     }
     cur_choise = choise;
     reply() << "选择成功";
-    return cur_choise_[0] != NONE_CHOISE && cur_choise_[1] != NONE_CHOISE;
+    return cur_choise_[0] != NONE_CHOISE && cur_choise_[1] != NONE_CHOISE ? CHECKOUT : OK;
   }
 
   const uint32_t max_round_sec_;
@@ -142,8 +142,7 @@ private:
   std::array<uint64_t, 2> win_count_;
 };
 
-std::unique_ptr<MainStageBase> MakeMainStage(const uint64_t player_num, const GameOption& options)
+std::unique_ptr<MainStageBase> MakeMainStage(const GameOption& options)
 {
-  assert(player_num == 2);
   return std::make_unique<MainStage>(options);
 }

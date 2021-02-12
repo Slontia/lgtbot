@@ -40,6 +40,13 @@ class GameOption
 #undef GAME_OPTION
 	 } {};
 
+  bool SetPlayerNum(const uint64_t player_num)
+  {
+    if (!IsValidPlayerNum(player_num)) { return false; }
+    player_num_ = player_num;
+    return true;
+  }
+
   bool IsValidPlayerNum(const uint64_t player_num) const;
 
 	template <Option op>
@@ -71,6 +78,8 @@ class GameOption
 
 	const std::string StatusInfo() const;
 
+  const uint64_t PlayerNum() const { return player_num_; }
+
  private:
 	 decltype(std::tuple
 	 {
@@ -81,6 +90,7 @@ class GameOption
  #undef GAME_OPTION
 	 }) options_;
 	 std::array<std::string, Option::MAX_OPTION> infos_;
+   uint64_t player_num_;
 };
 
 #undef OPTION_

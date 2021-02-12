@@ -22,7 +22,7 @@ public:
   virtual ~Game() {}
   /* Return true when is_over_ switch from false to true */
   virtual bool /*__cdecl*/ StartGame(const uint64_t player_num) override;
-  virtual void /*__cdecl*/ HandleRequest(const uint64_t pid, const bool is_public, const char* const msg) override;
+  virtual ErrCode /*__cdecl*/ HandleRequest(const uint64_t pid, const bool is_public, const char* const msg) override;
   virtual void /*__cdecl*/ HandleTimeout(const bool* const stage_is_over) override;
   virtual const char* /*__cdecl*/ OptionInfo() const override;
   void Help(const replier_t reply);

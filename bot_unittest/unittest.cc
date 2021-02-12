@@ -20,14 +20,36 @@ typedef ErrCode(*HandlePublicRequestFunc)(const UserID uid, const GroupID gid, c
 class MyMsgSender : public MsgSender
 {
  public:
-  virtual ~MyMsgSender() {}
-  virtual void SendString(const char* const str, const size_t len) override {}
-  virtual void SendAt(const uint64_t uid) override {}
+  MyMsgSender(const Target target, const uint64_t id) : target_(target), id_(id) {}
+  virtual ~MyMsgSender()
+  {
+    if (target_ == TO_USER)
+    {
+      std::cout << "[BOT -> USER_" << id_ << "]" << std::endl << ss_.str() << std::endl;
+    }
+    else if (target_ == TO_GROUP)
+    {
+      std::cout << "[BOT -> GROUP_" << id_ << "]" << std::endl << ss_.str() << std::endl;
+    }
+  }
+  virtual void SendString(const char* const str, const size_t len) override
+  {
+    ss_ << std::string_view(str, len);
+  }
+  virtual void SendAt(const uint64_t uid) override
+  {
+    ss_ << "@" << uid;
+  }
+
+ private:
+  const Target target_;
+  const uint64_t id_;
+  std::stringstream ss_;
 };
 
 MsgSender* create_msg_sender(const Target target, const UserID id)
 {
-  return new MyMsgSender();
+  return new MyMsgSender(target, id);
 }
 
 void delete_msg_sender(MsgSender* const msg_sender)
@@ -51,8 +73,19 @@ class TestBot : public testing::Test
    void* bot_;
 };
 
-#define ASSERT_PUB_MSG(ret, gid, uid, msg) ASSERT_EQ((ret), BOT_API::HandlePublicRequest(bot_, (gid), (uid), (msg)));
-#define ASSERT_PRI_MSG(ret, uid, msg) ASSERT_EQ((ret), BOT_API::HandlePrivateRequest(bot_, (uid), (msg)));
+#define ASSERT_PUB_MSG(ret, gid, uid, msg)\
+do\
+{\
+  std::cout << "[USER_" << uid <<  " -> GROUP_" << gid << "]" << std::endl << msg << std::endl;\
+  ASSERT_EQ((ret), BOT_API::HandlePublicRequest(bot_, (gid), (uid), (msg)));\
+} while (0)
+
+#define ASSERT_PRI_MSG(ret, uid, msg)\
+do\
+{\
+  std::cout << "[USER_" << uid <<  " -> BOT]" << std::endl << msg << std::endl;\
+  ASSERT_EQ((ret), BOT_API::HandlePrivateRequest(bot_, (uid), (msg)));\
+} while (0)
 
 // Join Not Existing Game
 

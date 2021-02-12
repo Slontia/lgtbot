@@ -140,7 +140,10 @@ private:
 
 // Require: the argument can be convert to a number in [<Min>, <Max>], or no more arguments and <Optional> is true
 // Return: the converted number wrapped in std::optional, or an empty std::optional if no more arguments
-template <typename T, T Min, T Max, bool Optional = false, typename = typename std::enable_if_t<std::is_arithmetic_v<T>>>
+template <typename T,
+          T Min = std::numeric_limits<T>::min(),
+          T Max = std::numeric_limits<T>::max(),
+          bool Optional = false> requires std::is_arithmetic_v<T>
 class ArithChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
 public:

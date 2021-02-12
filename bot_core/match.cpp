@@ -237,15 +237,14 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
   }
   if (state_ == State::IN_CONFIGURING)
   {
-    game_->HandleRequest(0, gid.has_value(), msg.c_str());
+    return game_->HandleRequest(0, gid.has_value(), msg.c_str());
   }
   else
   {
     const auto it = uid2pid_.find(uid);
     assert(it != uid2pid_.end());
-    game_->HandleRequest(it->second, gid.has_value(), msg.c_str());
+    return game_->HandleRequest(it->second, gid.has_value(), msg.c_str());
   }
-  return EC_OK;
 }
 
 ErrCode Match::GameConfigOver(const replier_t reply)
@@ -277,7 +276,6 @@ ErrCode Match::GameStart(const replier_t reply)
     reply() << "[错误] 开始失败：玩家人数过少";
     return EC_MATCH_TOO_FEW_PLAYER;
   }
-  assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
   if (!game_->StartGame(player_num))
   {
     reply() << "[错误] 开始失败：不符合游戏参数的预期";

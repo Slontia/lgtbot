@@ -15,11 +15,26 @@ DEFINE_uint64(admin_uid, 1919810, "The UserID of administor");
 
 const char* Red() { return FLAGS_color ? "\033[31m" : ""; }
 const char* Green() { return FLAGS_color ? "\033[32m" : ""; }
+const char* Yellow() { return FLAGS_color ? "\033[33m" : ""; }
 const char* Blue() { return FLAGS_color ? "\033[34m" : ""; }
 const char* Purple() { return FLAGS_color ? "\033[35m" : ""; }
 const char* LightPink() { return FLAGS_color ? "\033[1;95m" : ""; }
 const char* LightCyan() { return FLAGS_color ? "\033[96m" : ""; }
 const char* Default() { return FLAGS_color ? "\033[0m" : ""; }
+
+static const char* ErrCodeColor(const ErrCode rc)
+{
+  switch (rc)
+  {
+    case EC_OK:
+    case EC_GAME_REQUEST_OK:
+      return Green();
+    case EC_GAME_REQUEST_CHECKOUT:
+      return Yellow();
+    default:
+      return Red();
+  }
+}
 
 std::ostream& Error() { return std::cerr << Red() << "[ERROR] " << Default(); }
 
@@ -31,11 +46,11 @@ class MyMsgSender : public MsgSender
   {
     if (target_ == TO_USER)
     {
-      std::cout << Blue() << "[private -> user: " << id_ << "]" << Default() << std::endl << ss_.str() << std::endl;
+      std::cout << Blue() << "[BOT -> USER_" << id_ << "]" << Default() << std::endl << ss_.str() << std::endl;
     }
     else if (target_ == TO_GROUP)
     {
-      std::cout << Purple() << "[public -> group: " << id_ << "]" << Default() << std::endl << ss_.str() << std::endl;
+      std::cout << Purple() << "[BOT -> GROUP_" << id_ << "]" << Default() << std::endl << ss_.str() << std::endl;
     }
   }
   virtual void SendString(const char* const str, const size_t len) override
@@ -119,9 +134,9 @@ bool handle_request(void* bot, const std::string_view line)
     return false;
   }
 
-  ErrCode errcode = gid.has_value() ? BOT_API::HandlePublicRequest(bot, uid, gid.value(), request_s.data()) :
+  ErrCode rc = gid.has_value() ? BOT_API::HandlePublicRequest(bot, gid.value(), uid, request_s.data()) :
                                       BOT_API::HandlePrivateRequest(bot, uid, request_s.data());
-  std::cout << (errcode == EC_OK ? Green() : Red()) << "Error Code: " << errcode2str(errcode) << Default() << std::endl;
+  std::cout << ErrCodeColor(rc) << "Error Code: " << errcode2str(rc) << Default() << std::endl;
 
   return true;
 }
@@ -157,6 +172,8 @@ int main(int argc, char** argv)
     }
     linenoiseFree(line_cstr);
   }
+
+  BOT_API::Release(bot);
 
   return 0;
 }
