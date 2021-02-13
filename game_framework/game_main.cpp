@@ -31,10 +31,9 @@ bool /*__cdecl*/ Init(
   return true;
 }
 
-const char* /*__cdecl*/ GameInfo(uint64_t* min_player, uint64_t* max_player, const char** rule)
+const char* /*__cdecl*/ GameInfo(uint64_t* max_player, const char** rule)
 {
-  if (!min_player || !max_player) { return nullptr; }
-  *min_player = k_min_player;
+  if (!max_player || !rule) { return nullptr; }
   *max_player = k_max_player;
   *rule = Rule();
   return k_game_name.c_str();

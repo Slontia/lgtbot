@@ -149,9 +149,9 @@ static ErrCode show_match_status(BotCtx* const bot, const UserID uid, const std:
   sender << "房间号：";
   if (match->gid().has_value()) { sender << *gid << "\n"; }
   else { sender << "私密游戏" << "\n"; }
-  sender << "可参加人数：" << match->game_handle().min_player_;
-  if (const uint64_t max_player = match->game_handle().max_player_; max_player > match->game_handle().min_player_) { sender << "~" << max_player; }
-  else if (max_player == 0) { sender << "+"; }
+  sender << "最多可参加人数：";
+  if (match->game_handle().max_player_ == 0) { sender << "无限制"; }
+  else { sender << match->game_handle().max_player_; }
   sender << "人" << "\n";
   sender << "房主：" << match->host_uid() << "\n";
   const std::set<uint64_t>& ready_uid_set = match->ready_uid_set();
@@ -169,9 +169,9 @@ static ErrCode show_rule(BotCtx* const bot, const UserID uid, const std::optiona
     return EC_REQUEST_UNKNOWN_GAME;
   };
   auto sender = reply();
-  sender << "可参加人数：" << it->second->min_player_;
-  if (const uint64_t max_player = it->second->max_player_; max_player > it->second->min_player_) { sender << "~" << max_player; }
-  else if (max_player == 0) { sender << "+"; }
+  sender << "最多可参加人数：";
+  if (it->second->max_player_ == 0) { sender << "无限制"; }
+  else { sender << it->second->max_player_; }
   sender << "人\n";
   sender << "详细规则：\n";
   sender << it->second->rule_;

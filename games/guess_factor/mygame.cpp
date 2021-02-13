@@ -6,12 +6,11 @@
 #include <functional>
 
 const std::string k_game_name = "因数游戏";
-const uint64_t k_min_player = 2;
 const uint64_t k_max_player = 20;
 
-bool GameOption::IsValidPlayerNum(const uint64_t player_num) const
+static bool NeedEliminated(const uint64_t round, const GameOption& option)
 {
-  return true;
+  return round >= option.GET_VALUE(淘汰回合) && (round - option.GET_VALUE(淘汰回合)) % option.GET_VALUE(淘汰间隔) == 0;
 }
 
 const std::string GameOption::StatusInfo() const
@@ -30,11 +29,13 @@ public:
     : GameStage("第" + std::to_string(round) + "回合",
       {
         MakeStageCommand(this, "预测因数", &RoundStage::Guess_, ArithChecker<uint32_t, 1>("选择")),
-      }), option_(option), eliminated_(eliminated), guessed_factors_(option.PlayerNum(), 0) {}
+      }), option_(option), eliminated_(eliminated), round_(round), guessed_factors_(option.PlayerNum(), 0) {}
 
   uint64_t OnStageBegin()
   {
-    Boardcast() << name_ << "开始，请私信裁判猜测因数";
+    auto sender = Boardcast();
+    sender << name_ << "开始，请私信裁判猜测因数";
+    if (NeedEliminated(round_, option_)) { sender << "（本回合需淘汰分数末尾玩家）"; }
     return option_.GET_VALUE(局时);
   }
 
@@ -81,6 +82,7 @@ private:
 
   const GameOption& option_;
   const std::vector<bool> eliminated_;
+  const uint64_t round_;
   std::vector<uint32_t> guessed_factors_;
 };
 
@@ -100,9 +102,7 @@ public:
     auto sender = Boardcast();
     const uint64_t sum = SumPool_(sender, sub_stage.GuessedFactors());
     AddScore_(sender, sum);
-    if (round_ >= option_.GET_VALUE(淘汰回合) &&
-        (round_ - option_.GET_VALUE(淘汰回合)) % option_.GET_VALUE(淘汰间隔) == 0 &&
-        (Eliminate_(sender), SurviveCount_() == 1))
+    if (NeedEliminated(round_, option_) && (Eliminate_(sender), SurviveCount_() == 1 || round_ == option_.GET_VALUE(最大回合)))
     {
       return {};
     }
@@ -225,7 +225,18 @@ private:
   std::vector<std::list<uint32_t>> factor_pool_;
 };
 
-std::unique_ptr<MainStageBase> MakeMainStage(const GameOption& options)
+std::unique_ptr<MainStageBase> MakeMainStage(MsgSenderWrapper& sender, const GameOption& options)
 {
+  if (options.PlayerNum() < 2)
+  {
+    sender << "该游戏至少两人参加";
+    return nullptr;
+  }
+  if (options.GET_VALUE(最大回合) <= options.GET_VALUE(淘汰回合))
+  {
+    sender << "游戏最大回合数必须大于开始淘汰的回合数，当前设置的最大回合数" << options.GET_VALUE(最大回合) <<
+      "，当前设置的开始淘汰的回合数为" << options.GET_VALUE(淘汰回合);
+    return nullptr;
+  }
   return std::make_unique<MainStage>(options);
 }

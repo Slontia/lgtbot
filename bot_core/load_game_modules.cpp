@@ -88,7 +88,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
   }
 
   typedef int (/*__cdecl*/ *Init)(const NEW_BOARDCAST_MSG_SENDER_CALLBACK, const NEW_TELL_MSG_SENDER_CALLBACK, const DELETE_MSG_SENDER_CALLBACK, const GAME_OVER_CALLBACK, const START_TIMER_CALLBACK, const STOP_TIMER_CALLBACK);
-  typedef char* (/*__cdecl*/ *GameInfo)(uint64_t*, uint64_t*, const char**);
+  typedef char* (/*__cdecl*/ *GameInfo)(uint64_t*, const char**);
   typedef GameBase* (/*__cdecl*/ *NewGame)(void* const match);
   typedef int (/*__cdecl*/ *DeleteGame)(GameBase* const);
 
@@ -110,17 +110,11 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
   }
 
   const char* rule = nullptr;
-  uint64_t min_player = 0;
   uint64_t max_player = 0;
-  char* name = game_info(&min_player, &max_player, &rule);
+  char* name = game_info(&max_player, &rule);
   if (!name)
   {
     ErrorLog() << "Load failed: Cannot get game game";
-    return;
-  }
-  if (min_player == 0 || max_player < min_player)
-  {
-    ErrorLog() << "Load failed: Invalid min_player:" << min_player << " max_player:" << max_player;
     return;
   }
   std::optional<uint64_t> game_id;
@@ -128,7 +122,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
   {
     game_id = db_manager->GetGameIDWithName(name);
   }
-  game_handles.emplace(name, std::make_unique<GameHandle>(game_id, name, min_player, max_player, rule, new_game, delete_game, [mod] { FreeLibrary(mod); }));
+  game_handles.emplace(name, std::make_unique<GameHandle>(game_id, name, max_player, rule, new_game, delete_game, [mod] { FreeLibrary(mod); }));
   InfoLog() << "Loaded successfully!";
 }
 

@@ -7,7 +7,6 @@ GAME_TEST(1, player_not_enough)
 
 GAME_TEST(2, not_eliminate_continue)
 {
-  PUB_MSG(OK, 0, "淘汰回合 1");
   START_GAME();
   PRI_MSG(OK, 0, "1");
   PUB_MSG(FAILED, 1, "1");

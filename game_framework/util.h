@@ -19,7 +19,7 @@ extern const uint64_t k_min_player;
 extern const uint64_t k_max_player;
 extern const char* Rule();
 
-std::unique_ptr<MainStageBase> MakeMainStage(const GameOption& options);
+std::unique_ptr<MainStageBase> MakeMainStage(MsgSenderWrapper& sender, const GameOption& options);
 
 inline MsgSenderWrapper Boardcast(void* const match)
 {

@@ -15,13 +15,26 @@ Game::Game(void* const match)
   help_cmd_(MakeCommand<void(const replier_t)>("查看游戏帮助", BindThis(this, &Game::Help), VoidChecker("帮助")))
 {}
 
-bool Game::StartGame(const uint64_t player_num)
+bool Game::StartGame(const bool is_public, const uint64_t player_num)
 {
   assert(main_stage_ == nullptr);
-  if (player_num >= k_min_player && (k_max_player == 0 || player_num <= k_max_player) && options_.SetPlayerNum(player_num))
+  assert(k_max_player == 0 || player_num <= k_max_player);
+  const replier_t reply = [this, is_public]() -> MsgSenderWrapper
+  {
+    if (is_public)
+    {
+      auto sender = ::Boardcast(match_);
+      sender << AtMsg(0) << "\n";
+      return sender;
+    }
+    return ::Tell(match_, 0);
+  }; // we must convert lambda to std::function to pass it into CallIfValid
+
+  options_.SetPlayerNum(player_num);
+  auto sender = reply();
+  if (main_stage_ = MakeMainStage(sender, options_))
   {
     player_num_ = player_num;
-    main_stage_ = MakeMainStage(options_);
     main_stage_->Init(match_, std::bind(g_start_timer_cb, match_, std::placeholders::_1), std::bind(g_stop_timer_cb, match_));
     return true;
   }

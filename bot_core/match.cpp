@@ -78,7 +78,7 @@ ErrCode MatchManager::StartGame(const UserID uid, const std::optional<GroupID> g
     reply() << "[错误] 开始失败：开始游戏失败：您未在该房间建立游戏";
     return EC_MATCH_NOT_THIS_GROUP;
   }
-  return match->GameStart(reply);
+  return match->GameStart(gid.has_value(), reply);
 }
 
 ErrCode MatchManager::AddPlayerToPrivateGame(const MatchId mid, const UserID uid, const replier_t reply)
@@ -258,7 +258,7 @@ ErrCode Match::GameConfigOver(const replier_t reply)
   return EC_OK;
 }
 
-ErrCode Match::GameStart(const replier_t reply)
+ErrCode Match::GameStart(const bool is_public, const replier_t reply)
 {
   if (state_ == State::IN_CONFIGURING)
   {
@@ -271,12 +271,7 @@ ErrCode Match::GameStart(const replier_t reply)
     return EC_MATCH_ALREADY_BEGIN;
   }
   const uint64_t player_num = ready_uid_set_.size();
-  if (player_num < game_handle_.min_player_)
-  {
-    reply() << "[错误] 开始失败：玩家人数过少";
-    return EC_MATCH_TOO_FEW_PLAYER;
-  }
-  if (!game_->StartGame(player_num))
+  if (!game_->StartGame(is_public, player_num))
   {
     reply() << "[错误] 开始失败：不符合游戏参数的预期";
     return EC_MATCH_UNEXPECTED_CONFIG;

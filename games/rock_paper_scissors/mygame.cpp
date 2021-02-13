@@ -6,13 +6,7 @@
 #include <functional>
 
 const std::string k_game_name = "猜拳游戏";
-const uint64_t k_min_player = 2; /* should be larger than 1 */
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
-
-bool GameOption::IsValidPlayerNum(const uint64_t player_num) const
-{
-  return true;
-}
 
 const std::string GameOption::StatusInfo() const
 {
@@ -142,7 +136,12 @@ private:
   std::array<uint64_t, 2> win_count_;
 };
 
-std::unique_ptr<MainStageBase> MakeMainStage(const GameOption& options)
+std::unique_ptr<MainStageBase> MakeMainStage(MsgSenderWrapper& sender, const GameOption& options)
 {
+  if (options.PlayerNum() != 2)
+  {
+    sender << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << options.PlayerNum();
+    return nullptr;
+  }
   return std::make_unique<MainStage>(options);
 }

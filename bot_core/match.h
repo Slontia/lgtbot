@@ -39,7 +39,7 @@ public:
 
   ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, const replier_t reply);
   ErrCode GameConfigOver(const replier_t reply);
-  ErrCode GameStart(const replier_t reply);
+  ErrCode GameStart(const bool is_public, const replier_t reply);
   ErrCode Join(const UserID uid, const replier_t reply);
   ErrCode Leave(const UserID uid, const replier_t reply);
   MsgSenderWrapperBatch Boardcast() const;

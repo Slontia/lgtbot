@@ -40,14 +40,7 @@ class GameOption
 #undef GAME_OPTION
 	 } {};
 
-  bool SetPlayerNum(const uint64_t player_num)
-  {
-    if (!IsValidPlayerNum(player_num)) { return false; }
-    player_num_ = player_num;
-    return true;
-  }
-
-  bool IsValidPlayerNum(const uint64_t player_num) const;
+  void SetPlayerNum(const uint64_t player_num) { player_num_ = player_num; }
 
 	template <Option op>
 	const auto Option2Value() const

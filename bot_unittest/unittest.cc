@@ -372,14 +372,6 @@ TEST_F(TestBot, exceed_max_player)
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始游戏");
 }
 
-TEST_F(TestBot, not_achieve_min_player)
-{
-  ASSERT_PUB_MSG(EC_OK, 1, 1, ("#新游戏 " + FLAGS_game_name).c_str());
-  ASSERT_PUB_MSG(EC_MATCH_TOO_FEW_PLAYER, 1, 1, "#开始游戏");
-  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
-  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始游戏");
-}
-
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);
