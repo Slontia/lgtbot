@@ -12,7 +12,7 @@ class Player;
 
 Game::Game(void* const match)
   : match_(match), main_stage_(nullptr), is_over_(false),
-  help_cmd_(MakeCommand<void(const replier_t)>("查看游戏帮助", BindThis(this, &Game::Help), VoidChecker("帮助")))
+  help_cmd_(MakeCommand<void(const replier_t)>("查看游戏帮助", BindThis(this, &Game::Help_), VoidChecker("帮助")))
 {}
 
 bool Game::StartGame(const bool is_public, const uint64_t player_num)
@@ -82,19 +82,25 @@ ErrCode /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public
           rc = EC_GAME_REQUEST_FAILED;
           break;
         case StageBase::StageErrCode::NOT_FOUND:
-          reply() << "[错误] 未预料的游戏请求";
+        {
+          auto sender = reply();
+          sender << "[错误] 未预料的游戏请求\n\n";
+          HelpInternal_(sender);
           rc = EC_GAME_REQUEST_NOT_FOUND;
           break;
+        }
         default:
           reply() << "[错误] 游戏请求执行失败，未知的错误，请联系管理员";
           rc = EC_GAME_REQUEST_UNKNOWN;
           break;
       }
-      if (main_stage_->IsOver()) { OnGameOver(); }
+      if (main_stage_->IsOver()) { OnGameOver_(); }
     }
     else if (!options_.SetOption(reader))
     {
-      reply() << "[错误] 未预料的游戏设置";
+      auto sender = reply();
+      sender << "[错误] 未预料的游戏设置\n\n";
+      HelpInternal_(sender);
       rc = EC_GAME_REQUEST_NOT_FOUND;
     }
     else { reply() << "设置成功！目前配置："s << OptionInfo(); }
@@ -108,9 +114,14 @@ void Game::HandleTimeout(const bool* const stage_is_over)
   if (!*stage_is_over) { main_stage_->HandleTimeout(); }
 }
 
-void Game::Help(const replier_t reply)
+void Game::Help_(const replier_t reply)
 {
-  auto sender = reply();
+  HelpInternal_(reply());
+}
+
+template <typename SenderRef> requires std::is_same_v<std::decay_t<SenderRef>, MsgSenderWrapper>
+void Game::HelpInternal_(SenderRef&& sender)
+{
   if (main_stage_)
   {
     sender << "\n[当前阶段]\n";
@@ -137,7 +148,7 @@ const char* Game::OptionInfo() const
   return s.c_str();
 }
 
-void Game::OnGameOver()
+void Game::OnGameOver_()
 {
   is_over_ = true;
   std::vector<int64_t> scores(player_num_);

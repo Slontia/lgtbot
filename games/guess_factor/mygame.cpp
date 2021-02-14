@@ -28,7 +28,7 @@ public:
   RoundStage(const GameOption& option, const uint64_t round, const std::vector<bool>& eliminated)
     : GameStage("第" + std::to_string(round) + "回合",
       {
-        MakeStageCommand(this, "预测因数", &RoundStage::Guess_, ArithChecker<uint32_t, 1>("选择")),
+        MakeStageCommand(this, "预测因数", &RoundStage::Guess_, ArithChecker<uint32_t, 1, 9999>("选择")),
       }), option_(option), eliminated_(eliminated), round_(round), guessed_factors_(option.PlayerNum(), 0) {}
 
   uint64_t OnStageBegin()
