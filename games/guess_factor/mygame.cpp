@@ -123,7 +123,7 @@ private:
       if (eliminated_[pid])
       {
         sender << "（已淘汰）\n";
-        break;
+        continue;
       }
       for (const uint32_t factor : factor_pool_[pid])
       {
@@ -151,7 +151,11 @@ private:
     for (uint64_t pid = 0; pid < option_.PlayerNum(); ++ pid)
     {
       sender << "\n" << AtMsg(pid) << "：" << scores_[pid];
-      if (eliminated_[pid]) { break; }
+      if (eliminated_[pid])
+      {
+        sender << "（已淘汰）";
+        continue;
+      }
       for (auto it = factor_pool_[pid].begin(); it != factor_pool_[pid].end(); /* do nothing */)
       {
         const auto& factor = *it;
@@ -168,6 +172,27 @@ private:
       }
       sender << " => " << scores_[pid];
     }
+
+    sender << "\n\n当前各玩家预测池情况：\n";
+    for (uint64_t pid = 0; pid < option_.PlayerNum(); ++ pid)
+    {
+      sender << AtMsg(pid) << "：";
+      if (eliminated_[pid])
+      {
+        sender << "（已淘汰）\n";
+        continue;
+      }
+      if (factor_pool_[pid].empty())
+      {
+        sender << "（空）\n";
+        continue;
+      }
+      for (const uint32_t factor : factor_pool_[pid])
+      {
+        sender << factor << " ";
+      }
+      sender << "\n";
+    }
   }
 
   void Eliminate_(MsgSenderWrapper& sender)
@@ -176,7 +201,7 @@ private:
     std::vector<uint64_t> min_score_pids;
     for (uint64_t pid = 0; pid < option_.PlayerNum(); ++ pid)
     {
-      if (eliminated_[pid]) { break; }
+      if (eliminated_[pid]) { continue; }
       if (min_score_pids.empty() || (scores_[min_score_pids.front()] == scores_[pid]))
       {
         min_score_pids.emplace_back(pid);

@@ -48,6 +48,7 @@ template <uint64_t k_player_num>
 class TestGame : public testing::Test
 {
  public:
+  using ScoreArray = std::array<int64_t, k_player_num>;
   static void SetUpTestCase()
   {
     Init(NewBoardcastMsgSender, NewTellMsgSender, DeleteMsgSender, GameOver, StartTimer, StopTimer);
@@ -73,11 +74,16 @@ class TestGame : public testing::Test
   }
 
   std::unique_ptr<Game> game_;
-  std::optional<std::array<int64_t, k_player_num>> expected_scores_;
+  std::optional<ScoreArray> expected_scores_;
 };
 
 
-#define CHECK_SCORE(scores) ASSERT_EQ((scores), game().expected_scores()) << "Score not match"
+#define ASSERT_SCORE(scores...)\
+do\
+{\
+  ASSERT_TRUE(expected_scores().has_value()) << "Game not finish";\
+  ASSERT_EQ((ScoreArray{ scores }), *expected_scores()) << "Score not match";\
+} while (0)
 
 #define START_GAME()\
 do\
@@ -86,19 +92,25 @@ do\
   ASSERT_TRUE(StartGame()) << "Start game failed";\
 } while (0)
 
-#define PUB_MSG(ret, uid, msg)\
-do\
-{\
+#define PUB_MSG(uid, msg)\
+[&] {\
   std::cout << "[USER_" << uid <<  " -> GROUP]" << std::endl << msg << std::endl;\
-  ASSERT_EQ(EC_GAME_REQUEST_##ret, game().HandleRequest((uid), true, (msg))) << "Handle request failed";\
-} while (0)
+  return game().HandleRequest((uid), true, (msg));\
+}()
 
-#define PRI_MSG(ret, uid, msg)\
-do\
-{\
+#define ASSERT_PUB_MSG(ret, uid, msg) ASSERT_EQ(EC_GAME_REQUEST_##ret, (PUB_MSG(uid, msg))) << "Handle request failed"
+
+#define CHECK_PUB_MSG(ret, uid, msg) (EC_GAME_REQUEST_##ret == PUB_MSG(uid, msg))
+
+#define PRI_MSG(uid, msg)\
+[&] {\
   std::cout << "[USER_" << uid <<  " -> BOT]" << std::endl << msg << std::endl;\
-  ASSERT_EQ(EC_GAME_REQUEST_##ret, game().HandleRequest((uid), false, (msg))) << "Handle request failed";\
-} while (0)
+  return game().HandleRequest((uid), false, (msg));\
+}()
+
+#define ASSERT_PRI_MSG(ret, uid, msg) ASSERT_EQ(EC_GAME_REQUEST_##ret, (PRI_MSG(uid, msg))) << "Handle request failed"
+
+#define CHECK_PRI_MSG(ret, uid, msg) (EC_GAME_REQUEST_##ret == PRI_MSG(uid, msg))
 
 #define GAME_TEST(player_num, test_name)\
 using TestGame_##player_num##_##test_name = TestGame<player_num>;\

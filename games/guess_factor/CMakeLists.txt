@@ -34,5 +34,6 @@ target_link_libraries(${GAME} ${CMAKE_CURRENT_SOURCE_DIR}/rule.o)
 enable_testing()
 find_package(GTest REQUIRED)
 add_executable(unittest_${GAME} ${SOURCE_FILES} unittest.cc)
+add_dependencies(unittest_${GAME} ${GAME}_rule)
 target_link_libraries(unittest_${GAME} GTest::GTest GTest::Main ${CMAKE_CURRENT_SOURCE_DIR}/rule.o)
 

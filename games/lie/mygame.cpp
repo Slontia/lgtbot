@@ -182,7 +182,7 @@ class MainStage : public MainGameStage<RoundStage>
 
   int64_t PlayerScore(const uint64_t pid) const
   {
-    return pid == questioner_ ? -10 : 10;
+    return pid == questioner_ ? 0 : 1;
   }
 
  private:
