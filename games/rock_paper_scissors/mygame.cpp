@@ -105,7 +105,7 @@ public:
     if (is_timeout && !winner.has_value())
     {
       Boardcast() << "双方无响应";
-      BreakOff();
+      // both score is 0, no winners
       return {};
     }
     HandleRoundResult_(winner);
@@ -113,7 +113,7 @@ public:
     return std::make_unique<RoundStage>(++round_, k_max_round_sec_);
   }
 
-  int64_t PlayerScore(const uint64_t pid) const { return (win_count_[pid] == k_max_win_count_) ? 10 : -10; }
+  int64_t PlayerScore(const uint64_t pid) const { return (win_count_[pid] == k_max_win_count_) ? 1 : 0; }
 
 private:
   void HandleRoundResult_(const std::optional<uint64_t>& winner)

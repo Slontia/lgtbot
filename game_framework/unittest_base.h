@@ -77,7 +77,6 @@ class TestGame : public testing::Test
   std::optional<ScoreArray> expected_scores_;
 };
 
-
 #define ASSERT_SCORE(scores...)\
 do\
 {\

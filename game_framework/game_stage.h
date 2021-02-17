@@ -37,7 +37,6 @@ public:
   bool IsOver() const { return is_over_; }
   auto Boardcast() const { return ::Boardcast(match_); }
   auto Tell(const uint64_t pid) const { return ::Tell(match_, pid); }
-  void BreakOff() { g_game_over_cb(match_, nullptr); }
 
 protected:
   static uint64_t CommandInfo(uint64_t i, MsgSenderWrapper& sender, const std::shared_ptr<MsgCommandBase>& cmd)
