@@ -77,6 +77,15 @@ GAME_TEST(2, change_select)
   ASSERT_SCORE(0, 1);
 }
 
+GAME_TEST(2, timeout)
+{
+  ASSERT_PRI_MSG(OK, 0, "淘汰回合 1");
+  START_GAME();
+  ASSERT_PRI_MSG(OK, 0, "1");
+  TIMEOUT();
+  ASSERT_SCORE(1, 0);
+}
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

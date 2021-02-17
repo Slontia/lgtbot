@@ -111,7 +111,11 @@ ErrCode /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public
 void Game::HandleTimeout(const bool* const stage_is_over)
 {
   std::lock_guard<SpinLock> l(lock_);
-  if (!*stage_is_over) { main_stage_->HandleTimeout(); }
+  if (!*stage_is_over)
+  {
+    main_stage_->HandleTimeout();
+    if (main_stage_->IsOver()) { OnGameOver_(); }
+  }
 }
 
 void Game::Help_(const replier_t reply)

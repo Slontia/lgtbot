@@ -92,6 +92,14 @@ do\
   ASSERT_TRUE(StartGame()) << "Start game failed";\
 } while (0)
 
+#define TIMEOUT()\
+do\
+{\
+  std::cout << "[TIMEOUT]" << std::endl;\
+  bool stage_is_over = false;\
+  game().HandleTimeout(&stage_is_over);\
+} while (0)
+
 #define PUB_MSG(uid, msg)\
 [&] {\
   std::cout << "[USER_" << uid <<  " -> GROUP]" << std::endl << msg << std::endl;\
