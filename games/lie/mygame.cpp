@@ -203,11 +203,11 @@ class MainStage : public MainGameStage<RoundStage>
    std::array<std::array<int, 6>, 2> player_nums_;
 };
 
-std::unique_ptr<MainStageBase> MakeMainStage(MsgSenderWrapper& sender, const GameOption& options)
+std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameOption& options)
 {
   if (options.PlayerNum() != 2)
   {
-    sender << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << options.PlayerNum();
+    reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << options.PlayerNum();
     return nullptr;
   }
   return std::make_unique<MainStage>(options);

@@ -31,8 +31,7 @@ bool Game::StartGame(const bool is_public, const uint64_t player_num)
   }; // we must convert lambda to std::function to pass it into CallIfValid
 
   options_.SetPlayerNum(player_num);
-  auto sender = reply();
-  if (main_stage_ = MakeMainStage(sender, options_))
+  if (main_stage_ = MakeMainStage(reply, options_))
   {
     player_num_ = player_num;
     main_stage_->Init(match_, std::bind(g_start_timer_cb, match_, std::placeholders::_1), std::bind(g_stop_timer_cb, match_));

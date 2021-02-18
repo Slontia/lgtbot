@@ -250,16 +250,16 @@ private:
   std::vector<std::list<uint32_t>> factor_pool_;
 };
 
-std::unique_ptr<MainStageBase> MakeMainStage(MsgSenderWrapper& sender, const GameOption& options)
+std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameOption& options)
 {
   if (options.PlayerNum() < 2)
   {
-    sender << "该游戏至少两人参加";
+    reply() << "该游戏至少两人参加";
     return nullptr;
   }
   if (options.GET_VALUE(最大回合) <= options.GET_VALUE(淘汰回合))
   {
-    sender << "游戏最大回合数必须大于开始淘汰的回合数，当前设置的最大回合数" << options.GET_VALUE(最大回合) <<
+    reply() << "游戏最大回合数必须大于开始淘汰的回合数，当前设置的最大回合数" << options.GET_VALUE(最大回合) <<
       "，当前设置的开始淘汰的回合数为" << options.GET_VALUE(淘汰回合);
     return nullptr;
   }

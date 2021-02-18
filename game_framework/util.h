@@ -19,7 +19,9 @@ extern const uint64_t k_min_player;
 extern const uint64_t k_max_player;
 extern const char* Rule();
 
-std::unique_ptr<MainStageBase> MakeMainStage(MsgSenderWrapper& sender, const GameOption& options);
+using replier_t = std::function<MsgSenderWrapper()>;
+
+std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameOption& options);
 
 inline MsgSenderWrapper Boardcast(void* const match)
 {
@@ -31,4 +33,3 @@ inline MsgSenderWrapper Tell(void* const match, const uint64_t pid)
   return MsgSenderWrapper(std::unique_ptr<MsgSender, void (*)(MsgSender* const)>(g_new_tell_msg_sender_cb(match, pid), g_delete_msg_sender_cb));
 }
 
-using replier_t = std::function<MsgSenderWrapper()>;
