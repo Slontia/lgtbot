@@ -11,7 +11,12 @@ DEFINE_string(game_path, "plugins", "The path of game modules");
 DEFINE_string(history_filename, ".simulator_history.txt", "The file saving history commands");
 DEFINE_bool(color, true, "Enable color");
 DEFINE_uint64(bot_uid, 114514, "The UserID of bot");
-DEFINE_uint64(admin_uid, 1919810, "The UserID of administor");
+DEFINE_uint64(admin_uid, 0, "The UserID of administor");
+
+DEFINE_string(db_addr, "", "Address of database <ip>:<port>");
+DEFINE_string(db_user, "root", "User of database");
+DEFINE_string(db_name, "lgtbot_simulator", "Name of database");
+DEFINE_string(db_passwd, "", "Password of database");
 
 const char* Red() { return FLAGS_color ? "\033[31m" : ""; }
 const char* Green() { return FLAGS_color ? "\033[32m" : ""; }
@@ -37,6 +42,7 @@ static const char* ErrCodeColor(const ErrCode rc)
 }
 
 std::ostream& Error() { return std::cerr << Red() << "[ERROR] " << Default(); }
+std::ostream& Log() { return std::clog << Blue() << "[LOG] " << Default(); }
 
 class MyMsgSender : public MsgSender
 {
@@ -81,7 +87,6 @@ void delete_msg_sender(MsgSender* const msg_sender)
 auto init_bot(int argc, char** argv)
 {
   const char* errmsg = nullptr;
-  return BOT_API::Init(FLAGS_bot_uid, create_msg_sender, delete_msg_sender, FLAGS_game_path.c_str(), &FLAGS_admin_uid, 1);
 }
 
 std::pair<std::string_view, std::string_view> cut(const std::string_view line)
@@ -141,10 +146,39 @@ bool handle_request(void* bot, const std::string_view line)
   return true;
 }
 
+static void ConnectDatabase(void* const bot)
+{
+  if (!FLAGS_db_addr.empty())
+  {
+    const char* errmsg = nullptr;
+    if (FLAGS_db_passwd.empty())
+    {
+      char passwd[128] = {0};
+      std::cout << "Password: ";
+      std::cin >> passwd;
+      BOT_API::ConnectDatabase(bot, FLAGS_db_addr.c_str(), FLAGS_db_user.c_str(), passwd, FLAGS_db_name.c_str(), &errmsg);
+    }
+    else
+    {
+      BOT_API::ConnectDatabase(bot, FLAGS_db_addr.c_str(), FLAGS_db_user.c_str(), FLAGS_db_passwd.c_str(), FLAGS_db_name.c_str(), &errmsg);
+    }
+    if (errmsg)
+    {
+      Error() << "Connect database failed errmsg:" << *errmsg << std::endl;
+    }
+    else
+    {
+      Log() << "Connect database success" << std::endl;
+    }
+  }
+}
+
 int main(int argc, char** argv)
 {
   std::locale::global(std::locale(""));
-  auto bot = init_bot(argc, argv);
+  gflags::ParseCommandLineFlags(&argc, &argv, true); 
+  auto bot = BOT_API::Init(FLAGS_bot_uid, create_msg_sender, delete_msg_sender, FLAGS_game_path.c_str(), &FLAGS_admin_uid, 1);
+  ConnectDatabase(bot);
 
   linenoiseHistoryLoad(FLAGS_history_filename.c_str());
 

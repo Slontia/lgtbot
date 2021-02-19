@@ -99,9 +99,16 @@ ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const GroupI
       });
 }
 
-ErrCode /*__cdecl*/ BOT_API::ConnectDatabase(void* const bot, const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg)
+ErrCode /*__cdecl*/ BOT_API::ConnectDatabase(void* const bot_p, const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg)
 {
   ErrCode code;
   std::tie(code, *errmsg) = DBManager::ConnectDB(addr, user, passwd, db_name);
+  if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager())
+  {
+    for (auto& [name, info] : static_cast<BotCtx*>(bot_p)->game_handles())
+    {
+      info->game_id_ = db_manager->GetGameIDWithName(name);
+    }
+  }
   return code;
 }

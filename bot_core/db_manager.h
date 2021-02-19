@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <sstream>
 #include "match.h"
+#include "log.h"
 
 #define FAIL_THROW(sql_func, ...) \
 do\
@@ -19,7 +20,7 @@ class DBManager
 public:
   DBManager(std::unique_ptr<sql::Connection>&& connection) : connection_(std::move(connection))
   {
-    assert(driver_ && connection_);
+    assert(connection_);
   }
   ~DBManager() {}
 
@@ -88,32 +89,31 @@ public:
     });
   }
 
-  std::string GetUserProfit(const UserID uid)
+  void GetUserProfit(const UserID uid, const replier_t reply)
   {
-    std::stringstream ss;
     Transaction::ExecuteTransaction(*connection_, [&](Transaction& trans)
     {
       auto ret = trans.ExecuteQueryLessThanOneRow("SELECT * FROM user_info WHERE user_id = ", uid);
-      if (!ret) { ss << "Äú»¹Î´²ÎÓë¹ýÓÎÏ·"; }
+      if (!ret) { reply() << "æ‚¨è¿˜æœªå‚ä¸Žè¿‡æ¸¸æˆ"; }
       else
       {
-        if (ret->getBoolean("is_new_player")) { ss << "£¨ÐÂÊÖ±£»¤ÖÐ£©" << std::endl; }
-        ss << "ÁãºÍ»ý·Ö£º" << ret->getDouble("total_zero_sum_match_score") << std::endl;
-        ss << "Õý»ý·Ö£º" << ret->getDouble("total_posi_match_score") << std::endl;
-        ss << "Âß¼­±ÈÈü¾ÖÊý£¨Ê¤/¸º/Æ½£©£º" << ret->getUInt64("logical_match_count") << " ("
+        auto sender = reply();
+        if (ret->getBoolean("is_new_player")) { sender << "ï¼ˆæ–°æ‰‹ä¿æŠ¤ä¸­ï¼‰\n"; }
+        sender << "é›¶å’Œç§¯åˆ†ï¼š" << ret->getDouble("total_zero_sum_match_score");
+        sender << "\næ­£ç§¯åˆ†ï¼š" << ret->getDouble("total_posi_match_score");
+        sender << "\né€»è¾‘æ¯”èµ›å±€æ•°ï¼ˆèƒœ/è´Ÿ/å¹³ï¼‰ï¼š" << ret->getUInt64("logical_match_count") << " ("
           << ret->getUInt64("win_logical_match_count") << "/"
           << ret->getUInt64("lose_logical_match_count") << "/"
-          << ret->getUInt64("logical_match_count") - ret->getUInt64("win_logical_match_count") - ret->getUInt64("lose_logical_match_count") << ")" << std::endl;
-        ss << "µ±Ç°Á¬Ê¤/×î¸ßÁ¬Ê¤£º" << ret->getUInt64("win_combo") << "/" << ret->getUInt64("highest_win_combo") << std::endl;
-        ss << "Êµ¼Ê×Ü±ÈÈü¾ÖÊý£º" << ret->getUInt64("match_count") << std::endl;
-        ss << "×¢²áÊ±¼ä£º" << ret->getString("register_time");
+          << ret->getUInt64("logical_match_count") - ret->getUInt64("win_logical_match_count") - ret->getUInt64("lose_logical_match_count") << ")";
+        sender << "\nå½“å‰è¿žèƒœ/æœ€é«˜è¿žèƒœï¼š" << ret->getUInt64("win_combo") << "/" << ret->getUInt64("highest_win_combo");
+        sender << "\nå®žé™…æ€»æ¯”èµ›å±€æ•°ï¼š" << ret->getUInt64("match_count");
+        sender << "\næ³¨å†Œæ—¶é—´ï¼š" << ret->getString("register_time").c_str();
       }
       return true;
     });
-    return ss.str();
   }
 
-  std::optional<uint64_t> GetGameIDWithName(const std::string& game_name)
+  std::optional<uint64_t> GetGameIDWithName(const std::string_view game_name)
   {
     std::optional<uint64_t> game_id;
     Transaction::ExecuteTransaction(*connection_, [&](Transaction& trans)
@@ -125,7 +125,7 @@ public:
     return game_id;
   }
 
-  std::optional<uint64_t> ReleaseGame(const std::string& game_name)
+  std::optional<uint64_t> ReleaseGame(const std::string_view game_name)
   {
     uint64_t game_id;
     return Transaction::ExecuteTransaction(*connection_, [&](Transaction& trans)
@@ -235,21 +235,19 @@ private:
         if (f(trans))
         {
           connection.commit();
-          // TODO: log commit
+          DebugLog() << "commit transaction sql=\'" << trans.sql_recorder_.str() << "\'";
           return true;
         }
         else
         {
           connection.rollback();
-          // TODO: log abort
+          DebugLog() << "rollback transaction sql=\'" << trans.sql_recorder_.str() << "\'";
           return false;
         }
       }
       catch (sql::SQLException e)
       {
-        std::cout << trans.sql_recorder_.str() << std::endl;
-        std::cout << MakeErrorMsg(e) << std::endl;
-        // TODO: log error
+        ErrorLog() << "execute transaction failed errmsg=" << MakeErrorMsg(e) << " sql=\'" << trans.sql_recorder_.str() << "\'";
         return false;
       }
     }
@@ -295,7 +293,7 @@ private:
       std::stringstream ss;
       (ss << ... << part);
       std::string sql = ss.str();
-      sql_recorder_ << sql << std::endl;
+      sql_recorder_ << sql << "; ";
       if constexpr (type == STMT_UPDATE) { return stmt_->executeUpdate(sql); }
       else { return std::unique_ptr<sql::ResultSet>(stmt_->executeQuery(sql)); }
     }
@@ -319,8 +317,7 @@ private:
     return (errmsg_ = std::to_string(e.getErrorCode()) + ": " + e.what()).c_str();
   }
 
-   static thread_local std::string errmsg_;
-   static std::unique_ptr<DBManager> g_db_manager_;
-   std::unique_ptr<sql::mysql::MySQL_Driver> driver_;
-   std::unique_ptr<sql::Connection> connection_;
+  static thread_local std::string errmsg_;
+  static std::unique_ptr<DBManager> g_db_manager_;
+  std::unique_ptr<sql::Connection> connection_;
 };

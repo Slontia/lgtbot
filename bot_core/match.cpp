@@ -360,13 +360,21 @@ void Match::GameOver(const int64_t scores[])
   sender << "游戏结束，公布分数：\n";
   for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) { sender << AtMsg(pid2uid_[pid]) << " " << scores[pid] << "\n"; }
   sender << "感谢诸位参与！";
-  if (auto& db_manager = DBManager::GetDBManager(); db_manager != nullptr)
+  if (auto& db_manager = DBManager::GetDBManager(); !db_manager)
   {
-    std::optional<uint64_t> game_id = game_handle_.game_id_.load();
-    if (game_id.has_value() && !db_manager->RecordMatch(*game_id, gid_, host_uid_, multiple_, score_info))
-    {
-      sender << "\n[错误] 游戏结果写入数据库失败，请联系管理员";
-    }
+    sender << "\n[警告] 未连接数据库，游戏结果不会被记录";
+  }
+  else if (std::optional<uint64_t> game_id = game_handle_.game_id_.load(); !game_id.has_value())
+  {
+    sender << "\n[警告] 该游戏未发布，游戏结果不会被记录";
+  }
+  else if (!db_manager->RecordMatch(*game_id, gid_, host_uid_, multiple_, score_info))
+  {
+    sender << "\n[错误] 游戏结果写入数据库失败，请联系管理员";
+  }
+  else
+  {
+    sender << "\n游戏结果写入数据库成功！";
   }
 }
 

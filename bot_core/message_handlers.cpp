@@ -48,9 +48,10 @@ static ErrCode show_gamelist(BotCtx* const bot, const UserID uid, const std::opt
   }
   auto sender = reply();
   sender << "游戏列表：";
-  for (const auto& [name, _] : bot->game_handles())
+  for (const auto& [name, info] : bot->game_handles())
   {
     sender << "\n" << (++i) << ". " << name;
+    if (!info->game_id_.load().has_value()) { sender << "（未发布）"; }
   }
   return EC_OK;
 }
@@ -186,7 +187,7 @@ static ErrCode show_profile(BotCtx* const bot, const UserID uid, const std::opti
     reply() << "[错误] 查看失败：未连接数据库";
     return EC_DB_NOT_CONNECTED;
   }
-  db_manager->GetUserProfit(uid); // TODO: pass sender
+  db_manager->GetUserProfit(uid, reply); // TODO: pass sender
   return EC_OK;
 }
 
