@@ -10,6 +10,7 @@ class Game;
 extern NEW_BOARDCAST_MSG_SENDER_CALLBACK g_new_boardcast_msg_sender_cb;
 extern NEW_TELL_MSG_SENDER_CALLBACK g_new_tell_msg_sender_cb;
 extern DELETE_MSG_SENDER_CALLBACK g_delete_msg_sender_cb;
+extern GAME_PREPARE_CALLBACK g_game_prepare_cb;
 extern GAME_OVER_CALLBACK g_game_over_cb;
 extern START_TIMER_CALLBACK g_start_timer_cb;
 extern STOP_TIMER_CALLBACK g_stop_timer_cb;

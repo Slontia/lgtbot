@@ -33,7 +33,6 @@ private:
   void OnGameOver_();
 
   void* const match_;
-  uint64_t player_num_;
   std::unique_ptr<MainStageBase> main_stage_;
   bool is_over_;
   std::optional<std::vector<int64_t>> scores_;

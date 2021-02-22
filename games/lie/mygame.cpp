@@ -31,6 +31,7 @@ class NumberStage : public SubGameStage<>
  private:
    AtomStageErrCode Number_(const uint64_t pid, const bool is_public, const replier_t reply, const int num)
    {
+     reply() << pid << " " << questioner_;
      if (pid != questioner_)
      {
        reply() << "[错误] 本回合您为猜测者，无法设置数字";
@@ -166,7 +167,10 @@ private:
 class MainStage : public MainGameStage<RoundStage>
 {
  public:
-   MainStage(const GameOption& options) : fail_if_collected_all_(options.GET_VALUE(集齐失败)), questioner_(0), round_(1), player_nums_{ {0} } {}
+   MainStage(const GameOption& options) : fail_if_collected_all_(options.GET_VALUE(集齐失败)), questioner_(0), round_(1), player_nums_{ {0} }
+   {
+     std::srand(std::time(0));
+   }
 
   virtual VariantSubStage OnStageBegin() override
   {

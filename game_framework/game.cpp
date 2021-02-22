@@ -33,7 +33,7 @@ bool Game::StartGame(const bool is_public, const uint64_t player_num)
   options_.SetPlayerNum(player_num);
   if (main_stage_ = MakeMainStage(reply, options_))
   {
-    player_num_ = player_num;
+    g_game_prepare_cb(match_);
     main_stage_->Init(match_, std::bind(g_start_timer_cb, match_, std::placeholders::_1), std::bind(g_stop_timer_cb, match_));
     return true;
   }
@@ -154,8 +154,8 @@ const char* Game::OptionInfo() const
 void Game::OnGameOver_()
 {
   is_over_ = true;
-  std::vector<int64_t> scores(player_num_);
-  for (uint64_t pid = 0; pid < player_num_; ++pid)
+  std::vector<int64_t> scores(options_.PlayerNum());
+  for (uint64_t pid = 0; pid < options_.PlayerNum(); ++pid)
   {
     scores[pid] = main_stage_->PlayerScore(pid);
   }

@@ -58,6 +58,11 @@ static void DeleteMsgSender(MsgSender* const msg_sender)
   delete msg_sender;
 }
 
+static void MatchGamePrepare(void* match)
+{
+  static_cast<Match*>(match)->GamePrepare();
+}
+
 static void MatchGameOver(void* match, const int64_t scores[])
 {
   Match& match_ref = *static_cast<Match*>(match);
@@ -87,7 +92,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
     return;
   }
 
-  typedef int (/*__cdecl*/ *Init)(const NEW_BOARDCAST_MSG_SENDER_CALLBACK, const NEW_TELL_MSG_SENDER_CALLBACK, const DELETE_MSG_SENDER_CALLBACK, const GAME_OVER_CALLBACK, const START_TIMER_CALLBACK, const STOP_TIMER_CALLBACK);
+  typedef int (/*__cdecl*/ *Init)(const NEW_BOARDCAST_MSG_SENDER_CALLBACK, const NEW_TELL_MSG_SENDER_CALLBACK, const DELETE_MSG_SENDER_CALLBACK, const GAME_PREPARE_CALLBACK, const GAME_OVER_CALLBACK, const START_TIMER_CALLBACK, const STOP_TIMER_CALLBACK);
   typedef char* (/*__cdecl*/ *GameInfo)(uint64_t*, const char**);
   typedef GameBase* (/*__cdecl*/ *NewGame)(void* const match);
   typedef int (/*__cdecl*/ *DeleteGame)(GameBase* const);
@@ -103,7 +108,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
     return;
   }
 
-  if (!init(&Boardcast, &Tell, &DeleteMsgSender, &MatchGameOver, &StartTimer, &StopTimer))
+  if (!init(&Boardcast, &Tell, &DeleteMsgSender, &MatchGamePrepare, &MatchGameOver, &StartTimer, &StopTimer))
   {
     ErrorLog() << "Load failed: init failed";
     return;

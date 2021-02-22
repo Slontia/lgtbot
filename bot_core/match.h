@@ -45,6 +45,7 @@ public:
   MsgSenderWrapperBatch Boardcast() const;
   MsgSenderWrapper Tell(const uint64_t pid) const;
   ErrCode AtPlayer(const uint64_t pid) const;
+  void GamePrepare();
   void GameOver(const int64_t scores[]);
   void StartTimer(const uint64_t sec);
   void StopTimer();

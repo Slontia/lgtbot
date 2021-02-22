@@ -40,6 +40,7 @@ class MyMsgSender : public MsgSender
 MsgSender* NewBoardcastMsgSender(void*) { return new MyMsgSender(); }
 MsgSender* NewTellMsgSender(void*, const uint64_t pid) { return new MyMsgSender(pid); }
 void DeleteMsgSender(MsgSender* const msg_sender) { delete msg_sender; };
+void GamePrepare(void* p);
 void GameOver(void* p, const int64_t scores[]);
 void StartTimer(void*, const uint64_t) {}
 void StopTimer(void*) {}
@@ -51,7 +52,7 @@ class TestGame : public testing::Test
   using ScoreArray = std::array<int64_t, k_player_num>;
   static void SetUpTestCase()
   {
-    Init(NewBoardcastMsgSender, NewTellMsgSender, DeleteMsgSender, GameOver, StartTimer, StopTimer);
+    Init(NewBoardcastMsgSender, NewTellMsgSender, DeleteMsgSender, GamePrepare, GameOver, StartTimer, StopTimer);
   }
 
   virtual void SetUp()
@@ -67,6 +68,8 @@ class TestGame : public testing::Test
   auto& expected_scores() const { return expected_scores_; }
 
  private:
+  static void GamePrepare(void* p) {}
+
   static void GameOver(void* p, const int64_t src_scores[])
   {
     auto& dst_scores = static_cast<TestGame<k_player_num>*>(p)->expected_scores_.emplace();

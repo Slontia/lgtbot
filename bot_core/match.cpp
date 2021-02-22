@@ -277,14 +277,6 @@ ErrCode Match::GameStart(const bool is_public, const replier_t reply)
     return EC_MATCH_UNEXPECTED_CONFIG;
   }
 
-  for (UserID uid : ready_uid_set_)
-  {
-    uid2pid_.emplace(uid, pid2uid_.size());
-    pid2uid_.push_back(uid);
-  }
-  state_ = State::IS_STARTED;
-  Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
-  start_time_ = std::chrono::system_clock::now();
   return EC_OK;
 }
 
@@ -344,6 +336,18 @@ MsgSenderWrapperBatch Match::Boardcast() const
 MsgSenderWrapper Match::Tell(const uint64_t pid) const
 {
   return bot_.ToUser(pid2uid(pid));
+}
+
+void Match::GamePrepare()
+{
+  state_ = State::IS_STARTED;
+  for (UserID uid : ready_uid_set_)
+  {
+    uid2pid_.emplace(uid, pid2uid_.size());
+    pid2uid_.push_back(uid);
+  }
+  Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
+  start_time_ = std::chrono::system_clock::now();
 }
 
 void Match::GameOver(const int64_t scores[])
