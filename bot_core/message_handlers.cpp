@@ -240,20 +240,35 @@ static ErrCode release_game(BotCtx* const bot, const UserID uid, const std::opti
   return EC_OK;
 }
 
-static ErrCode interrupt_match(BotCtx* const bot, const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
+static ErrCode interrupt_public(BotCtx* const bot, const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
 {
   if (!gid.has_value())
   {
-    reply() << "[错误] 游戏失败：需要在房间中使用该指令";
+    reply() << "[错误] 中断失败：需要在房间中使用该指令";
     return EC_MATCH_NEED_REQUEST_PUBLIC;
   }
   const auto match = bot->match_manager().GetMatchWithGroupID(*gid);
   if (!match)
   {
-    reply() << "[错误] 游戏失败：该房间未进行游戏";
+    reply() << "[错误] 中断失败：该房间未进行游戏";
     return EC_MATCH_GROUP_NOT_IN_MATCH;
   }
-  return bot->match_manager().DeleteMatch(match->mid());
+  const auto rc = bot->match_manager().DeleteMatch(match->mid());
+  reply() << (rc == EC_OK ? "中断成功" : "[错误] 中断失败：未知错误");
+  return rc;
+}
+
+static ErrCode interrupt_private(BotCtx* const bot, const UserID uid, const std::optional<GroupID> gid, const replier_t reply, const MatchId match_id)
+{
+  const auto match = bot->match_manager().GetMatch(match_id);
+  if (!match)
+  {
+    reply() << "[错误] 中断失败：游戏ID不存在";
+    return EC_MATCH_NOT_EXIST;
+  }
+  const auto rc = bot->match_manager().DeleteMatch(match_id);
+  reply() << (rc == EC_OK ? "中断成功" : "[错误] 中断失败：未知错误");
+  return rc;
 }
 
 const std::vector<std::shared_ptr<MetaCommand>> admin_cmds =
@@ -261,6 +276,7 @@ const std::vector<std::shared_ptr<MetaCommand>> admin_cmds =
   make_command("查看帮助", [](BotCtx* const bot, const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
       { return help(bot, uid, gid, reply, admin_cmds, "管理"); }, VoidChecker("%帮助")),
   make_command("发布游戏，写入游戏信息到数据库", release_game, VoidChecker("%发布游戏"), AnyArg("游戏名称", "某游戏名")),
-  make_command("强制中断公开比赛", interrupt_match, VoidChecker("%中断游戏"))
+  make_command("强制中断公开比赛", interrupt_public, VoidChecker("%中断游戏")),
+  make_command("强制中断私密比赛", interrupt_private, VoidChecker("%中断游戏"), BasicChecker<MatchId>("私密比赛编号")),
 };
 

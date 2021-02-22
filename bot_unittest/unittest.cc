@@ -372,6 +372,90 @@ TEST_F(TestBot, exceed_max_player)
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始游戏");
 }
 
+// Administor
+
+TEST_F(TestBot, interrupt_private_without_mid)
+{
+  ASSERT_PRI_MSG(EC_MATCH_NEED_REQUEST_PUBLIC, k_admin_qq, "%中断游戏");
+}
+
+TEST_F(TestBot, interrupt_public_not_game)
+{
+  ASSERT_PUB_MSG(EC_MATCH_GROUP_NOT_IN_MATCH, 1, k_admin_qq, "%中断游戏");
+}
+
+TEST_F(TestBot, interrupt_public_config)
+{
+  ASSERT_PUB_MSG(EC_OK, 1, 1, ("#配置新游戏 " + FLAGS_game_name).c_str());
+  ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+}
+
+TEST_F(TestBot, interrupt_public_wait)
+{
+  ASSERT_PUB_MSG(EC_OK, 1, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+}
+
+TEST_F(TestBot, interrupt_public_start)
+{
+  ASSERT_PUB_MSG(EC_OK, 1, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+}
+
+TEST_F(TestBot, interrupt_private_wait)
+{
+  ASSERT_PRI_MSG(EC_OK, 1, ("#配置新游戏 " + FLAGS_game_name).c_str());
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+}
+
+TEST_F(TestBot, interrupt_private_config)
+{
+  ASSERT_PRI_MSG(EC_OK, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+}
+
+TEST_F(TestBot, interrupt_private_start)
+{
+  ASSERT_PRI_MSG(EC_OK, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+}
+
+TEST_F(TestBot, interrupt_private_wait_in_public)
+{
+  ASSERT_PRI_MSG(EC_OK, 1, ("#配置新游戏 " + FLAGS_game_name).c_str());
+  ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+}
+
+TEST_F(TestBot, interrupt_private_config_in_public)
+{
+  ASSERT_PRI_MSG(EC_OK, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
+  ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+}
+
+TEST_F(TestBot, interrupt_private_start_in_public)
+{
+  ASSERT_PRI_MSG(EC_OK, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
+  ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, ("#新游戏 " + FLAGS_game_name).c_str());
+}
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);
