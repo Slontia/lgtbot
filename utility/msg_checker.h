@@ -221,7 +221,7 @@ public:
 class MsgCommandBase
 {
 public:
-  virtual std::string Info() const = 0;
+  virtual std::string Info(const bool with_example = false) const = 0;
 };
 
 template <typename UserFuncType>
@@ -294,15 +294,18 @@ public:
     return CallIfValidParseArgs<0>(msg_reader, user_args_tuple);
   }
 
-  virtual std::string Info() const override
+  virtual std::string Info(const bool with_example) const override
   {
     std::stringstream ss;
     ss << description_ << std::endl;
     ss << "格式：";
     std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers->FormatInfo() + " ")); }, checkers_);
-    ss << std::endl;
-    ss << "例如：";
-    std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers->ExampleInfo() + " ")); }, checkers_);
+    if (with_example)
+    {
+      ss << std::endl;
+      ss << "例如：";
+      std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers->ExampleInfo() + " ")); }, checkers_);
+    }
     return ss.str();
   }
 
