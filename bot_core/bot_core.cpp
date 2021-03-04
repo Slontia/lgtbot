@@ -50,12 +50,14 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
       std::shared_ptr<Match> match = bot.match_manager().GetMatch(uid, gid);
       if (!match)
       {
-        reply() << "[错误] 您未参与游戏";
+        reply() << "[错误] 您未参与游戏\n"
+                   "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
         return EC_MATCH_USER_NOT_IN_MATCH;
       }
       if (match->gid() != gid && gid.has_value())
       {
-        reply() << "[错误] 您未在本群参与游戏";
+        reply() << "[错误] 您未在本群参与游戏\n";
+                   "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
         return EC_MATCH_NOT_THIS_GROUP;
       }
       return match->Request(uid, gid, msg, reply);

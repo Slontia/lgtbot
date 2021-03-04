@@ -82,9 +82,8 @@ ErrCode /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public
           break;
         case StageBase::StageErrCode::NOT_FOUND:
         {
-          auto sender = reply();
-          sender << "[错误] 未预料的游戏请求\n\n";
-          HelpInternal_(sender);
+          reply() << "[错误] 未预料的游戏指令，您可以通过\"帮助\"（不带#号）查看所有支持的游戏指令\n"
+                     "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
           rc = EC_GAME_REQUEST_NOT_FOUND;
           break;
         }
@@ -97,9 +96,8 @@ ErrCode /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public
     }
     else if (!options_.SetOption(reader))
     {
-      auto sender = reply();
-      sender << "[错误] 未预料的游戏设置\n\n";
-      HelpInternal_(sender);
+      reply() << "[错误] 未预料的游戏设置，您可以通过\"帮助\"（不带#号）查看所有支持的游戏设置\n"
+                 "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
       rc = EC_GAME_REQUEST_NOT_FOUND;
     }
     else { reply() << "设置成功！目前配置："s << OptionInfo(); }
@@ -119,12 +117,7 @@ void Game::HandleTimeout(const bool* const stage_is_over)
 
 void Game::Help_(const replier_t reply)
 {
-  HelpInternal_(reply());
-}
-
-template <typename SenderRef> requires std::is_same_v<std::decay_t<SenderRef>, MsgSenderWrapper>
-void Game::HelpInternal_(SenderRef&& sender)
-{
+  auto sender = reply();
   if (main_stage_)
   {
     sender << "\n[当前阶段]\n";
@@ -142,6 +135,11 @@ void Game::HelpInternal_(SenderRef&& sender)
     uint32_t i = 1;
     for (const std::string& option_info : options_.Infos()) { sender << "\n[" << (++i) << "] " << option_info; }
   }
+}
+
+template <typename SenderRef> requires std::is_same_v<std::decay_t<SenderRef>, MsgSenderWrapper>
+void Game::HelpInternal_(SenderRef&& sender)
+{
 }
 
 const char* Game::OptionInfo() const

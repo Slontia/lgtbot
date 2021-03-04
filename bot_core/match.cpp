@@ -15,6 +15,18 @@ do\
     return ret;\
 } while (0);
 
+static void BoardcastMatchCanJoin(const Match& match)
+{
+  if (match.gid().has_value())
+  {
+    match.Boardcast() << "现在玩家可以在群里通过\"#加入游戏\"报名比赛";
+  }
+  else
+  {
+    match.Boardcast() << "现在玩家可以通过私信我\"#加入游戏 " << match.mid() << "\"报名比赛";
+  }
+}
+
 ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid, const bool skip_config, const replier_t reply)
 {
   std::lock_guard<SpinLock> l(spinlock_);
@@ -32,7 +44,14 @@ ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, 
   std::shared_ptr<Match> new_match = std::make_shared<Match>(bot_, mid, game_handle, uid, gid, skip_config);
   RETURN_IF_FAILED(AddPlayer_(new_match, uid, reply));
   BindMatch_(mid, mid2match_, new_match);
-  if (gid.has_value()) { BindMatch_(*gid, gid2match_, new_match); }
+  if (gid.has_value())
+  {
+    BindMatch_(*gid, gid2match_, new_match);
+  }
+  if (skip_config)
+  {
+    BoardcastMatchCanJoin(*new_match);
+  }
   return EC_OK;
 }
 
@@ -232,7 +251,8 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
 {
   if (state_ == State::NOT_STARTED)
   {
-    reply() << "[错误] 当前阶段等待玩家加入，无法执行游戏请求";
+    reply() << "[错误] 当前阶段等待玩家加入，无法执行游戏请求\n"
+               "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
     return EC_MATCH_NOT_BEGIN;
   }
   if (state_ == State::IN_CONFIGURING)
@@ -255,6 +275,7 @@ ErrCode Match::GameConfigOver(const replier_t reply)
     return EC_MATCH_NOT_IN_CONFIG;
   }
   state_ = State::NOT_STARTED;
+  BoardcastMatchCanJoin(*this);
   return EC_OK;
 }
 

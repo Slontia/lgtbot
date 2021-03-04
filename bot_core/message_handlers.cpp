@@ -25,8 +25,7 @@ static ErrCode help(BotCtx* const bot, const UserID uid, const std::optional<Gro
 }
 
 ErrCode HandleRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgReader& reader,
-    const replier_t reply, const std::vector<std::shared_ptr<MetaCommand>>& cmds,
-    const std::string_view type)
+    const replier_t reply, const std::vector<std::shared_ptr<MetaCommand>>& cmds)
 {
   reader.Reset();
   for (const std::shared_ptr<MetaCommand>& cmd : cmds)
@@ -34,7 +33,6 @@ ErrCode HandleRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID
     const std::optional<ErrCode> errcode = cmd->CallIfValid(reader, std::tuple{ &bot, uid, gid, reply });
     if (errcode.has_value()) { return *errcode; }
   }
-  reply() << "[错误] 未预料的" << type << "指令";
   return EC_REQUEST_NOT_FOUND;
 }
 
@@ -197,16 +195,20 @@ const std::vector<std::shared_ptr<MetaCommand>> meta_cmds =
       { return help(bot, uid, gid, reply, meta_cmds, "元"); }, VoidChecker("#帮助")),
   make_command("查看个人信息", show_profile, VoidChecker("#个人信息")),
   make_command("查看游戏列表", show_gamelist, VoidChecker("#游戏列表")),
-  make_command("查看游戏规则", show_rule, VoidChecker("#规则"), AnyArg("游戏名称", "某游戏名")),
+  make_command("查看游戏规则（游戏名称可以通过\"#游戏列表\"查看）",
+      show_rule, VoidChecker("#规则"), AnyArg("游戏名称", "某游戏名")),
   make_command("查看当前所有未开始的私密比赛", show_private_matches, VoidChecker("#私密游戏列表")),
   make_command("查看已加入，或该房间正在进行的比赛信息", show_match_status, VoidChecker("#游戏信息")),
 
-  make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏", new_game<true>, VoidChecker("#新游戏"), AnyArg("游戏名称", "某游戏名")),
-  make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏，并进行游戏参数的配置", new_game<false>, VoidChecker("#配置新游戏"), AnyArg("游戏名称", "某游戏名")),
+  make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏（游戏名称可以通过\"#游戏列表\"查看）",
+      new_game<true>, VoidChecker("#新游戏"), AnyArg("游戏名称", "某游戏名")),
+  make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏，并进行游戏参数的配置（游戏名称可以通过\"#游戏列表\"查看）",
+      new_game<false>, VoidChecker("#配置新游戏"), AnyArg("游戏名称", "某游戏名")),
   make_command("完成游戏参数配置后，允许玩家进入房间", config_over, VoidChecker("#配置完成")),
   make_command("房主开始游戏", start_game, VoidChecker("#开始游戏")),
   make_command("加入当前房间的公开游戏", join_public, VoidChecker("#加入游戏")),
-  make_command("私信bot以加入私密游戏", join_private, VoidChecker("#加入游戏"), BasicChecker<MatchId>("私密比赛编号")),
+  make_command("私信bot以加入私密游戏（私密比赛编号可以通过\"#私密游戏列表\"查看）",
+      join_private, VoidChecker("#加入游戏"), BasicChecker<MatchId>("私密比赛编号")),
   make_command("在游戏开始前退出游戏", leave, VoidChecker("#退出游戏")),
 };
 
