@@ -21,18 +21,30 @@ static_assert(false, "Not support OS");
 #endif
 
 template <typename Sender>
-class MsgSenderForGame : public MsgSender
+class MsgSenderForGameImpl : public MsgSenderForGame
 {
  public:
-  MsgSenderForGame(Match& match, Sender&& sender) : match_(match), sender_(std::forward<Sender>(sender)) {}
-  virtual ~MsgSenderForGame() {}
+  MsgSenderForGameImpl(Match& match, Sender&& sender) : match_(match), sender_(std::forward<Sender>(sender)) {}
+  virtual ~MsgSenderForGameImpl() {}
 
-  virtual void SendString(const char* const str, const size_t len)
+  virtual void String(const char* const str, const size_t len)
   {
     sender_ << std::string_view(str, len);
   }
 
-  virtual void SendAt(const uint64_t pid)
+  virtual void PlayerName(const uint64_t pid)
+  {
+    if (match_.gid().has_value())
+    {
+      sender_ << GroupUserMsg(match_.pid2uid(pid), *match_.gid());
+    }
+    else
+    {
+      sender_ << UserMsg(match_.pid2uid(pid));
+    }
+  }
+
+  virtual void AtPlayer(const uint64_t pid)
   {
     sender_ << AtMsg(match_.pid2uid(pid));
   }
@@ -41,22 +53,19 @@ class MsgSenderForGame : public MsgSender
   Sender sender_;
 };
 
-static MsgSender* Boardcast(void* match_p)
+static MsgSenderForGame* Boardcast(void* match_p)
 {
   Match& match = *static_cast<Match*>(match_p);
-  return new MsgSenderForGame(match, match.Boardcast());
+  return new MsgSenderForGameImpl(match, match.Boardcast());
 }
 
-static MsgSender* Tell(void* match_p, const uint64_t pid)
+static MsgSenderForGame* Tell(void* match_p, const uint64_t pid)
 {
   Match& match = *static_cast<Match*>(match_p);
-  return new MsgSenderForGame(match, match.Tell(pid));
+  return new MsgSenderForGameImpl(match, match.Tell(pid));
 }
 
-static void DeleteMsgSender(MsgSender* const msg_sender)
-{
-  delete msg_sender;
-}
+static void DeleteMsgSender(MsgSenderForGame* const sender) { delete sender; }
 
 static void MatchGamePrepare(void* match)
 {
@@ -92,7 +101,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
     return;
   }
 
-  typedef int (/*__cdecl*/ *Init)(const NEW_BOARDCAST_MSG_SENDER_CALLBACK, const NEW_TELL_MSG_SENDER_CALLBACK, const DELETE_MSG_SENDER_CALLBACK, const GAME_PREPARE_CALLBACK, const GAME_OVER_CALLBACK, const START_TIMER_CALLBACK, const STOP_TIMER_CALLBACK);
+  typedef int (/*__cdecl*/ *Init)(const NEW_BOARDCAST_MSG_SENDER_CALLBACK, const NEW_TELL_MSG_SENDER_CALLBACK, const DELETE_GAME_MSG_SENDER_CALLBACK, const GAME_PREPARE_CALLBACK, const GAME_OVER_CALLBACK, const START_TIMER_CALLBACK, const STOP_TIMER_CALLBACK);
   typedef char* (/*__cdecl*/ *GameInfo)(uint64_t*, const char**);
   typedef GameBase* (/*__cdecl*/ *NewGame)(void* const match);
   typedef int (/*__cdecl*/ *DeleteGame)(GameBase* const);

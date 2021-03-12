@@ -19,7 +19,7 @@ bool Game::StartGame(const bool is_public, const uint64_t player_num)
 {
   assert(main_stage_ == nullptr);
   assert(k_max_player == 0 || player_num <= k_max_player);
-  const replier_t reply = [this, is_public]() -> MsgSenderWrapper
+  const replier_t reply = [this, is_public]() -> MsgSenderWrapper<MsgSenderForGame>
   {
     if (is_public)
     {
@@ -45,7 +45,7 @@ ErrCode /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public
 {
   using namespace std::string_literals;
   std::lock_guard<SpinLock> l(lock_);
-  const replier_t reply = [this, pid, is_public]() -> MsgSenderWrapper
+  const replier_t reply = [this, pid, is_public]() -> MsgSenderWrapper<MsgSenderForGame>
   {
     if (is_public)
     {
@@ -135,11 +135,6 @@ void Game::Help_(const replier_t reply)
     uint32_t i = 1;
     for (const std::string& option_info : options_.Infos()) { sender << "\n[" << (++i) << "] " << option_info; }
   }
-}
-
-template <typename SenderRef> requires std::is_same_v<std::decay_t<SenderRef>, MsgSenderWrapper>
-void Game::HelpInternal_(SenderRef&& sender)
-{
 }
 
 const char* Game::OptionInfo() const

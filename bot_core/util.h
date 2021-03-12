@@ -13,7 +13,7 @@
 #include <set>
 
 using ModGuard = std::function<void()>;
-using replier_t = std::function<MsgSenderWrapper()>;
+using replier_t = std::function<MsgSenderWrapper<MsgSenderForBot>()>;
 
 template <typename TRef, typename T> concept UniRef = std::is_same_v<std::decay_t<TRef>, T>;
 
@@ -99,16 +99,24 @@ class BotCtx
 
   bool HasAdmin(const UserID uid) const { return admins_.find(uid) != admins_.end(); }
 
-  MsgSenderWrapper ToUser(const UserID uid) const
+  auto ToUserRaw(const UserID uid) const
   {
-    return MsgSenderWrapper(std::unique_ptr<MsgSender, void (*)(MsgSender* const)>(
-          new_msg_sender_cb_(Target::TO_USER, uid), delete_msg_sender_cb_));
+    return std::unique_ptr<MsgSenderForBot, DELETE_MSG_SENDER_CALLBACK>(new_msg_sender_cb_(Target::TO_USER, uid), delete_msg_sender_cb_);
   }
 
-  MsgSenderWrapper ToGroup(const GroupID gid) const
+  auto ToGroupRaw(const GroupID gid) const
   {
-    return MsgSenderWrapper(std::unique_ptr<MsgSender, void (*)(MsgSender* const)>(
-          new_msg_sender_cb_(Target::TO_GROUP, gid), delete_msg_sender_cb_));
+    return std::unique_ptr<MsgSenderForBot, DELETE_MSG_SENDER_CALLBACK>(new_msg_sender_cb_(Target::TO_GROUP, gid), delete_msg_sender_cb_);
+  }
+
+  auto ToUser(const UserID uid) const
+  {
+    return MsgSenderWrapper(ToUserRaw(uid));
+  }
+
+  auto ToGroup(const GroupID gid) const
+  {
+    return MsgSenderWrapper(ToGroupRaw(gid));
   }
 
  private:

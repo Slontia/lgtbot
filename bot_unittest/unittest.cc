@@ -17,11 +17,12 @@ typedef bool(*InitBotFunc)(const UserID, const NEW_MSG_SENDER_CALLBACK, const DE
 typedef ErrCode(*HandlePrivateRequestFunc)(const UserID uid, const char* const msg);
 typedef ErrCode(*HandlePublicRequestFunc)(const UserID uid, const GroupID gid, const char* const msg);
 
-class MyMsgSender : public MsgSender
+class MsgSenderForBotImpl : public MsgSenderForBot
 {
  public:
-  MyMsgSender(const Target target, const uint64_t id) : target_(target), id_(id) {}
-  virtual ~MyMsgSender()
+  MsgSenderForBotImpl(const Target target, const uint64_t id) : target_(target), id_(id) {}
+
+  virtual ~MsgSenderForBotImpl()
   {
     if (target_ == TO_USER)
     {
@@ -32,11 +33,23 @@ class MyMsgSender : public MsgSender
       std::cout << "[BOT -> GROUP_" << id_ << "]" << std::endl << ss_.str() << std::endl;
     }
   }
-  virtual void SendString(const char* const str, const size_t len) override
+
+  virtual void String(const char* const str, const size_t len) override
   {
     ss_ << std::string_view(str, len);
   }
-  virtual void SendAt(const uint64_t uid) override
+
+  virtual void GroupUserName(const uint64_t uid, const uint64_t gid) override
+  {
+    ss_ << uid << "(" << gid << ")";
+  }
+
+  virtual void UserName(const uint64_t uid) override
+  {
+    ss_ << uid;
+  }
+
+  virtual void AtUser(const uint64_t uid) override
   {
     ss_ << "@" << uid;
   }
@@ -47,12 +60,12 @@ class MyMsgSender : public MsgSender
   std::stringstream ss_;
 };
 
-MsgSender* create_msg_sender(const Target target, const UserID id)
+MsgSenderForBot* create_msg_sender(const Target target, const UserID id)
 {
-  return new MyMsgSender(target, id);
+  return new MsgSenderForBotImpl(target, id);
 }
 
-void delete_msg_sender(MsgSender* const msg_sender)
+void delete_msg_sender(MsgSenderForBot* const msg_sender)
 {
   delete msg_sender;
 }

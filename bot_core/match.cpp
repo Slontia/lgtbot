@@ -337,24 +337,24 @@ ErrCode Match::Leave(const UserID uid, const replier_t reply)
   return EC_OK;
 }
 
-MsgSenderWrapperBatch Match::Boardcast() const
+MsgSenderWrapper<MsgSenderForBot> Match::Boardcast() const
 {
-  std::vector<MsgSenderWrapper> senders;
   if (gid_.has_value())
   {
-    senders.emplace_back(bot_.ToGroup(*gid_));
+    return MsgSenderWrapper(bot_.ToGroupRaw(*gid_));
   }
   else
   {
+    MsgSenderWrapper<MsgSenderForBot>::Container senders;
     for (const UserID uid : ready_uid_set_)
     {
-      senders.emplace_back(bot_.ToUser(uid));
+      senders.emplace_back(bot_.ToUserRaw(uid));
     }
+    return MsgSenderWrapper(std::move(senders));
   }
-  return MsgSenderWrapperBatch(std::move(senders));
 }
 
-MsgSenderWrapper Match::Tell(const uint64_t pid) const
+MsgSenderWrapper<MsgSenderForBot> Match::Tell(const uint64_t pid) const
 {
   return bot_.ToUser(pid2uid(pid));
 }

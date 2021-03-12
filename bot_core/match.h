@@ -42,8 +42,8 @@ public:
   ErrCode GameStart(const bool is_public, const replier_t reply);
   ErrCode Join(const UserID uid, const replier_t reply);
   ErrCode Leave(const UserID uid, const replier_t reply);
-  MsgSenderWrapperBatch Boardcast() const;
-  MsgSenderWrapper Tell(const uint64_t pid) const;
+  MsgSenderWrapper<MsgSenderForBot> Boardcast() const;
+  MsgSenderWrapper<MsgSenderForBot> Tell(const uint64_t pid) const;
   ErrCode AtPlayer(const uint64_t pid) const;
   void GamePrepare();
   void GameOver(const int64_t scores[]);

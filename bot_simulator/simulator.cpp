@@ -44,11 +44,12 @@ static const char* ErrCodeColor(const ErrCode rc)
 std::ostream& Error() { return std::cerr << Red() << "[ERROR] " << Default(); }
 std::ostream& Log() { return std::clog << Blue() << "[LOG] " << Default(); }
 
-class MyMsgSender : public MsgSender
+class MsgSenderForBotImpl : public MsgSenderForBot
 {
  public:
-  MyMsgSender(const Target target, const uint64_t id) : target_(target), id_(id) {}
-  virtual ~MyMsgSender()
+  MsgSenderForBotImpl(const Target target, const uint64_t id) : target_(target), id_(id) {}
+
+  virtual ~MsgSenderForBotImpl()
   {
     if (target_ == TO_USER)
     {
@@ -59,11 +60,23 @@ class MyMsgSender : public MsgSender
       std::cout << Purple() << "[BOT -> GROUP_" << id_ << "]" << Default() << std::endl << ss_.str() << std::endl;
     }
   }
-  virtual void SendString(const char* const str, const size_t len) override
+
+  virtual void String(const char* const str, const size_t len) override
   {
     ss_ << std::string_view(str, len);
   }
-  virtual void SendAt(const uint64_t uid) override
+
+  virtual void GroupUserName(const uint64_t uid, const uint64_t gid) override
+  {
+    ss_ << LightPink() << uid << "(" << gid << ")" <<  Default();
+  }
+
+  virtual void UserName(const uint64_t uid) override
+  {
+    ss_ << LightPink() << uid << Default();
+  }
+
+  virtual void AtUser(const uint64_t uid) override
   {
     ss_ << LightPink() << "@" << uid << Default();
   }
@@ -74,12 +87,12 @@ class MyMsgSender : public MsgSender
   std::stringstream ss_;
 };
 
-MsgSender* create_msg_sender(const Target target, const UserID id)
+MsgSenderForBot* create_msg_sender(const Target target, const UserID id)
 {
-  return new MyMsgSender(target, id);
+  return new MsgSenderForBotImpl(target, id);
 }
 
-void delete_msg_sender(MsgSender* const msg_sender)
+void delete_msg_sender(MsgSenderForBot* const msg_sender)
 {
   delete msg_sender;
 }

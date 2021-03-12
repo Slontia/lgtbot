@@ -55,7 +55,7 @@ ERRCODE_DEF(EC_GAME_REQUEST_UNKNOWN)
 #include <map>
 
 class GameHandle;
-class MsgSender;
+class MsgSenderForBot;
 
 extern "C"
 {
@@ -64,8 +64,8 @@ extern "C"
   typedef uint64_t MatchId;
 
   enum Target { TO_USER, TO_GROUP };
-  typedef MsgSender*(*NEW_MSG_SENDER_CALLBACK)(const Target, const UserID);
-  typedef void(*DELETE_MSG_SENDER_CALLBACK)(MsgSender* const msg_sender);
+  typedef MsgSenderForBot* (*NEW_MSG_SENDER_CALLBACK)(const Target, const UserID);
+  typedef void (*DELETE_MSG_SENDER_CALLBACK)(MsgSenderForBot* const msg_sender);
 
   enum ErrCode
   {

@@ -7,12 +7,13 @@
 
 inline std::ostream& operator<<(std::ostream& os, const ErrCode e) { return os << errcode2str(e); }
 
-class MyMsgSender : public MsgSender
+class MsgSenderForGameImpl : public MsgSenderForGame
 {
  public:
-  MyMsgSender() {}
-  MyMsgSender(const uint64_t uid) : uid_(uid) {}
-  virtual ~MyMsgSender()
+  MsgSenderForGameImpl() {}
+  MsgSenderForGameImpl(const uint64_t uid) : uid_(uid) {}
+
+  virtual ~MsgSenderForGameImpl()
   {
     if (uid_.has_value())
     {
@@ -23,11 +24,18 @@ class MyMsgSender : public MsgSender
       std::cout << "[BOT -> GROUP]" << std::endl << ss_.str() << std::endl;
     }
   }
-  virtual void SendString(const char* const str, const size_t len) override
+
+  virtual void String(const char* const str, const size_t len) override
   {
     ss_ << std::string_view(str, len);
   }
-  virtual void SendAt(const uint64_t uid) override
+
+  virtual void PlayerName(const uint64_t uid) override
+  {
+    ss_ << uid;
+  }
+
+  virtual void AtPlayer(const uint64_t uid) override
   {
     ss_ << "@" << uid;
   }
@@ -37,9 +45,9 @@ class MyMsgSender : public MsgSender
   std::stringstream ss_;
 };
 
-MsgSender* NewBoardcastMsgSender(void*) { return new MyMsgSender(); }
-MsgSender* NewTellMsgSender(void*, const uint64_t pid) { return new MyMsgSender(pid); }
-void DeleteMsgSender(MsgSender* const msg_sender) { delete msg_sender; };
+MsgSenderForGame* NewBoardcastMsgSender(void*) { return new MsgSenderForGameImpl(); }
+MsgSenderForGame* NewTellMsgSender(void*, const uint64_t pid) { return new MsgSenderForGameImpl(pid); }
+void DeleteMsgSender(MsgSenderForGame* const msg_sender) { delete msg_sender; };
 void GamePrepare(void* p);
 void GameOver(void* p, const int64_t scores[]);
 void StartTimer(void*, const uint64_t) {}

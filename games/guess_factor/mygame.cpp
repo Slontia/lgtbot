@@ -112,7 +112,7 @@ public:
   int64_t PlayerScore(const uint64_t pid) const { return scores_[pid]; }
 
 private:
-  uint64_t SumPool_(MsgSenderWrapper& sender, const std::vector<uint32_t>& guessed_factors)
+  uint64_t SumPool_(MsgSenderWrapper<MsgSenderForGame>& sender, const std::vector<uint32_t>& guessed_factors)
   {
     assert(guessed_factors.size() == option_.PlayerNum());
     uint64_t sum = 0;
@@ -145,7 +145,7 @@ private:
     return sum;
   }
 
-  void AddScore_(MsgSenderWrapper& sender, const uint64_t sum)
+  void AddScore_(MsgSenderWrapper<MsgSenderForGame>& sender, const uint64_t sum)
   {
     sender << "\n\n得分情况：";
     for (uint64_t pid = 0; pid < option_.PlayerNum(); ++ pid)
@@ -195,7 +195,7 @@ private:
     }
   }
 
-  void Eliminate_(MsgSenderWrapper& sender)
+  void Eliminate_(MsgSenderWrapper<MsgSenderForGame>& sender)
   {
     bool has_eliminate = false;
     std::vector<uint64_t> min_score_pids;

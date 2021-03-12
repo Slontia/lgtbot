@@ -31,15 +31,15 @@ public:
     stop_timer_f_ = stop_timer_f;
   }
   virtual void HandleTimeout() = 0;
-  virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper& sender) const = 0;
+  virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender) const = 0;
   virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) = 0;
-  virtual void StageInfo(MsgSenderWrapper& sender) const = 0;
+  virtual void StageInfo(MsgSenderWrapper<MsgSenderForGame>& sender) const = 0;
   bool IsOver() const { return is_over_; }
   auto Boardcast() const { return ::Boardcast(match_); }
   auto Tell(const uint64_t pid) const { return ::Tell(match_, pid); }
 
 protected:
-  static uint64_t CommandInfo(uint64_t i, MsgSenderWrapper& sender, const std::shared_ptr<MsgCommandBase>& cmd)
+  static uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender, const std::shared_ptr<MsgCommandBase>& cmd)
   {
     sender << "\n[" << (++i) << "] " << cmd->Info();
     return i;
@@ -124,13 +124,13 @@ public:
     }, sub_stage_);
   }
 
-  virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper& sender) const override
+  virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender) const override
   {
     for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, sender, cmd); }
     return std::visit([&i, &sender](auto&& sub_stage) { return sub_stage->CommandInfo(i, sender); }, sub_stage_);
   }
 
-  virtual void StageInfo(MsgSenderWrapper& sender) const override
+  virtual void StageInfo(MsgSenderWrapper<MsgSenderForGame>& sender) const override
   {
     sender << Base::name_ << " - ";
     std::visit([&sender](auto&& sub_stage) { sub_stage->StageInfo(sender); }, sub_stage_);
@@ -202,12 +202,12 @@ public:
     }
     return StageBase::StageErrCode::NOT_FOUND;
   }
-  virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper& sender) const override
+  virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender) const override
   {
     for (const auto& cmd : commands_) { i = StageBase::CommandInfo(i, sender, cmd); }
     return i;
   }
-  virtual void StageInfo(MsgSenderWrapper& sender) const override
+  virtual void StageInfo(MsgSenderWrapper<MsgSenderForGame>& sender) const override
   {
     sender << Base::name_;
     if (finish_time_.has_value()) { sender << " 剩余时间：" << std::chrono::duration_cast<std::chrono::seconds>(*finish_time_ - std::chrono::steady_clock::now()).count() << "秒"; }
