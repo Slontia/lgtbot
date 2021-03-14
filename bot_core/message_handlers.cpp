@@ -49,7 +49,7 @@ static ErrCode show_gamelist(BotCtx* const bot, const UserID uid, const std::opt
   for (const auto& [name, info] : bot->game_handles())
   {
     sender << "\n" << (++i) << ". " << name;
-    if (!info->game_id_.load().has_value()) { sender << "（未发布）"; }
+    if (!info->game_id_.load().has_value()) { sender << "（试玩）"; }
   }
   return EC_OK;
 }
@@ -61,7 +61,7 @@ static ErrCode new_game(BotCtx* const bot, const UserID uid, const std::optional
   const auto it = bot->game_handles().find(gamename);
   if (it == bot->game_handles().end())
   {
-    reply() << "[错误] 创建失败：未知的游戏名";
+    reply() << "[错误] 创建失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
     return EC_REQUEST_UNKNOWN_GAME;
   }
   return bot->match_manager().NewMatch(*it->second, uid, gid, skip_config, reply);
@@ -144,18 +144,40 @@ static ErrCode show_match_status(BotCtx* const bot, const UserID uid, const std:
   sender << "游戏名称：" << match->game_handle().name_ << "\n";
   sender << "配置信息：" << match->OptionInfo() << "\n";
   sender << "游戏状态：" << (match->state() == Match::State::IN_CONFIGURING ? "配置中" :
-                       match->state() == Match::State::NOT_STARTED ? "未开始" : "已开始") << "\n";
+                             match->state() == Match::State::NOT_STARTED ? "未开始" : "已开始") << "\n";
   sender << "房间号：";
-  if (match->gid().has_value()) { sender << *gid << "\n"; }
-  else { sender << "私密游戏" << "\n"; }
+  if (match->gid().has_value())
+  {
+    sender << *gid << "\n";
+  }
+  else
+  {
+    sender << "私密游戏" << "\n";
+  }
   sender << "最多可参加人数：";
-  if (match->game_handle().max_player_ == 0) { sender << "无限制"; }
-  else { sender << match->game_handle().max_player_; }
+  if (match->game_handle().max_player_ == 0)
+  {
+    sender << "无限制";
+  }
+  else
+  {
+    sender << match->game_handle().max_player_;
+  }
   sender << "人" << "\n";
   sender << "房主：" << match->host_uid() << "\n";
   const std::set<uint64_t>& ready_uid_set = match->ready_uid_set();
   sender << "已参加玩家：" << ready_uid_set.size() << "人";
-  for (const uint64_t uid : ready_uid_set) { sender << "\n" << uid; }
+  for (const uint64_t uid : ready_uid_set)
+  {
+    if (match->gid().has_value())
+    {
+      sender << "\n" << GroupUserMsg(uid, *match->gid());
+    }
+    else
+    {
+      sender << "\n" << UserMsg(uid);
+    }
+  }
   return EC_OK;
 }
 
@@ -164,7 +186,7 @@ static ErrCode show_rule(BotCtx* const bot, const UserID uid, const std::optiona
   const auto it = bot->game_handles().find(gamename);
   if (it == bot->game_handles().end())
   {
-    reply() << "[错误] 查看失败：未知的游戏名";
+    reply() << "[错误] 查看失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
     return EC_REQUEST_UNKNOWN_GAME;
   };
   auto sender = reply();
@@ -217,7 +239,7 @@ static ErrCode release_game(BotCtx* const bot, const UserID uid, const std::opti
   const auto it = bot->game_handles().find(gamename);
   if (it == bot->game_handles().end())
   {
-    reply() << "[错误] 发布失败：未知的游戏名";
+    reply() << "[错误] 发布失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
     return EC_REQUEST_UNKNOWN_GAME;
   }
   std::optional<uint64_t> game_id = it->second->game_id_.load();
