@@ -163,10 +163,17 @@ static ErrCode show_match_status(BotCtx* const bot, const UserID uid, const std:
   {
     sender << match->game_handle().max_player_;
   }
-  sender << "人" << "\n";
-  sender << "房主：" << match->host_uid() << "\n";
+  sender << "人" << "\n房主：";
+  if (match->gid().has_value())
+  {
+    sender << GroupUserMsg(match->host_uid(), *match->gid());
+  }
+  else
+  {
+    sender << UserMsg(match->host_uid());
+  }
   const std::set<uint64_t>& ready_uid_set = match->ready_uid_set();
-  sender << "已参加玩家：" << ready_uid_set.size() << "人";
+  sender << "\n已参加玩家：" << ready_uid_set.size() << "人";
   for (const uint64_t uid : ready_uid_set)
   {
     if (match->gid().has_value())

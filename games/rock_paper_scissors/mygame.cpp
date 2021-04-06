@@ -40,10 +40,10 @@ public:
           }, "选择")),
       }), max_round_sec_(max_round_sec), cur_choise_{ NONE_CHOISE, NONE_CHOISE } {}
 
-  uint64_t OnStageBegin()
+  void OnStageBegin()
   {
     Boardcast() << name_ << "开始，请私信裁判进行选择";
-    return max_round_sec_;
+    StartTimer(max_round_sec_);
   }
 
   std::optional<uint64_t> Winner() const

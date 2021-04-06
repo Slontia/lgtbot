@@ -43,7 +43,7 @@ class GameOption
   void SetPlayerNum(const uint64_t player_num) { player_num_ = player_num; }
 
 	template <Option op>
-	const auto Option2Value() const
+	const auto& Option2Value() const
 	{
 		static_assert(op != Option::INVALID_OPTION, "Unexpected option");
 		return std::get<op * 2>(options_);

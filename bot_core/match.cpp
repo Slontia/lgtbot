@@ -314,9 +314,9 @@ ErrCode Match::Join(const UserID uid, const replier_t reply)
     reply() << "[错误] 加入失败：游戏已经开始";
     return EC_MATCH_ALREADY_BEGIN;
   }
-  if (ready_uid_set_.size() >= game_handle_.max_player_)
+  if (game_handle_.max_player_ != 0 && ready_uid_set_.size() >= game_handle_.max_player_)
   {
-    reply() << "[错误] 加入失败：比赛人数已达到游戏上线";
+    reply() << "[错误] 加入失败：比赛人数已达到游戏上限";
     return EC_MATCH_ACHIEVE_MAX_PLAYER;
   }
   ready_uid_set_.emplace(uid);

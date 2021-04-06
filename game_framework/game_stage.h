@@ -181,13 +181,11 @@ public:
   GameStage(std::string&& name, std::initializer_list<std::shared_ptr<GameMsgCommand<AtomStageErrCode>>>&& commands)
     : Base(std::move(name)), timer_(nullptr), commands_(std::move(commands)) {}
   virtual ~GameStage() { Base::stop_timer_f_(); }
-  virtual uint64_t OnStageBegin() { return 0; };
+  virtual void OnStageBegin() {}
   virtual void Init(void* const match, const std::function<void(const uint64_t)>& start_timer_f, const std::function<void()>& stop_timer_f)
   {
     StageBase::Init(match, start_timer_f, stop_timer_f);
-    const uint64_t sec = OnStageBegin();
-    finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
-    start_timer_f(sec);
+    OnStageBegin();
   }
   virtual void HandleTimeout() override final { StageBase::Over(); }
   virtual StageBase::StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public, const replier_t& reply) override
@@ -210,7 +208,22 @@ public:
   virtual void StageInfo(MsgSenderWrapper<MsgSenderForGame>& sender) const override
   {
     sender << Base::name_;
-    if (finish_time_.has_value()) { sender << " 剩余时间：" << std::chrono::duration_cast<std::chrono::seconds>(*finish_time_ - std::chrono::steady_clock::now()).count() << "秒"; }
+    if (finish_time_.has_value())
+    {
+      sender << " 剩余时间：" << std::chrono::duration_cast<std::chrono::seconds>(*finish_time_ - std::chrono::steady_clock::now()).count() << "秒"; }
+  }
+
+protected:
+  void StartTimer(const uint64_t sec)
+  {
+    finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
+    Base::start_timer_f_(sec);
+  }
+
+  void StopTimer()
+  {
+    Base::stop_timer_f();
+    finish_time_ = nullptr;
   }
 
 private:

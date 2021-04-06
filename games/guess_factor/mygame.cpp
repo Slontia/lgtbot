@@ -4,51 +4,157 @@
 #include <memory>
 #include <array>
 #include <functional>
+#include <numeric>
 
 const std::string k_game_name = "因数游戏";
-const uint64_t k_max_player = 20;
-
-static bool NeedEliminated(const uint64_t round, const GameOption& option)
-{
-  return round >= option.GET_VALUE(淘汰回合) && (round - option.GET_VALUE(淘汰回合)) % option.GET_VALUE(淘汰间隔) == 0;
-}
+const uint64_t k_max_player = 0;
 
 const std::string GameOption::StatusInfo() const
 {
   std::stringstream ss;
-  ss << "每回合" << GET_VALUE(局时) << "秒，"
-     << "从第" << GET_VALUE(淘汰回合) << "回合开始，每隔" << GET_VALUE(淘汰间隔) << "回合淘汰分数最末尾的玩家，"
-     << "玩家可预测因数范围为1~" << GET_VALUE(最大数字);
+  ss << "每回合" << GET_VALUE(局时) << "秒。"
+        "从第" << GET_VALUE(淘汰回合) << "回合开始，"
+        "每隔" << GET_VALUE(淘汰间隔) << "回合进行一次淘汰判定："
+        "若最高分玩家达到" << GET_VALUE(淘汰分数) << "分或以上，"
+        "且分数最末尾玩家与次末尾玩家相差达到" << GET_VALUE(淘汰分差) << "分或以上时，最末尾玩家被淘汰。"
+        "当游戏达到第" << GET_VALUE(最大回合) << "回合，或仅剩一名玩家存活时，游戏结束。"
+        "玩家可预测因数范围为1~" << GET_VALUE(最大数字) << "。";
   return ss.str();
 }
+
+class Player
+{
+ public:
+  Player(const uint64_t pid) : pid_(pid), score_(0), eliminated_(false) {}
+
+  friend auto operator<=>(const Player& _1, const Player& _2) { return _1.score_ <=> _2.score_; }
+
+  uint64_t FactorSum() const
+  {
+    return std::accumulate(factor_pool_.begin(), factor_pool_.end(), 0);
+  }
+
+  template <typename Sender>
+  void Info(Sender& sender, const bool show_current = false) const
+  {
+    sender << AtMsg(pid_) << "（" << score_ << "分";
+    if (eliminated_)
+    {
+      sender << "，已淘汰）";
+      return;
+    }
+    sender << "）：";
+    for (const uint32_t factor : factor_pool_)
+    {
+      sender << factor << " ";
+    }
+    if (show_current)
+    {
+      if (!current_factor_.has_value())
+      {
+        sender << "[未决定]\n";
+      }
+      else
+      {
+        sender << "[" << *current_factor_ << "]\n";
+      }
+    }
+  }
+
+  template <typename Sender>
+  void AddScore(Sender&& sender, const uint64_t sum)
+  {
+    sender << AtMsg(pid_) << "：" << score_;
+    if (eliminated_)
+    {
+      sender << "分，已淘汰";
+      return;
+    }
+    if (current_factor_.has_value())
+    {
+      factor_pool_.emplace_back(*current_factor_);
+      current_factor_.reset();
+    }
+    for (auto it = factor_pool_.begin(); it != factor_pool_.end(); )
+    {
+      if (sum % *it == 0)
+      {
+        sender << " + " << *it;
+        score_ += *it;
+        it = factor_pool_.erase(it);
+      }
+      else
+      {
+        ++it;
+      }
+    }
+    sender << " = " << score_ << "分";
+  }
+
+  void Eliminate()
+  {
+    eliminated_ = true;
+    factor_pool_.clear();
+    current_factor_.reset();
+  }
+
+  template <typename Sender>
+  bool Guess(Sender&& sender, const uint32_t factor)
+  {
+    if (eliminated_)
+    {
+      sender << "不好意思，您已经被淘汰，无法选择数字";
+      return false;
+    }
+    if (const std::optional<uint32_t> old_factor = std::exchange(current_factor_, factor);
+        !old_factor.has_value())
+    {
+      sender << "猜测成功：您猜测的数字为" << factor;
+    }
+    else
+    {
+      sender << "修改猜测成功，旧猜测数字为" << *old_factor << "，当前猜测数字为" << factor;
+    }
+    return true;
+  }
+
+  uint64_t pid() const { return pid_; }
+  uint64_t score() const { return score_; }
+  bool eliminated() const { return eliminated_; }
+  const auto& factor_pool() const { return factor_pool_; }
+  const std::optional<uint32_t>& current_factor() const { return current_factor_; }
+
+ private:
+  const uint64_t pid_;
+  uint64_t score_;
+  bool eliminated_;
+  std::list<uint32_t> factor_pool_;
+  std::optional<uint32_t> current_factor_;
+};
 
 class RoundStage : public SubGameStage<>
 {
 public:
-  RoundStage(const GameOption& option, const uint64_t round, const std::vector<bool>& eliminated)
+  RoundStage(const GameOption& option, const uint64_t round, std::vector<Player>& players,
+      const bool eliminate_round)
     : GameStage("第" + std::to_string(round) + "回合",
       {
-        MakeStageCommand(this, "预测因数", &RoundStage::Guess_, ArithChecker<uint32_t, 1, 9999>("选择")),
-      }), option_(option), eliminated_(eliminated), round_(round), guessed_factors_(option.PlayerNum(), 0) {}
+        MakeStageCommand(this, "预测因数", &RoundStage::Guess_,
+            DynamicArithChecker<uint32_t, uint32_t, std::function<uint32_t()>>(1, [&option] { return option.GET_VALUE(最大数字); }, "选择")),
+      }),
+    option_(option), eliminate_round_(eliminate_round), players_(players) {}
 
-  uint64_t OnStageBegin()
+  virtual void OnStageBegin() override
   {
     auto sender = Boardcast();
     sender << name_ << "开始，请私信裁判猜测因数";
-    if (NeedEliminated(round_, option_)) { sender << "（本回合需淘汰分数末尾玩家）"; }
-    return option_.GET_VALUE(局时);
+    if (eliminate_round_) { sender << "（本回合可能会淘汰分数末尾玩家）"; }
+    StartTimer(option_.GET_VALUE(局时));
   }
-
-  const std::vector<uint32_t>& GuessedFactors() const { return guessed_factors_; }
 
 private:
   AtomStageErrCode Guess_(const uint64_t pid, const bool is_public, const replier_t reply, const uint32_t factor)
   {
-    if (eliminated_[pid])
-    {
-      reply() << "不好意思，您已经被淘汰，无法选择数字";
-      return FAILED;
-    }
     if (is_public)
     {
       reply() << "请私信裁判猜测，不要暴露自己的数字哦~";
@@ -59,195 +165,170 @@ private:
       reply() << "非法的因数，合法的范围为：1~" << option_.GET_VALUE(最大数字);
       return FAILED;
     }
-    if (const uint64_t old_factor = std::exchange(guessed_factors_[pid], factor); old_factor == 0)
-    {
-      reply() << "猜测成功：您猜测的数字为" << factor;
+    for (const auto& p : players_) {
+      if (std::any_of(p.factor_pool().begin(), p.factor_pool().end(),
+            [factor](const uint64_t& f) { return f == factor; })) {
+        reply() << "因数" << factor << "已经在玩家" << PlayerMsg(p.pid()) << "的因数池中，无法选择该因数";
+        return FAILED;
+      }
     }
-    else
+    if (!players_[pid].Guess(reply(), factor))
     {
-      reply() << "修改猜测成功，旧猜测数字为" << old_factor << "，当前猜测数字为" << factor;
+      return FAILED;
     }
     return CanOver_() ? CHECKOUT : OK;
   }
 
   bool CanOver_() const
   {
-    bool can_over = true;
-    for (uint64_t pid = 0; pid < option_.PlayerNum(); ++ pid)
-    {
-      can_over &= (eliminated_[pid] || guessed_factors_[pid] != 0);
-    }
-    return can_over;
+    return std::all_of(players_.begin(), players_.end(),
+        [](const Player& p) { return p.eliminated() || p.current_factor().has_value(); });
   }
 
   const GameOption& option_;
-  const std::vector<bool> eliminated_;
-  const uint64_t round_;
-  std::vector<uint32_t> guessed_factors_;
+  const bool eliminate_round_;
+  std::vector<Player>& players_;
 };
 
 class MainStage : public MainGameStage<RoundStage>
 {
 public:
-  MainStage(const GameOption& option)
-    : option_(option), round_(1), scores_(option.PlayerNum(), 0), eliminated_(option.PlayerNum(), false), factor_pool_(option.PlayerNum()) {}
+  MainStage(const GameOption& option) : option_(option), round_(1)
+  {
+    for (uint64_t pid = 0; pid < option_.PlayerNum(); ++ pid)
+    {
+      players_.emplace_back(pid);
+    }
+  }
 
   virtual VariantSubStage OnStageBegin() override
   {
-    return std::make_unique<RoundStage>(option_, 1, eliminated_);
+    return std::make_unique<RoundStage>(option_, 1, players_, MayEliminated_());
   }
 
   virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const bool is_timeout) override
   {
     auto sender = Boardcast();
-    const uint64_t sum = SumPool_(sender, sub_stage.GuessedFactors());
+    const uint64_t sum = SumPool_(sender);
     AddScore_(sender, sum);
-    if (NeedEliminated(round_, option_) && (Eliminate_(sender), SurviveCount_() == 1 || round_ == option_.GET_VALUE(最大回合)))
+    if (MayEliminated_() && (Eliminate_(sender), SurviveCount_() == 1 || round_ == option_.GET_VALUE(最大回合)))
     {
       return {};
     }
-    return std::make_unique<RoundStage>(option_, ++round_, eliminated_);
+    ShowScore_(sender);
+    ++round_;
+    return std::make_unique<RoundStage>(option_, round_, players_, MayEliminated_());
   }
 
-  int64_t PlayerScore(const uint64_t pid) const { return scores_[pid]; }
+  int64_t PlayerScore(const uint64_t pid) const { return players_[pid].score(); }
 
 private:
-  uint64_t SumPool_(MsgSenderWrapper<MsgSenderForGame>& sender, const std::vector<uint32_t>& guessed_factors)
+  uint64_t SumPool_(MsgSenderWrapper<MsgSenderForGame>& sender)
   {
-    assert(guessed_factors.size() == option_.PlayerNum());
     uint64_t sum = 0;
+    uint64_t addition = 0;
     sender << "回合结束，各玩家预测池情况（中括号内为本回合预测）：\n";
-    for (uint64_t pid = 0; pid < option_.PlayerNum(); ++ pid)
-    {
-      sender << AtMsg(pid) << "：";
-      if (eliminated_[pid])
+    for (const auto& player : players_) {
+      player.Info(sender, true);
+      sum += player.FactorSum();
+      if (const auto& current_factor = player.current_factor(); current_factor.has_value())
       {
-        sender << "（已淘汰）\n";
-        continue;
-      }
-      for (const uint32_t factor : factor_pool_[pid])
-      {
-        sum += factor;
-        sender << factor << " ";
-      }
-      if (guessed_factors[pid] == 0)
-      {
-        sender << "[超时未决定]\n";
-      }
-      else
-      {
-        sender << "[" << guessed_factors[pid] << "]\n";
-        sum += guessed_factors[pid];
-        factor_pool_[pid].emplace_back(guessed_factors[pid]);
+        addition += *current_factor;
       }
     }
-    sender << "总和为" << sum;
-    return sum;
+    sender << "总和为：" << sum << " => " << (sum + addition);
+    return sum + addition;
   }
 
   void AddScore_(MsgSenderWrapper<MsgSenderForGame>& sender, const uint64_t sum)
   {
-    sender << "\n\n得分情况：";
-    for (uint64_t pid = 0; pid < option_.PlayerNum(); ++ pid)
+    sender << "\n\n" << sum << "的" << option_.GET_VALUE(最大数字) << "以内因数包括：";
+    for (uint32_t factor = 1; factor <= option_.GET_VALUE(最大数字); ++factor)
     {
-      sender << "\n" << AtMsg(pid) << "：" << scores_[pid];
-      if (eliminated_[pid])
-      {
-        sender << "（已淘汰）";
-        continue;
-      }
-      for (auto it = factor_pool_[pid].begin(); it != factor_pool_[pid].end(); /* do nothing */)
-      {
-        const auto& factor = *it;
-        if (sum % factor == 0)
-        {
-          sender << " + " << factor;
-          scores_[pid] += factor;
-          it = factor_pool_[pid].erase(it);
-        }
-        else
-        {
-          ++it;
-        }
-      }
-      sender << " => " << scores_[pid];
-    }
-
-    sender << "\n\n当前各玩家预测池情况：\n";
-    for (uint64_t pid = 0; pid < option_.PlayerNum(); ++ pid)
-    {
-      sender << AtMsg(pid) << "：";
-      if (eliminated_[pid])
-      {
-        sender << "（已淘汰）\n";
-        continue;
-      }
-      if (factor_pool_[pid].empty())
-      {
-        sender << "（空）\n";
-        continue;
-      }
-      for (const uint32_t factor : factor_pool_[pid])
-      {
+      if (sum % factor == 0) {
         sender << factor << " ";
       }
+    }
+    sender << "\n得分情况：";
+    for (auto& player : players_)
+    {
+      sender << "\n";
+      player.AddScore(sender, sum);
+    }
+  }
+
+  void ShowScore_(MsgSenderWrapper<MsgSenderForGame>& sender)
+  {
+    uint64_t sum = 0;
+    sender << "\n\n当前各玩家预测池情况：\n";
+    for (const auto& player : players_) {
+      player.Info(sender, false);
+      sum += player.FactorSum();
       sender << "\n";
     }
+    sender << "总和为：" << sum;
+  }
+
+  bool MayEliminated_() const
+  {
+    return round_ >= option_.GET_VALUE(淘汰回合) &&
+      (round_ - option_.GET_VALUE(淘汰回合)) % option_.GET_VALUE(淘汰间隔) == 0;
   }
 
   void Eliminate_(MsgSenderWrapper<MsgSenderForGame>& sender)
   {
-    bool has_eliminate = false;
-    std::vector<uint64_t> min_score_pids;
-    for (uint64_t pid = 0; pid < option_.PlayerNum(); ++ pid)
+    bool achieve_high_score = false;
+    bool achieve_diff_score = true;
+    Player* player_to_eliminate = nullptr;
+    // eliminate nobody if all players' scores are same
+    for (auto& player : players_)
     {
-      if (eliminated_[pid]) { continue; }
-      if (min_score_pids.empty() || (scores_[min_score_pids.front()] == scores_[pid]))
+      if (player.eliminated())
       {
-        min_score_pids.emplace_back(pid);
+        continue;
       }
-      else if (scores_[min_score_pids.front()] > scores_[pid])
+      if (player.score() >= option_.GET_VALUE(淘汰分数))
       {
-        has_eliminate = true;
-        min_score_pids.clear();
-        min_score_pids.emplace_back(pid);
+        achieve_high_score = true;
+      }
+      if (!player_to_eliminate)
+      {
+        player_to_eliminate = &player;
+      }
+      else if (player_to_eliminate->score() > player.score())
+      {
+        achieve_diff_score = player_to_eliminate->score() - player.score() >= option_.GET_VALUE(淘汰分差);
+        player_to_eliminate = &player;
       }
       else
       {
-        has_eliminate = true;
+        achieve_diff_score &= player.score() - player_to_eliminate->score() >= option_.GET_VALUE(淘汰分差);
       }
     }
-    if (has_eliminate)
+    assert(player_to_eliminate != nullptr);
+    if (!achieve_high_score)
     {
-      sender << "\n本回合淘汰：";
-      for (const auto pid : min_score_pids)
-      {
-        sender << AtMsg(pid) << " ";
-        eliminated_[pid] = true;
-        factor_pool_[pid].clear();
-      }
+      sender << "\n无人淘汰：最高分玩家未达到" << option_.GET_VALUE(淘汰分数) << "分";
+    }
+    else if (!achieve_diff_score)
+    {
+      sender << "\n无人淘汰：分数最末尾玩家与次末尾玩家相差未达到" << option_.GET_VALUE(淘汰分差) << "分";
     }
     else
     {
-      sender << "\n无人淘汰";
+      sender << "\n本回合淘汰：" << AtMsg(player_to_eliminate->pid());
+      player_to_eliminate->Eliminate();
     }
   }
 
   uint64_t SurviveCount_() const
   {
-    uint64_t count = 0;
-    for (const bool eliminated : eliminated_)
-    {
-      if (!eliminated) { ++ count; }
-    }
-    return count;
+    return std::count_if(players_.begin(), players_.end(), [](const Player& p) { return !p.eliminated(); } );
   }
 
   const GameOption& option_;
-  uint64_t round_;
-  std::vector<uint64_t> scores_;
-  std::vector<bool> eliminated_;
-  std::vector<std::list<uint32_t>> factor_pool_;
+  uint32_t round_;
+  std::vector<Player> players_;
 };
 
 std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameOption& options)

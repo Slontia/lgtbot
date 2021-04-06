@@ -25,7 +25,7 @@ class NumberStage : public SubGameStage<>
         MakeStageCommand(this, "设置数字", &NumberStage::Number_, ArithChecker<int, 1, 6>("数字")),
       }), questioner_(questioner), num_(0) {}
 
-  virtual uint64_t OnStageBegin() override { return 60; }
+  virtual void OnStageBegin() override { StartTimer(60); }
   int num() const { return num_; }
 
  private:
@@ -59,7 +59,7 @@ public:
         MakeStageCommand(this, "提问数字", &LieStage::Lie_, ArithChecker<int, 1, 6>("数字")),
       }), questioner_(questioner), lie_num_(0) {}
 
-  virtual uint64_t OnStageBegin() override { return 60; }
+  virtual void OnStageBegin() override { StartTimer(60); }
   int lie_num() const { return lie_num_; }
 
 private:
@@ -87,7 +87,7 @@ public:
         MakeStageCommand(this, "猜测", &GuessStage::Guess_, BoolChecker("质疑", "相信")),
       }), guesser_(guesser), doubt_(false) {}
 
-  virtual uint64_t OnStageBegin() override { return 60; }
+  virtual void OnStageBegin() override { StartTimer(60); }
 
   bool doubt() const { return doubt_; }
 
