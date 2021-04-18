@@ -50,44 +50,45 @@ ERRCODE_DEF(EC_GAME_REQUEST_UNKNOWN)
 #ifndef BOT_CORE_H
 #define BOT_CORE_H
 #include <stdint.h>
-#include <string>
-#include <memory>
+
 #include <map>
+#include <memory>
+#include <string>
 
 class GameHandle;
 class MsgSenderForBot;
 
-extern "C"
-{
-  typedef uint64_t UserID;
-  typedef uint64_t GroupID;
-  typedef uint64_t MatchId;
+extern "C" {
+typedef uint64_t UserID;
+typedef uint64_t GroupID;
+typedef uint64_t MatchId;
 
-  enum Target { TO_USER, TO_GROUP };
-  typedef MsgSenderForBot* (*NEW_MSG_SENDER_CALLBACK)(const Target, const UserID);
-  typedef void (*DELETE_MSG_SENDER_CALLBACK)(MsgSenderForBot* const msg_sender);
+enum Target { TO_USER, TO_GROUP };
+typedef MsgSenderForBot* (*NEW_MSG_SENDER_CALLBACK)(const Target, const UserID);
+typedef void (*DELETE_MSG_SENDER_CALLBACK)(MsgSenderForBot* const msg_sender);
 
-  enum ErrCode
-  {
+enum ErrCode {
 #define ERRCODE_DEF_V(errcode, value) errcode = value,
 #define ERRCODE_DEF(errcode) errcode,
 #include "bot_core.h"
 #undef ERRCODE_DEF_V
 #undef ERRCODE_DEF
-  };
+};
 
-  inline const char* errcode2str(const ErrCode errcode)
-  {
-    switch (errcode)
-    {
-#define ERRCODE_DEF(errcode) case errcode: return #errcode;
+inline const char* errcode2str(const ErrCode errcode)
+{
+    switch (errcode) {
+#define ERRCODE_DEF(errcode) \
+    case errcode:            \
+        return #errcode;
 #define ERRCODE_DEF_V(errcode, value) ERRCODE_DEF(errcode)
 #include "bot_core.h"
 #undef ERRCODE_DEF_V
 #undef ERRCODE_DEF
-    default: return "Unknown Error Code";
+    default:
+        return "Unknown Error Code";
     }
-  }
+}
 
 #ifdef _WIN32
 #define DLLEXPORT(type) __declspec(dllexport) type __cdecl
@@ -95,15 +96,19 @@ extern "C"
 #define DLLEXPORT(type) type
 #endif
 
-  class BOT_API
-  {
+class BOT_API
+{
    public:
-    static DLLEXPORT(void*) Init(const UserID this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb, const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const char* const game_path, const uint64_t* const admins, const uint64_t admin_count);
+    static DLLEXPORT(void*) Init(const UserID this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
+                                 const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const char* const game_path,
+                                 const uint64_t* const admins, const uint64_t admin_count);
     static DLLEXPORT(void) Release(void* bot);
     static DLLEXPORT(ErrCode) HandlePrivateRequest(void* bot, const UserID uid, const char* const msg);
-    static DLLEXPORT(ErrCode) HandlePublicRequest(void* bot, const GroupID gid, const UserID uid, const char* const msg);
-    static DLLEXPORT(ErrCode) ConnectDatabase(void* bot, const char* const addr, const char* const user, const char* const passwd, const char* const db_name, const char** errmsg);
-  };
+    static DLLEXPORT(ErrCode)
+            HandlePublicRequest(void* bot, const GroupID gid, const UserID uid, const char* const msg);
+    static DLLEXPORT(ErrCode) ConnectDatabase(void* bot, const char* const addr, const char* const user,
+                                              const char* const passwd, const char* const db_name, const char** errmsg);
+};
 
 #undef DLLEXPORT
 }

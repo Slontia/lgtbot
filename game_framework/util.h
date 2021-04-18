@@ -1,8 +1,9 @@
 #pragma once
+#include <string>
+
+#include "game_main.h"
 #include "game_options.h"
 #include "utility/msg_sender.h"
-#include "game_main.h"
-#include <string>
 
 class MainStageBase;
 class Game;
@@ -26,11 +27,10 @@ std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameO
 
 inline const auto Boardcast(void* const match)
 {
-  return MsgSenderWrapper(g_new_boardcast_msg_sender_cb(match), g_delete_msg_sender_cb);
+    return MsgSenderWrapper(g_new_boardcast_msg_sender_cb(match), g_delete_msg_sender_cb);
 }
 
 inline const auto Tell(void* const match, const uint64_t pid)
 {
-  return MsgSenderWrapper(g_new_tell_msg_sender_cb(match, pid), g_delete_msg_sender_cb);
+    return MsgSenderWrapper(g_new_tell_msg_sender_cb(match, pid), g_delete_msg_sender_cb);
 }
-
