@@ -13,6 +13,7 @@ set(LIBRARY_OUTPUT_PATH  ${CMAKE_BINARY_DIR})
 add_subdirectory(bot_core)
 add_subdirectory(bot_simulator)
 add_subdirectory(bot_unittest)
+add_subdirectory(game_util)
 
 set(LIBRARY_OUTPUT_PATH  ${CMAKE_BINARY_DIR}/plugins)
 file(GLOB GAMES ${CMAKE_CURRENT_SOURCE_DIR}/games/*)
