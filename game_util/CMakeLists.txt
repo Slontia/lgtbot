@@ -25,5 +25,5 @@ find_package(GTest REQUIRED)
 list(APPEND THIRD_PARTIES GTest::GTest GTest::Main)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
-add_executable(poker_unittest poker_unittest.cc)
-target_link_libraries(poker_unittest ${THIRD_PARTIES} bot_core_static)
+add_executable(test_poker test_poker.cc)
+target_link_libraries(test_poker ${THIRD_PARTIES} bot_core_static)

@@ -25,5 +25,5 @@ find_package(GTest REQUIRED)
 list(APPEND THIRD_PARTIES GTest::GTest GTest::Main)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
-add_executable(unittest unittest.cc)
-target_link_libraries(unittest ${THIRD_PARTIES} bot_core_static)
+add_executable(test_bot test_bot.cc)
+target_link_libraries(test_bot ${THIRD_PARTIES} bot_core_static)
