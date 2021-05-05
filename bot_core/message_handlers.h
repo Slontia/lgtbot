@@ -7,13 +7,13 @@
 #include "utility/msg_sender.h"
 
 using MetaUserFuncType = ErrCode(BotCtx* const, const UserID, const std::optional<GroupID>, const replier_t);
-using MetaCommand = MsgCommand<MetaUserFuncType>;
+using MetaCommand = Command<MetaUserFuncType>;
 
-extern const std::vector<std::shared_ptr<MetaCommand>> meta_cmds;
-extern const std::vector<std::shared_ptr<MetaCommand>> admin_cmds;
+extern const std::vector<MetaCommand> meta_cmds;
+extern const std::vector<MetaCommand> admin_cmds;
 
 ErrCode HandleRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgReader& reader,
-                      const replier_t reply, const std::vector<std::shared_ptr<MetaCommand>>& cmds);
+                      const replier_t reply, const std::vector<MetaCommand>& cmds);
 
 template <UniRef<MsgReader> ReaderRef, typename Reply>
 ErrCode HandleMetaRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, ReaderRef&& reader,

@@ -10,11 +10,7 @@
 #include <vector>
 static const std::string k_empty_str_ = "";
 
-template <typename T, typename Ret, typename... Args>
-static std::function<Ret(Args...)> BindThis(T* p, Ret (T::*func)(Args...))
-{
-    return [p, func](Args... args) { return (p->*func)(args...); };
-}
+// TODO: check callback parameters
 
 class MsgReader final
 {
@@ -290,133 +286,121 @@ class MsgArgChecker<void> final
     const std::string const_arg_;
 };
 
-template <typename Func>
-class FuncTypeHelper;
-template <typename R, typename... Args>
-class FuncTypeHelper<R(Args...)>
+template <typename> class Command;
+
+template <typename UserResult, typename ...UserArgs>
+class Command<UserResult(UserArgs...)>
 {
-   public:
-    typedef R ResultType;
-    typedef std::tuple<std::remove_reference_t<Args>...> ArgsTuple;
-};
-
-class MsgCommandBase
-{
-   public:
-    virtual std::string Info(const bool with_example = false) const = 0;
-};
-
-template <typename UserFuncType>
-class MsgCommand : public MsgCommandBase
-{
-   protected:
-    typedef typename FuncTypeHelper<UserFuncType>::ResultType ResultType;
-    typedef typename FuncTypeHelper<UserFuncType>::ArgsTuple UserArgsTuple;
-    typedef typename std::conditional<std::is_void<ResultType>::value, bool, std::optional<ResultType>>::type
-            CommandResultType;
-
-   public:
-    MsgCommand() {}
-    virtual ~MsgCommand() {}
-    virtual CommandResultType CallIfValid(MsgReader& msg_reader, const UserArgsTuple& user_args_tuple = {}) const = 0;
-};
-
-template <typename Callback, typename UserFuncType, typename... CheckTypes>
-class MsgCommandImpl final : public MsgCommand<UserFuncType>
-{
-   private:
-    using CheckerTuple = std::tuple<std::unique_ptr<MsgArgChecker<CheckTypes>>...>;
-
-    static typename MsgCommand<UserFuncType>::CommandResultType NotMatch()
+  private:
+    class Base_
     {
-        if constexpr (std::is_void_v<typename MsgCommand<UserFuncType>::ResultType>) {
-            return false;
-        } else {
-            return {};
-        }
-    }
+    protected:
+        using CommandResult = typename std::conditional_t<std::is_void_v<UserResult>, bool, std::optional<UserResult>>;
 
-    template <unsigned N, typename... Args>
-    typename MsgCommand<UserFuncType>::CommandResultType CallIfValidParseArgs(
-            MsgReader& msg_reader, const typename MsgCommand<UserFuncType>::UserArgsTuple& user_args_tuple,
-            const Args&... args) const
+    public:
+        Base_() {}
+        virtual ~Base_() {}
+        virtual CommandResult CallIfValid(MsgReader& msg_reader, UserArgs... user_args) const = 0;
+        virtual std::string Info(const bool with_example = false) const = 0;
+    };
+
+    template <typename Callback, typename... Checkers>
+    class Impl_ : public Base_
     {
-        if constexpr (N == std::tuple_size<CheckerTuple>::value) {
-            if (msg_reader.HasNext()) {
-                return NotMatch();
-            }
-            const auto unpack_callback = [&callback = callback_, &args...](auto&... user_args) {
-                return callback(user_args..., args...);
-            };
-            if constexpr (std::is_void_v<typename MsgCommand<UserFuncType>::ResultType>) {
-                std::apply(unpack_callback, user_args_tuple);
-                return true;
+        using CommandResult = typename std::conditional_t<std::is_void_v<UserResult>, bool, std::optional<UserResult>>;
+        using UserFunc = UserResult(UserArgs...);
+
+      private:
+        static CommandResult NotMatch()
+        {
+            if constexpr (std::is_void_v<UserResult>) {
+                return false;
             } else {
-                return std::apply(unpack_callback, user_args_tuple);
+                return std::nullopt;
             }
-        } else {
-            auto& checker = *std::get<N>(checkers_);
-            typedef typename std::decay<decltype(checker)>::type::arg_type checker_type;
-            if constexpr (std::is_void<checker_type>::value) {
-                return checker.Check(msg_reader)
-                               ? CallIfValidParseArgs<N + 1, Args...>(msg_reader, user_args_tuple, args...)
-                               : NotMatch();
+        }
+
+        template <unsigned N, typename ...Args>
+        CommandResult CallIfValidParseArgs(MsgReader& msg_reader, Args&&... args) const
+        {
+            if constexpr (N == std::tuple_size<decltype(checkers_)>::value) {
+                if (msg_reader.HasNext()) {
+                    return NotMatch();
+                }
+                if constexpr (std::is_void_v<UserResult>) {
+                    callback_(std::forward<Args>(args)...);
+                    return true;
+                } else {
+                    return callback_(std::forward<Args>(args)...);
+                }
             } else {
-                std::optional value = checker.Check(msg_reader);
-                return value ? CallIfValidParseArgs<N + 1, Args..., checker_type>(msg_reader, user_args_tuple, args...,
-                                                                                  *value)
-                             : NotMatch();
+                auto& checker = std::get<N>(checkers_);
+                typedef typename std::decay<decltype(checker)>::type::arg_type checker_type;
+                if constexpr (std::is_void<checker_type>::value) {
+                    return checker.Check(msg_reader)
+                                ? CallIfValidParseArgs<N + 1, Args...>(msg_reader, std::forward<Args>(args)...)
+                                : NotMatch();
+                } else {
+                    std::optional value = checker.Check(msg_reader);
+                    return value ? CallIfValidParseArgs<N + 1, Args..., const checker_type&>(msg_reader, std::forward<Args>(args)...,
+                                                                                    std::move(*value))
+                                : NotMatch();
+                }
             }
         }
-    }
 
-   public:
-    MsgCommandImpl(std::string&& description, Callback&& callback,
-                   std::unique_ptr<MsgArgChecker<CheckTypes>>&&... checkers)
-            : description_(std::move(description)),
-              callback_(callback),
-              checkers_(std::forward<std::unique_ptr<MsgArgChecker<CheckTypes>>&&>(checkers)...)
-    {
-    }
-
-    virtual typename MsgCommand<UserFuncType>::CommandResultType CallIfValid(
-            MsgReader& msg_reader,
-            const typename MsgCommand<UserFuncType>::UserArgsTuple& user_args_tuple) const override
-    {
-        msg_reader.Reset();
-        return CallIfValidParseArgs<0>(msg_reader, user_args_tuple);
-    }
-
-    virtual std::string Info(const bool with_example) const override
-    {
-        std::stringstream ss;
-        ss << description_ << std::endl;
-        ss << "格式：";
-        std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers->FormatInfo() + " ")); }, checkers_);
-        if (with_example) {
-            ss << std::endl;
-            ss << "例如：";
-            std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers->ExampleInfo() + " ")); },
-                       checkers_);
+      public:
+        Impl_(const char* const description, Callback&& callback, Checkers&&... checkers)
+                : description_(description),
+                callback_(std::forward<Callback>(callback)),
+                checkers_(std::forward<Checkers>(checkers)...)
+        {
         }
-        return ss.str();
+
+        // pass by value here if UserArgs is not reference
+        virtual CommandResult CallIfValid(MsgReader& msg_reader, UserArgs... user_args) const override
+        {
+            msg_reader.Reset();
+            return CallIfValidParseArgs<0>(msg_reader, std::forward<UserArgs&&>(user_args)...);
+        }
+
+        virtual std::string Info(const bool with_example) const override
+        {
+            std::stringstream ss;
+            ss << description_ << std::endl;
+            ss << "格式：";
+            std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers.FormatInfo() + " ")); }, checkers_);
+            if (with_example) {
+                ss << std::endl;
+                ss << "例如：";
+                std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers.ExampleInfo() + " ")); },
+                        checkers_);
+            }
+            return ss.str();
+        }
+
+      private:
+        const char* const description_;
+        const Callback callback_;
+        const std::tuple<Checkers...> checkers_;
+    };
+
+  public:
+    template <typename Callback, typename... Checkers>
+    Command(const char* const description, Callback&& callback, Checkers&&... checkers)
+    : cmd_(std::make_shared<Impl_<Callback, Checkers...>>(description, std::forward<Callback>(callback), std::forward<Checkers>(checkers)...))
+    {
     }
 
-   private:
-    const std::string description_;
-    const Callback callback_;
-    const CheckerTuple checkers_;
+    Command(const Command&) = default;
+    Command(Command&&) = default;
+
+    template <typename ...Args>
+    auto CallIfValid(Args&&... args) const { return cmd_->CallIfValid(std::forward<Args>(args)...); }
+
+    auto Info() const { return cmd_->Info(); }
+
+  private:
+    std::shared_ptr<Base_> cmd_;
 };
 
-template <typename Callback>
-using to_func = decltype(std::function{Callback()});
-
-template <typename UserFuncType, typename Callback, typename... Checkers>
-static auto MakeCommand(std::string&& description, const Callback& f, Checkers&&... checkers)
-{
-    static_assert(std::is_same_v<typename FuncTypeHelper<UserFuncType>::ResultType,
-                                 typename decltype(std::function(f))::result_type>,
-                  "differenct result type");
-    return std::make_shared<MsgCommandImpl<decltype(std::function(f)), UserFuncType, typename Checkers::arg_type...>>(
-            std::move(description), std::function(f), std::make_unique<Checkers>(std::forward<Checkers>(checkers))...);
-};

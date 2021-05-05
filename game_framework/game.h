@@ -38,6 +38,6 @@ class Game : public GameBase
     bool is_over_;
     std::optional<std::vector<int64_t>> scores_;
     SpinLock lock_;
-    const std::shared_ptr<MsgCommand<void(const replier_t)>> help_cmd_;
+    const Command<void(const replier_t)> help_cmd_;
     GameOption options_;
 };

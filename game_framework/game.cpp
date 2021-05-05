@@ -17,7 +17,7 @@ Game::Game(void* const match)
           main_stage_(nullptr),
           is_over_(false),
           help_cmd_(
-                  MakeCommand<void(const replier_t)>("查看游戏帮助", BindThis(this, &Game::Help_), VoidChecker("帮助")))
+                  Command<void(const replier_t)>("查看游戏帮助", std::bind_front(&Game::Help_, this), VoidChecker("帮助")))
 {
 }
 
@@ -65,7 +65,7 @@ ErrCode /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public
     } else {
         assert(msg);
         MsgReader reader(msg);
-        if (help_cmd_->CallIfValid(reader, std::tuple{reply})) {
+        if (help_cmd_.CallIfValid(reader, reply)) {
             return EC_GAME_REQUEST_OK;
         }
         if (main_stage_) {
@@ -124,7 +124,7 @@ void Game::Help_(const replier_t reply)
         sender << "\n\n";
     }
     sender << "[当前可使用游戏命令]";
-    sender << "\n[1] " << help_cmd_->Info();
+    sender << "\n[1] " << help_cmd_.Info();
     if (main_stage_) {
         main_stage_->CommandInfo(1, sender);
     } else {

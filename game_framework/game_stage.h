@@ -11,13 +11,13 @@
 template <typename RetType>
 using GameUserFuncType = RetType(const uint64_t, const bool, const replier_t);
 template <typename RetType>
-using GameMsgCommand = MsgCommand<GameUserFuncType<RetType>>;
+using GameCommand = Command<GameUserFuncType<RetType>>;
 
 template <typename Stage, typename RetType, typename... Args, typename... Checkers>
-static std::shared_ptr<GameMsgCommand<RetType>> MakeStageCommand(Stage* stage, std::string&& description,
+static GameCommand<RetType> MakeStageCommand(Stage* stage, const char* const description,
                                                                  RetType (Stage::*cb)(Args...), Checkers&&... checkers)
 {
-    return MakeCommand<GameUserFuncType<RetType>>(std::move(description), BindThis(stage, cb),
+    return GameCommand<RetType>(description, [stage, cb](Args... args) { return (stage->*cb)(std::forward<Args>(args)...); },
                                                   std::forward<Checkers>(checkers)...);
 }
 
@@ -47,10 +47,11 @@ class StageBase
     auto Tell(const uint64_t pid) const { return ::Tell(match_, pid); }
 
    protected:
+    template <typename Command>
     static uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender,
-                                const std::shared_ptr<MsgCommandBase>& cmd)
+                                const Command& cmd)
     {
-        sender << "\n[" << (++i) << "] " << cmd->Info();
+        sender << "\n[" << (++i) << "] " << cmd.Info();
         return i;
     }
     virtual void Over() { is_over_ = true; }
@@ -105,7 +106,7 @@ class GameStage<IsMain, SubStage, SubStages...>
     using SubStageCheckoutHelper<SubStages, VariantSubStage>::NextSubStage...;
 
     GameStage(std::string&& name = "",
-              std::initializer_list<std::shared_ptr<GameMsgCommand<CompStageErrCode>>>&& commands = {})
+              std::initializer_list<GameCommand<CompStageErrCode>>&& commands = {})
             : Base(std::move(name)), sub_stage_(), commands_(std::move(commands))
     {
     }
@@ -128,7 +129,7 @@ class GameStage<IsMain, SubStage, SubStages...>
                                                   const replier_t& reply) override
     {
         for (const auto& cmd : commands_) {
-            if (const auto rc = cmd->CallIfValid(reader, std::tuple{player_id, is_public, reply}); rc.has_value()) {
+            if (const auto rc = cmd.CallIfValid(reader, player_id, is_public, reply); rc.has_value()) {
                 return ToStageErrCode(*rc);
             }
         }
@@ -207,7 +208,7 @@ class GameStage<IsMain, SubStage, SubStages...>
         // no more error code
     }
     VariantSubStage sub_stage_;
-    std::vector<std::shared_ptr<GameMsgCommand<CompStageErrCode>>> commands_;
+    std::vector<GameCommand<CompStageErrCode>> commands_;
 };
 
 template <bool IsMain>
@@ -220,7 +221,7 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
     enum AtomStageErrCode { OK, CHECKOUT, FAILED };
 
    public:
-    GameStage(std::string&& name, std::initializer_list<std::shared_ptr<GameMsgCommand<AtomStageErrCode>>>&& commands)
+    GameStage(std::string&& name, std::initializer_list<GameCommand<AtomStageErrCode>>&& commands)
             : Base(std::move(name)), timer_(nullptr), commands_(std::move(commands))
     {
     }
@@ -237,7 +238,7 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
                                                   const replier_t& reply) override
     {
         for (const auto& cmd : commands_) {
-            if (const auto rc = cmd->CallIfValid(reader, std::tuple{player_id, is_public, reply}); rc.has_value()) {
+            if (const auto rc = cmd.CallIfValid(reader, player_id, is_public, reply); rc.has_value()) {
                 if (*rc == CHECKOUT) {
                     Over();
                 }
@@ -300,6 +301,6 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
     }
     std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;
     // if command return true, the stage will be over
-    std::vector<std::shared_ptr<GameMsgCommand<AtomStageErrCode>>> commands_;
+    std::vector<GameCommand<AtomStageErrCode>> commands_;
     std::optional<std::chrono::time_point<std::chrono::steady_clock>> finish_time_;
 };

@@ -7,30 +7,29 @@
 #include "util.h"
 #include "utility/msg_checker.h"
 
-static std::shared_ptr<MetaCommand> make_command(std::string&& description, const auto& cb, auto&&... checkers)
+static MetaCommand make_command(const char* const description, const auto& cb, auto&&... checkers)
 {
-    return MakeCommand<ErrCode(BotCtx* const, const UserID, const std::optional<GroupID>, const replier_t)>(
-            std::move(description), cb, std::move(checkers)...);
+    return MetaCommand(description, cb, std::move(checkers)...);
 };
 
 static ErrCode help(BotCtx* const bot, const UserID uid, const std::optional<GroupID> gid, const replier_t reply,
-                    const std::vector<std::shared_ptr<MetaCommand>>& cmds, const std::string& type)
+                    const std::vector<MetaCommand>& cmds, const std::string& type)
 {
     auto sender = reply();
     sender << "[可使用的" << type << "指令]";
     int i = 0;
-    for (const std::shared_ptr<MetaCommand>& cmd : cmds) {
-        sender << "\n[" << (++i) << "] " << cmd->Info();
+    for (const MetaCommand& cmd : cmds) {
+        sender << "\n[" << (++i) << "] " << cmd.Info();
     }
     return EC_OK;
 }
 
 ErrCode HandleRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgReader& reader,
-                      const replier_t reply, const std::vector<std::shared_ptr<MetaCommand>>& cmds)
+                      const replier_t reply, const std::vector<MetaCommand>& cmds)
 {
     reader.Reset();
-    for (const std::shared_ptr<MetaCommand>& cmd : cmds) {
-        const std::optional<ErrCode> errcode = cmd->CallIfValid(reader, std::tuple{&bot, uid, gid, reply});
+    for (const MetaCommand& cmd : cmds) {
+        const std::optional<ErrCode> errcode = cmd.CallIfValid(reader, &bot, uid, gid, reply);
         if (errcode.has_value()) {
             return *errcode;
         }
@@ -212,7 +211,7 @@ static ErrCode show_profile(BotCtx* const bot, const UserID uid, const std::opti
     return EC_OK;
 }
 
-const std::vector<std::shared_ptr<MetaCommand>> meta_cmds = {
+const std::vector<MetaCommand> meta_cmds = {
         make_command(
                 "查看帮助",
                 [](BotCtx* const bot, const UserID uid, const std::optional<GroupID> gid, const replier_t reply) {
@@ -296,7 +295,7 @@ static ErrCode interrupt_private(BotCtx* const bot, const UserID uid, const std:
     return rc;
 }
 
-const std::vector<std::shared_ptr<MetaCommand>> admin_cmds = {
+const std::vector<MetaCommand> admin_cmds = {
         make_command(
                 "查看帮助",
                 [](BotCtx* const bot, const UserID uid, const std::optional<GroupID> gid, const replier_t reply) {
