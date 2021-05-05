@@ -9,7 +9,7 @@
 #include "utility/timer.h"
 
 template <typename RetType>
-using GameUserFuncType = RetType(const uint64_t, const bool, const replier_t);
+using GameUserFuncType = RetType(const uint64_t, const bool, const replier_t&);
 template <typename RetType>
 using GameCommand = Command<GameUserFuncType<RetType>>;
 

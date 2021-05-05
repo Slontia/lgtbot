@@ -28,7 +28,7 @@ class Game : public GameBase
     virtual const char* /*__cdecl*/ OptionInfo() const override;
 
    private:
-    void Help_(const replier_t reply);
+    void Help_(const replier_t& reply);
     template <typename SenderRef>
     requires std::is_same_v<std::decay_t<SenderRef>, MsgSenderWrapper> void HelpInternal_(SenderRef&& sender);
     void OnGameOver_();
@@ -38,6 +38,6 @@ class Game : public GameBase
     bool is_over_;
     std::optional<std::vector<int64_t>> scores_;
     SpinLock lock_;
-    const Command<void(const replier_t)> help_cmd_;
+    const Command<void(const replier_t&)> help_cmd_;
     GameOption options_;
 };

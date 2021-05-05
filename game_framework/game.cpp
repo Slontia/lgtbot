@@ -17,7 +17,7 @@ Game::Game(void* const match)
           main_stage_(nullptr),
           is_over_(false),
           help_cmd_(
-                  Command<void(const replier_t)>("查看游戏帮助", std::bind_front(&Game::Help_, this), VoidChecker("帮助")))
+                  Command<void(const replier_t&)>("查看游戏帮助", std::bind_front(&Game::Help_, this), VoidChecker("帮助")))
 {
 }
 
@@ -115,7 +115,7 @@ void Game::HandleTimeout(const bool* const stage_is_over)
     }
 }
 
-void Game::Help_(const replier_t reply)
+void Game::Help_(const replier_t& reply)
 {
     auto sender = reply();
     if (main_stage_) {

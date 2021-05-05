@@ -153,7 +153,7 @@ class RoundStage : public SubGameStage<>
     }
 
    private:
-    AtomStageErrCode Guess_(const uint64_t pid, const bool is_public, const replier_t reply, const uint32_t factor)
+    AtomStageErrCode Guess_(const uint64_t pid, const bool is_public, const replier_t& reply, const uint32_t factor)
     {
         if (is_public) {
             reply() << "请私信裁判猜测，不要暴露自己的数字哦~";

@@ -72,7 +72,7 @@ class RoundStage : public SubGameStage<>
     }
 
    private:
-    AtomStageErrCode Act_(const uint64_t pid, const bool is_public, const replier_t reply, Choise choise)
+    AtomStageErrCode Act_(const uint64_t pid, const bool is_public, const replier_t& reply, Choise choise)
     {
         if (is_public) {
             reply() << "请私信裁判选择，公开选择无效";

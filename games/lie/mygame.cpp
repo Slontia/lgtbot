@@ -37,7 +37,7 @@ class NumberStage : public SubGameStage<>
     int num() const { return num_; }
 
    private:
-    AtomStageErrCode Number_(const uint64_t pid, const bool is_public, const replier_t reply, const int num)
+    AtomStageErrCode Number_(const uint64_t pid, const bool is_public, const replier_t& reply, const int num)
     {
         reply() << pid << " " << questioner_;
         if (pid != questioner_) {
@@ -73,7 +73,7 @@ class LieStage : public SubGameStage<>
     int lie_num() const { return lie_num_; }
 
    private:
-    AtomStageErrCode Lie_(const uint64_t pid, const bool is_public, const replier_t reply, const int lie_num)
+    AtomStageErrCode Lie_(const uint64_t pid, const bool is_public, const replier_t& reply, const int lie_num)
     {
         if (pid != questioner_) {
             reply() << "[错误] 本回合您为猜测者，无法提问";
@@ -105,7 +105,7 @@ class GuessStage : public SubGameStage<>
     bool doubt() const { return doubt_; }
 
    private:
-    AtomStageErrCode Guess_(const uint64_t pid, const bool is_public, const replier_t reply, const bool doubt)
+    AtomStageErrCode Guess_(const uint64_t pid, const bool is_public, const replier_t& reply, const bool doubt)
     {
         if (pid != guesser_) {
             reply() << "[错误] 本回合您为提问者，无法猜测";
