@@ -51,36 +51,36 @@ class BotCtx;
 class MatchManager
 {
    public:
-    MatchManager(BotCtx& bot) : bot_(bot) {}
+    MatchManager(BotCtx& bot) : bot_(bot), next_mid_(0) {}
     ErrCode NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
                      const bool skip_config, const replier_t reply);
     ErrCode ConfigOver(const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
     ErrCode StartGame(const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
-    ErrCode AddPlayerToPrivateGame(const MatchId mid, const UserID uid, const replier_t reply);
+    ErrCode AddPlayerToPrivateGame(const MatchID mid, const UserID uid, const replier_t reply);
     ErrCode AddPlayerToPublicGame(const GroupID gid, const UserID uid, const replier_t reply);
     ErrCode DeletePlayer(const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
-    ErrCode DeleteMatch(const MatchId id);
-    std::shared_ptr<Match> GetMatch(const MatchId mid);
+    ErrCode DeleteMatch(const MatchID id);
+    std::shared_ptr<Match> GetMatch(const MatchID mid);
     std::shared_ptr<Match> GetMatch(const UserID uid, const std::optional<GroupID> gid);
-    std::shared_ptr<Match> GetMatchWithGroupID(const GroupID gid);
+    std::shared_ptr<Match> GetMatch(const GroupID gid);
     void ForEachMatch(const std::function<void(const std::shared_ptr<Match>)>);
 
    private:
     ErrCode AddPlayer_(const std::shared_ptr<Match>& match, const UserID, const replier_t reply);
-    void DeleteMatch_(const MatchId id);
+    void DeleteMatch_(const MatchID id);
     template <typename IDType>
     std::shared_ptr<Match> GetMatch_(const IDType id, const std::map<IDType, std::shared_ptr<Match>>& id2match);
     template <typename IDType>
     void BindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match, std::shared_ptr<Match> match);
     template <typename IDType>
     void UnbindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match);
-    MatchId NewMatchID_();
+    MatchID NewMatchID_();
 
     BotCtx& bot_;
-    std::map<MatchId, std::shared_ptr<Match>> mid2match_;
+    std::map<MatchID, std::shared_ptr<Match>> mid2match_;
     std::map<UserID, std::shared_ptr<Match>> uid2match_;
     std::map<GroupID, std::shared_ptr<Match>> gid2match_;
-    MatchId next_mid_;
+    MatchID next_mid_;
     SpinLock spinlock_;
 };
 
@@ -89,7 +89,7 @@ using GameHandleMap = std::map<std::string, std::unique_ptr<GameHandle>>;
 class BotCtx
 {
    public:
-    BotCtx(const UserID this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
+    BotCtx(const uint64_t this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
            const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const std::string_view game_path,
            const uint64_t* const admins, const uint64_t admin_count)
             : this_uid_(this_uid),

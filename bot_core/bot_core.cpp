@@ -14,8 +14,6 @@
 extern void LoadGameModules();
 
 const int32_t LGT_AC = -1;
-const UserID INVALID_USER_ID = 0;
-const GroupID INVALID_GROUP_ID = 0;
 
 void BotCtx::LoadAdmins_(const uint64_t* const admins, const uint64_t admin_count)
 {
@@ -62,11 +60,11 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
     }
 }
 
-void* /*__cdecl*/ BOT_API::Init(const UserID this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
+void* /*__cdecl*/ BOT_API::Init(const uint64_t this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
                                 const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const char* const game_path,
                                 const uint64_t* const admins, const uint64_t admin_count)
 {
-    if (this_uid == INVALID_USER_ID || !new_msg_sender_cb || !delete_msg_sender_cb || !game_path) {
+    if (this_uid == 0 || !new_msg_sender_cb || !delete_msg_sender_cb || !game_path) {
         return nullptr;
     }
     return new BotCtx(this_uid, new_msg_sender_cb, delete_msg_sender_cb, game_path, admins, admin_count);
@@ -74,7 +72,7 @@ void* /*__cdecl*/ BOT_API::Init(const UserID this_uid, const NEW_MSG_SENDER_CALL
 
 void /*__cdelcl*/ BOT_API::Release(void* const bot) { delete static_cast<BotCtx*>(bot); }
 
-ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const UserID uid, const char* const msg)
+ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const uint64_t uid, const char* const msg)
 {
     if (!bot_p) {
         return EC_NOT_INIT;
@@ -83,7 +81,7 @@ ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const UserI
     return HandleRequest(bot, {}, uid, msg, [uid, &bot] { return bot.ToUser(uid); });
 }
 
-ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const GroupID gid, const UserID uid,
+ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const uint64_t gid, const uint64_t uid,
                                                  const char* const msg)
 {
     if (!bot_p) {

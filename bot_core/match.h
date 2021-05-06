@@ -11,9 +11,9 @@
 
 #define INVALID_LOBBY (QQ)0
 
-#define INVALID_MATCH (MatchId)0
+#define INVALID_MATCH (MatchID)0
 
-inline bool match_is_valid(MatchId id) { return id != INVALID_MATCH; }
+inline bool match_is_valid(MatchID id) { return id != INVALID_MATCH; }
 
 typedef enum { PRIVATE_MATCH, GROUP_MATCH, DISCUSS_MATCH } MatchType;
 
@@ -31,7 +31,7 @@ class Match : public std::enable_shared_from_this<Match>
     enum State { IN_CONFIGURING = 'C', NOT_STARTED = 'N', IS_STARTED = 'S' };
     static const uint32_t kAvgScoreOffset = 10;
 
-    Match(BotCtx& bot, const MatchId id, const GameHandle& game_handle, const UserID host_uid,
+    Match(BotCtx& bot, const MatchID id, const GameHandle& game_handle, const UserID host_uid,
           const std::optional<GroupID> gid, const bool skip_config);
     ~Match();
 
@@ -55,7 +55,7 @@ class Match : public std::enable_shared_from_this<Match>
     bool IsPrivate() const { return !gid_.has_value(); }
     const GameHandle& game_handle() const { return game_handle_; }
 
-    MatchId mid() const { return mid_; }
+    MatchID mid() const { return mid_; }
     std::optional<GroupID> gid() const { return gid_; }
     UserID host_uid() const { return host_uid_; }
     const std::set<UserID>& ready_uid_set() const { return ready_uid_set_; }
@@ -85,7 +85,7 @@ class Match : public std::enable_shared_from_this<Match>
     std::vector<ScoreInfo> CalScores_(const int64_t scores[]) const;
 
     BotCtx& bot_;
-    const MatchId mid_;
+    const MatchID mid_;
     const GameHandle& game_handle_;
     UserID host_uid_;
     const std::optional<GroupID> gid_;

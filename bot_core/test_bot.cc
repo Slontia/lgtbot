@@ -8,8 +8,8 @@ DEFINE_string(game_name, "猜拳游戏", "The path of game modules");
 
 static std::ostream& operator<<(std::ostream& os, const ErrCode e) { return os << errcode2str(e); }
 
-constexpr const UserID k_this_qq = 114514;
-constexpr const UserID k_admin_qq = 1919810;
+constexpr const uint64_t k_this_qq = 114514;
+constexpr const uint64_t k_admin_qq = 1919810;
 static int g_argc = 0;
 static char** g_argv = nullptr;
 
@@ -60,7 +60,7 @@ class MsgSenderForBotImpl : public MsgSenderForBot
   std::stringstream ss_;
 };
 
-MsgSenderForBot* create_msg_sender(const Target target, const UserID id)
+MsgSenderForBot* create_msg_sender(const Target target, const uint64_t id)
 {
   return new MsgSenderForBotImpl(target, id);
 }

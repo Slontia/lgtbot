@@ -36,7 +36,7 @@ ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, 
         reply() << "[错误] 建立失败：该房间已经开始游戏";
         return EC_MATCH_ALREADY_BEGIN;
     }
-    const MatchId mid = NewMatchID_();
+    const MatchID mid = NewMatchID_();
     std::shared_ptr<Match> new_match = std::make_shared<Match>(bot_, mid, game_handle, uid, gid, skip_config);
     RETURN_IF_FAILED(AddPlayer_(new_match, uid, reply));
     BindMatch_(mid, mid2match_, new_match);
@@ -88,7 +88,7 @@ ErrCode MatchManager::StartGame(const UserID uid, const std::optional<GroupID> g
     return match->GameStart(gid.has_value(), reply);
 }
 
-ErrCode MatchManager::AddPlayerToPrivateGame(const MatchId mid, const UserID uid, const replier_t reply)
+ErrCode MatchManager::AddPlayerToPrivateGame(const MatchID mid, const UserID uid, const replier_t reply)
 {
     std::lock_guard<SpinLock> l(spinlock_);
     const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
@@ -150,14 +150,14 @@ ErrCode MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID
     return EC_OK;
 }
 
-ErrCode MatchManager::DeleteMatch(const MatchId mid)
+ErrCode MatchManager::DeleteMatch(const MatchID mid)
 {
     std::lock_guard<SpinLock> l(spinlock_);
     DeleteMatch_(mid);
     return EC_OK;
 }
 
-void MatchManager::DeleteMatch_(const MatchId mid)
+void MatchManager::DeleteMatch_(const MatchID mid)
 {
     if (const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_); match) {
         UnbindMatch_(mid, mid2match_);
@@ -171,7 +171,7 @@ void MatchManager::DeleteMatch_(const MatchId mid)
     }
 }
 
-std::shared_ptr<Match> MatchManager::GetMatch(const MatchId mid)
+std::shared_ptr<Match> MatchManager::GetMatch(const MatchID mid)
 {
     std::lock_guard<SpinLock> l(spinlock_);
     return GetMatch_(mid, mid2match_);
@@ -184,7 +184,7 @@ std::shared_ptr<Match> MatchManager::GetMatch(const UserID uid, const std::optio
     return (!match || (gid.has_value() && GetMatch_(*gid, gid2match_) != match)) ? nullptr : match;
 }
 
-std::shared_ptr<Match> MatchManager::GetMatchWithGroupID(const GroupID gid)
+std::shared_ptr<Match> MatchManager::GetMatch(const GroupID gid)
 {
     std::lock_guard<SpinLock> l(spinlock_);
     return GetMatch_(gid, gid2match_);
@@ -198,7 +198,7 @@ void MatchManager::ForEachMatch(const std::function<void(const std::shared_ptr<M
     }
 }
 
-MatchId MatchManager::NewMatchID_()
+MatchID MatchManager::NewMatchID_()
 {
     while (mid2match_.find(++next_mid_) != mid2match_.end())
         ;
@@ -228,7 +228,7 @@ void MatchManager::UnbindMatch_(const IDType id, std::map<IDType, std::shared_pt
     id2match.erase(id);
 }
 
-Match::Match(BotCtx& bot, const MatchId mid, const GameHandle& game_handle, const UserID host_uid,
+Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, const UserID host_uid,
              const std::optional<GroupID> gid, const bool skip_config)
         : bot_(bot),
           mid_(mid),

@@ -240,7 +240,7 @@ template <typename T, typename Min, typename Max, bool Optional = false>
 
 // Require: type argument can be convert to type <T>, or no more arguments and <Optional> is true
 // Return: the converted object <T> wrapped in std::optional, or an empty std::optional if no more arguments
-template <typename T, bool Optional = false, typename = typename std::enable_if_t<std::is_arithmetic_v<T>>>
+template <typename T, bool Optional = false>
 class BasicChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
    public:

@@ -47,7 +47,7 @@ std::ostream& Log() { return std::clog << Blue() << "[LOG] " << Default(); }
 
 class MsgSenderForBotImpl : public MsgSenderForBot
 {
-   public:
+  public:
     MsgSenderForBotImpl(const Target target, const uint64_t id) : target_(target), id_(id) {}
 
     virtual ~MsgSenderForBotImpl()
@@ -70,13 +70,13 @@ class MsgSenderForBotImpl : public MsgSenderForBot
 
     virtual void AtUser(const uint64_t uid) override { ss_ << LightPink() << "@" << uid << Default(); }
 
-   private:
+  private:
     const Target target_;
     const uint64_t id_;
     std::stringstream ss_;
 };
 
-MsgSenderForBot* create_msg_sender(const Target target, const UserID id) { return new MsgSenderForBotImpl(target, id); }
+MsgSenderForBot* create_msg_sender(const Target target, const uint64_t id) { return new MsgSenderForBotImpl(target, id); }
 
 void delete_msg_sender(MsgSenderForBot* const msg_sender) { delete msg_sender; }
 

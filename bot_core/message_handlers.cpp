@@ -84,7 +84,7 @@ static ErrCode leave(BotCtx& bot, const UserID uid, const std::optional<GroupID>
 }
 
 static ErrCode join_private(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid,
-                            const replier_t reply, const MatchId match_id)
+                            const replier_t reply, const MatchID match_id)
 {
     if (gid.has_value()) {
         reply() << "[错误] 加入失败：请私信裁判加入私密游戏，或去掉比赛ID以加入当前房间游戏";
@@ -128,7 +128,7 @@ static ErrCode show_match_status(BotCtx& bot, const UserID uid, const std::optio
     // TODO: make it thread safe
     std::shared_ptr<Match> match = bot.match_manager().GetMatch(uid, gid);
     if (!match && gid.has_value()) {
-        match = bot.match_manager().GetMatchWithGroupID(*gid);
+        match = bot.match_manager().GetMatch(*gid);
     }
     if (!match && gid.has_value()) {
         reply() << "[错误] 查看失败：该房间未进行游戏";
@@ -166,9 +166,9 @@ static ErrCode show_match_status(BotCtx& bot, const UserID uid, const std::optio
     } else {
         sender << UserMsg(match->host_uid());
     }
-    const std::set<uint64_t>& ready_uid_set = match->ready_uid_set();
+    const std::set<UserID>& ready_uid_set = match->ready_uid_set();
     sender << "\n已参加玩家：" << ready_uid_set.size() << "人";
-    for (const uint64_t uid : ready_uid_set) {
+    for (const UserID uid : ready_uid_set) {
         if (match->gid().has_value()) {
             sender << "\n" << GroupUserMsg(uid, *match->gid());
         } else {
@@ -234,7 +234,7 @@ const std::vector<MetaCommand> meta_cmds = {
         make_command("房主开始游戏", start_game, VoidChecker("#开始游戏")),
         make_command("加入当前房间的公开游戏", join_public, VoidChecker("#加入游戏")),
         make_command("私信bot以加入私密游戏（私密比赛编号可以通过\"#私密游戏列表\"查看）", join_private,
-                     VoidChecker("#加入游戏"), BasicChecker<MatchId>("私密比赛编号")),
+                     VoidChecker("#加入游戏"), BasicChecker<MatchID>("私密比赛编号")),
         make_command("在游戏开始前退出游戏", leave, VoidChecker("#退出游戏")),
 };
 
@@ -272,7 +272,7 @@ static ErrCode interrupt_public(BotCtx& bot, const UserID uid, const std::option
         reply() << "[错误] 中断失败：需要在房间中使用该指令";
         return EC_MATCH_NEED_REQUEST_PUBLIC;
     }
-    const auto match = bot.match_manager().GetMatchWithGroupID(*gid);
+    const auto match = bot.match_manager().GetMatch(*gid);
     if (!match) {
         reply() << "[错误] 中断失败：该房间未进行游戏";
         return EC_MATCH_GROUP_NOT_IN_MATCH;
@@ -283,7 +283,7 @@ static ErrCode interrupt_public(BotCtx& bot, const UserID uid, const std::option
 }
 
 static ErrCode interrupt_private(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                                 const replier_t reply, const MatchId match_id)
+                                 const replier_t reply, const MatchID match_id)
 {
     const auto match = bot.match_manager().GetMatch(match_id);
     if (!match) {
@@ -306,5 +306,5 @@ const std::vector<MetaCommand> admin_cmds = {
                      AnyArg("游戏名称", "某游戏名")),
         make_command("强制中断公开比赛", interrupt_public, VoidChecker("%中断游戏")),
         make_command("强制中断私密比赛", interrupt_private, VoidChecker("%中断游戏"),
-                     BasicChecker<MatchId>("私密比赛编号")),
+                     BasicChecker<MatchID>("私密比赛编号")),
 };
