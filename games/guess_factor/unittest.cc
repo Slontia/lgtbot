@@ -26,6 +26,8 @@ GAME_TEST(2, forbid_public_guess)
 GAME_TEST(3, forbid_eliminated_guess)
 {
   ASSERT_PRI_MSG(OK, 0, "淘汰回合 1");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分差 1");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分数 1");
   START_GAME();
   ASSERT_PRI_MSG(OK, 0, "1");
   ASSERT_PRI_MSG(OK, 1, "1");
@@ -37,7 +39,7 @@ GAME_TEST(2, one_round_score)
 {
   ASSERT_PRI_MSG(OK, 0, "最大数字 3");
   START_GAME();
-  ASSERT_PRI_MSG(FAILED, 0, "4");
+  ASSERT_PRI_MSG(NOT_FOUND, 0, "4");
   ASSERT_PRI_MSG(OK, 0, "3");
 }
 
@@ -58,6 +60,8 @@ GAME_TEST(3, cal_score)
 {
   ASSERT_PRI_MSG(OK, 0, "淘汰回合 1");
   ASSERT_PRI_MSG(OK, 0, "淘汰间隔 1");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分差 1");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分数 1");
   START_GAME();
   ASSERT_PRI_MSG(OK, 0, "1");
   ASSERT_PRI_MSG(OK, 1, "2");
@@ -70,6 +74,8 @@ GAME_TEST(3, cal_score)
 GAME_TEST(2, change_select)
 {
   ASSERT_PRI_MSG(OK, 0, "淘汰回合 1");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分差 1");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分数 1");
   START_GAME();
   ASSERT_PRI_MSG(OK, 0, "1");
   ASSERT_PRI_MSG(OK, 0, "2");
@@ -80,6 +86,8 @@ GAME_TEST(2, change_select)
 GAME_TEST(2, timeout)
 {
   ASSERT_PRI_MSG(OK, 0, "淘汰回合 1");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分差 1");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分数 1");
   START_GAME();
   ASSERT_PRI_MSG(OK, 0, "1");
   TIMEOUT();

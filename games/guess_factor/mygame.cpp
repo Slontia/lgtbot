@@ -57,8 +57,8 @@ class Player
             sender << factor << " ";
         }
         if (show_current) {
-            if (!current_factor_.has_value()) {
-                sender << "[未决定]\n";
+            if (!current_factor_.has_value() || *current_factor_ == 0) {
+                sender << "[未猜测]\n";
             } else {
                 sender << "[" << *current_factor_ << "]\n";
             }
@@ -73,9 +73,9 @@ class Player
             sender << "分，已淘汰";
             return;
         }
-        if (current_factor_.has_value()) {
+        if (current_factor_.has_value() && current_factor_ != 0) {
             factor_pool_.emplace_back(*current_factor_);
-            current_factor_.reset();
+            ResetCurrentFactor();
         }
         for (auto it = factor_pool_.begin(); it != factor_pool_.end();) {
             if (sum % *it == 0) {
@@ -87,6 +87,11 @@ class Player
             }
         }
         sender << " = " << score_ << "分";
+    }
+
+    void ResetCurrentFactor()
+    {
+        current_factor_.reset();
     }
 
     void Eliminate()
@@ -104,10 +109,26 @@ class Player
             return false;
         }
         if (const std::optional<uint32_t> old_factor = std::exchange(current_factor_, factor);
-            !old_factor.has_value()) {
+            !old_factor.has_value() || *old_factor == 0) {
             sender << "猜测成功：您猜测的数字为" << factor;
         } else {
             sender << "修改猜测成功，旧猜测数字为" << *old_factor << "，当前猜测数字为" << factor;
+        }
+        return true;
+    }
+
+    template <typename Sender>
+    bool Pass(Sender&& sender)
+    {
+        if (eliminated_) {
+            sender << "不好意思，您已经被淘汰";
+            return false;
+        }
+        if (const std::optional<uint32_t> old_factor = std::exchange(current_factor_, 0);
+            !old_factor.has_value() || *old_factor == 0) {
+            sender << "您选择了不猜测";
+        } else {
+            sender << "您将选择改为了不猜测，旧猜测数字为" << *old_factor;
         }
         return true;
     }
@@ -131,11 +152,12 @@ class RoundStage : public SubGameStage<>
    public:
     RoundStage(const GameOption& option, const uint64_t round, std::vector<Player>& players, const bool eliminate_round)
             : GameStage("第" + std::to_string(round) + "回合",
-                        {
-                                MakeStageCommand(this, "预测因数", &RoundStage::Guess_,
-                                                 DynamicArithChecker<uint32_t, uint32_t, std::function<uint32_t()>>(
-                                                         1, [&option] { return option.GET_VALUE(最大数字); }, "选择")),
-                        }),
+              {
+                  MakeStageCommand(this, "预测因数", &RoundStage::Guess_,
+                      ArithChecker<uint32_t>(1, option.GET_VALUE(最大数字), "选择")),
+                  MakeStageCommand(this, "不猜测", &RoundStage::Pass_,
+                      VoidChecker("pass"))
+              }),
               option_(option),
               eliminate_round_(eliminate_round),
               players_(players)
@@ -171,6 +193,18 @@ class RoundStage : public SubGameStage<>
             }
         }
         if (!players_[pid].Guess(reply(), factor)) {
+            return FAILED;
+        }
+        return CanOver_() ? CHECKOUT : OK;
+    }
+
+    AtomStageErrCode Pass_(const uint64_t pid, const bool is_public, const replier_t& reply)
+    {
+        if (is_public) {
+            reply() << "请私信裁判猜测，不要暴露自己的数字哦~";
+            return FAILED;
+        }
+        if (!players_[pid].Pass(reply())) {
             return FAILED;
         }
         return CanOver_() ? CHECKOUT : OK;
@@ -236,16 +270,23 @@ class MainStage : public MainGameStage<RoundStage>
 
     void AddScore_(MsgSenderWrapper<MsgSenderForGame>& sender, const uint64_t sum)
     {
-        sender << "\n\n" << sum << "的" << option_.GET_VALUE(最大数字) << "以内因数包括：";
-        for (uint32_t factor = 1; factor <= option_.GET_VALUE(最大数字); ++factor) {
-            if (sum % factor == 0) {
-                sender << factor << " ";
+        [[unlikely]] if (sum == 0) {
+            sender << "\n\n无人猜测";
+            for (auto& player : players_) {
+                player.ResetCurrentFactor();
             }
-        }
-        sender << "\n得分情况：";
-        for (auto& player : players_) {
-            sender << "\n";
-            player.AddScore(sender, sum);
+        } else {
+            sender << "\n\n" << sum << "的" << option_.GET_VALUE(最大数字) << "以内因数包括：";
+            for (uint32_t factor = 1; factor <= option_.GET_VALUE(最大数字); ++factor) {
+                if (sum % factor == 0) {
+                    sender << factor << " ";
+                }
+            }
+            sender << "\n得分情况：";
+            for (auto& player : players_) {
+                sender << "\n";
+                player.AddScore(sender, sum);
+            }
         }
     }
 

@@ -26,7 +26,7 @@ class NumberStage : public SubGameStage<>
             : GameStage("设置数字阶段",
                         {
                                 MakeStageCommand(this, "设置数字", &NumberStage::Number_,
-                                                 ArithChecker<int, 1, 6>("数字")),
+                                                 ArithChecker<int>(1, 6, "数字")),
                         }),
               questioner_(questioner),
               num_(0)
@@ -62,7 +62,7 @@ class LieStage : public SubGameStage<>
     LieStage(const uint64_t questioner)
             : GameStage("设置数字阶段",
                         {
-                                MakeStageCommand(this, "提问数字", &LieStage::Lie_, ArithChecker<int, 1, 6>("数字")),
+                                MakeStageCommand(this, "提问数字", &LieStage::Lie_, ArithChecker<int>(1, 6, "数字")),
                         }),
               questioner_(questioner),
               lie_num_(0)

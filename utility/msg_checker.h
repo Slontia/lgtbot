@@ -110,9 +110,9 @@ class BoolChecker : public MsgArgChecker<bool>
 template <typename T>
 class AlterChecker : public MsgArgChecker<T>
 {
-   public:
+  public:
     AlterChecker(std::map<std::string, T>&& arg_map, const std::string& meaning = "选择")
-            : arg_map_(arg_map), meaning_(meaning)
+            : arg_map_(std::move(arg_map)), meaning_(meaning)
     {
     }
     virtual ~AlterChecker() {}
@@ -150,26 +150,26 @@ class AlterChecker : public MsgArgChecker<T>
         return it == arg_map_.end() ? std::optional<T>() : it->second;
     }
 
-   private:
+  private:
     const std::map<std::string, T> arg_map_;
     const std::string meaning_;
 };
 
-// Require: the argument can be convert to a number in [<Min>, <Max>], or no more arguments and <Optional> is true
+// Require: the argument can be convert to a number in [<min>, <max>], or no more arguments and <Optional> is true
 // Return: the converted number wrapped in std::optional, or an empty std::optional if no more arguments
-template <typename T, T Min = std::numeric_limits<T>::min(), T Max = std::numeric_limits<T>::max(),
-          bool Optional = false>
-requires std::is_arithmetic_v<T> class ArithChecker
-        : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
+template <typename T, bool Optional = false> requires std::is_arithmetic_v<T>
+class ArithChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
 {
-   public:
-    ArithChecker(const std::string meaning = "数字") : meaning_(meaning) { static_assert(Max >= Min, "Invalid Range"); }
+  public:
+    template <typename String>
+    ArithChecker(const T min, const T max, String&& meaning = "数字")
+        : min_(min), max_(max), meaning_(std::forward<String>(meaning)) {}
     virtual ~ArithChecker() {}
     virtual std::string FormatInfo() const override
     {
-        return "<" + meaning_ + "：" + std::to_string(Min) + "~" + std::to_string(Max) + ">";
+        return "<" + meaning_ + "：" + std::to_string(min_) + "~" + std::to_string(max_) + ">";
     }
-    virtual std::string ExampleInfo() const override { return std::to_string((Min + Max) / 2); }
+    virtual std::string ExampleInfo() const override { return std::to_string((min_ + max_) / 2); }
     virtual std::optional<std::conditional_t<Optional, std::optional<T>, T>> Check(MsgReader& reader) const
     {
         if (!reader.HasNext()) {
@@ -177,65 +177,17 @@ requires std::is_arithmetic_v<T> class ArithChecker
         }
         std::stringstream ss;
         ss << reader.NextArg();
-        if (T value; ss >> value && Min <= value && value <= Max) {
+        if (T value; ss >> value && min_ <= value && value <= max_) {
             return value;
         } else {
             return {};
         };
     }
 
-   private:
+  private:
+    const T min_;
+    const T max_;
     const std::string meaning_;
-};
-
-// Require: the argument can be convert to a number in [<Min>, <Max>], or no more arguments and <Optional> is true
-// Return: the converted number wrapped in std::optional, or an empty std::optional if no more arguments
-template <typename T, typename Min, typename Max, bool Optional = false>
-        requires(std::is_same_v<T, std::decay_t<Min>> || std::is_invocable_r_v<T, Min>) &&
-        (std::is_same_v<T, std::decay_t<Max>> || std::is_invocable_r_v<T, Max>)class DynamicArithChecker
-        : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
-{
-   public:
-    DynamicArithChecker(Min&& min, Max&& max, const std::string meaning = "数字")
-            : min_(std::forward<Min>(min)), max_(std::forward<Max>(max)), meaning_(meaning)
-    {
-    }
-    virtual ~DynamicArithChecker() {}
-    virtual std::string FormatInfo() const override
-    {
-        return "<" + meaning_ + "：" + std::to_string(Bound_(min_)) + "~" + std::to_string(Bound_(max_)) + ">";
-    }
-    virtual std::string ExampleInfo() const override { return std::to_string((Bound_(min_) + Bound_(max_)) / 2); }
-    virtual std::optional<std::conditional_t<Optional, std::optional<T>, T>> Check(MsgReader& reader) const
-    {
-        if (!reader.HasNext()) {
-            return std::optional<T>();
-        }
-        std::stringstream ss;
-        ss << reader.NextArg();
-        if (T value; ss >> value && Bound_(min_) <= value && value <= Bound_(max_)) {
-            return value;
-        } else {
-            return {};
-        };
-    }
-
-   private:
-    template <typename B>
-    requires std::is_same_v<T, std::decay_t<B>> static T Bound_(B&& bound)
-    {
-        return bound;
-    }
-
-    template <typename B>
-    requires std::is_invocable_r_v<T, B> static T Bound_(B&& bound)
-    {
-        return bound();
-    }
-
-    const std::string meaning_;
-    const Min min_;
-    const Max max_;
 };
 
 // Require: type argument can be convert to type <T>, or no more arguments and <Optional> is true
