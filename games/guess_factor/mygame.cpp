@@ -151,13 +151,11 @@ class RoundStage : public SubGameStage<>
 {
    public:
     RoundStage(const GameOption& option, const uint64_t round, std::vector<Player>& players, const bool eliminate_round)
-            : GameStage("第" + std::to_string(round) + "回合",
-              {
-                  MakeStageCommand(this, "预测因数", &RoundStage::Guess_,
+        : GameStage("第" + std::to_string(round) + "回合",
+                  MakeStageCommand("预测因数", &RoundStage::Guess_,
                       ArithChecker<uint32_t>(1, option.GET_VALUE(最大数字), "选择")),
-                  MakeStageCommand(this, "不猜测", &RoundStage::Pass_,
-                      VoidChecker("pass"))
-              }),
+                  MakeStageCommand("不猜测", &RoundStage::Pass_, VoidChecker("pass"))
+              ),
               option_(option),
               eliminate_round_(eliminate_round),
               players_(players)

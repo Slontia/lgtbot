@@ -13,14 +13,6 @@ using GameUserFuncType = RetType(const uint64_t, const bool, const replier_t&);
 template <typename RetType>
 using GameCommand = Command<GameUserFuncType<RetType>>;
 
-template <typename Stage, typename RetType, typename... Args, typename... Checkers>
-static GameCommand<RetType> MakeStageCommand(Stage* stage, const char* const description,
-                                                                 RetType (Stage::*cb)(Args...), Checkers&&... checkers)
-{
-    return GameCommand<RetType>(description, [stage, cb](Args... args) { return (stage->*cb)(std::forward<Args>(args)...); },
-                                                  std::forward<Checkers>(checkers)...);
-}
-
 class StageBase
 {
    public:
@@ -47,6 +39,13 @@ class StageBase
     auto Tell(const uint64_t pid) const { return ::Tell(match_, pid); }
 
    protected:
+    template <typename Stage, typename RetType, typename... Args, typename... Checkers>
+    GameCommand<RetType> MakeStageCommand(const char* const description,
+            RetType (Stage::*cb)(Args...), Checkers&&... checkers)
+    {
+        return GameCommand<RetType>(description, std::bind_front(cb, static_cast<Stage*>(this)), std::forward<Checkers>(checkers)...);
+    }
+
     template <typename Command>
     static uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender,
                                 const Command& cmd)
@@ -105,9 +104,9 @@ class GameStage<IsMain, SubStage, SubStages...>
     using SubStageCheckoutHelper<SubStage, VariantSubStage>::NextSubStage;
     using SubStageCheckoutHelper<SubStages, VariantSubStage>::NextSubStage...;
 
-    GameStage(std::string&& name = "",
-              std::initializer_list<GameCommand<CompStageErrCode>>&& commands = {})
-            : Base(std::move(name)), sub_stage_(), commands_(std::move(commands))
+    template <typename ...Commands>
+    GameStage(std::string&& name = "", Commands&&... commands)
+            : Base(std::move(name)), sub_stage_(), commands_{std::forward<Commands>(commands)...}
     {
     }
 
@@ -221,8 +220,9 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
     enum AtomStageErrCode { OK, CHECKOUT, FAILED };
 
    public:
-    GameStage(std::string&& name, std::initializer_list<GameCommand<AtomStageErrCode>>&& commands)
-            : Base(std::move(name)), timer_(nullptr), commands_(std::move(commands))
+    template <typename ...Commands>
+    GameStage(std::string&& name, Commands&&... commands)
+            : Base(std::move(name)), timer_(nullptr), commands_{std::forward<Commands>(commands)...}
     {
     }
     virtual ~GameStage() { Base::stop_timer_f_(); }
