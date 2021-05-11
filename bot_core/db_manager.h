@@ -266,6 +266,10 @@ class DBManager
 
         static bool ExecuteTransaction(sql::Connection& connection, const std::function<bool(Transaction&)>& f)
         {
+            if (!connection.isValid() && !connection.reconnect()) {
+                ErrorLog() << "execute transaction failed lost connection";
+                return false;
+            }
             Transaction trans(connection);
             try {
                 if (f(trans)) {
