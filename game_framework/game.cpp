@@ -48,17 +48,11 @@ bool Game::StartGame(const bool is_public, const uint64_t player_num)
 ErrCode /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public, const char* const msg)
 {
     using namespace std::string_literals;
-    std::lock_guard<SpinLock> l(lock_);
-    const replier_t reply = [this, pid, is_public]() -> MsgSenderWrapper<MsgSenderForGame> {
-        if (is_public) {
-            auto sender = ::Boardcast(match_);
-            sender << AtMsg(pid) << "\n";
-            return sender;
-        }
-        return ::Tell(match_, pid);
-    };  // we must convert lambda to std::function to pass it into CallIfValid
+    // we must convert lambda to std::function to pass it into CallIfValid
+    const replier_t reply = [this, pid, is_public]() { return this->Reply_(pid, is_public); };
 
     ErrCode rc = EC_GAME_REQUEST_OK;
+    std::lock_guard<SpinLock> l(lock_);
     if (is_over_) {
         reply() << "[错误] 差一点点，游戏已经结束了哦~";
         rc = EC_MATCH_ALREADY_OVER;
@@ -86,7 +80,8 @@ ErrCode /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public
                 break;
             }
             default:
-                reply() << "[错误] 游戏请求执行失败，未知的错误，请联系管理员";
+                reply() << "[错误] 游戏请求执行失败，未知的错误，请联系管理员，服务即将退出";
+                assert(false);
                 rc = EC_GAME_REQUEST_UNKNOWN;
                 break;
             }
@@ -100,6 +95,42 @@ ErrCode /*__cdecl*/ Game::HandleRequest(const uint64_t pid, const bool is_public
         } else {
             reply() << "设置成功！目前配置："s << OptionInfo();
         }
+    }
+    return rc;
+}
+
+ErrCode  /*__cdecl*/Game::HandleLeave(const uint64_t pid, const bool is_public)
+{
+    const auto reply = [this, pid, is_public]() { return this->Reply_(pid, is_public); };
+
+    ErrCode rc = EC_GAME_REQUEST_OK;
+    std::lock_guard<SpinLock> l(lock_);
+    if (is_over_) {
+        reply() << "[错误] 游戏已经结束了，已经……没有退出的理由了";
+        rc = EC_MATCH_ALREADY_OVER;
+    }
+
+    assert(main_stage_);
+    switch (main_stage_->HandleLeave(pid)) {
+        case StageBase::StageErrCode::OK:
+            rc = EC_GAME_REQUEST_OK;
+            break;
+        case StageBase::StageErrCode::CHECKOUT:
+            rc = EC_GAME_REQUEST_CHECKOUT;
+            break;
+        case StageBase::StageErrCode::FAILED:
+            // Almost impossible because leave always success.
+            // The failed error code does not affect upper logical and only for check in unittest.
+            rc = EC_GAME_REQUEST_FAILED;
+            break;
+        default:
+            reply() << "[错误] 中途退出游戏失败，未知的错误，请联系管理员，服务即将退出";
+            assert(false);
+            rc = EC_GAME_REQUEST_UNKNOWN;
+            break;
+    }
+    if (main_stage_->IsOver()) {
+        OnGameOver_();
     }
     return rc;
 }
@@ -150,4 +181,13 @@ void Game::OnGameOver_()
         scores[pid] = main_stage_->PlayerScore(pid);
     }
     g_game_over_cb(match_, scores.data());
+}
+
+MsgSenderWrapper<MsgSenderForGame> Game::Reply_(const uint64_t pid, const bool is_public) {
+    if (is_public) {
+        auto sender = ::Boardcast(match_);
+        sender << AtMsg(pid) << "\n";
+        return sender;
+    }
+    return ::Tell(match_, pid);
 }

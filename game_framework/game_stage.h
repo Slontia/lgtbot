@@ -16,7 +16,7 @@ using GameCommand = Command<GameUserFuncType<RetType>>;
 class StageBase
 {
    public:
-    enum class StageErrCode { OK, CHECKOUT, FAILED, NOT_FOUND, UNKNOWN };
+    enum class [[nodiscard]] StageErrCode { OK, CHECKOUT, FAILED, NOT_FOUND };
     StageBase(std::string&& name)
             : name_(name.empty() ? "（匿名阶段）" : std::move(name)), match_(nullptr), is_over_(false)
     {
@@ -33,6 +33,7 @@ class StageBase
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender) const = 0;
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
                                        const replier_t& reply) = 0;
+    virtual StageErrCode HandleLeave(const uint64_t pid) = 0;
     virtual void StageInfo(MsgSenderWrapper<MsgSenderForGame>& sender) const = 0;
     bool IsOver() const { return is_over_; }
     auto Boardcast() const { return ::Boardcast(match_); }
@@ -132,27 +133,41 @@ class GameStage<IsMain, SubStage, SubStages...>
                 return ToStageErrCode(*rc);
             }
         }
-        return std::visit(
-                [this, &reader, player_id, is_public, &reply](auto&& sub_stage) {
-                    const auto rc = sub_stage->HandleRequest(reader, player_id, is_public, reply);
-                    if (sub_stage->IsOver()) {
-                        this->CheckoutSubStage(false);
-                    }
-                    return rc;
-                },
-                sub_stage_);
+        const auto task = [this, &reader, player_id, is_public, &reply](auto&& sub_stage) {
+            // return rc to check in unittest
+            const auto rc = sub_stage->HandleRequest(reader, player_id, is_public, reply);
+            if (sub_stage->IsOver()) {
+                this->CheckoutSubStage(false);
+            }
+            return rc;
+        };
+        return std::visit(task, sub_stage_);
     }
 
     virtual void HandleTimeout() override
     {
-        std::visit(
-                [this](auto&& sub_stage) {
-                    sub_stage->HandleTimeout();
-                    if (sub_stage->IsOver()) {
-                        this->CheckoutSubStage(true);
-                    }
-                },
-                sub_stage_);
+        const auto task = [this](auto&& sub_stage) {
+            sub_stage->HandleTimeout();
+            if (sub_stage->IsOver()) {
+                this->CheckoutSubStage(true);
+            }
+        };
+        std::visit(task, sub_stage_);
+    }
+
+    virtual StageBase::StageErrCode HandleLeave(const uint64_t pid) override
+    {
+        // We must call CompStage's OnPlayerLeave first so that it can deceide whether to finish game when substage is over.
+        this->OnPlayerLeave(pid);
+        const auto task = [this, pid](auto&& sub_stage) {
+            // return rc to check in unittest
+            const auto rc = sub_stage->HandleLeave(pid);
+            if (sub_stage->IsOver()) {
+                this->CheckoutSubStage(false);
+            }
+            return rc;
+        };
+        return std::visit(task, sub_stage_);
     }
 
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender) const override
@@ -193,6 +208,10 @@ class GameStage<IsMain, SubStage, SubStages...>
 
    private:
     using StageBase::Over;
+
+    // CompStage cannot checkout by itself so return type is void
+    virtual void OnPlayerLeave(const uint64_t pid) {}
+
     static StageBase::StageErrCode ToStageErrCode(const CompStageErrCode rc)
     {
         switch (rc) {
@@ -202,7 +221,7 @@ class GameStage<IsMain, SubStage, SubStages...>
             return StageBase::StageErrCode::FAILED;
         default:
             assert(false);
-            return MainStageBase::StageErrCode::UNKNOWN;
+            return MainStageBase::StageErrCode::FAILED;
         }
         // no more error code
     }
@@ -234,8 +253,16 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
         OnStageBegin();
     }
     virtual void HandleTimeout() override final { StageBase::Over(); }
+    virtual StageBase::StageErrCode HandleLeave(const uint64_t pid) override final
+    {
+        const auto rc = OnPlayerLeave(pid);
+        if (rc == CHECKOUT) {
+            Over();
+        }
+        return ToStageErrCode(rc);
+    }
     virtual StageBase::StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
-                                                  const replier_t& reply) override
+                                                  const replier_t& reply) override final
     {
         for (const auto& cmd : commands_) {
             if (const auto rc = cmd.CallIfValid(reader, player_id, is_public, reply); rc.has_value()) {
@@ -266,6 +293,7 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
     }
 
    protected:
+    virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) { return AtomStageErrCode::OK; }
     void StartTimer(const uint64_t sec)
     {
         finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
@@ -290,7 +318,7 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
             return StageBase::StageErrCode::FAILED;
         default:
             assert(false);
-            return MainStageBase::StageErrCode::UNKNOWN;
+            return MainStageBase::StageErrCode::FAILED;
         }
         // no more error code
     }

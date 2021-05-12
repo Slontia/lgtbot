@@ -78,9 +78,10 @@ static ErrCode start_game(BotCtx& bot, const UserID uid, const std::optional<Gro
     return bot.match_manager().StartGame(uid, gid, reply);
 }
 
+template <bool even_if_game_started>
 static ErrCode leave(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const replier_t reply)
 {
-    return bot.match_manager().DeletePlayer(uid, gid, reply);
+    return bot.match_manager().DeletePlayer(uid, gid, reply, even_if_game_started);
 }
 
 static ErrCode join_private(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid,
@@ -235,7 +236,8 @@ const std::vector<MetaCommand> meta_cmds = {
         make_command("加入当前房间的公开游戏", join_public, VoidChecker("#加入游戏")),
         make_command("私信bot以加入私密游戏（私密比赛编号可以通过\"#私密游戏列表\"查看）", join_private,
                      VoidChecker("#加入游戏"), BasicChecker<MatchID>("私密比赛编号")),
-        make_command("在游戏开始前退出游戏", leave, VoidChecker("#退出游戏")),
+        make_command("在游戏开始前退出游戏", leave<false>, VoidChecker("#退出游戏")),
+        make_command("在游戏进行中退出游戏（退出后无法继续参与原游戏）", leave<true>, VoidChecker("#中途退出游戏")),
 };
 
 static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,

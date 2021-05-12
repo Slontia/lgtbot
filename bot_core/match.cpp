@@ -129,7 +129,7 @@ ErrCode MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const User
     return EC_OK;
 }
 
-ErrCode MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
+ErrCode MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID> gid, const replier_t reply, const bool even_if_game_started)
 {
     std::lock_guard<SpinLock> l(spinlock_);
     const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
@@ -141,7 +141,7 @@ ErrCode MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID
         reply() << "[错误] 退出失败：您未加入本房间游戏";
         return EC_MATCH_NOT_THIS_GROUP;
     }
-    RETURN_IF_FAILED(match->Leave(uid, reply));
+    RETURN_IF_FAILED(match->Leave(uid, reply, gid.has_value(), even_if_game_started));
     UnbindMatch_(uid, uid2match_);
     /* If host quit, switch host. */
     if (uid == match->host_uid() && !match->SwitchHost()) {
@@ -312,12 +312,20 @@ ErrCode Match::Join(const UserID uid, const replier_t reply)
     return EC_OK;
 }
 
-ErrCode Match::Leave(const UserID uid, const replier_t reply)
+ErrCode Match::Leave(const UserID uid, const replier_t reply, const bool is_public, const bool even_if_game_started)
 {
     assert(Has(uid));
     if (state_ == State::IS_STARTED) {
-        reply() << "[错误] 退出失败：游戏已经开始";
-        return EC_MATCH_ALREADY_BEGIN;
+        if (even_if_game_started) {
+            // Do not remove the player from map because other players may interact the ghost player later.
+            const auto it = uid2pid_.find(uid);
+            assert(it != uid2pid_.end());
+            Boardcast() << "玩家 " << AtMsg(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
+            return game_->HandleLeave(it->second, is_public);
+        } else {
+            reply() << "[错误] 退出失败：游戏已经开始";
+            return EC_MATCH_ALREADY_BEGIN;
+        }
     }
     Boardcast() << "玩家 " << AtMsg(uid) << " 退出了游戏";
     ready_uid_set_.erase(uid);
