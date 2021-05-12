@@ -86,6 +86,9 @@ class RoundStage : public SubGameStage<>
         return cur_choise_[0] != NONE_CHOISE && cur_choise_[1] != NONE_CHOISE ? CHECKOUT : OK;
     }
 
+    // The other player win. Game Over.
+    virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) { return CHECKOUT; }
+
     const uint32_t max_round_sec_;
     std::array<Choise, 2> cur_choise_;
 };
@@ -105,20 +108,32 @@ class MainStage : public MainGameStage<RoundStage>
 
     virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const bool is_timeout) override
     {
-        std::optional<uint64_t> winner = sub_stage.Winner();
-        if (is_timeout && !winner.has_value()) {
-            Boardcast() << "双方无响应";
-            // both score is 0, no winners
-            return {};
+        if (!winner_.has_value()) {
+            std::optional<uint64_t> winner = sub_stage.Winner();
+            if (is_timeout && !winner.has_value()) {
+                Boardcast() << "双方无响应";
+                // both score is 0, no winners
+                return {};
+            }
+            HandleRoundResult_(winner);
+            if (win_count_[0] == k_max_win_count_) {
+                winner_ = 0;
+            } else if (win_count_[1] == k_max_win_count_) {
+                winner_ = 1;
+            } else {
+                return std::make_unique<RoundStage>(++round_, k_max_round_sec_);
+            }
         }
-        HandleRoundResult_(winner);
-        if (win_count_[0] == k_max_win_count_ || win_count_[1] == k_max_win_count_) {
-            return {};
-        }
-        return std::make_unique<RoundStage>(++round_, k_max_round_sec_);
+        return {};
     }
 
-    int64_t PlayerScore(const uint64_t pid) const { return (win_count_[pid] == k_max_win_count_) ? 1 : 0; }
+    virtual void OnPlayerLeave(const uint64_t pid)
+    {
+        assert(!winner_.has_value());
+        winner_ = 1 - pid;
+    }
+
+    int64_t PlayerScore(const uint64_t pid) const { return (winner_.has_value() && *winner_ == pid) ? 1 : 0; }
 
    private:
     void HandleRoundResult_(const std::optional<uint64_t>& winner)
@@ -141,6 +156,7 @@ class MainStage : public MainGameStage<RoundStage>
     const uint32_t k_max_round_sec_;
     uint64_t round_;
     std::array<uint64_t, 2> win_count_;
+    std::optional<uint64_t> winner_;
 };
 
 std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameOption& options)

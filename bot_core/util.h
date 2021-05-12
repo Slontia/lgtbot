@@ -58,8 +58,7 @@ class MatchManager
     ErrCode StartGame(const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
     ErrCode AddPlayerToPrivateGame(const MatchID mid, const UserID uid, const replier_t reply);
     ErrCode AddPlayerToPublicGame(const GroupID gid, const UserID uid, const replier_t reply);
-    ErrCode DeletePlayer(const UserID uid, const std::optional<GroupID> gid, const replier_t reply,
-            const bool even_if_game_started);
+    ErrCode DeletePlayer(const UserID uid, const std::optional<GroupID> gid, const replier_t reply, const bool force);
     ErrCode DeleteMatch(const MatchID id);
     std::shared_ptr<Match> GetMatch(const MatchID mid);
     std::shared_ptr<Match> GetMatch(const UserID uid, const std::optional<GroupID> gid);

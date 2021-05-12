@@ -116,6 +116,16 @@ class TestGame : public testing::Test
 
 #define CHECK_PRI_MSG(ret, uid, msg) (EC_GAME_REQUEST_##ret == PRI_MSG(uid, msg))
 
+#define LEAVE(uid)                                               \
+[&] {                                                            \
+    std::cout << "[USER_" << uid << " LEAVE GAME]" << std::endl; \
+    return game().HandleLeave((uid), false);                     \
+}()
+
+#define ASSERT_LEAVE(ret, uid) ASSERT_EQ(EC_GAME_REQUEST_##ret, LEAVE(uid)) << "Leave failed"
+
+#define CHECK_LEAVE(ret, uid) (EC_GAME_REQUEST_##ret == LEAVE(uid))
+
 #define GAME_TEST(player_num, test_name)                              \
     using TestGame_##player_num##_##test_name = TestGame<player_num>; \
     TEST_F(TestGame_##player_num##_##test_name, test_name)

@@ -129,23 +129,38 @@ ErrCode MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const User
     return EC_OK;
 }
 
-ErrCode MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID> gid, const replier_t reply, const bool even_if_game_started)
+ErrCode MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID> gid, const replier_t reply, const bool force)
 {
-    std::lock_guard<SpinLock> l(spinlock_);
-    const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
-    if (!match) {
-        reply() << "[错误] 退出失败：您未加入游戏";
-        return EC_MATCH_USER_NOT_IN_MATCH;
+    std::shared_ptr<Match> match = nullptr;
+    {
+        std::lock_guard<SpinLock> l(spinlock_);
+        match = GetMatch_(uid, uid2match_);
+        if (!match) {
+            reply() << "[错误] 退出失败：您未加入游戏";
+            return EC_MATCH_USER_NOT_IN_MATCH;
+        }
+        if (match->gid() != gid) {
+            reply() << "[错误] 退出失败：您未加入本房间游戏";
+            return EC_MATCH_NOT_THIS_GROUP;
+        }
+
+        if (const auto ret = match->Leave(uid, reply);
+                ret != EC_OK && !(force && ret == EC_MATCH_ALREADY_BEGIN)) {
+            reply() << "[错误] 退出失败：游戏已经开始";
+            return ret;
+        }
+
+        // It is save to unbind player before game over because erase do nothing when element not in map.
+        UnbindMatch_(uid, uid2match_);
+
+        // If host quit, switch host.
+        if (uid == match->host_uid() && !match->SwitchHost()) {
+            DeleteMatch_(match->mid());
+        }
     }
-    if (match->gid() != gid) {
-        reply() << "[错误] 退出失败：您未加入本房间游戏";
-        return EC_MATCH_NOT_THIS_GROUP;
-    }
-    RETURN_IF_FAILED(match->Leave(uid, reply, gid.has_value(), even_if_game_started));
-    UnbindMatch_(uid, uid2match_);
-    /* If host quit, switch host. */
-    if (uid == match->host_uid() && !match->SwitchHost()) {
-        DeleteMatch_(match->mid());
+    if (force) {
+        // Call LeaveMidway without match lock to prevent dead lock when game over and DeleteMatch.
+        return match->LeaveMidway(uid, gid.has_value());
     }
     return EC_OK;
 }
@@ -312,23 +327,26 @@ ErrCode Match::Join(const UserID uid, const replier_t reply)
     return EC_OK;
 }
 
-ErrCode Match::Leave(const UserID uid, const replier_t reply, const bool is_public, const bool even_if_game_started)
+ErrCode Match::Leave(const UserID uid, const replier_t reply)
 {
     assert(Has(uid));
     if (state_ == State::IS_STARTED) {
-        if (even_if_game_started) {
-            // Do not remove the player from map because other players may interact the ghost player later.
-            const auto it = uid2pid_.find(uid);
-            assert(it != uid2pid_.end());
-            Boardcast() << "玩家 " << AtMsg(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
-            return game_->HandleLeave(it->second, is_public);
-        } else {
-            reply() << "[错误] 退出失败：游戏已经开始";
-            return EC_MATCH_ALREADY_BEGIN;
-        }
+        return EC_MATCH_ALREADY_BEGIN;
     }
     Boardcast() << "玩家 " << AtMsg(uid) << " 退出了游戏";
     ready_uid_set_.erase(uid);
+    return EC_OK;
+}
+
+ErrCode Match::LeaveMidway(const UserID uid, const bool is_public)
+{
+    if (state_ == State::IS_STARTED) {
+        // Do not remove the player from map because other players may interact the ghost player later.
+        const auto it = uid2pid_.find(uid);
+        assert(it != uid2pid_.end());
+        Boardcast() << "玩家 " << AtMsg(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
+        return game_->HandleLeave(it->second, is_public);
+    }
     return EC_OK;
 }
 
@@ -418,8 +436,10 @@ bool Match::SwitchHost()
     if (ready_uid_set_.empty()) {
         return false;
     }
-    host_uid_ = *ready_uid_set_.begin();
-    Boardcast() << AtMsg(host_uid_) << "被选为新房主";
+    if (state_ == NOT_STARTED) {
+        host_uid_ = *ready_uid_set_.begin();
+        Boardcast() << AtMsg(host_uid_) << "被选为新房主";
+    }
     return true;
 }
 
