@@ -49,6 +49,8 @@ class NumberStage : public SubGameStage<>
         return CHECKOUT;
     }
 
+    virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) { return CHECKOUT; }
+
     const uint64_t questioner_;
     int num_;
 };
@@ -76,6 +78,8 @@ class LieStage : public SubGameStage<>
         lie_num_ = lie_num;
         return CHECKOUT;
     }
+
+    virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) override { return CHECKOUT; }
 
     const uint64_t questioner_;
     int lie_num_;
@@ -106,6 +110,8 @@ class GuessStage : public SubGameStage<>
         return CHECKOUT;
     }
 
+    virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) override { return CHECKOUT; }
+
     const uint64_t guesser_;
     bool doubt_;
 };
@@ -131,17 +137,23 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
         return std::make_unique<NumberStage>(questioner_);
     }
 
-    virtual VariantSubStage NextSubStage(NumberStage& sub_stage, const bool is_timeout) override
+    virtual VariantSubStage NextSubStage(NumberStage& sub_stage, const CheckoutReason reason) override
     {
-        num_ = is_timeout ? 1 : sub_stage.num();
-        Tell(questioner_) << (is_timeout ? "设置超时，数字设置为默认值1，请提问数字" : "设置成功，请提问数字");
+        if (reason == CheckoutReason::BY_LEAVE) {
+            return {};
+        }
+        num_ = reason == CheckoutReason::BY_TIMEOUT ? 1 : sub_stage.num();
+        Tell(questioner_) << (reason == CheckoutReason::BY_TIMEOUT ? "设置超时，数字设置为默认值1，请提问数字" : "设置成功，请提问数字");
         return std::make_unique<LieStage>(questioner_);
     }
 
-    virtual VariantSubStage NextSubStage(LieStage& sub_stage, const bool is_timeout) override
+    virtual VariantSubStage NextSubStage(LieStage& sub_stage, const CheckoutReason reason) override
     {
-        lie_num_ = is_timeout ? 1 : sub_stage.lie_num();
-        if (is_timeout) {
+        if (reason == CheckoutReason::BY_LEAVE) {
+            return {};
+        }
+        lie_num_ = reason == CheckoutReason::BY_TIMEOUT ? 1 : sub_stage.lie_num();
+        if (reason == CheckoutReason::BY_TIMEOUT) {
             Tell(questioner_) << "提问超时，默认提问数字1";
         }
         Boardcast() << "玩家" << AtMsg(questioner_) << "提问数字" << lie_num_ << "，请玩家" << AtMsg(1 - questioner_)
@@ -149,10 +161,13 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
         return std::make_unique<GuessStage>(1 - questioner_);
     }
 
-    virtual VariantSubStage NextSubStage(GuessStage& sub_stage, const bool is_timeout) override
+    virtual VariantSubStage NextSubStage(GuessStage& sub_stage, const CheckoutReason reason) override
     {
-        const bool doubt = is_timeout ? false : sub_stage.doubt();
-        if (is_timeout) {
+        if (reason == CheckoutReason::BY_LEAVE) {
+            return {};
+        }
+        const bool doubt = reason == CheckoutReason::BY_TIMEOUT ? false : sub_stage.doubt();
+        if (reason == CheckoutReason::BY_TIMEOUT) {
             Tell(questioner_) << "选择超时，默认为相信";
         }
         const bool suc = doubt ^ (num_ == lie_num_);
@@ -190,7 +205,7 @@ class MainStage : public MainGameStage<RoundStage>
         return std::make_unique<RoundStage>(1, std::rand() % 2, player_nums_);
     }
 
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const bool is_timeout) override
+    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override
     {
         questioner_ = sub_stage.loser();
         if (JudgeOver()) {
@@ -199,11 +214,17 @@ class MainStage : public MainGameStage<RoundStage>
         return std::make_unique<RoundStage>(++round_, questioner_, player_nums_);
     }
 
-    int64_t PlayerScore(const uint64_t pid) const { return pid == questioner_ ? 0 : 1; }
+    int64_t PlayerScore(const uint64_t pid) const
+    {
+        const uint64_t loser_pid = leaver_.has_value() ? *leaver_ : questioner_;
+        return pid == loser_pid ? 0 : 1; }
 
    private:
     bool JudgeOver()
     {
+        if (leaver_.has_value()) {
+            return true;
+        }
         bool has_all_num = fail_if_collected_all_;
         for (const int count : player_nums_[questioner_]) {
             if (count >= 3) {
@@ -215,10 +236,13 @@ class MainStage : public MainGameStage<RoundStage>
         return has_all_num;
     }
 
+    virtual void OnPlayerLeave(const uint64_t pid) override { leaver_ = pid; }
+
     const bool fail_if_collected_all_;
     uint64_t questioner_;
     uint64_t round_;
     std::array<std::array<int, 6>, 2> player_nums_;
+    std::optional<uint64_t> leaver_;
 };
 
 std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameOption& options)

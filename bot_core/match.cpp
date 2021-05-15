@@ -144,11 +144,7 @@ ErrCode MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID
             return EC_MATCH_NOT_THIS_GROUP;
         }
 
-        if (const auto ret = match->Leave(uid, reply);
-                ret != EC_OK && !(force && ret == EC_MATCH_ALREADY_BEGIN)) {
-            reply() << "[错误] 退出失败：游戏已经开始";
-            return ret;
-        }
+        RETURN_IF_FAILED(match->Leave(uid, reply, force));
 
         // It is save to unbind player before game over because erase do nothing when element not in map.
         UnbindMatch_(uid, uid2match_);
@@ -327,24 +323,28 @@ ErrCode Match::Join(const UserID uid, const replier_t reply)
     return EC_OK;
 }
 
-ErrCode Match::Leave(const UserID uid, const replier_t reply)
+ErrCode Match::Leave(const UserID uid, const replier_t reply, const bool force)
 {
     assert(Has(uid));
-    if (state_ == State::IS_STARTED) {
-        return EC_MATCH_ALREADY_BEGIN;
+    if (state_ != State::IS_STARTED) {
+        Boardcast() << "玩家 " << AtMsg(uid) << " 退出了游戏";
+        ready_uid_set_.erase(uid);
+        return EC_OK;
     }
-    Boardcast() << "玩家 " << AtMsg(uid) << " 退出了游戏";
-    ready_uid_set_.erase(uid);
-    return EC_OK;
+    if (force) {
+        Boardcast() << "玩家 " << AtMsg(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
+        ready_uid_set_.erase(uid);
+        return EC_OK;
+    }
+    reply() << "[错误] 退出失败：游戏已经开始，若仍要退出游戏，请使用<#强制退出游戏>命令";
+    return EC_MATCH_ALREADY_BEGIN;
 }
 
 ErrCode Match::LeaveMidway(const UserID uid, const bool is_public)
 {
     if (state_ == State::IS_STARTED) {
-        // Do not remove the player from map because other players may interact the ghost player later.
         const auto it = uid2pid_.find(uid);
         assert(it != uid2pid_.end());
-        Boardcast() << "玩家 " << AtMsg(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
         return game_->HandleLeave(it->second, is_public);
     }
     return EC_OK;

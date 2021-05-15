@@ -94,6 +94,56 @@ GAME_TEST(2, timeout)
   ASSERT_SCORE(1, 0);
 }
 
+GAME_TEST(2, achieve_max_round_by_both_pass)
+{
+  ASSERT_PRI_MSG(OK, 0, "淘汰回合 1");
+  ASSERT_PRI_MSG(OK, 0, "最大回合 3");
+  START_GAME();
+  for (uint32_t i = 0; i < 3; ++i)
+  {
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "pass");
+  }
+  ASSERT_SCORE(0, 0);
+}
+
+GAME_TEST(2, achieve_max_round_by_both_leave)
+{
+  ASSERT_PRI_MSG(OK, 0, "淘汰回合 1");
+  ASSERT_PRI_MSG(OK, 0, "最大回合 3");
+  START_GAME();
+  ASSERT_LEAVE(OK, 0);
+  ASSERT_LEAVE(CHECKOUT, 1);
+  ASSERT_SCORE(0, 0);
+}
+
+GAME_TEST(2, leave_but_win)
+{
+  ASSERT_PRI_MSG(OK, 0, "淘汰回合 1");
+  ASSERT_PRI_MSG(OK, 0, "最大回合 7");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分差 14");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分数 1");
+  ASSERT_PRI_MSG(OK, 0, "最大数字 53");
+  START_GAME();
+  // round 1
+  ASSERT_PRI_MSG(OK, 0, "2");
+  ASSERT_PRI_MSG(CHECKOUT, 1, "51"); // sum = 53
+  // round 2
+  ASSERT_PRI_MSG(OK, 0, "4");
+  ASSERT_PRI_MSG(CHECKOUT, 1, "pass"); // sum = 57
+  // round 3
+  ASSERT_PRI_MSG(OK, 0, "8");
+  ASSERT_PRI_MSG(CHECKOUT, 1, "pass"); // sum = 65
+  // round 4
+  ASSERT_LEAVE(OK, 0);
+  ASSERT_PRI_MSG(CHECKOUT, 1, "53"); // sum = 118 - 2 = 116
+  // round 5
+  ASSERT_PRI_MSG(CHECKOUT, 1, "pass"); // sum = 116 - 4 = 112
+  // round 6
+  ASSERT_PRI_MSG(CHECKOUT, 1, "pass"); // sum = 116 - 4 = 104
+  ASSERT_SCORE(14, 0);
+}
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

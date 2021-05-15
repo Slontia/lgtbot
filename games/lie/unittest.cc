@@ -165,6 +165,13 @@ GAME_TEST(2, all_believe_success)
   }
 }
 
+GAME_TEST(2, leave)
+{
+  START_GAME();
+  ASSERT_LEAVE(CHECKOUT, 1);
+  ASSERT_SCORE(1, 0);
+}
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

@@ -39,7 +39,7 @@ class Match : public std::enable_shared_from_this<Match>
     ErrCode GameConfigOver(const replier_t reply);
     ErrCode GameStart(const bool is_public, const replier_t reply);
     ErrCode Join(const UserID uid, const replier_t reply);
-    ErrCode Leave(const UserID uid, const replier_t reply);
+    ErrCode Leave(const UserID uid, const replier_t reply, const bool force);
     ErrCode LeaveMidway(const UserID uid, const bool is_public);
     MsgSenderWrapper<MsgSenderForBot> Boardcast() const;
     MsgSenderWrapper<MsgSenderForBot> Tell(const uint64_t pid) const;

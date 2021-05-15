@@ -27,9 +27,9 @@ const std::string GameOption::StatusInfo() const
           "且分数最末尾玩家与次末尾玩家相差达到"
        << GET_VALUE(淘汰分差)
        << "分或以上时，最末尾玩家被淘汰。"
-          "当游戏达到第"
+          "当第"
        << GET_VALUE(最大回合)
-       << "回合，或仅剩一名玩家存活时，游戏结束。"
+       << "回合结束，或仅剩一名玩家存活时，游戏结束。"
           "玩家可预测因数范围为1~"
        << GET_VALUE(最大数字) << "。";
     return ss.str();
@@ -38,7 +38,7 @@ const std::string GameOption::StatusInfo() const
 class Player
 {
    public:
-    Player(const uint64_t pid) : pid_(pid), score_(0), eliminated_(false) {}
+    Player(const uint64_t pid) : pid_(pid), score_(0), state_(ONLINE) {}
 
     friend auto operator<=>(const Player& _1, const Player& _2) { return _1.score_ <=> _2.score_; }
 
@@ -48,7 +48,7 @@ class Player
     void Info(Sender& sender, const bool show_current = false) const
     {
         sender << AtMsg(pid_) << "（" << score_ << "分";
-        if (eliminated_) {
+        if (state_ == ELIMINATED) {
             sender << "，已淘汰）";
             return;
         }
@@ -69,14 +69,14 @@ class Player
     void AddScore(Sender&& sender, const uint64_t sum)
     {
         sender << AtMsg(pid_) << "：" << score_;
-        if (eliminated_) {
+        if (state_ == ELIMINATED) {
             sender << "分，已淘汰";
             return;
         }
         if (current_factor_.has_value() && current_factor_ != 0) {
             factor_pool_.emplace_back(*current_factor_);
-            ResetCurrentFactor();
         }
+        ResetCurrentFactor();
         for (auto it = factor_pool_.begin(); it != factor_pool_.end();) {
             if (sum % *it == 0) {
                 sender << " + " << *it;
@@ -91,20 +91,34 @@ class Player
 
     void ResetCurrentFactor()
     {
-        current_factor_.reset();
+        if (state_ == LEAVED) {
+            current_factor_ = 0;
+        } else {
+            current_factor_.reset();
+        }
     }
 
     void Eliminate()
     {
-        eliminated_ = true;
+        state_ = ELIMINATED;
         factor_pool_.clear();
         current_factor_.reset();
+    }
+
+    void Leave()
+    {
+        if (state_ == ONLINE) {
+          state_ = LEAVED;
+        }
+        if (!current_factor_.has_value()) {
+            current_factor_ = 0; // pass if has not choose
+        }
     }
 
     template <typename Sender>
     bool Guess(Sender&& sender, const uint32_t factor)
     {
-        if (eliminated_) {
+        if (state_ == ELIMINATED) {
             sender << "不好意思，您已经被淘汰，无法选择数字";
             return false;
         }
@@ -120,7 +134,7 @@ class Player
     template <typename Sender>
     bool Pass(Sender&& sender)
     {
-        if (eliminated_) {
+        if (state_ == ELIMINATED) {
             sender << "不好意思，您已经被淘汰";
             return false;
         }
@@ -135,14 +149,15 @@ class Player
 
     uint64_t pid() const { return pid_; }
     uint64_t score() const { return score_; }
-    bool eliminated() const { return eliminated_; }
+    bool eliminated() const { return state_ == ELIMINATED; }
+    bool online() const { return state_ == ONLINE; }
     const auto& factor_pool() const { return factor_pool_; }
     const std::optional<uint32_t>& current_factor() const { return current_factor_; }
 
    private:
     const uint64_t pid_;
     uint64_t score_;
-    bool eliminated_;
+    enum { LEAVED, ELIMINATED, ONLINE } state_;
     std::list<uint32_t> factor_pool_;
     std::optional<uint32_t> current_factor_;
 };
@@ -208,6 +223,12 @@ class RoundStage : public SubGameStage<>
         return CanOver_() ? CHECKOUT : OK;
     }
 
+    virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) override
+    {
+        players_[pid].Leave();
+        return CanOver_() ? CHECKOUT : OK;
+    }
+
     bool CanOver_() const
     {
         return std::all_of(players_.begin(), players_.end(),
@@ -234,22 +255,38 @@ class MainStage : public MainGameStage<RoundStage>
         return std::make_unique<RoundStage>(option_, 1, players_, MayEliminated_());
     }
 
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const bool is_timeout) override
+    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override
     {
-        auto sender = Boardcast();
-        const uint64_t sum = SumPool_(sender);
-        AddScore_(sender, sum);
-        if (MayEliminated_() && (Eliminate_(sender), SurviveCount_() == 1 || round_ == option_.GET_VALUE(最大回合))) {
-            return {};
+        while (true) {
+            if (const auto may_eliminated = NextSubStageMayEliminated_(); may_eliminated.has_value()) {
+                if (HasOnline_()) {
+                    return std::make_unique<RoundStage>(option_, round_, players_, *may_eliminated);
+                } else {
+                    Boardcast() << "所有玩家都已经退出游戏，游戏自动进行";
+                    continue;
+                }
+            } else {
+                return {};
+            }
         }
-        ShowScore_(sender);
-        ++round_;
-        return std::make_unique<RoundStage>(option_, round_, players_, MayEliminated_());
     }
 
     int64_t PlayerScore(const uint64_t pid) const { return players_[pid].score(); }
 
    private:
+    virtual std::optional<bool> NextSubStageMayEliminated_()
+    {
+        auto sender = Boardcast();
+        const uint64_t sum = SumPool_(sender);
+        AddScore_(sender, sum);
+        if (MayEliminated_() && (Eliminate_(sender), SurviveCount_() == 1 || round_ == option_.GET_VALUE(最大回合))) {
+            return std::nullopt;
+        }
+        ShowScore_(sender);
+        ++round_;
+        return MayEliminated_();
+    }
+
     uint64_t SumPool_(MsgSenderWrapper<MsgSenderForGame>& sender)
     {
         uint64_t sum = 0;
@@ -342,6 +379,11 @@ class MainStage : public MainGameStage<RoundStage>
     uint64_t SurviveCount_() const
     {
         return std::count_if(players_.begin(), players_.end(), [](const Player& p) { return !p.eliminated(); });
+    }
+
+    uint64_t HasOnline_() const
+    {
+        return std::any_of(players_.begin(), players_.end(), [](const Player& p) { return p.online(); });
     }
 
     const GameOption& option_;

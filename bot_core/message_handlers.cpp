@@ -237,7 +237,7 @@ const std::vector<MetaCommand> meta_cmds = {
         make_command("私信bot以加入私密游戏（私密比赛编号可以通过\"#私密游戏列表\"查看）", join_private,
                      VoidChecker("#加入游戏"), BasicChecker<MatchID>("私密比赛编号")),
         make_command("在游戏开始前退出游戏", leave<false>, VoidChecker("#退出游戏")),
-        make_command("在游戏进行中退出游戏（退出后无法继续参与原游戏）", leave<true>, VoidChecker("#中途退出游戏")),
+        make_command("可以在游戏进行中退出游戏，需注意退出后无法继续参与原游戏", leave<true>, VoidChecker("#强制退出游戏")),
 };
 
 static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,

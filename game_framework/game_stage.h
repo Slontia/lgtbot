@@ -71,11 +71,13 @@ class MainStageBase : public StageBase
     virtual int64_t PlayerScore(const uint64_t pid) const = 0;
 };
 
+enum class CheckoutReason { BY_REQUEST, BY_TIMEOUT, BY_LEAVE };
+
 template <typename SubStage, typename RetType>
 class SubStageCheckoutHelper
 {
-   public:
-    virtual RetType NextSubStage(SubStage& sub_stage, const bool is_timeout) = 0;
+  public:
+    virtual RetType NextSubStage(SubStage& sub_stage, const CheckoutReason reason) = 0;
 };
 
 template <bool IsMain, typename... SubStages>
@@ -137,7 +139,7 @@ class GameStage<IsMain, SubStage, SubStages...>
             // return rc to check in unittest
             const auto rc = sub_stage->HandleRequest(reader, player_id, is_public, reply);
             if (sub_stage->IsOver()) {
-                this->CheckoutSubStage(false);
+                this->CheckoutSubStage(CheckoutReason::BY_REQUEST);
             }
             return rc;
         };
@@ -149,7 +151,7 @@ class GameStage<IsMain, SubStage, SubStages...>
         const auto task = [this](auto&& sub_stage) {
             sub_stage->HandleTimeout();
             if (sub_stage->IsOver()) {
-                this->CheckoutSubStage(true);
+                this->CheckoutSubStage(CheckoutReason::BY_TIMEOUT);
             }
         };
         std::visit(task, sub_stage_);
@@ -163,7 +165,7 @@ class GameStage<IsMain, SubStage, SubStages...>
             // return rc to check in unittest
             const auto rc = sub_stage->HandleLeave(pid);
             if (sub_stage->IsOver()) {
-                this->CheckoutSubStage(false);
+                this->CheckoutSubStage(CheckoutReason::BY_LEAVE);
             }
             return rc;
         };
@@ -184,12 +186,12 @@ class GameStage<IsMain, SubStage, SubStages...>
         std::visit([&sender](auto&& sub_stage) { sub_stage->StageInfo(sender); }, sub_stage_);
     }
 
-    void CheckoutSubStage(const bool is_timeout)
+    void CheckoutSubStage(const CheckoutReason reason)
     {
         // ensure previous substage is released before next substage built
         sub_stage_ = std::visit(
-                [this, is_timeout](auto&& sub_stage) {
-                    VariantSubStage new_sub_stage = NextSubStage(*sub_stage, is_timeout);
+                [this, reason](auto&& sub_stage) {
+                    VariantSubStage new_sub_stage = NextSubStage(*sub_stage, reason);
                     sub_stage = nullptr;
                     return std::move(new_sub_stage);
                 },

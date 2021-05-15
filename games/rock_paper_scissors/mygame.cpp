@@ -106,11 +106,11 @@ class MainStage : public MainGameStage<RoundStage>
 
     virtual VariantSubStage OnStageBegin() override { return std::make_unique<RoundStage>(1, k_max_round_sec_); }
 
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const bool is_timeout) override
+    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override
     {
         if (!winner_.has_value()) {
             std::optional<uint64_t> winner = sub_stage.Winner();
-            if (is_timeout && !winner.has_value()) {
+            if (reason == CheckoutReason::BY_TIMEOUT && !winner.has_value()) {
                 Boardcast() << "双方无响应";
                 // both score is 0, no winners
                 return {};
