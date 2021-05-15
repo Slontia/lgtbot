@@ -383,7 +383,6 @@ void Match::GameOver(const int64_t scores[])
         return;
     }
     end_time_ = std::chrono::system_clock::now();
-    assert(ready_uid_set_.size() == pid2uid_.size());
     std::vector<Match::ScoreInfo> score_info = CalScores_(scores);
     auto sender = Boardcast();
     sender << "游戏结束，公布分数：\n";
