@@ -5,6 +5,7 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <cassert>
 
 #include "bot_core.h"
 #include "game_framework/game_main.h"
@@ -21,7 +22,8 @@ struct GameHandle {
     GameHandle(const std::optional<uint64_t> game_id, const std::string& name, const uint64_t max_player,
                const std::string& rule, const std::function<GameBase*(void* const)>& new_game,
                const std::function<void(GameBase* const)>& delete_game, ModGuard&& mod_guard)
-            : game_id_(game_id),
+            : is_released_(game_id.has_value()),
+	      game_id_(game_id.has_value() ? *game_id : 0),
               name_(name),
               max_player_(max_player),
               rule_(rule),
@@ -32,13 +34,39 @@ struct GameHandle {
     }
     GameHandle(GameHandle&&) = delete;
 
-    std::atomic<std::optional<uint64_t>> game_id_;
+    std::optional<uint64_t> game_id() const
+    {
+        if (is_released_.load()) {
+            return game_id_.load();
+	} else {
+            return std::nullopt;
+	}
+    }
+
+    void set_game_id(const uint64_t game_id)
+    {
+        assert(!is_released_.load());
+	game_id_.store(game_id);
+	is_released_.store(true);
+    }
+
+    void clear_game_id()
+    {
+        assert(is_released_.load());
+	is_released_.store(false);
+	game_id_.store(0);
+    }
+
     const std::string name_;
     const uint64_t max_player_;
     const std::string rule_;
     const std::function<GameBase*(void* const)> new_game_;
     const std::function<void(GameBase* const)> delete_game_;
     ModGuard mod_guard_;
+ 
+  private:
+    std::atomic<bool> is_released_;
+    std::atomic<uint64_t> game_id_;
 };
 
 extern const int32_t LGT_AC;
@@ -90,7 +118,7 @@ class BotCtx
 {
    public:
     BotCtx(const uint64_t this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
-           const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const std::string_view game_path,
+           const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const char* const game_path,
            const uint64_t* const admins, const uint64_t admin_count)
             : this_uid_(this_uid),
               new_msg_sender_cb_(new_msg_sender_cb),
@@ -123,7 +151,7 @@ class BotCtx
     auto ToGroup(const GroupID gid) const { return MsgSenderWrapper(ToGroupRaw(gid)); }
 
    private:
-    void LoadGameModules_(const std::string_view games_path);
+    void LoadGameModules_(const char* const games_path);
     void LoadAdmins_(const uint64_t* const admins, const uint64_t admin_count);
 
     const UserID this_uid_;

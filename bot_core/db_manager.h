@@ -1,4 +1,7 @@
 #pragma once
+
+#ifdef WITH_MYSQL
+
 #include <jdbc/cppconn/prepared_statement.h>
 #include <jdbc/cppconn/statement.h>
 #include <jdbc/mysql_connection.h>
@@ -374,3 +377,5 @@ class DBManager
     static std::unique_ptr<DBManager> g_db_manager_;
     std::unique_ptr<sql::Connection> connection_;
 };
+
+#endif

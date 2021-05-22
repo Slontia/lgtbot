@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 project(Simulator LANGUAGES CXX C)
 
 set(CMAKE_SYSTEM_VERSION 1)
@@ -8,12 +8,12 @@ if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
+set(CMAKE_CXX_STANDARD 20)
 
-set(SOURCE_FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/simulator.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/linenoise/linenoise.c
-)
+set(SOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/simulator.cpp)
+if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+	#  set(SOURCE_FILES ${SOURCE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/linenoise/linenoise.c)
+endif()
 
 find_package(gflags REQUIRED)
 

@@ -114,24 +114,26 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
         return;
     }
     std::optional<uint64_t> game_id;
+#ifdef WITH_MYSQL
     if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager != nullptr) {
         game_id = db_manager->GetGameIDWithName(name);
     }
+#endif
     game_handles.emplace(name, std::make_unique<GameHandle>(game_id, name, max_player, rule, new_game, delete_game,
                                                             [mod] { FreeLibrary(mod); }));
     InfoLog() << "Loaded successfully!";
 }
 
-void BotCtx::LoadGameModules_(const std::string_view games_path)
+void BotCtx::LoadGameModules_(const char* const games_path)
 {
 #ifdef _WIN32
     WIN32_FIND_DATA file_data;
-    HANDLE file_handle = FindFirstFile(games_path + L"\\*.dll", &file_data);
+    HANDLE file_handle = FindFirstFile((std::string(games_path) + "\\*.dll").c_str(), &file_data);
     if (file_handle == INVALID_HANDLE_VALUE) {
         return;
     }
     do {
-        std::wstring dll_path = L".\\plugins\\" + std::wstring(file_data.cFileName);
+        const auto dll_path = ".\\plugins\\" + std::string(file_data.cFileName);
         LoadGame(LoadLibrary(dll_path.c_str()), game_handles_);
     } while (FindNextFile(file_handle, &file_data));
     FindClose(file_handle);

@@ -4,10 +4,14 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <optional>
 
 #include "bot_core/bot_core.h"
-#include "linenoise/linenoise.h"
 #include "utility/msg_sender.h"
+
+#if __linux__
+#include "linenoise/linenoise.h"
+#endif
 
 DEFINE_string(game_path, "plugins", "The path of game modules");
 DEFINE_string(history_filename, ".simulator_history.txt", "The file saving history commands");
@@ -15,10 +19,12 @@ DEFINE_bool(color, true, "Enable color");
 DEFINE_uint64(bot_uid, 114514, "The UserID of bot");
 DEFINE_uint64(admin_uid, 0, "The UserID of administor");
 
+#ifdef WITH_MYSQL
 DEFINE_string(db_addr, "", "Address of database <ip>:<port>");
 DEFINE_string(db_user, "root", "User of database");
 DEFINE_string(db_name, "lgtbot_simulator", "Name of database");
 DEFINE_string(db_passwd, "", "Password of database");
+#endif
 
 const char* Red() { return FLAGS_color ? "\033[31m" : ""; }
 const char* Green() { return FLAGS_color ? "\033[32m" : ""; }
@@ -131,6 +137,7 @@ bool handle_request(void* bot, const std::string_view line)
     return true;
 }
 
+#ifdef WITH_MYSQL
 static void ConnectDatabase(void* const bot)
 {
     if (!FLAGS_db_addr.empty()) {
@@ -152,6 +159,7 @@ static void ConnectDatabase(void* const bot)
         }
     }
 }
+#endif
 
 int main(int argc, char** argv)
 {
@@ -159,25 +167,39 @@ int main(int argc, char** argv)
     gflags::ParseCommandLineFlags(&argc, &argv, true);
     auto bot = BOT_API::Init(FLAGS_bot_uid, create_msg_sender, delete_msg_sender, FLAGS_game_path.c_str(),
                              &FLAGS_admin_uid, 1);
+#ifdef WITH_MYSQL
     ConnectDatabase(bot);
+#endif
 
+#if __linux__
     linenoiseHistoryLoad(FLAGS_history_filename.c_str());
+#endif
 
+#if __linux__
     for (char* line_cstr = nullptr; (line_cstr = linenoise("Simulator>>> ")) != nullptr;) {
+#else
+    for (char line_cstr[1024] = {0}; std::cin.getline(&line_cstr[0], 1024); ) {
+#endif
         const std::string_view line(line_cstr);
         if (line.find_first_not_of(' ') == std::string_view::npos) {
             // do nothing
         } else if (line == "quit") {
+#if __linux__
             linenoiseFree(line_cstr);
+#endif
             std::cout << "Bye." << std::endl;
             break;
         } else if (handle_request(bot, line)) {
+#if __linux__
             linenoiseHistoryAdd(line_cstr);
             linenoiseHistorySave(FLAGS_history_filename.c_str());
+#endif
         } else {
             Error() << "Usage: <GroupID | \'pri\'> <UserID> <arg1> <arg2> ..." << std::endl;
         }
+#if __linux__
         linenoiseFree(line_cstr);
+#endif
     }
 
     BOT_API::Release(bot);

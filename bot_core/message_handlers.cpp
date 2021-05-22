@@ -49,7 +49,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
     sender << "游戏列表：";
     for (const auto& [name, info] : bot.game_handles()) {
         sender << "\n" << (++i) << ". " << name;
-        if (!info->game_id_.load().has_value()) {
+        if (!info->game_id().has_value()) {
             sender << "（试玩）";
         }
     }
@@ -200,6 +200,7 @@ static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<Grou
     return EC_OK;
 }
 
+#ifdef WITH_MYSQL
 static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
                             const replier_t reply)
 {
@@ -211,6 +212,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
     db_manager->GetUserProfit(uid, reply);  // TODO: pass sender
     return EC_OK;
 }
+#endif
 
 const std::vector<MetaCommand> meta_cmds = {
         make_command(
@@ -219,7 +221,9 @@ const std::vector<MetaCommand> meta_cmds = {
                     return help(bot, uid, gid, reply, meta_cmds, "元");
                 },
                 VoidChecker("#帮助")),
+#ifdef WITH_MYSQL
         make_command("查看个人信息", show_profile, VoidChecker("#个人信息")),
+#endif
         make_command("查看游戏列表", show_gamelist, VoidChecker("#游戏列表")),
         make_command("查看游戏规则（游戏名称可以通过\"#游戏列表\"查看）", show_rule, VoidChecker("#规则"),
                      AnyArg("游戏名称", "某游戏名")),
@@ -240,6 +244,7 @@ const std::vector<MetaCommand> meta_cmds = {
         make_command("可以在游戏进行中退出游戏，需注意退出后无法继续参与原游戏", leave<true>, VoidChecker("#强制退出游戏")),
 };
 
+#ifdef WITH_MYSQL
 static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
                             const replier_t reply, const std::string& gamename)
 {
@@ -248,7 +253,7 @@ static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<G
         reply() << "[错误] 发布失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
-    std::optional<uint64_t> game_id = it->second->game_id_.load();
+    std::optional<uint64_t> game_id = it->second->game_id();
     if (game_id.has_value()) {
         reply() << "[错误] 发布失败：游戏已发布，ID为" << *game_id;
         return EC_GAME_ALREADY_RELEASE;
@@ -262,10 +267,11 @@ static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<G
         reply() << "[错误] 发布失败：发布失败，请查看错误日志";
         return EC_DB_RELEASE_GAME_FAILED;
     }
-    it->second->game_id_.store(game_id);
+    it->second->set_game_id(game_id);
     reply() << "发布成功，游戏\'" << gamename << "\'的ID为" << *game_id;
     return EC_OK;
 }
+#endif
 
 static ErrCode interrupt_public(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
                                 const replier_t reply)
@@ -304,8 +310,10 @@ const std::vector<MetaCommand> admin_cmds = {
                     return help(bot, uid, gid, reply, admin_cmds, "管理");
                 },
                 VoidChecker("%帮助")),
+#ifdef WITH_MYSQL
         make_command("发布游戏，写入游戏信息到数据库", release_game, VoidChecker("%发布游戏"),
                      AnyArg("游戏名称", "某游戏名")),
+#endif
         make_command("强制中断公开比赛", interrupt_public, VoidChecker("%中断游戏")),
         make_command("强制中断私密比赛", interrupt_private, VoidChecker("%中断游戏"),
                      BasicChecker<MatchID>("私密比赛编号")),

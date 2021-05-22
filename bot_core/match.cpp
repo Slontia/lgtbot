@@ -390,6 +390,7 @@ void Match::GameOver(const int64_t scores[])
         sender << AtMsg(pid2uid_[pid]) << " " << scores[pid] << "\n";
     }
     sender << "感谢诸位参与！";
+#ifdef WITH_MYSQL
     if (auto& db_manager = DBManager::GetDBManager(); !db_manager) {
         sender << "\n[警告] 未连接数据库，游戏结果不会被记录";
     } else if (std::optional<uint64_t> game_id = game_handle_.game_id_.load(); !game_id.has_value()) {
@@ -399,6 +400,7 @@ void Match::GameOver(const int64_t scores[])
     } else {
         sender << "\n游戏结果写入数据库成功！";
     }
+#endif
 }
 
 std::vector<Match::ScoreInfo> Match::CalScores_(const int64_t scores[]) const
