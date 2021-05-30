@@ -254,7 +254,9 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
         StageBase::Init(match, start_timer_f, stop_timer_f);
         OnStageBegin();
     }
+
     virtual void HandleTimeout() override final { StageBase::Over(); }
+
     virtual StageBase::StageErrCode HandleLeave(const uint64_t pid) override final
     {
         const auto rc = OnPlayerLeave(pid);
@@ -263,6 +265,7 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
         }
         return ToStageErrCode(rc);
     }
+
     virtual StageBase::StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
                                                   const replier_t& reply) override final
     {
@@ -276,6 +279,7 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
         }
         return StageBase::StageErrCode::NOT_FOUND;
     }
+
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender) const override
     {
         for (const auto& cmd : commands_) {
@@ -283,6 +287,7 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
         }
         return i;
     }
+
     virtual void StageInfo(MsgSenderWrapper<MsgSenderForGame>& sender) const override
     {
         sender << Base::name_;

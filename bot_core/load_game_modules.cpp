@@ -139,7 +139,7 @@ void BotCtx::LoadGameModules_(const char* const games_path)
     FindClose(file_handle);
     InfoLog() << "Load module count: " << game_handles_.size();
 #elif __linux__
-    DIR* d = opendir(games_path.data());
+    DIR* d = opendir(games_path);
     if (!d) {
         ErrorLog() << "opendir failed";
         return;

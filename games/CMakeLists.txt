@@ -14,6 +14,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/plugins)
 file(GLOB GAME_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/*)
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
+
 foreach (GAME_DIR ${GAME_DIRS})
   if (IS_DIRECTORY ${GAME_DIR})
 
@@ -27,29 +29,25 @@ foreach (GAME_DIR ${GAME_DIRS})
       ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/game_main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource_loader.cpp
     )
-    
+
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
       add_custom_target(${GAME}_rule ALL
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA rule.txt ${CMAKE_CURRENT_SOURCE_DIR}/rule.o
+        COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA ${GAME_DIR}/rule.txt ${CMAKE_CURRENT_SOURCE_DIR}/rule.o
         COMMENT "Build rule"
       )
     endif()
-    
+
     add_library(${GAME} SHARED ${SOURCE_FILES})
 
-    set_property(TARGET ${GAME} PROPERTY INCLUDE_DIRECTORIES ${GAME_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/../)
-    #include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
+    #include_directories(${GAME_DIR})
+    target_include_directories(${GAME} PUBLIC ${GAME_DIR})
 
-    #set(GAME_OPTION_FILE ${GAME_DIR}/options.h)
-
-    #configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/game_options.h.in ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/game_options.h)
-    
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
       add_dependencies(${GAME} ${GAME}_rule)
       target_link_libraries(${GAME} ${CMAKE_CURRENT_SOURCE_DIR}/rule.o)
     endif()
-    
+
     if (WITH_TEST)
       enable_testing()
       find_package(GTest REQUIRED)

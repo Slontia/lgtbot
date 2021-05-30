@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(SOURCE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/simulator.cpp)
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-	#  set(SOURCE_FILES ${SOURCE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/linenoise/linenoise.c)
+  set(SOURCE_FILES ${SOURCE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/linenoise/linenoise.c)
 endif()
 
 find_package(gflags REQUIRED)
