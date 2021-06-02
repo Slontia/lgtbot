@@ -33,7 +33,7 @@ foreach (GAME_DIR ${GAME_DIRS})
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
       add_custom_target(${GAME}_rule ALL
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMAND objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA ${GAME_DIR}/rule.txt ${CMAKE_CURRENT_SOURCE_DIR}/rule.o
+        COMMAND cd ${GAME_DIR} && objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA rule.txt ${CMAKE_CURRENT_SOURCE_DIR}/rule.o
         COMMENT "Build rule"
       )
     endif()
@@ -41,7 +41,7 @@ foreach (GAME_DIR ${GAME_DIRS})
     add_library(${GAME} SHARED ${SOURCE_FILES})
 
     #include_directories(${GAME_DIR})
-    target_include_directories(${GAME} PUBLIC ${GAME_DIR})
+    target_include_directories(${GAME} PUBLIC ${CMAKE_SOURCE_DIR}/games/${GAME})
 
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
       add_dependencies(${GAME} ${GAME}_rule)
@@ -52,7 +52,8 @@ foreach (GAME_DIR ${GAME_DIRS})
       enable_testing()
       find_package(GTest REQUIRED)
       add_executable(test_game_${GAME} ${SOURCE_FILES} ${GAME_DIR}/unittest.cc)
-      target_link_libraries(test_game_${GAME} GTest::GTest GTest::Main ${CMAKE_CURRENT_SOURCE_DIR}/rule.o)
+      target_link_libraries(test_game_${GAME} GTest::GTest GTest::Main)
+      target_include_directories(test_game_${GAME} PUBLIC ${CMAKE_SOURCE_DIR}/games/${GAME})
       if (CMAKE_SYSTEM_NAME MATCHES "Linux")
         add_dependencies(test_game_${GAME} ${GAME}_rule)
         target_link_libraries(test_game_${GAME} ${CMAKE_CURRENT_SOURCE_DIR}/rule.o)
