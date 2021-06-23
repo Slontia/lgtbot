@@ -135,15 +135,34 @@ ErrCode  /*__cdecl*/Game::HandleLeave(const uint64_t pid, const bool is_public)
     return rc;
 }
 
-void Game::HandleTimeout(const bool* const stage_is_over)
+ErrCode Game::HandleTimeout(const bool* const stage_is_over)
 {
+    ErrCode rc = EC_GAME_REQUEST_OK;
     std::lock_guard<SpinLock> l(lock_);
-    if (!*stage_is_over) {
-        main_stage_->HandleTimeout();
-        if (main_stage_->IsOver()) {
-            OnGameOver_();
-        }
+    if (*stage_is_over) {
+        return rc;
     }
+    switch (main_stage_->HandleTimeout()) {
+        case StageBase::StageErrCode::OK:
+            rc = EC_GAME_REQUEST_OK;
+            break;
+        case StageBase::StageErrCode::CHECKOUT:
+            rc = EC_GAME_REQUEST_CHECKOUT;
+            break;
+        case StageBase::StageErrCode::FAILED:
+            // Almost impossible because timeout always success.
+            // The failed error code does not affect upper logical and only for check in unittest.
+            rc = EC_GAME_REQUEST_FAILED;
+            break;
+        default:
+            assert(false);
+            rc = EC_GAME_REQUEST_UNKNOWN;
+            break;
+    }
+    if (main_stage_->IsOver()) {
+        OnGameOver_();
+    }
+    return rc;
 }
 
 void Game::Help_(const replier_t& reply)

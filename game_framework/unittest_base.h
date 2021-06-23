@@ -90,11 +90,15 @@ class TestGame : public testing::Test
     } while (0)
 
 #define TIMEOUT()                              \
-    do {                                       \
+    [&] {                                       \
         std::cout << "[TIMEOUT]" << std::endl; \
         bool stage_is_over = false;            \
-        game().HandleTimeout(&stage_is_over);  \
-    } while (0)
+        return game().HandleTimeout(&stage_is_over);  \
+    }()
+
+#define ASSERT_TIMEOUT(ret) ASSERT_EQ(EC_GAME_REQUEST_##ret, (TIMEOUT()))
+
+#define CHECK_TIMEOUT(ret) (Ec_GAME_REQUEST_##ret == (TIMEOUT()))
 
 #define PUB_MSG(uid, msg)                                                              \
     [&] {                                                                              \

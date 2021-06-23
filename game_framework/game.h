@@ -25,7 +25,7 @@ class Game : public GameBase
     virtual bool /*__cdecl*/ StartGame(const bool is_public, const uint64_t player_num) override;
     virtual ErrCode /*__cdecl*/ HandleRequest(const uint64_t pid, const bool is_public, const char* const msg) override;
     virtual ErrCode /*__cdecl*/ HandleLeave(const uint64_t pid, const bool is_public) override;
-    virtual void /*__cdecl*/ HandleTimeout(const bool* const stage_is_over) override;
+    virtual ErrCode /*__cdecl*/ HandleTimeout(const bool* const stage_is_over) override;
     virtual const char* /*__cdecl*/ OptionInfo() const override;
 
    private:

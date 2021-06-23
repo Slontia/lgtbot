@@ -5,7 +5,7 @@
 #include "utility/msg_checker.h"
 
 #define OPTION_(name) OPTION_##name
-#define CHECKER_(name) (*std::get<OPTION_(name) * 2 + 1>(options_))
+#define CHECKER_(name) (std::get<OPTION_(name) * 2 + 1>(options_))
 #define VALUE_(name) (std::get<OPTION_(name) * 2>(options_))
 #define GET_VALUE(name) Option2Value<GameOption::OPTION_##name>()
 
@@ -76,8 +76,7 @@ class GameOption
    private:
     decltype(std::tuple{
 #define GAME_OPTION(_0, _1, checker, default_value)                             \
-    static_cast<std::decay<decltype(*checker)>::type::arg_type>(default_value), \
-            static_cast<std::unique_ptr<MsgArgChecker<std::decay<decltype(*checker)>::type::arg_type>>>(checker),
+    static_cast<std::decay<decltype(checker)>::type::arg_type>(default_value), checker,
 #include "options.h"
 #undef GAME_OPTION
     }) options_;

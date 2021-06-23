@@ -9,9 +9,7 @@
 #include "utility/timer.h"
 
 template <typename RetType>
-using GameUserFuncType = RetType(const uint64_t, const bool, const replier_t&);
-template <typename RetType>
-using GameCommand = Command<GameUserFuncType<RetType>>;
+using GameCommand = Command<RetType(const uint64_t, const bool, const replier_t&)>;
 
 class StageBase
 {
@@ -29,7 +27,7 @@ class StageBase
         start_timer_f_ = start_timer_f;
         stop_timer_f_ = stop_timer_f;
     }
-    virtual void HandleTimeout() = 0;
+    virtual StageErrCode HandleTimeout() = 0;
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender) const = 0;
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
                                        const replier_t& reply) = 0;
@@ -146,15 +144,16 @@ class GameStage<IsMain, SubStage, SubStages...>
         return std::visit(task, sub_stage_);
     }
 
-    virtual void HandleTimeout() override
+    virtual StageBase::StageErrCode HandleTimeout() override
     {
         const auto task = [this](auto&& sub_stage) {
-            sub_stage->HandleTimeout();
+            const auto rc = sub_stage->HandleTimeout();
             if (sub_stage->IsOver()) {
                 this->CheckoutSubStage(CheckoutReason::BY_TIMEOUT);
             }
+            return rc;
         };
-        std::visit(task, sub_stage_);
+        return std::visit(task, sub_stage_);
     }
 
     virtual StageBase::StageErrCode HandleLeave(const uint64_t pid) override
@@ -255,7 +254,14 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
         OnStageBegin();
     }
 
-    virtual void HandleTimeout() override final { StageBase::Over(); }
+    virtual StageBase::StageErrCode HandleTimeout() override final
+    {
+        const auto rc = OnTimeout();
+        if (rc == CHECKOUT) {
+            Over();
+        }
+        return ToStageErrCode(rc);
+    }
 
     virtual StageBase::StageErrCode HandleLeave(const uint64_t pid) override final
     {
@@ -301,6 +307,7 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
 
    protected:
     virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) { return AtomStageErrCode::OK; }
+    virtual AtomStageErrCode OnTimeout() { return AtomStageErrCode::CHECKOUT; }
     void StartTimer(const uint64_t sec)
     {
         finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);

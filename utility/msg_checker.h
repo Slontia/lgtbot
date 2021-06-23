@@ -8,6 +8,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <sstream>
 static const std::string k_empty_str_ = "";
 
 // TODO: check callback parameters
@@ -56,8 +57,7 @@ class AnyArg : public MsgArgChecker<std::string>
    public:
     AnyArg(const std::string& meaning = "字符串", const std::string& example = "字符串")
             : meaning_(meaning), example_(example)
-    {
-    }
+    {}
     virtual ~AnyArg() {}
     virtual std::string FormatInfo() const override { return "<" + meaning_ + ">"; }
     virtual std::string ExampleInfo() const override { return example_; }
@@ -78,7 +78,7 @@ class AnyArg : public MsgArgChecker<std::string>
 // Return: if argument is <true_str>, return true; if argument is <false_str>, return false
 class BoolChecker : public MsgArgChecker<bool>
 {
-   public:
+  public:
     BoolChecker(const std::string& true_str, const std::string& false_str) : true_str_(true_str), false_str_(false_str)
     {
     }
@@ -236,6 +236,41 @@ class MsgArgChecker<void> final
 
    private:
     const std::string const_arg_;
+};
+
+template <typename Checker> requires std::is_base_of_v<MsgArgChecker<typename Checker::arg_type>, Checker>
+class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg_type>>
+{
+  public:
+    template <typename ...Args>
+    RepeatableChecker(Args&&... args) : checker_(std::forward<Args>(args)...) {}
+    virtual std::string FormatInfo() const override
+    {
+        std::stringstream ss;
+        ss << "[" << checker_.FormatInfo() << "...]";
+        return ss.str();
+    }
+    virtual std::string ExampleInfo() const override
+    {
+        std::stringstream ss;
+        ss << checker_.ExampleInfo() << " " << checker_.ExampleInfo();
+        return ss.str();
+    }
+    virtual std::optional<std::vector<typename Checker::arg_type>> Check(MsgReader& reader) const override
+    {
+        std::optional<std::vector<typename Checker::arg_type>> ret(std::in_place);
+        while (reader.HasNext()) {
+            if (auto tmp_ret = checker_.Check(reader); tmp_ret.has_value()) {
+                ret->emplace_back(std::move(*tmp_ret));
+            } else {
+                return std::nullopt;
+            }
+        }
+        return ret;
+    }
+
+  private:
+    const Checker checker_;
 };
 
 template <typename> class Command;
