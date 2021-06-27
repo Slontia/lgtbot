@@ -43,6 +43,7 @@ GAME_TEST(5, bid_2)
     ASSERT_PRI_MSG(OK, 1, "10");
     ASSERT_PRI_MSG(OK, 2, "11");
     ASSERT_PRI_MSG(OK, 3, "11");
+    ASSERT_PUB_MSG(FAILED, 2, "撤标"); // must be private
     ASSERT_PRI_MSG(OK, 2, "撤标"); // cancel
     ASSERT_PRI_MSG(OK, 3, "10"); // modify
     ASSERT_PRI_MSG(OK, 4, "10");
@@ -97,6 +98,31 @@ GAME_TEST(5, discard_1)
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
     ASSERT_PUB_MSG(OK, 0, "投标轮数 1");
     ASSERT_PUB_MSG(OK, 0, "初始金币数 100");
+    ASSERT_PUB_MSG(OK, 0, "回合数 1");
+    START_GAME();
+
+    for (int i = 0; i < 5; ++i) {
+        ASSERT_PRI_MSG(OK, i, "50");
+        ASSERT_TIMEOUT(CHECKOUT);
+    }
+    for (int i = 0; i < 5; ++i) {
+        ASSERT_TIMEOUT(CHECKOUT);
+    }
+
+    ASSERT_TIMEOUT(CHECKOUT);
+    for (int i = 0; i < 5; ++i) {
+        ASSERT_TIMEOUT(CHECKOUT);
+    }
+
+    // pool coins 50 * 5 + 25 = 275
+    ASSERT_SCORE(50 + 20, 25 + 3, 50 + 61, 50 + 184, 50 + 7);
+}
+
+GAME_TEST(5, discard_2)
+{
+    ASSERT_PUB_MSG(OK, 0, "种子 ABC");
+    ASSERT_PUB_MSG(OK, 0, "投标轮数 1");
+    ASSERT_PUB_MSG(OK, 0, "初始金币数 100");
     ASSERT_PUB_MSG(OK, 0, "回合数 2");
     START_GAME();
 
@@ -113,6 +139,7 @@ GAME_TEST(5, discard_1)
     ASSERT_TIMEOUT(CHECKOUT);
 
     ASSERT_PRI_MSG(FAILED, 0, "1"); // cannot bid own item
+    ASSERT_PRI_MSG(FAILED, 0, "撤标"); // cannot cancel own item
     ASSERT_PRI_MSG(OK, 1, "50");
     ASSERT_TIMEOUT(CHECKOUT);
     ASSERT_PRI_MSG(OK, 0, "101"); // pool coins 1 + 101 = 102
@@ -124,11 +151,18 @@ GAME_TEST(5, discard_1)
     }
 
     // round 2
+    ASSERT_PRI_MSG(FAILED, 1, "弃牌"); // empty discard
+    ASSERT_PRI_MSG(FAILED, 1, "弃牌 今天天气真好啊");
+    ASSERT_PRI_MSG(FAILED, 1, "弃牌 红桃0");
+    ASSERT_PRI_MSG(FAILED, 1, "弃牌 红桃14");
+    ASSERT_PRI_MSG(FAILED, 1, "弃牌 条子3");
     ASSERT_PRI_MSG(OK, 1, "弃牌 红桃2 方块3 红心6");
     ASSERT_PRI_MSG(FAILED, 1, "弃牌 梅花2");
     ASSERT_PRI_MSG(FAILED, 1, "弃牌 梅花4");
+    ASSERT_PUB_MSG(FAILED, 1, "取消");
     ASSERT_PRI_MSG(OK, 1, "取消");
     ASSERT_PRI_MSG(OK, 2, "弃牌 黑桃A");
+    ASSERT_PRI_MSG(FAILED, 3, "取消");
     ASSERT_TIMEOUT(CHECKOUT);
 
     for (int i = 0; i < 8; ++i) {

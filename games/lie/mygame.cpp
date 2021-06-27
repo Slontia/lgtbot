@@ -12,19 +12,16 @@ const uint64_t k_max_player = 2; /* 0 means no max-player limits */
 const std::string GameOption::StatusInfo() const
 {
     std::stringstream ss;
-    if (GET_VALUE(集齐失败)) {
-        ss << "集齐全部数字或";
-    }
-    ss << "单个数字达到3时玩家失败";
+    ss << "集齐全部" << GET_VALUE(数字种类) << "种数字，或持有单个数字数量达到" << GET_VALUE(失败数量) << "时玩家失败";
     return ss.str();
 }
 
 class NumberStage : public SubGameStage<>
 {
    public:
-    NumberStage(const uint64_t questioner)
+    NumberStage(const uint64_t questioner, const uint32_t max_number)
             : GameStage("设置数字阶段",
-                    MakeStageCommand("设置数字", &NumberStage::Number_, ArithChecker<int>(1, 6, "数字"))),
+                    MakeStageCommand("设置数字", &NumberStage::Number_, ArithChecker<int>(1, max_number, "数字"))),
               questioner_(questioner),
               num_(0)
     {
@@ -58,8 +55,8 @@ class NumberStage : public SubGameStage<>
 class LieStage : public SubGameStage<>
 {
    public:
-    LieStage(const uint64_t questioner)
-            : GameStage("设置数字阶段", MakeStageCommand("提问数字", &LieStage::Lie_, ArithChecker<int>(1, 6, "数字"))),
+    LieStage(const uint64_t questioner, const uint32_t max_number)
+            : GameStage("设置数字阶段", MakeStageCommand("提问数字", &LieStage::Lie_, ArithChecker<int>(1, max_number, "数字"))),
               questioner_(questioner),
               lie_num_(0)
     {
@@ -119,8 +116,9 @@ class GuessStage : public SubGameStage<>
 class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
 {
    public:
-    RoundStage(const uint64_t round, const uint64_t questioner, std::array<std::array<int, 6>, 2>& player_nums)
+    RoundStage(const GameOption& option, const uint64_t round, const uint64_t questioner, std::array<std::vector<int>, 2>& player_nums)
             : GameStage("第" + std::to_string(round) + "回合"),
+              option_(option),
               questioner_(questioner),
               num_(0),
               lie_num_(0),
@@ -134,7 +132,7 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
     virtual VariantSubStage OnStageBegin() override
     {
         Boardcast() << name_ << "开始，请玩家" << AtMsg(questioner_) << "私信裁判选择数字";
-        return std::make_unique<NumberStage>(questioner_);
+        return std::make_unique<NumberStage>(questioner_, option_.GET_VALUE(数字种类));
     }
 
     virtual VariantSubStage NextSubStage(NumberStage& sub_stage, const CheckoutReason reason) override
@@ -144,7 +142,7 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
         }
         num_ = reason == CheckoutReason::BY_TIMEOUT ? 1 : sub_stage.num();
         Tell(questioner_) << (reason == CheckoutReason::BY_TIMEOUT ? "设置超时，数字设置为默认值1，请提问数字" : "设置成功，请提问数字");
-        return std::make_unique<LieStage>(questioner_);
+        return std::make_unique<LieStage>(questioner_, option_.GET_VALUE(数字种类));
     }
 
     virtual VariantSubStage NextSubStage(LieStage& sub_stage, const CheckoutReason reason) override
@@ -177,32 +175,34 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
         boardcast << "实际数字为" << num_ << "，" << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
                   << "玩家" << AtMsg(loser_) << "获得数字" << num_ << "\n数字获得情况：\n"
                   << AtMsg(0) << "：" << AtMsg(1);
-        for (int num = 1; num <= 6; ++num) {
+        for (int num = 1; num <= option_.GET_VALUE(数字种类); ++num) {
             boardcast << "\n" << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
         }
         return {};
     }
 
    private:
+    const GameOption& option_;
     const uint64_t questioner_;
     int num_;
     int lie_num_;
-    std::array<std::array<int, 6>, 2>& player_nums_;
+    std::array<std::vector<int>, 2>& player_nums_;
     uint64_t loser_;
 };
 
 class MainStage : public MainGameStage<RoundStage>
 {
    public:
-    MainStage(const GameOption& options)
-            : fail_if_collected_all_(options.GET_VALUE(集齐失败)), questioner_(0), round_(1), player_nums_{{0}}
+    MainStage(const GameOption& option)
+            : option_(option), questioner_(0), round_(1),
+              player_nums_{std::vector<int>(option.GET_VALUE(数字种类), 0), std::vector<int>(option.GET_VALUE(数字种类), 0)}
     {
         std::srand(std::time(0));
     }
 
     virtual VariantSubStage OnStageBegin() override
     {
-        return std::make_unique<RoundStage>(1, std::rand() % 2, player_nums_);
+        return std::make_unique<RoundStage>(option_, 1, std::rand() % 2, player_nums_);
     }
 
     virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override
@@ -211,7 +211,7 @@ class MainStage : public MainGameStage<RoundStage>
         if (JudgeOver()) {
             return {};
         }
-        return std::make_unique<RoundStage>(++round_, questioner_, player_nums_);
+        return std::make_unique<RoundStage>(option_, ++round_, questioner_, player_nums_);
     }
 
     int64_t PlayerScore(const uint64_t pid) const
@@ -225,9 +225,9 @@ class MainStage : public MainGameStage<RoundStage>
         if (leaver_.has_value()) {
             return true;
         }
-        bool has_all_num = fail_if_collected_all_;
+        bool has_all_num = true;
         for (const int count : player_nums_[questioner_]) {
-            if (count >= 3) {
+            if (count >= option_.GET_VALUE(失败数量)) {
                 return true;
             } else if (count == 0) {
                 has_all_num = false;
@@ -238,10 +238,10 @@ class MainStage : public MainGameStage<RoundStage>
 
     virtual void OnPlayerLeave(const uint64_t pid) override { leaver_ = pid; }
 
-    const bool fail_if_collected_all_;
+    const GameOption& option_;
     uint64_t questioner_;
     uint64_t round_;
-    std::array<std::array<int, 6>, 2> player_nums_;
+    std::array<std::vector<int>, 2> player_nums_;
     std::optional<uint64_t> leaver_;
 };
 

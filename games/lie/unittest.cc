@@ -14,6 +14,8 @@ GAME_TEST(2, forbid_public_guess)
 
 GAME_TEST(2, loser_guess_doubt_failed)
 {
+  ASSERT_PUB_MSG(OK, 0, "数字种类 6");
+  ASSERT_PUB_MSG(OK, 0, "失败数量 3");
   START_GAME();
   bool first_hand = 0;
   if (const auto ret = PRI_MSG(0, "1"); ret == EC_GAME_REQUEST_FAILED)
@@ -26,13 +28,17 @@ GAME_TEST(2, loser_guess_doubt_failed)
     first_hand = 0;
     ASSERT_EQ(ret, EC_GAME_REQUEST_CHECKOUT);
   }
+  ASSERT_PRI_MSG(FAILED, 1 - first_hand, "1");
   ASSERT_PRI_MSG(CHECKOUT, first_hand, "1");
+  ASSERT_PRI_MSG(FAILED, first_hand, "质疑");
   ASSERT_PRI_MSG(CHECKOUT, 1 - first_hand, "质疑");
   ASSERT_PRI_MSG(CHECKOUT, 1 - first_hand, "1");
 }
 
 GAME_TEST(2, loser_guess_believe_failed)
 {
+  ASSERT_PUB_MSG(OK, 0, "数字种类 6");
+  ASSERT_PUB_MSG(OK, 0, "失败数量 3");
   START_GAME();
   bool first_hand = 0;
   if (const auto ret = PRI_MSG(0, "1"); ret == EC_GAME_REQUEST_FAILED)
@@ -46,12 +52,14 @@ GAME_TEST(2, loser_guess_believe_failed)
     ASSERT_EQ(ret, EC_GAME_REQUEST_CHECKOUT);
   }
   ASSERT_PRI_MSG(CHECKOUT, first_hand, "2");
-  ASSERT_PRI_MSG(CHECKOUT, 1 - first_hand, "相信");
+  ASSERT_TIMEOUT(CHECKOUT); // default is believe
   ASSERT_PRI_MSG(CHECKOUT, 1 - first_hand, "1");
 }
 
 GAME_TEST(2, all_doubt_success_collect)
 {
+  ASSERT_PUB_MSG(OK, 0, "数字种类 6");
+  ASSERT_PUB_MSG(OK, 0, "失败数量 3");
   START_GAME();
   bool first_hand = 0;
   for (int i = 0; i < 6; ++ i)
@@ -81,6 +89,8 @@ GAME_TEST(2, all_doubt_success_collect)
 
 GAME_TEST(2, all_believe_success_collect)
 {
+  ASSERT_PUB_MSG(OK, 0, "数字种类 6");
+  ASSERT_PUB_MSG(OK, 0, "失败数量 3");
   START_GAME();
   bool first_hand = 0;
   for (int i = 0; i < 6; ++ i)
@@ -109,6 +119,8 @@ GAME_TEST(2, all_believe_success_collect)
 }
 GAME_TEST(2, all_doubt_success)
 {
+  ASSERT_PUB_MSG(OK, 0, "数字种类 6");
+  ASSERT_PUB_MSG(OK, 0, "失败数量 3");
   START_GAME();
   bool first_hand = 0;
   for (int i = 0; i < 3; ++ i)
@@ -138,6 +150,8 @@ GAME_TEST(2, all_doubt_success)
 
 GAME_TEST(2, all_believe_success)
 {
+  ASSERT_PUB_MSG(OK, 0, "数字种类 6");
+  ASSERT_PUB_MSG(OK, 0, "失败数量 3");
   START_GAME();
   bool first_hand = 0;
   for (int i = 0; i < 3; ++ i)
@@ -165,9 +179,41 @@ GAME_TEST(2, all_believe_success)
   }
 }
 
+GAME_TEST(2, do_nothing)
+{
+  ASSERT_PUB_MSG(OK, 0, "数字种类 6");
+  ASSERT_PUB_MSG(OK, 0, "失败数量 3");
+  START_GAME();
+
+  for (uint32_t i = 0; i < 3; ++i) {
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_TIMEOUT(CHECKOUT);
+  }
+
+  ASSERT_FINISHED(true);
+}
+
+GAME_TEST(2, leave_1)
+{
+  START_GAME();
+  ASSERT_LEAVE(CHECKOUT, 1);
+  ASSERT_SCORE(1, 0);
+}
+
+GAME_TEST(2, leave_2)
+{
+  START_GAME();
+  ASSERT_TIMEOUT(CHECKOUT);
+  ASSERT_LEAVE(CHECKOUT, 1);
+  ASSERT_SCORE(1, 0);
+}
+
 GAME_TEST(2, leave)
 {
   START_GAME();
+  ASSERT_TIMEOUT(CHECKOUT);
+  ASSERT_TIMEOUT(CHECKOUT);
   ASSERT_LEAVE(CHECKOUT, 1);
   ASSERT_SCORE(1, 0);
 }

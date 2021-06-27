@@ -11,7 +11,7 @@ GAME_TEST(2, forbid_public_guess)
   ASSERT_PUB_MSG(FAILED, 0, "石头");
 }
 
-GAME_TEST(2, win)
+GAME_TEST(2, win_1)
 {
   ASSERT_PUB_MSG(OK, 0, "胜利局数 3");
   START_GAME();
@@ -19,9 +19,21 @@ GAME_TEST(2, win)
   ASSERT_PRI_MSG(CHECKOUT, 1, "剪刀");
   ASSERT_PRI_MSG(OK, 0, "剪刀");
   ASSERT_PRI_MSG(CHECKOUT, 1, "布");
+  ASSERT_PRI_MSG(OK, 1, "布");
+  ASSERT_PRI_MSG(CHECKOUT, 0, "布");
+  ASSERT_PRI_MSG(OK, 0, "剪刀");
   ASSERT_PRI_MSG(OK, 0, "布");
   ASSERT_PRI_MSG(CHECKOUT, 1, "石头");
   ASSERT_SCORE(1, 0);
+}
+
+GAME_TEST(2, win_2)
+{
+    ASSERT_PUB_MSG(OK, 0, "胜利局数 1");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 0, "石头");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "布");
+    ASSERT_SCORE(0, 1);
 }
 
 GAME_TEST(2, timeout)

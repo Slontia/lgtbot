@@ -77,6 +77,8 @@ class TestGame : public testing::Test
     std::optional<ScoreArray> expected_scores_;
 };
 
+#define ASSERT_FINISHED(finished) ASSERT_EQ(expected_scores().has_value(), finished);
+
 #define ASSERT_SCORE(scores...)                                                   \
     do {                                                                          \
         ASSERT_TRUE(expected_scores().has_value()) << "Game not finish";          \

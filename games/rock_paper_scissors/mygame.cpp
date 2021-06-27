@@ -77,12 +77,8 @@ class RoundStage : public SubGameStage<>
             return FAILED;
         }
         Choise& cur_choise = cur_choise_[pid];
-        if (cur_choise != NONE_CHOISE) {
-            reply() << "您已经进行过选择了";
-            return FAILED;
-        }
         cur_choise = choise;
-        reply() << "选择成功";
+        reply() << "选择成功，您当前选择为：" << Choise2Str(cur_choise);
         return cur_choise_[0] != NONE_CHOISE && cur_choise_[1] != NONE_CHOISE ? CHECKOUT : OK;
     }
 

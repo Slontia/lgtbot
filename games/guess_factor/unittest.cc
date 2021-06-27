@@ -21,6 +21,7 @@ GAME_TEST(2, forbid_public_guess)
   START_GAME();
   ASSERT_PRI_MSG(OK, 0, "1");
   ASSERT_PUB_MSG(FAILED, 1, "1");
+  ASSERT_PUB_MSG(FAILED, 1, "pass");
 }
 
 GAME_TEST(3, forbid_eliminated_guess)
@@ -33,6 +34,19 @@ GAME_TEST(3, forbid_eliminated_guess)
   ASSERT_PRI_MSG(OK, 1, "1");
   ASSERT_PRI_MSG(CHECKOUT, 2, "3");
   ASSERT_PRI_MSG(FAILED, 2, "1");
+  ASSERT_PRI_MSG(FAILED, 2, "pass");
+}
+
+GAME_TEST(2, forbid_repeat_guess)
+{
+  ASSERT_PRI_MSG(OK, 0, "淘汰回合 2");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分差 10");
+  ASSERT_PRI_MSG(OK, 0, "淘汰分数 10");
+  START_GAME();
+  ASSERT_PRI_MSG(OK, 0, "1");
+  ASSERT_PRI_MSG(CHECKOUT, 1, "2");
+  ASSERT_PRI_MSG(FAILED, 0, "2");
+  ASSERT_PRI_MSG(FAILED, 1, "2");
 }
 
 GAME_TEST(2, one_round_score)
@@ -101,6 +115,7 @@ GAME_TEST(2, achieve_max_round_by_both_pass)
   START_GAME();
   for (uint32_t i = 0; i < 3; ++i)
   {
+    ASSERT_PRI_MSG(OK, 0, "1");
     ASSERT_PRI_MSG(OK, 0, "pass");
     ASSERT_PRI_MSG(CHECKOUT, 1, "pass");
   }

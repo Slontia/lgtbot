@@ -191,17 +191,14 @@ class RoundStage : public SubGameStage<>
     AtomStageErrCode Guess_(const uint64_t pid, const bool is_public, const replier_t& reply, const uint32_t factor)
     {
         if (is_public) {
-            reply() << "请私信裁判猜测，不要暴露自己的数字哦~";
+            reply() << "猜测失败：请私信裁判猜测，不要暴露自己的数字哦~";
             return FAILED;
         }
-        if (factor == 0 || factor > option_.GET_VALUE(最大数字)) {
-            reply() << "非法的因数，合法的范围为：1~" << option_.GET_VALUE(最大数字);
-            return FAILED;
-        }
+        assert(factor != 0 && factor <= option_.GET_VALUE(最大数字));
         for (const auto& p : players_) {
             if (std::any_of(p.factor_pool().begin(), p.factor_pool().end(),
                             [factor](const uint64_t& f) { return f == factor; })) {
-                reply() << "因数" << factor << "已经在玩家" << PlayerMsg(p.pid()) << "的因数池中，无法选择该因数";
+                reply() << "猜测失败：因数" << factor << "已经在玩家" << PlayerMsg(p.pid()) << "的因数池中，无法选择该因数";
                 return FAILED;
             }
         }
@@ -214,7 +211,7 @@ class RoundStage : public SubGameStage<>
     AtomStageErrCode Pass_(const uint64_t pid, const bool is_public, const replier_t& reply)
     {
         if (is_public) {
-            reply() << "请私信裁判猜测，不要暴露自己的数字哦~";
+            reply() << "pass失败：请私信裁判进行pass操作~";
             return FAILED;
         }
         if (!players_[pid].Pass(reply())) {

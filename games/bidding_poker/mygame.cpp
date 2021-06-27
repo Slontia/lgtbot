@@ -172,9 +172,6 @@ class MainBidStage : public SubGameStage<BidStage>
         sender << name_ << "开始，请私信裁判进行投标，商品列表：";
         for (uint32_t i = 0; i < poker_items_.size(); ++i) {
             auto& poker_item = poker_items_[i];
-            if (poker_item.second.empty()) {
-                continue;
-            }
             sender << "\n" << (i + 1) << "号商品：";
             for (const auto& poker : poker_item.second) {
                 sender << poker << " ";
@@ -261,7 +258,8 @@ class DiscardStage : public SubGameStage<>
                 return OK;
             }
         }
-        return OK;
+        reply() << "取消失败：您本回合还没有弃牌";
+        return FAILED;
     }
 
     AtomStageErrCode OnTimeout()
