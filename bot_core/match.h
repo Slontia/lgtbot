@@ -54,8 +54,9 @@ class Match : public std::enable_shared_from_this<Match>
 
     bool Has(const UserID uid) const;
     bool IsPrivate() const { return !gid_.has_value(); }
-    const GameHandle& game_handle() const { return game_handle_; }
+    auto PlayerNum() const { return pid2uid_.size(); }
 
+    const GameHandle& game_handle() const { return game_handle_; }
     MatchID mid() const { return mid_; }
     std::optional<GroupID> gid() const { return gid_; }
     UserID host_uid() const { return host_uid_; }
@@ -85,18 +86,28 @@ class Match : public std::enable_shared_from_this<Match>
     }
     std::vector<ScoreInfo> CalScores_(const int64_t scores[]) const;
 
+    // bot
     BotCtx& bot_;
+
+    // basic info
     const MatchID mid_;
     const GameHandle& game_handle_;
     UserID host_uid_;
     const std::optional<GroupID> gid_;
     State state_;
+
+    // game
     std::unique_ptr<GameBase, const std::function<void(GameBase* const)>> game_;
-    std::set<UserID> ready_uid_set_;
-    std::map<UserID, uint64_t> uid2pid_;
-    std::vector<UserID> pid2uid_;
+
+    // player info
+    std::set<UserID> ready_uid_set_; // players is now in game, exclude exited players
+    std::map<UserID, uint64_t> uid2pid_; // all players
+    std::vector<UserID> pid2uid_; // all players
+
+    // time info
     std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;
     std::chrono::time_point<std::chrono::system_clock> start_time_;
     std::chrono::time_point<std::chrono::system_clock> end_time_;
+
     const uint16_t multiple_;
 };

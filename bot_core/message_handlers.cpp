@@ -167,13 +167,27 @@ static ErrCode show_match_status(BotCtx& bot, const UserID uid, const std::optio
     } else {
         sender << UserMsg(match->host_uid());
     }
-    const std::set<UserID>& ready_uid_set = match->ready_uid_set();
-    sender << "\n已参加玩家：" << ready_uid_set.size() << "人";
-    for (const UserID uid : ready_uid_set) {
+    const auto print_player = [&sender, &match](const UserID uid)
+    {
         if (match->gid().has_value()) {
-            sender << "\n" << GroupUserMsg(uid, *match->gid());
+            sender << GroupUserMsg(uid, *match->gid());
         } else {
-            sender << "\n" << UserMsg(uid);
+            sender << UserMsg(uid);
+        }
+    };
+    if (match->state() == Match::State::IS_STARTED) {
+        const auto num = match->PlayerNum();
+        sender << "\n玩家列表：" << num << "人";
+        for (uint64_t pid = 0; pid < num; ++pid) {
+            sender << "\n" << pid << "号：";
+            print_player(match->pid2uid(pid));
+        }
+    } else {
+        const std::set<UserID>& ready_uid_set = match->ready_uid_set();
+        sender << "\n当前报名玩家：" << ready_uid_set.size() << "人";
+        for (const UserID uid : ready_uid_set) {
+            sender << "\n";
+            print_player(uid);
         }
     }
     return EC_OK;
