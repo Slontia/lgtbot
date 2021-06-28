@@ -9,6 +9,7 @@
 
 #include "game_util/bidding.h"
 #include "game_util/poker.h"
+#include "game_util/util.h"
 
 const std::string k_game_name = "投标扑克";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
@@ -207,8 +208,8 @@ class DiscardStage : public SubGameStage<>
     DiscardStage(const GameOption& option, PokerItems& poker_items, std::vector<Player>& players)
         : GameStage("弃牌阶段",
                 MakeStageCommand("弃牌", &DiscardStage::Discard_, VoidChecker("弃牌"), RepeatableChecker<AnyArg>("弃牌列表", "红桃A")),
-                MakeStageCommand("取消弃牌", &DiscardStage::Cancel_, VoidChecker("取消"))),
-          option_(option), poker_items_(poker_items), players_(players)
+                MakeStageCommand("不弃牌", &DiscardStage::Cancel_, VoidChecker("不弃牌"))),
+          option_(option), poker_items_(poker_items), players_(players), masker_(option.PlayerNum())
     {}
 
   private:
@@ -243,23 +244,21 @@ class DiscardStage : public SubGameStage<>
             }
         }
         poker_items_.emplace_back(pid, std::move(pokers_to_discard));
-        return OK;
+        return masker_.Set(pid) ? CHECKOUT : OK;
     }
 
     AtomStageErrCode Cancel_(const uint64_t pid, const bool is_public, const replier_t& reply)
     {
         if (is_public) {
-            reply() << "取消失败：请私信裁判取消";
+            reply() << "行动失败：请私信裁判行动";
             return FAILED;
         }
         for (auto& [discarder, pokers] : poker_items_) {
             if (discarder.has_value() && *discarder == pid) {
                 pokers.clear();
-                return OK;
             }
         }
-        reply() << "取消失败：您本回合还没有弃牌";
-        return FAILED;
+        return masker_.Set(pid) ? CHECKOUT : OK;
     }
 
     AtomStageErrCode OnTimeout()
@@ -270,6 +269,7 @@ class DiscardStage : public SubGameStage<>
     const GameOption& option_;
     PokerItems& poker_items_;
     std::vector<Player>& players_;
+    Masker masker_;
 };
 
 class RoundStage : public SubGameStage<DiscardStage, MainBidStage>

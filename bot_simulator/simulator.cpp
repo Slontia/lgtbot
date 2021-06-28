@@ -69,7 +69,7 @@ class MsgSenderForBotImpl : public MsgSenderForBot
 
     virtual void GroupUserName(const uint64_t uid, const uint64_t gid) override
     {
-        ss_ << LightPink() << uid << "(" << gid << ")" << Default();
+        ss_ << LightPink() << uid << "(gid=" << gid << ")" << Default();
     }
 
     virtual void UserName(const uint64_t uid) override { ss_ << LightPink() << uid << Default(); }

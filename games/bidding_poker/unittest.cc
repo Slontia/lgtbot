@@ -81,6 +81,31 @@ GAME_TEST(5, do_nothing)
     ASSERT_SCORE(100, 100, 100, 100, 100);
 }
 
+GAME_TEST(5, do_nothing_2)
+{
+    ASSERT_PUB_MSG(OK, 0, "投标轮数 2");
+    ASSERT_PUB_MSG(OK, 0, "初始金币数 100");
+    ASSERT_PUB_MSG(OK, 0, "回合数 5");
+    START_GAME();
+
+    for (int j = 0; j < 10; ++j) {
+        ASSERT_TIMEOUT(OK);
+        ASSERT_TIMEOUT(CHECKOUT);
+    }
+    for (int i = 0; i < 5; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            ASSERT_PRI_MSG(OK, j, "不弃牌");
+        }
+        ASSERT_PRI_MSG(CHECKOUT, 4, "不弃牌");
+        for (int j = 0; j < 10; ++j) {
+            ASSERT_TIMEOUT(OK);
+            ASSERT_TIMEOUT(CHECKOUT);
+        }
+    }
+
+    ASSERT_SCORE(100, 100, 100, 100, 100);
+}
+
 // 种子 ABC
 // 1号商品： ♣2 ♡2 ♢3 ♣4 ♡6
 // 2号商品： ♣3 ♣5 ♠6 ♢9 ♠K
@@ -159,11 +184,12 @@ GAME_TEST(5, discard_2)
     ASSERT_PRI_MSG(OK, 1, "弃牌 红桃2 方块3 红心6");
     ASSERT_PRI_MSG(FAILED, 1, "弃牌 梅花2");
     ASSERT_PRI_MSG(FAILED, 1, "弃牌 梅花4");
-    ASSERT_PUB_MSG(FAILED, 1, "取消");
-    ASSERT_PRI_MSG(OK, 1, "取消");
-    ASSERT_PRI_MSG(OK, 2, "弃牌 黑桃A");
-    ASSERT_PRI_MSG(FAILED, 3, "取消");
-    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_PUB_MSG(FAILED, 1, "不弃牌");
+    ASSERT_PRI_MSG(OK, 0, "不弃牌");
+    ASSERT_PRI_MSG(OK, 1, "不弃牌");
+    ASSERT_PRI_MSG(OK, 3, "不弃牌");
+    ASSERT_PRI_MSG(OK, 4, "不弃牌");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "弃牌 黑桃A");
 
     for (int i = 0; i < 8; ++i) {
         ASSERT_TIMEOUT(CHECKOUT);
