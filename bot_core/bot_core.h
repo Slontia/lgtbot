@@ -91,6 +91,8 @@ struct idname \
 DEFINE_ID(UserID);
 DEFINE_ID(GroupID);
 DEFINE_ID(MatchID);
+DEFINE_ID(ComputerID);
+DEFINE_ID(PlayerID);
 
 extern "C" {
 

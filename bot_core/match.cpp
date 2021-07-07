@@ -49,42 +49,44 @@ ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, 
     return EC_OK;
 }
 
-ErrCode MatchManager::ConfigOver(const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
+std::variant<ErrCode, std::shared_ptr<Match>> MatchManager::UnsafeGetMatchByHost_(
+        const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
 {
-    std::lock_guard<SpinLock> l(spinlock_);
-    const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
-    if (!match) {
-        reply() << "[错误] 结束失败：您未加入游戏";
-        return EC_MATCH_USER_NOT_IN_MATCH;
-    }
-    if (match->host_uid() != uid) {
-        reply() << "[错误] 结束失败：您不是房主，没有结束配置的权限";
-        return EC_MATCH_NOT_HOST;
-    }
-    if (match->gid() != gid) {
-        reply() << "[错误] 结束失败：您未在该房间建立游戏";
-        return EC_MATCH_NOT_THIS_GROUP;
-    }
-    RETURN_IF_FAILED(match->GameConfigOver(reply));
-    return EC_OK;
-}
-
-ErrCode MatchManager::StartGame(const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
-{
-    std::lock_guard<SpinLock> l(spinlock_);
     const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
     if (!match) {
         reply() << "[错误] 开始失败：您未加入游戏";
         return EC_MATCH_USER_NOT_IN_MATCH;
     }
     if (match->host_uid() != uid) {
-        reply() << "[错误] 开始失败：开始游戏失败：您不是房主，没有开始游戏的权限";
+        reply() << "[错误] 开始失败：您不是房主，没有开始游戏的权限";
         return EC_MATCH_NOT_HOST;
     }
     if (gid.has_value() && match->gid() != gid) {
-        reply() << "[错误] 开始失败：开始游戏失败：您未在该房间建立游戏";
+        reply() << "[错误] 开始失败：您未在该房间建立游戏";
         return EC_MATCH_NOT_THIS_GROUP;
     }
+    return match;
+}
+
+ErrCode MatchManager::ConfigOver(const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
+{
+    std::lock_guard<SpinLock> l(spinlock_);
+    const auto match_or_errcode = UnsafeGetMatchByHost_(uid, gid, reply);
+    if (const auto p_errcode = std::get_if<0>(&match_or_errcode)) {
+        return *p_errcode;
+    }
+    const auto match = std::get<1>(match_or_errcode);
+    return match->GameConfigOver(reply);
+}
+
+ErrCode MatchManager::StartGame(const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
+{
+    std::lock_guard<SpinLock> l(spinlock_);
+    const auto match_or_errcode = UnsafeGetMatchByHost_(uid, gid, reply);
+    if (const auto p_errcode = std::get_if<0>(&match_or_errcode)) {
+        return *p_errcode;
+    }
+    const auto match = std::get<1>(match_or_errcode);
     return match->GameStart(gid.has_value(), reply);
 }
 
@@ -248,6 +250,8 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
           gid_(gid),
           state_(skip_config ? State::NOT_STARTED : State::IN_CONFIGURING),
           game_(game_handle_.new_game_(this), game_handle_.delete_game_),
+          player_num_each_user_(1),
+          com_num_(0),
           multiple_(1)
 {
 }
@@ -255,6 +259,32 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
 Match::~Match() {}
 
 bool Match::Has(const UserID uid) const { return ready_uid_set_.find(uid) != ready_uid_set_.end(); }
+
+std::optional<UserID> Match::PidToUid(const uint64_t pid) const
+{
+    if (state_ != State::IS_STARTED) {
+        return host_uid_; // TODO: UINT64_MAX for host
+    }
+    if (pid >= pid2uid_.size()) {
+        return std::nullopt; // is computer
+    }
+    return pid2uid_[pid];
+}
+
+ErrCode Match::SetComNum(const uint64_t com_num, const replier_t reply)
+{
+    if (state_ == State::IS_STARTED) {
+        reply() << "[错误] 游戏已经开始，无法设置AI数量";
+        return EC_MATCH_ALREADY_BEGIN;
+    }
+    const auto old_com_num = std::exchange(com_num_, com_num);
+    if (!SatisfyMaxPlayer_()) {
+        reply() << "[错误] 设置失败：比赛人数将超过上限" << game_handle_.max_player_ << "人";
+        com_num_ = old_com_num;
+        return EC_MATCH_ACHIEVE_MAX_PLAYER;
+    }
+    return EC_OK;
+}
 
 ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg,
                        const replier_t reply)
@@ -295,7 +325,7 @@ ErrCode Match::GameStart(const bool is_public, const replier_t reply)
         return EC_MATCH_ALREADY_BEGIN;
     }
     const uint64_t player_num = ready_uid_set_.size();
-    if (!game_->StartGame(is_public, player_num)) {
+    if (!game_->StartGame(is_public, player_num, 0)) {
         reply() << "[错误] 开始失败：不符合游戏参数的预期";
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
@@ -363,10 +393,19 @@ MsgSenderWrapper<MsgSenderForBot> Match::Boardcast() const
     }
 }
 
-MsgSenderWrapper<MsgSenderForBot> Match::Tell(const uint64_t pid) const { return bot_.ToUser(pid2uid(pid)); }
+MsgSenderWrapper<MsgSenderForBot> Match::Tell(const uint64_t pid) const
+{
+    const auto uid = PidToUid(pid);
+    if (uid.has_value()) {
+        return bot_.ToUser(*uid);
+    } else {
+        return {};
+    }
+}
 
 void Match::GamePrepare()
 {
+    // TODO: check player_num_each_user_
     state_ = State::IS_STARTED;
     for (UserID uid : ready_uid_set_) {
         uid2pid_.emplace(uid, pid2uid_.size());
@@ -386,7 +425,7 @@ void Match::GameOver(const int64_t scores[])
     std::vector<Match::ScoreInfo> score_info = CalScores_(scores);
     auto sender = Boardcast();
     sender << "游戏结束，公布分数：\n";
-    for (uint64_t pid = 0; pid < pid2uid_.size(); ++pid) {
+    for (uint64_t pid = 0; pid < PlayerNum(); ++pid) {
         sender << AtMsg(pid2uid_[pid]) << " " << scores[pid] << "\n";
     }
     sender << "感谢诸位参与！";
@@ -477,3 +516,9 @@ void Match::StartTimer(const uint64_t sec)
 void Match::StopTimer() { timer_ = nullptr; }
 
 std::string Match::OptionInfo() const { return game_->OptionInfo(); }
+
+bool Match::SatisfyMaxPlayer_() const
+{
+    // TODO: player_num_each_user_
+    return game_handle_.max_player_ != 0 && ready_uid_set_.size() + com_num_ >= game_handle_.max_player_;
+}

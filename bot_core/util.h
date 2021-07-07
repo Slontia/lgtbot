@@ -6,6 +6,7 @@
 #include <optional>
 #include <set>
 #include <cassert>
+#include <variant>
 
 #include "bot_core.h"
 #include "game_framework/game_main.h"
@@ -94,6 +95,8 @@ class MatchManager
     void ForEachMatch(const std::function<void(const std::shared_ptr<Match>)>);
 
    private:
+    std::variant<ErrCode, std::shared_ptr<Match>> UnsafeGetMatchByHost_(
+            const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
     ErrCode AddPlayer_(const std::shared_ptr<Match>& match, const UserID, const replier_t reply);
     void DeleteMatch_(const MatchID id);
     template <typename IDType>

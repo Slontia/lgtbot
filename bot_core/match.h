@@ -35,6 +35,8 @@ class Match : public std::enable_shared_from_this<Match>
           const std::optional<GroupID> gid, const bool skip_config);
     ~Match();
 
+    ErrCode SetComNum(const uint64_t com_num, const replier_t reply);
+
     ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, const replier_t reply);
     ErrCode GameConfigOver(const replier_t reply);
     ErrCode GameStart(const bool is_public, const replier_t reply);
@@ -43,7 +45,20 @@ class Match : public std::enable_shared_from_this<Match>
     ErrCode LeaveMidway(const UserID uid, const bool is_public);
     MsgSenderWrapper<MsgSenderForBot> Boardcast() const;
     MsgSenderWrapper<MsgSenderForBot> Tell(const uint64_t pid) const;
-    ErrCode AtPlayer(const uint64_t pid) const;
+    template <bool IS_AT, typename Sender>
+    void PrintPlayer(Sender& sender, const uint64_t pid)
+    {
+        sender << "[" << pid << "Âè∑]";
+        if (pid >= pid2uid_.size()) {
+            sender << "Êú∫Âô®‰∫∫" << pid - pid2uid_.size() << "Âè∑";
+        } else if (IS_AT) {
+            sender << AtMsg(pid2uid_[pid]);
+        } else if (gid().has_value()) {
+            sender << GroupUserMsg(pid2uid_[pid], *gid());
+        } else {
+            sender << UserMsg(pid2uid_[pid]);
+        }
+    }
     void GamePrepare();
     void GameOver(const int64_t scores[]);
     void StartTimer(const uint64_t sec);
@@ -53,8 +68,10 @@ class Match : public std::enable_shared_from_this<Match>
     bool SwitchHost();
 
     bool Has(const UserID uid) const;
-    bool IsPrivate() const { return !gid_.has_value(); }
-    auto PlayerNum() const { return pid2uid_.size(); }
+    bool IsPrivate() const { return !gid_.has_value();  + com_num_; }
+    auto PlayerNum() const { return pid2uid_.size() + com_num_; }
+
+    std::variant<UserID, ComputerID> ConvertPid(const uint64_t pid) const;
 
     const GameHandle& game_handle() const { return game_handle_; }
     MatchID mid() const { return mid_; }
@@ -62,7 +79,6 @@ class Match : public std::enable_shared_from_this<Match>
     UserID host_uid() const { return host_uid_; }
     const std::set<UserID>& ready_uid_set() const { return ready_uid_set_; }
     const State state() const { return state_; }
-    const UserID pid2uid(const uint64_t pid) const { return state_ == State::IS_STARTED ? pid2uid_[pid] : host_uid_; }
     MatchManager& match_manager() { return bot_.match_manager(); }
 
     struct ScoreInfo {
@@ -77,14 +93,15 @@ class Match : public std::enable_shared_from_this<Match>
     {
         switch (state_) {
         case State::IN_CONFIGURING:
-            return "≈‰÷√÷–";
+            return "ÈÖçÁΩÆ‰∏≠";
         case State::NOT_STARTED:
-            return "Œ¥ø™ º";
+            return "Êú™ÂºÄÂßã";
         case State::IS_STARTED:
-            return "“—ø™ º";
+            return "Â∑≤ÂºÄÂßã";
         }
     }
     std::vector<ScoreInfo> CalScores_(const int64_t scores[]) const;
+    bool SatisfyMaxPlayer_() const;
 
     // bot
     BotCtx& bot_;
@@ -99,10 +116,12 @@ class Match : public std::enable_shared_from_this<Match>
     // game
     std::unique_ptr<GameBase, const std::function<void(GameBase* const)>> game_;
 
-    // player info
+    // player info , player_num == com_num_ + pid2uid_.size() == com_num_ + uid2pid_.size() * player_num_each_user_
     std::set<UserID> ready_uid_set_; // players is now in game, exclude exited players
-    std::map<UserID, uint64_t> uid2pid_; // all players
-    std::vector<UserID> pid2uid_; // all players
+    std::map<UserID, uint64_t> uid2pid_; // players user currently use
+    std::vector<UserID> pid2uid_; // all players, exclude computers
+    uint64_t player_num_each_user_;
+    uint64_t com_num_;
 
     // time info
     std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;

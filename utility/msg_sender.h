@@ -99,6 +99,7 @@ class MsgSenderWrapper
 {
    public:
     using Container = std::vector<std::unique_ptr<Sender, Deleter>>;
+    MsgSenderWrapper() {}
     MsgSenderWrapper(Container&& senders) : senders_(std::move(senders)) {}
     MsgSenderWrapper(std::unique_ptr<Sender, Deleter>&& sender) { senders_.emplace_back(std::move(sender)); }
     MsgSenderWrapper(Sender* const sender, const Deleter& deleter)
