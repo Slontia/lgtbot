@@ -64,7 +64,7 @@ class AnyArg : public MsgArgChecker<std::string>
     virtual std::optional<std::string> Check(MsgReader& reader) const override
     {
         if (!reader.HasNext()) {
-            return {};
+            return std::nullopt;
         }
         return reader.NextArg();
     }
@@ -88,7 +88,7 @@ class BoolChecker : public MsgArgChecker<bool>
     virtual std::optional<bool> Check(MsgReader& reader) const override
     {
         if (!reader.HasNext()) {
-            return {};
+            return std::nullopt;
         }
         const std::string str = reader.NextArg();
         if (str == true_str_) {
@@ -96,7 +96,7 @@ class BoolChecker : public MsgArgChecker<bool>
         } else if (str == false_str_) {
             return false;
         } else {
-            return {};
+            return std::nullopt;
         }
     }
 
@@ -111,8 +111,9 @@ template <typename T>
 class AlterChecker : public MsgArgChecker<T>
 {
   public:
-    AlterChecker(std::map<std::string, T>&& arg_map, const std::string& meaning = "选择")
-            : arg_map_(std::move(arg_map)), meaning_(meaning)
+    template <typename String = const char* const>
+    AlterChecker(std::map<std::string, T>&& arg_map, String&& meaning = "选择")
+            : arg_map_(std::move(arg_map)), meaning_(std::forward<String>(meaning))
     {
     }
     virtual ~AlterChecker() {}
@@ -143,7 +144,7 @@ class AlterChecker : public MsgArgChecker<T>
     virtual std::optional<T> Check(MsgReader& reader) const
     {
         if (!reader.HasNext()) {
-            return std::optional<T>();
+            return std::nullopt;
         }
         std::string s = reader.NextArg();
         const auto it = arg_map_.find(s);
@@ -157,11 +158,11 @@ class AlterChecker : public MsgArgChecker<T>
 
 // Require: the argument can be convert to a number in [<min>, <max>], or no more arguments and <Optional> is true
 // Return: the converted number wrapped in std::optional, or an empty std::optional if no more arguments
-template <typename T, bool Optional = false> requires std::is_arithmetic_v<T>
-class ArithChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
+template <typename T> requires std::is_arithmetic_v<T>
+class ArithChecker : public MsgArgChecker<T>
 {
   public:
-    template <typename String>
+    template <typename String = const char* const>
     ArithChecker(const T min, const T max, String&& meaning = "数字")
         : min_(min), max_(max), meaning_(std::forward<String>(meaning)) {}
     virtual ~ArithChecker() {}
@@ -170,10 +171,10 @@ class ArithChecker : public MsgArgChecker<std::conditional_t<Optional, std::opti
         return "<" + meaning_ + "：" + std::to_string(min_) + "~" + std::to_string(max_) + ">";
     }
     virtual std::string ExampleInfo() const override { return std::to_string((min_ + max_) / 2); }
-    virtual std::optional<std::conditional_t<Optional, std::optional<T>, T>> Check(MsgReader& reader) const
+    virtual std::optional<T> Check(MsgReader& reader) const
     {
         if (!reader.HasNext()) {
-            return std::optional<T>();
+            return std::nullopt;
         }
         std::stringstream ss;
         ss << reader.NextArg();
@@ -192,25 +193,30 @@ class ArithChecker : public MsgArgChecker<std::conditional_t<Optional, std::opti
 
 // Require: type argument can be convert to type <T>, or no more arguments and <Optional> is true
 // Return: the converted object <T> wrapped in std::optional, or an empty std::optional if no more arguments
-template <typename T, bool Optional = false>
-class BasicChecker : public MsgArgChecker<std::conditional_t<Optional, std::optional<T>, T>>
+template <typename T>
+class BasicChecker : public MsgArgChecker<T>
 {
    public:
     BasicChecker(const std::string meaning = "对象") : meaning_(meaning) {}
     virtual ~BasicChecker() {}
     virtual std::string FormatInfo() const override { return "<" + meaning_ + ">"; }
-    virtual std::string ExampleInfo() const override { return std::to_string(T()); }
-    virtual std::optional<std::conditional_t<Optional, std::optional<T>, T>> Check(MsgReader& reader) const
+    virtual std::string ExampleInfo() const override
+    {
+        std::stringstream ss;
+        ss << T();
+        return ss.str();
+    }
+    virtual std::optional<T> Check(MsgReader& reader) const
     {
         if (!reader.HasNext()) {
-            return std::optional<T>();
+            return std::nullopt;
         }
         std::stringstream ss;
         ss << reader.NextArg();
         if (T value; ss >> value) {
             return value;
         } else {
-            return {};
+            return std::nullopt;
         };
     }
 
@@ -272,6 +278,56 @@ class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg
   private:
     const Checker checker_;
 };
+
+template <size_t N> requires (N > 0)
+class FlagsChecker : public MsgArgChecker<std::array<bool, N>>
+{
+  public:
+    template <typename ...Strings> requires (sizeof...(Strings) == N)
+    FlagsChecker(Strings&&... flags)
+    {
+        size_t i = 0;
+        ((flags_.emplace(std::forward<Strings>(flags), i++)), ...);
+    }
+    virtual std::string FormatInfo() const override
+    {
+        std::stringstream ss;
+        ss << "{";
+        auto it = flags_.cbegin();
+        ss << it->first;
+        for (; it != flags_.cend(); ++it) {
+            ss << ", " << it->first;
+        }
+        ss << "}";
+        return ss.str();
+    }
+    virtual std::string ExampleInfo() const override
+    {
+        std::stringstream ss;
+        auto it = flags_.cbegin();
+        ss << it->first;
+        if ((++it) != flags_.cend()) {
+            ss << " " << it->first;
+        }
+        return ss.str();
+    }
+    virtual std::optional<std::array<bool, N>> Check(MsgReader& reader) const override
+    {
+        std::optional<std::array<bool, N>> ret(std::array<bool, N>{false});
+        while (reader.HasNext()) {
+            if (const auto it = flags_.find(reader.NextArg()); it != flags_.end()) {
+                (*ret)[it->second] = true;
+            } else {
+                return std::nullopt;
+            }
+        }
+        return ret;
+    }
+
+  private:
+    std::map<std::string, size_t> flags_; // value is index
+};
+
 
 template <typename> class Command;
 
