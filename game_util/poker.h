@@ -76,8 +76,8 @@ void swap(Poker& _1, Poker& _2)
 std::vector<Poker> ShuffledPokers(const std::string_view& sv = "")
 {
     std::vector<Poker> pokers;
-    for (const auto& number : Members<PokerNumber>()) {
-        for (const auto& suit : Members<PokerSuit>()) {
+    for (const auto& number : PokerNumber::Members()) {
+        for (const auto& suit : PokerSuit::Members()) {
             pokers.emplace_back(number, suit);
         }
     }
@@ -96,13 +96,13 @@ std::vector<Poker> ShuffledPokers(const std::string_view& sv = "")
 template <typename Sender>
 Sender& operator<<(Sender& sender, const Poker& poker)
 {
-    switch (poker.suit_) {
+    switch (poker.suit_.ToUInt()) {
         case PokerSuit::SPADE: sender << "♠"; break;
         case PokerSuit::HEART: sender << "♡"; break;
         case PokerSuit::CLUB: sender << "♣"; break;
         case PokerSuit::DIANMOND: sender << "♢"; break;
     }
-    switch (poker.number_) {
+    switch (poker.number_.ToUInt()) {
         case PokerNumber::_2: sender << "2"; break;
         case PokerNumber::_3: sender << "3"; break;
         case PokerNumber::_4: sender << "4"; break;
@@ -254,7 +254,7 @@ template <typename Sender>
 Sender& operator<<(Sender& sender, const Deck& deck)
 {
     sender << "[";
-    switch (deck.type_) {
+    switch (deck.type_.ToUInt()) {
         case PatternType::HIGH_CARD: sender << "高牌"; break;
         case PatternType::ONE_PAIR: sender << "一对"; break;
         case PatternType::TWO_PAIRS: sender << "两对"; break;
@@ -317,8 +317,8 @@ class Hand
     template <typename Sender>
     friend Sender& operator<<(Sender& sender, const Hand& hand)
     {
-        for (const auto& number : Members<PokerNumber>()) {
-            for (const auto& suit : Members<PokerSuit>()) {
+        for (const auto& number : PokerNumber::Members()) {
+            for (const auto& suit : PokerSuit::Members()) {
                 if (hand.Has(number, suit)) {
                     sender << Poker(number, suit) << " ";
                 }
@@ -346,8 +346,8 @@ class Hand
             }
         };
 
-        for (auto suit_it = Members<PokerSuit>().rbegin(); suit_it != Members<PokerSuit>().rend(); ++suit_it) {
-            update_deck(BestFlushPattern_<true>(*suit_it));
+        for (auto suit_it = PokerSuit::Members().rbegin(); suit_it != PokerSuit::Members().rend(); ++suit_it) {
+            update_deck(BestFlushPattern_<true>(suit_it->ToUInt()));
         }
         if (best_deck_.has_value()) {
             return best_deck_;
@@ -358,8 +358,8 @@ class Hand
             return best_deck_;
         }
 
-        for (auto suit_it = Members<PokerSuit>().rbegin(); suit_it != Members<PokerSuit>().rend(); ++suit_it) {
-            update_deck(BestFlushPattern_<false>(*suit_it));
+        for (auto suit_it = PokerSuit::Members().rbegin(); suit_it != PokerSuit::Members().rend(); ++suit_it) {
+            update_deck(BestFlushPattern_<false>(suit_it->ToUInt()));
         }
         if (best_deck_.has_value() && best_deck_->type_ >= PatternType::FLUSH) {
             return best_deck_;
@@ -373,7 +373,7 @@ class Hand
    private:
     std::optional<Deck> BestNonFlushNonPairPattern_() const {
         const auto get_poker = [&pokers = pokers_](const PokerNumber number) -> std::optional<Poker> {
-            for (auto suit_it = Members<PokerSuit>().rbegin(); suit_it != Members<PokerSuit>().rend(); ++suit_it) {
+            for (auto suit_it = PokerSuit::Members().rbegin(); suit_it != PokerSuit::Members().rend(); ++suit_it) {
                 if (pokers[static_cast<uint32_t>(number)][static_cast<uint32_t>(*suit_it)]) {
                     return Poker(number, *suit_it);
                 }
@@ -410,7 +410,7 @@ class Hand
     static std::optional<std::array<Poker, 5>> CollectNonPairDeck_(const auto& get_poker)
     {
         std::vector<Poker> pokers;
-        for (auto it = Members<PokerNumber>().rbegin(); it != Members<PokerNumber>().rend(); ++it) {
+        for (auto it = PokerNumber::Members().rbegin(); it != PokerNumber::Members().rend(); ++it) {
             const auto poker = get_poker(*it);
             if (poker.has_value()) {
                 pokers.emplace_back(*poker);
@@ -430,8 +430,8 @@ class Hand
 
     std::optional<Deck> BestPairPattern_() const
     {
-        std::array<std::deque<PokerNumber>, Count<PokerSuit>() + 1> poker_numbers;
-        for (const auto number : Members<PokerNumber>()) {
+        std::array<std::deque<PokerNumber>, PokerSuit::Count() + 1> poker_numbers;
+        for (const auto number : PokerNumber::Members()) {
             const uint64_t count = std::count(pokers_[static_cast<uint32_t>(number)].begin(),
                                               pokers_[static_cast<uint32_t>(number)].end(), true);
             poker_numbers[count].emplace_front(number);
@@ -441,7 +441,7 @@ class Hand
         for (auto it = poker_numbers.rbegin(); it != poker_numbers.rend(); ++it) {
             // fill big number poker first
             for (auto number_it = it->rbegin(); number_it != it->rend(); ++number_it) {
-                for (const auto suit : Members<PokerSuit>()) {
+                for (const auto suit : PokerSuit::Members()) {
                     if (pokers_[static_cast<uint32_t>(*number_it)][static_cast<uint32_t>(suit)]) {
                         pokers.emplace_back(*number_it, suit);
                         if (pokers.size() == 5) {
@@ -456,7 +456,7 @@ class Hand
     }
 
     static PatternType PairPatternType_(
-            const std::array<std::deque<PokerNumber>, Count<PokerSuit>() + 1>& poker_numbers)
+            const std::array<std::deque<PokerNumber>, PokerSuit::Count() + 1>& poker_numbers)
     {
         if (!poker_numbers[4].empty()) {
             return PatternType::FOUR_OF_A_KIND;
@@ -473,7 +473,7 @@ class Hand
         }
     }
 
-    std::array<std::array<bool, Count<PokerSuit>()>, Count<PokerNumber>()> pokers_;
+    std::array<std::array<bool, PokerSuit::Count()>, PokerNumber::Count()> pokers_;
     mutable std::optional<Deck> best_deck_;
     mutable bool need_refresh_;
 };

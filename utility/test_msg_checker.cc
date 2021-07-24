@@ -1,6 +1,29 @@
+#ifdef ENUM_BEGIN
+#ifdef ENUM_MEMBER
+#ifdef ENUM_END
+
+ENUM_BEGIN(MyEnum)
+ENUM_MEMBER(MyEnum, one)
+ENUM_MEMBER(MyEnum, two)
+ENUM_MEMBER(MyEnum, three)
+ENUM_END(MyEnum)
+
+#endif
+#endif
+#endif
+
+#ifndef TEST_MSG_CHECKER_CC
+#define TEST_MSG_CHECKER_CC
+
+#include <array>
+#include <string_view>
+#include <map>
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 #include "msg_checker.h"
+
+#define ENUM_FILE "test_msg_checker.cc"
+#include "extend_enum.h"
 
 class TestMsgChecker : public testing::Test
 {
@@ -197,21 +220,21 @@ TEST_F(TestMsgChecker, test_repeatable_normal_checker)
 
 TEST_F(TestMsgChecker, test_flags_checker)
 {
-    FlagsChecker<3> checker("one", "two", "three");
+    FlagsChecker<MyEnum> checker;
     CheckFail(checker, " one four");
     CheckFail(checker, "four");
-    CheckSucc(checker, "", {false, false, false});
-    CheckSucc(checker, " ", {false, false, false});
-    CheckSucc(checker, "\t", {false, false, false});
-    CheckSucc(checker, "\n", {false, false, false});
-    CheckSucc(checker, " \n \t\t\n\t ", {false, false, false});
-    CheckSucc(checker, "one", {true, false, false});
-    CheckSucc(checker, "two", {false, true, false});
-    CheckSucc(checker, "three", {false, false, true});
-    CheckSucc(checker, "two one", {true, true, false});
-    CheckSucc(checker, "two three", {false, true, true});
-    CheckSucc(checker, "three one one", {true, false, true});
-    CheckSucc(checker, "three one two", {true, true, true});
+    CheckSucc(checker, "", 0b000);
+    CheckSucc(checker, " ", 0b000);
+    CheckSucc(checker, "\t", 0b000);
+    CheckSucc(checker, "\n", 0b000);
+    CheckSucc(checker, " \n \t\t\n\t ", 0b000);
+    CheckSucc(checker, "one", 0b001);
+    CheckSucc(checker, "two", 0b010);
+    CheckSucc(checker, "three", 0b100);
+    CheckSucc(checker, "two one", 0b011);
+    CheckSucc(checker, "two three", 0b110);
+    CheckSucc(checker, "three one one", 0b101);
+    CheckSucc(checker, "three one two", 0b111);
 }
 
 int main(int argc, char** argv)
@@ -220,3 +243,5 @@ int main(int argc, char** argv)
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   return RUN_ALL_TESTS();
 }
+
+#endif

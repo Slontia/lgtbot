@@ -9,6 +9,7 @@
 #include <tuple>
 #include <vector>
 #include <sstream>
+#include <bitset>
 static const std::string k_empty_str_ = "";
 
 // TODO: check callback parameters
@@ -279,24 +280,18 @@ class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg
     const Checker checker_;
 };
 
-template <size_t N> requires (N > 0)
-class FlagsChecker : public MsgArgChecker<std::array<bool, N>>
+template <typename Enum>
+class FlagsChecker : public MsgArgChecker<std::bitset<Enum::Count()>>
 {
   public:
-    template <typename ...Strings> requires (sizeof...(Strings) == N)
-    FlagsChecker(Strings&&... flags)
-    {
-        size_t i = 0;
-        ((flags_.emplace(std::forward<Strings>(flags), i++)), ...);
-    }
     virtual std::string FormatInfo() const override
     {
         std::stringstream ss;
         ss << "{";
-        auto it = flags_.cbegin();
-        ss << it->first;
-        for (; it != flags_.cend(); ++it) {
-            ss << ", " << it->first;
+        auto it = Enum::Members().cbegin();
+        ss << *it;
+        for (; it != Enum::Members().cend(); ++it) {
+            ss << ", " << *it;
         }
         ss << "}";
         return ss.str();
@@ -304,28 +299,25 @@ class FlagsChecker : public MsgArgChecker<std::array<bool, N>>
     virtual std::string ExampleInfo() const override
     {
         std::stringstream ss;
-        auto it = flags_.cbegin();
-        ss << it->first;
-        if ((++it) != flags_.cend()) {
-            ss << " " << it->first;
+        auto it = Enum::Members().cbegin();
+        ss << *it;
+        if ((++it) != Enum::Members().cend()) {
+            ss << " " << *it;
         }
         return ss.str();
     }
-    virtual std::optional<std::array<bool, N>> Check(MsgReader& reader) const override
+    virtual std::optional<std::bitset<Enum::Count()>> Check(MsgReader& reader) const override
     {
-        std::optional<std::array<bool, N>> ret(std::array<bool, N>{false});
+        std::optional<std::bitset<Enum::Count()>> ret(std::in_place);
         while (reader.HasNext()) {
-            if (const auto it = flags_.find(reader.NextArg()); it != flags_.end()) {
-                (*ret)[it->second] = true;
+            if (const auto e = Enum::Parse(reader.NextArg()); e.has_value()) {
+                ret->set(e->ToUInt());
             } else {
                 return std::nullopt;
             }
         }
         return ret;
     }
-
-  private:
-    std::map<std::string, size_t> flags_; // value is index
 };
 
 
