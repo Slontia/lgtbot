@@ -69,6 +69,7 @@ void delete_msg_sender(MsgSenderForBot* const msg_sender)
 {
   delete msg_sender;
 }
+
 class TestBot : public testing::Test
 {
  public:

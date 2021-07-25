@@ -119,6 +119,9 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
 
 void BotCtx::LoadGameModules_(const char* const games_path)
 {
+    if (games_path == nullptr) {
+        return;
+    }
 #ifdef _WIN32
     WIN32_FIND_DATA file_data;
     HANDLE file_handle = FindFirstFile((std::string(games_path) + "\\*.dll").c_str(), &file_data);
@@ -126,7 +129,7 @@ void BotCtx::LoadGameModules_(const char* const games_path)
         return;
     }
     do {
-        const auto dll_path = ".\\plugins\\" + std::string(file_data.cFileName);
+        const auto dll_path = std::string(games_path) + "\\" + std::string(file_data.cFileName);
         LoadGame(LoadLibrary(dll_path.c_str()), game_handles_);
     } while (FindNextFile(file_handle, &file_data));
     FindClose(file_handle);
@@ -147,7 +150,7 @@ void BotCtx::LoadGameModules_(const char* const games_path)
             continue;
         }
         InfoLog() << "Loading library " << name;
-        LoadGame(dlopen((std::string("./plugins/") + name).c_str(), RTLD_LAZY), game_handles_);
+        LoadGame(dlopen((std::string(games_path) + "/" + name).c_str(), RTLD_LAZY), game_handles_);
     }
     InfoLog() << "Loading finished.";
     closedir(d);

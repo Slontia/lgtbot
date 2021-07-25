@@ -67,6 +67,6 @@ if (WITH_TEST)
   list(APPEND THIRD_PARTIES GTest::GTest GTest::Main)
   add_executable(test_bot test_bot.cc)
   target_link_libraries(test_bot ${THIRD_PARTIES} bot_core_static)
-  add_test(NAME test_bot COMMAND test_bot)
+  add_test(NAME test_bot COMMAND test_bot --game_path=${CMAKE_BINARY_DIR}/plugins)
 endif()
 
