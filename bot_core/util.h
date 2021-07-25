@@ -1,4 +1,18 @@
-#pragma once
+#ifdef ENUM_BEGIN
+#ifdef ENUM_MEMBER
+#ifdef ENUM_END
+
+ENUM_BEGIN(MatchFlag)
+ENUM_MEMBER(MatchFlag, 配置)
+ENUM_MEMBER(MatchFlag, 电脑)
+ENUM_END(MatchFlag)
+
+#endif
+#endif
+#endif
+
+#ifndef UTIL_H
+#define UTIL_H
 #include <atomic>
 #include <functional>
 #include <map>
@@ -6,11 +20,16 @@
 #include <optional>
 #include <set>
 #include <cassert>
+#include <variant>
+#include <bitset>
 
 #include "bot_core.h"
 #include "game_framework/game_main.h"
 #include "utility/msg_sender.h"
 #include "utility/spinlock.h"
+
+#define ENUM_FILE "bot_core/util.h"
+#include "utility/extend_enum.h"
 
 using ModGuard = std::function<void()>;
 using replier_t = std::function<MsgSenderWrapper<MsgSenderForBot>()>;
@@ -81,8 +100,9 @@ class MatchManager
    public:
     MatchManager(BotCtx& bot) : bot_(bot), next_mid_(0) {}
     ErrCode NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
-                     const bool skip_config, const replier_t reply);
+                     const std::bitset<MatchFlag::Count()>& flags, const replier_t reply);
     ErrCode ConfigOver(const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
+    ErrCode SetComNum(const UserID uid, const std::optional<GroupID> gid, const replier_t reply, const uint64_t com_num);
     ErrCode StartGame(const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
     ErrCode AddPlayerToPrivateGame(const MatchID mid, const UserID uid, const replier_t reply);
     ErrCode AddPlayerToPublicGame(const GroupID gid, const UserID uid, const replier_t reply);
@@ -94,6 +114,8 @@ class MatchManager
     void ForEachMatch(const std::function<void(const std::shared_ptr<Match>)>);
 
    private:
+    std::variant<ErrCode, std::shared_ptr<Match>> UnsafeGetMatchByHost_(
+            const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
     ErrCode AddPlayer_(const std::shared_ptr<Match>& match, const UserID, const replier_t reply);
     void DeleteMatch_(const MatchID id);
     template <typename IDType>
@@ -162,3 +184,4 @@ class BotCtx
     std::set<UserID> admins_;
     MatchManager match_manager_;
 };
+#endif

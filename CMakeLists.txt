@@ -24,6 +24,11 @@ if (WITH_ASAN)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
 endif()
 
+option(WITH_TEST "build with unittest" TRUE)
+if (WITH_TEST)
+  enable_testing()
+endif()
+
 option(WITH_CORE "build with bot core" TRUE)
 if (WITH_CORE)
   add_subdirectory(bot_core)
@@ -36,6 +41,7 @@ endif()
 
 if (WITH_TEST)
   add_subdirectory(game_util) # only build for unittest
+  add_subdirectory(utility) # only build for unittest
 endif()
 
 option(WITH_GAMES "build with games" TRUE)

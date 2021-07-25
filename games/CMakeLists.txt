@@ -57,6 +57,7 @@ foreach (GAME_DIR ${GAME_DIRS})
       if (CMAKE_SYSTEM_NAME MATCHES "Linux")
         add_dependencies(test_game_${GAME} ${GAME}_rule)
         target_link_libraries(test_game_${GAME} ${CMAKE_CURRENT_SOURCE_DIR}/rule.o)
+        add_test(NAME test_game_${GAME} COMMAND test_game_${GAME})
       endif()
     endif()
 

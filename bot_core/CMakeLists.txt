@@ -61,12 +61,12 @@ add_library(bot_core_static STATIC ${SOURCE_FILES})
 add_library(bot_core SHARED ${SOURCE_FILES})
 target_link_libraries(bot_core_static ${THIRD_PARTIES})
 
-option(WITH_TEST "build with unittest" TRUE)
 if (WITH_TEST)
   enable_testing()
   find_package(GTest REQUIRED)
   list(APPEND THIRD_PARTIES GTest::GTest GTest::Main)
   add_executable(test_bot test_bot.cc)
   target_link_libraries(test_bot ${THIRD_PARTIES} bot_core_static)
+  add_test(NAME test_bot COMMAND test_bot)
 endif()
 
