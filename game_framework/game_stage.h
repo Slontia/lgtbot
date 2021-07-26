@@ -32,6 +32,7 @@ class StageBase
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
                                        const replier_t& reply) = 0;
     virtual StageErrCode HandleLeave(const uint64_t pid) = 0;
+    virtual StageErrCode HandleComputerAct(const uint64_t pid) = 0;
     virtual void StageInfo(MsgSenderWrapper<MsgSenderForGame>& sender) const = 0;
     bool IsOver() const { return is_over_; }
     auto Boardcast() const { return ::Boardcast(match_); }
@@ -133,42 +134,34 @@ class GameStage<IsMain, SubStage, SubStages...>
                 return ToStageErrCode(*rc);
             }
         }
-        const auto task = [this, &reader, player_id, is_public, &reply](auto&& sub_stage) {
-            // return rc to check in unittest
-            const auto rc = sub_stage->HandleRequest(reader, player_id, is_public, reply);
-            if (sub_stage->IsOver()) {
-                this->CheckoutSubStage(CheckoutReason::BY_REQUEST);
-            }
-            return rc;
-        };
-        return std::visit(task, sub_stage_);
+        return PassToSubStage_(
+                [&](auto&& sub_stage) { return sub_stage->HandleRequest(reader, player_id, is_public, reply); },
+                CheckoutReason::BY_REQUEST);
     }
 
     virtual StageBase::StageErrCode HandleTimeout() override
     {
-        const auto task = [this](auto&& sub_stage) {
-            const auto rc = sub_stage->HandleTimeout();
-            if (sub_stage->IsOver()) {
-                this->CheckoutSubStage(CheckoutReason::BY_TIMEOUT);
-            }
-            return rc;
-        };
-        return std::visit(task, sub_stage_);
+        return PassToSubStage_(
+                [](auto&& sub_stage) { return sub_stage->HandleTimeout(); },
+                CheckoutReason::BY_TIMEOUT);
     }
 
     virtual StageBase::StageErrCode HandleLeave(const uint64_t pid) override
     {
         // We must call CompStage's OnPlayerLeave first so that it can deceide whether to finish game when substage is over.
         this->OnPlayerLeave(pid);
-        const auto task = [this, pid](auto&& sub_stage) {
-            // return rc to check in unittest
-            const auto rc = sub_stage->HandleLeave(pid);
-            if (sub_stage->IsOver()) {
-                this->CheckoutSubStage(CheckoutReason::BY_LEAVE);
-            }
-            return rc;
-        };
-        return std::visit(task, sub_stage_);
+        return PassToSubStage_(
+                [pid](auto&& sub_stage) { return sub_stage->HandleLeave(pid); },
+                CheckoutReason::BY_LEAVE);
+    }
+
+    virtual StageBase::StageErrCode HandleComputerAct(const uint64_t pid) override
+    {
+        // We must call CompStage's OnPlayerLeave first so that it can deceide whether to finish game when substage is over.
+        this->OnComputerAct(pid);
+        return PassToSubStage_(
+                [pid](auto&& sub_stage) { return sub_stage->HandleComputerAct(pid); },
+                CheckoutReason::BY_REQUEST); // game logic not care abort computer
     }
 
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender) const override
@@ -212,6 +205,21 @@ class GameStage<IsMain, SubStage, SubStages...>
 
     // CompStage cannot checkout by itself so return type is void
     virtual void OnPlayerLeave(const uint64_t pid) {}
+    virtual void OnComputerAct(const uint64_t pid) {}
+
+    template <typename Task>
+    StageBase::StageErrCode PassToSubStage_(const Task& internal_task, const CheckoutReason checkout_reason)
+    {
+        const auto task = [this, &internal_task, checkout_reason](auto&& sub_stage) {
+            // return rc to check in unittest
+            const auto rc = internal_task(sub_stage);
+            if (sub_stage->IsOver()) {
+                this->CheckoutSubStage(checkout_reason);
+            }
+            return rc;
+        };
+        return std::visit(task, sub_stage_);
+    }
 
     static StageBase::StageErrCode ToStageErrCode(const CompStageErrCode rc)
     {
@@ -256,20 +264,12 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
 
     virtual StageBase::StageErrCode HandleTimeout() override final
     {
-        const auto rc = OnTimeout();
-        if (rc == CHECKOUT) {
-            Over();
-        }
-        return ToStageErrCode(rc);
+        return Handle_([this] { return OnTimeout(); });
     }
 
     virtual StageBase::StageErrCode HandleLeave(const uint64_t pid) override final
     {
-        const auto rc = OnPlayerLeave(pid);
-        if (rc == CHECKOUT) {
-            Over();
-        }
-        return ToStageErrCode(rc);
+        return Handle_([this, pid] { return OnPlayerLeave(pid); });
     }
 
     virtual StageBase::StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
@@ -277,13 +277,15 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
     {
         for (const auto& cmd : commands_) {
             if (const auto rc = cmd.CallIfValid(reader, player_id, is_public, reply); rc.has_value()) {
-                if (*rc == CHECKOUT) {
-                    Over();
-                }
-                return ToStageErrCode(*rc);
+                return Handle_([rc] { return *rc; });
             }
         }
         return StageBase::StageErrCode::NOT_FOUND;
+    }
+
+    virtual StageBase::StageErrCode HandleComputerAct(const uint64_t pid) override final
+    {
+        return Handle_([this, pid] { return OnComputerAct(pid); });
     }
 
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderWrapper<MsgSenderForGame>& sender) const override
@@ -305,9 +307,11 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
         }
     }
 
-   protected:
+  protected:
     virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) { return AtomStageErrCode::OK; }
     virtual AtomStageErrCode OnTimeout() { return AtomStageErrCode::CHECKOUT; }
+    virtual AtomStageErrCode OnComputerAct(const uint64_t pid) { return AtomStageErrCode::OK; }
+
     void StartTimer(const uint64_t sec)
     {
         finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
@@ -321,6 +325,16 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBase, Stage
     }
 
    private:
+    template <typename Task>
+    StageBase::StageErrCode Handle_(const Task& task)
+    {
+        const auto rc = task();
+        if (rc == CHECKOUT) {
+            Over();
+        }
+        return ToStageErrCode(rc);
+    }
+
     static StageBase::StageErrCode ToStageErrCode(const AtomStageErrCode rc)
     {
         switch (rc) {
