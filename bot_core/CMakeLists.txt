@@ -34,8 +34,6 @@ if (CMAKE_SYSTEM_NAME MATCHES "Linux")
   )
 endif()
 
-include_directories(${CMAKE_SOURCE_DIR})
-
 find_package(gflags REQUIRED)
 list(APPEND THIRD_PARTIES gflags)
 
