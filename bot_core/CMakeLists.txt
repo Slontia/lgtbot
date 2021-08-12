@@ -18,6 +18,7 @@ list(APPEND SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/match.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/message_handlers.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/load_game_modules.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cpp
 )
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
   list(APPEND SOURCE_FLIES ${CMAKE_CURRENT_SOURCE_DIR}/dllmain.cpp)
@@ -33,7 +34,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "Linux")
   )
 endif()
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
+include_directories(${CMAKE_SOURCE_DIR})
 
 find_package(gflags REQUIRED)
 list(APPEND THIRD_PARTIES gflags)
@@ -65,8 +66,10 @@ if (WITH_TEST)
   enable_testing()
   find_package(GTest REQUIRED)
   list(APPEND THIRD_PARTIES GTest::GTest GTest::Main)
-  add_executable(test_bot test_bot.cc)
-  target_link_libraries(test_bot ${THIRD_PARTIES} bot_core_static)
-  add_test(NAME test_bot COMMAND test_bot --game_path=${CMAKE_BINARY_DIR}/plugins)
+  add_executable(test_bot test_bot.cc ${SOURCE_FILES})
+  target_link_libraries(test_bot ${THIRD_PARTIES})
+  target_compile_definitions(test_bot PUBLIC TEST_BOT)
+  target_include_directories(test_bot PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}) # to include empty options.h
+  add_test(NAME test_bot COMMAND test_bot)
 endif()
 

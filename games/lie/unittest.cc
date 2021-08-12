@@ -18,7 +18,7 @@ GAME_TEST(2, loser_guess_doubt_failed)
   ASSERT_PUB_MSG(OK, 0, "失败数量 3");
   START_GAME();
   bool first_hand = 0;
-  if (const auto ret = PRI_MSG(0, "1"); ret == EC_GAME_REQUEST_FAILED)
+  if (const auto ret = PrivateRequest(0, "1"); ret == StageBase::StageErrCode::FAILED)
   {
     first_hand = 1;
     ASSERT_PRI_MSG(CHECKOUT, 1, "1");
@@ -26,7 +26,7 @@ GAME_TEST(2, loser_guess_doubt_failed)
   else
   {
     first_hand = 0;
-    ASSERT_EQ(ret, EC_GAME_REQUEST_CHECKOUT);
+    ASSERT_EQ(ret, StageBase::StageErrCode::CHECKOUT);
   }
   ASSERT_PRI_MSG(FAILED, 1 - first_hand, "1");
   ASSERT_PRI_MSG(CHECKOUT, first_hand, "1");
@@ -41,7 +41,7 @@ GAME_TEST(2, loser_guess_believe_failed)
   ASSERT_PUB_MSG(OK, 0, "失败数量 3");
   START_GAME();
   bool first_hand = 0;
-  if (const auto ret = PRI_MSG(0, "1"); ret == EC_GAME_REQUEST_FAILED)
+  if (const auto ret = PrivateRequest(0, "1"); ret == StageBase::StageErrCode::FAILED)
   {
     first_hand = 1;
     ASSERT_PRI_MSG(CHECKOUT, 1, "1");
@@ -49,7 +49,7 @@ GAME_TEST(2, loser_guess_believe_failed)
   else
   {
     first_hand = 0;
-    ASSERT_EQ(ret, EC_GAME_REQUEST_CHECKOUT);
+    ASSERT_EQ(ret, StageBase::StageErrCode::CHECKOUT);
   }
   ASSERT_PRI_MSG(CHECKOUT, first_hand, "2");
   ASSERT_TIMEOUT(CHECKOUT); // default is believe
@@ -64,7 +64,7 @@ GAME_TEST(2, all_doubt_success_collect)
   bool first_hand = 0;
   for (int i = 0; i < 6; ++ i)
   {
-    if (const auto ret = PRI_MSG(0, std::to_string(i + 1).c_str()); ret == EC_GAME_REQUEST_FAILED)
+    if (const auto ret = PrivateRequest(0, std::to_string(i + 1).c_str()); ret == StageBase::StageErrCode::FAILED)
     {
       first_hand = 1;
       ASSERT_PRI_MSG(CHECKOUT, 1, std::to_string(i + 1).c_str());
@@ -72,7 +72,7 @@ GAME_TEST(2, all_doubt_success_collect)
     else
     {
       first_hand = 0;
-      ASSERT_EQ(ret, EC_GAME_REQUEST_CHECKOUT);
+      ASSERT_EQ(ret, StageBase::StageErrCode::CHECKOUT);
     }
     ASSERT_PUB_MSG(CHECKOUT, first_hand, std::to_string((i + 1) % 6 + 1).c_str());
     ASSERT_PUB_MSG(CHECKOUT, 1 - first_hand, "质疑");
@@ -95,7 +95,7 @@ GAME_TEST(2, all_believe_success_collect)
   bool first_hand = 0;
   for (int i = 0; i < 6; ++ i)
   {
-    if (const auto ret = PRI_MSG(0, std::to_string(i + 1).c_str()); ret == EC_GAME_REQUEST_FAILED)
+    if (const auto ret = PrivateRequest(0, std::to_string(i + 1).c_str()); ret == StageBase::StageErrCode::FAILED)
     {
       first_hand = 1;
       ASSERT_PRI_MSG(CHECKOUT, 1, std::to_string(i + 1).c_str());
@@ -103,7 +103,7 @@ GAME_TEST(2, all_believe_success_collect)
     else
     {
       first_hand = 0;
-      ASSERT_EQ(ret, EC_GAME_REQUEST_CHECKOUT);
+      ASSERT_EQ(ret, StageBase::StageErrCode::CHECKOUT);
     }
     ASSERT_PUB_MSG(CHECKOUT, first_hand, std::to_string(i + 1).c_str());
     ASSERT_PUB_MSG(CHECKOUT, 1 - first_hand, "相信");
@@ -125,7 +125,7 @@ GAME_TEST(2, all_doubt_success)
   bool first_hand = 0;
   for (int i = 0; i < 3; ++ i)
   {
-    if (const auto ret = PRI_MSG(0, "1"); ret == EC_GAME_REQUEST_FAILED)
+    if (const auto ret = PrivateRequest(0, "1"); ret == StageBase::StageErrCode::FAILED)
     {
       first_hand = 1;
       ASSERT_PRI_MSG(CHECKOUT, 1, "1");
@@ -133,7 +133,7 @@ GAME_TEST(2, all_doubt_success)
     else
     {
       first_hand = 0;
-      ASSERT_EQ(ret, EC_GAME_REQUEST_CHECKOUT);
+      ASSERT_EQ(ret, StageBase::StageErrCode::CHECKOUT);
     }
     ASSERT_PUB_MSG(CHECKOUT, first_hand, "2");
     ASSERT_PUB_MSG(CHECKOUT, 1 - first_hand, "质疑");
@@ -156,7 +156,7 @@ GAME_TEST(2, all_believe_success)
   bool first_hand = 0;
   for (int i = 0; i < 3; ++ i)
   {
-    if (const auto ret = PRI_MSG(0, "1"); ret == EC_GAME_REQUEST_FAILED)
+    if (const auto ret = PrivateRequest(0, "1"); ret == StageBase::StageErrCode::FAILED)
     {
       first_hand = 1;
       ASSERT_PRI_MSG(CHECKOUT, 1, "1");
@@ -164,7 +164,7 @@ GAME_TEST(2, all_believe_success)
     else
     {
       first_hand = 0;
-      ASSERT_EQ(ret, EC_GAME_REQUEST_CHECKOUT);
+      ASSERT_EQ(ret, StageBase::StageErrCode::CHECKOUT);
     }
     ASSERT_PUB_MSG(CHECKOUT, first_hand, "1");
     ASSERT_PUB_MSG(CHECKOUT, 1 - first_hand, "相信");

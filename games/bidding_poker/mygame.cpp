@@ -5,6 +5,7 @@
 
 #include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
+#include "game_framework/game_options.h"
 #include "utility/msg_checker.h"
 
 #include "game_util/bidding.h"
@@ -32,8 +33,8 @@ const std::string GameOption::StatusInfo() const
 
 struct Player
 {
-    Player(const uint64_t pid, const uint32_t coins) : pid_(pid), coins_(coins) {}
-    const uint64_t pid_;
+    Player(const PlayerID pid, const uint32_t coins) : pid_(pid), coins_(coins) {}
+    const PlayerID pid_;
     int32_t coins_;
     poker::Hand hand_;
 };
@@ -41,7 +42,7 @@ struct Player
 class BidStage : public SubGameStage<>
 {
   public:
-    BidStage(std::string&& name, const GameOption& option, const std::optional<uint64_t>& discarder,
+    BidStage(std::string&& name, const GameOption& option, const std::optional<PlayerID>& discarder,
             std::set<poker::Poker>& pokers, std::vector<Player>& players)
         : GameStage(std::move(name),
                 MakeStageCommand("投标", &BidStage::Bid_, ArithChecker<uint32_t>(0, players.size() * option.GET_VALUE(初始金币数), "金币数")),
@@ -58,7 +59,7 @@ class BidStage : public SubGameStage<>
         }
         sender << "\n拍卖人：";
         if (discarder_.has_value()) {
-            sender << AtMsg(*discarder_);
+            sender << At(*discarder_);
         } else {
             sender << "（无）";
         }
@@ -86,7 +87,7 @@ class BidStage : public SubGameStage<>
                 discarder.coins_ += max_chip;
             }
             pokers_.clear();
-            sender << "\n恭喜" << AtMsg(ret.second[0]) << "中标，现持有卡牌：\n" << winner.hand_;
+            sender << "\n恭喜" << At(ret.second[0]) << "中标，现持有卡牌：\n" << winner.hand_;
             return CHECKOUT;
         } else if ((++bid_count_) == option_.GET_VALUE(投标轮数)) {
             sender << "\n投标轮数达到最大值，本商品流标";
@@ -98,7 +99,7 @@ class BidStage : public SubGameStage<>
             auto sender = Boardcast();
             sender << "\n最大金额投标者有多名玩家，分别是：";
             for (const auto& winner : ret.second) {
-                sender << AtMsg(winner);
+                sender << At(winner);
             }
             sender << "\n开始新的一轮投标，这些玩家可在此轮中重新投标（投标额不得少于上一轮）";
             if (bid_count_ + 1 == option_.GET_VALUE(投标轮数)) {
@@ -110,7 +111,7 @@ class BidStage : public SubGameStage<>
     }
 
   private:
-    AtomStageErrCode Bid_(const uint64_t pid, const bool is_public, const replier_t& reply, const uint32_t chip)
+    AtomStageErrCode Bid_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t chip)
     {
         if (is_public) {
             reply() << "投标失败：请私信裁判进行投标";
@@ -131,7 +132,7 @@ class BidStage : public SubGameStage<>
         return bidding_manager_.Bid(pid, chip, reply()) ? OK : FAILED;
     }
 
-    AtomStageErrCode Cancel_(const uint64_t pid, const bool is_public, const replier_t& reply)
+    AtomStageErrCode Cancel_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "撤标失败：请私信裁判撤标";
@@ -145,14 +146,14 @@ class BidStage : public SubGameStage<>
     }
 
     const GameOption& option_;
-    const std::optional<uint64_t>& discarder_;
+    const std::optional<PlayerID>& discarder_;
     std::set<poker::Poker>& pokers_;
     std::vector<Player>& players_;
     BiddingManager<uint32_t> bidding_manager_;
     uint32_t bid_count_;
 };
 
-using PokerItems = std::vector<std::pair<std::optional<uint64_t>, std::set<poker::Poker>>>;
+using PokerItems = std::vector<std::pair<std::optional<PlayerID>, std::set<poker::Poker>>>;
 
 class MainBidStage : public SubGameStage<BidStage>
 {
@@ -213,7 +214,7 @@ class DiscardStage : public SubGameStage<>
     {}
 
   private:
-    AtomStageErrCode Discard_(const uint64_t pid, const bool is_public, const replier_t& reply, const std::vector<std::string>& poker_strs)
+    AtomStageErrCode Discard_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<std::string>& poker_strs)
     {
         if (poker_strs.empty()) {
             reply() << "弃牌失败：弃牌为空";
@@ -247,7 +248,7 @@ class DiscardStage : public SubGameStage<>
         return masker_.Set(pid) ? CHECKOUT : OK;
     }
 
-    AtomStageErrCode Cancel_(const uint64_t pid, const bool is_public, const replier_t& reply)
+    AtomStageErrCode Cancel_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "行动失败：请私信裁判行动";
@@ -306,7 +307,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
   public:
     MainStage(const GameOption& option) : option_(option), round_(0)
     {
-        for (uint64_t pid = 0; pid < option.PlayerNum(); ++pid) {
+        for (PlayerID pid = 0; pid < option.PlayerNum(); ++pid) {
             players_.emplace_back(pid, option_.GET_VALUE(初始金币数));
         }
     }
@@ -342,9 +343,9 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
         auto sender = Boardcast();
         sender << "== 游戏结束 ==\n";
         // calculcate rank
-        using DeckElement = std::pair<uint64_t, poker::Deck>;
+        using DeckElement = std::pair<PlayerID, poker::Deck>;
         std::vector<DeckElement> best_decks;
-        std::vector<uint64_t> no_deck_players;
+        std::vector<PlayerID> no_deck_players;
         for (const auto& player : players_) {
             if (const auto& deck = player.hand_.BestDeck(); deck.has_value()) {
                 best_decks.emplace_back(player.pid_, *deck);
@@ -359,10 +360,10 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
         std::sort(best_decks.begin(), best_decks.end(), [](const DeckElement& _1, const DeckElement& _2) { return _1.second > _2.second; });
         sender << "【各玩家牌型】";
         for (const auto& [pid, deck] : best_decks) {
-            sender << "\n" << AtMsg(pid) << "：" << deck;
+            sender << "\n" << At(pid) << "：" << deck;
         }
         for (const auto& pid : no_deck_players) {
-            sender << "\n" << AtMsg(pid) << "未组成合法牌型";
+            sender << "\n" << At(pid) << "未组成合法牌型";
         }
         static const auto half = [](auto& value, const uint32_t split)
         {
@@ -375,9 +376,9 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
                 [](const uint32_t _1, const Player& _2) { return _1 - _2.coins_; });
 
         // decrease coins
-        const auto decrese_coins = [&](const uint64_t pid)
+        const auto decrese_coins = [&](const PlayerID pid)
         {
-            sender << "\n" << AtMsg(pid) << "原持有金币" << players_[pid].coins_ << "枚，";
+            sender << "\n" << At(pid) << "原持有金币" << players_[pid].coins_ << "枚，";
             const auto lost_coins = half(players_[pid].coins_, 2);
             bonus_coins += lost_coins;
             sender << "扣除末位惩罚金币" << lost_coins << "枚后，剩余" << players_[pid].coins_ << "枚，"
@@ -387,16 +388,16 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
         if (no_deck_players.empty()) {
             decrese_coins(best_decks.back().first);
         } else {
-            for (const uint64_t loser_pid : no_deck_players) {
+            for (const auto& loser_pid : no_deck_players) {
                 decrese_coins(loser_pid);
             }
         }
 
         // increase coins
         sender << "\n\n【金币奖励情况】";
-        const auto increase_coins = [&](const uint64_t pid, const uint32_t coins)
+        const auto increase_coins = [&](const PlayerID pid, const uint32_t coins)
         {
-            sender << "\n" << AtMsg(pid) << "原持有金币" << players_[pid].coins_ << "枚，";
+            sender << "\n" << At(pid) << "原持有金币" << players_[pid].coins_ << "枚，";
             players_[pid].coins_ += coins;
             sender << "获得顺位奖励金币" << coins << "枚后，现持有金币" << players_[pid].coins_ << "枚";
         };
@@ -407,7 +408,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
         return {};
     }
 
-    int64_t PlayerScore(const uint64_t pid) const { return players_[pid].coins_; }
+    int64_t PlayerScore(const PlayerID pid) const { return players_[pid].coins_; }
 
   private:
     const GameOption& option_;
@@ -416,11 +417,11 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
     uint32_t round_;
 };
 
-std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameOption& options)
+MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options)
 {
     if (options.PlayerNum() < 5) {
         reply() << "该游戏至少5人参加，当前玩家数为" << options.PlayerNum();
         return nullptr;
     }
-    return std::make_unique<MainStage>(options);
+    return new MainStage(options);
 }

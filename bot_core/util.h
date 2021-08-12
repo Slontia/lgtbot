@@ -25,63 +25,92 @@ ENUM_END(MatchFlag)
 
 #include "bot_core.h"
 #include "game_framework/game_main.h"
-#include "utility/msg_sender.h"
+#include "bot_core/msg_sender.h"
 #include "utility/spinlock.h"
 
 #define ENUM_FILE "bot_core/util.h"
 #include "utility/extend_enum.h"
 
-using ModGuard = std::function<void()>;
-using replier_t = std::function<MsgSenderWrapper<MsgSenderForBot>()>;
 
 template <typename TRef, typename T>
 concept UniRef = std::is_same_v<std::decay_t<TRef>, T>;
 
+class GameOptionBase;
+class MainStageBase;
+class MsgSenderBase;
+
 struct GameHandle {
+    using ModGuard = std::function<void()>;
+    using game_options_allocator = GameOptionBase*(*)();
+    using game_options_deleter = void(*)(const GameOptionBase*);
+    using game_options_ptr = std::unique_ptr<GameOptionBase, game_options_deleter>;
+    using main_stage_allocator = MainStageBase*(*)(MsgSenderBase&, const GameOptionBase&);
+    using main_stage_deleter = void(*)(const MainStageBase*);
+    using main_stage_ptr = std::unique_ptr<MainStageBase, main_stage_deleter>;
+
     GameHandle(const std::optional<uint64_t> game_id, const std::string& name, const uint64_t max_player,
-               const std::string& rule, const std::function<GameBase*(void* const)>& new_game,
-               const std::function<void(GameBase* const)>& delete_game, ModGuard&& mod_guard)
-            : is_released_(game_id.has_value()),
-	      game_id_(game_id.has_value() ? *game_id : 0),
-              name_(name),
-              max_player_(max_player),
-              rule_(rule),
-              new_game_(new_game),
-              delete_game_(delete_game),
-              mod_guard_(std::forward<ModGuard>(mod_guard))
+               const std::string& rule,
+               const game_options_allocator& game_options_allocator_fn,
+               const game_options_deleter& game_options_deleter_fn,
+               const main_stage_allocator& main_stage_allocator_fn,
+               const main_stage_deleter& main_stage_deleter_fn,
+               ModGuard&& mod_guard)
+        : is_released_(game_id.has_value())
+        , game_id_(game_id.has_value() ? *game_id : 0)
+        , name_(name)
+        , max_player_(max_player)
+        , rule_(rule)
+        , game_options_allocator_(game_options_allocator_fn)
+        , game_options_deleter_(game_options_deleter_fn)
+        , main_stage_allocator_(main_stage_allocator_fn)
+        , main_stage_deleter_(main_stage_deleter_fn)
+        , mod_guard_(std::forward<ModGuard>(mod_guard))
     {
     }
+
     GameHandle(GameHandle&&) = delete;
 
     std::optional<uint64_t> game_id() const
     {
         if (is_released_.load()) {
             return game_id_.load();
-	} else {
+	    } else {
             return std::nullopt;
-	}
+	    }
     }
 
     void set_game_id(const uint64_t game_id)
     {
         assert(!is_released_.load());
-	game_id_.store(game_id);
-	is_released_.store(true);
+	    game_id_.store(game_id);
+	    is_released_.store(true);
     }
 
     void clear_game_id()
     {
         assert(is_released_.load());
-	is_released_.store(false);
-	game_id_.store(0);
+	    is_released_.store(false);
+	    game_id_.store(0);
+    }
+
+    game_options_ptr make_game_options() const
+    {
+        return game_options_ptr(game_options_allocator_(), game_options_deleter_);
+    }
+
+    main_stage_ptr make_main_stage(MsgSenderBase& reply, const GameOptionBase& game_options) const
+    {
+        return main_stage_ptr(main_stage_allocator_(reply, game_options), main_stage_deleter_);
     }
 
     const std::string name_;
     const uint64_t max_player_;
     const std::string rule_;
-    const std::function<GameBase*(void* const)> new_game_;
-    const std::function<void(GameBase* const)> delete_game_;
-    ModGuard mod_guard_;
+    const game_options_allocator game_options_allocator_;
+    const game_options_deleter game_options_deleter_;
+    const main_stage_allocator main_stage_allocator_;
+    const main_stage_deleter main_stage_deleter_;
+    const ModGuard mod_guard_;
  
   private:
     std::atomic<bool> is_released_;
@@ -94,19 +123,20 @@ extern const GroupID INVALID_GROUP_ID;
 
 class Match;
 class BotCtx;
+class MsgSenderBase;
 
 class MatchManager
 {
    public:
     MatchManager(BotCtx& bot) : bot_(bot), next_mid_(0) {}
     ErrCode NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
-                     const std::bitset<MatchFlag::Count()>& flags, const replier_t reply);
-    ErrCode ConfigOver(const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
-    ErrCode SetComNum(const UserID uid, const std::optional<GroupID> gid, const replier_t reply, const uint64_t com_num);
-    ErrCode StartGame(const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
-    ErrCode AddPlayerToPrivateGame(const MatchID mid, const UserID uid, const replier_t reply);
-    ErrCode AddPlayerToPublicGame(const GroupID gid, const UserID uid, const replier_t reply);
-    ErrCode DeletePlayer(const UserID uid, const std::optional<GroupID> gid, const replier_t reply, const bool force);
+                     const std::bitset<MatchFlag::Count()>& flags, MsgSenderBase& reply);
+    ErrCode ConfigOver(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply);
+    ErrCode SetComNum(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply, const uint64_t com_num);
+    ErrCode StartGame(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply);
+    ErrCode AddPlayerToPrivateGame(const MatchID mid, const UserID uid, MsgSenderBase& reply);
+    ErrCode AddPlayerToPublicGame(const GroupID gid, const UserID uid, MsgSenderBase& reply);
+    ErrCode DeletePlayer(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply, const bool force);
     ErrCode DeleteMatch(const MatchID id);
     std::shared_ptr<Match> GetMatch(const MatchID mid);
     std::shared_ptr<Match> GetMatch(const UserID uid, const std::optional<GroupID> gid);
@@ -115,8 +145,8 @@ class MatchManager
 
    private:
     std::variant<ErrCode, std::shared_ptr<Match>> UnsafeGetMatchByHost_(
-            const UserID uid, const std::optional<GroupID> gid, const replier_t reply);
-    ErrCode AddPlayer_(const std::shared_ptr<Match>& match, const UserID, const replier_t reply);
+            const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply);
+    ErrCode AddPlayer_(const std::shared_ptr<Match>& match, const UserID, MsgSenderBase& reply);
     void DeleteMatch_(const MatchID id);
     template <typename IDType>
     std::shared_ptr<Match> GetMatch_(const IDType id, const std::map<IDType, std::shared_ptr<Match>>& id2match);
@@ -136,49 +166,43 @@ class MatchManager
 
 using GameHandleMap = std::map<std::string, std::unique_ptr<GameHandle>>;
 
+void* OpenMessager(uint64_t id, bool is_uid);
+void MessagerPostText(void* p, const char* data, uint64_t len);
+void MessagerPostUserName(void* p, uint64_t uid);
+void MessagerPostUserNameInGroup(void* p, uint64_t uid, uint64_t gid);
+void MessagerPostAtUser(void* p, uint64_t uid);
+void CloseMessagerAndFlush(void* p);
+
 class BotCtx
 {
-   public:
-    BotCtx(const uint64_t this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
-           const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const char* const game_path,
-           const uint64_t* const admins, const uint64_t admin_count)
+  public:
+    BotCtx(const uint64_t this_uid, const char* const game_path, const uint64_t* const admins, const uint64_t admin_count)
             : this_uid_(this_uid),
-              new_msg_sender_cb_(new_msg_sender_cb),
-              delete_msg_sender_cb_(delete_msg_sender_cb),
               match_manager_(*this)
     {
-        LoadGameModules_(game_path);
-        LoadAdmins_(admins, admin_count);
+        if (game_path) {
+            LoadGameModules_(game_path);
+        }
+        if (admins && admin_count > 0) {
+            LoadAdmins_(admins, admin_count);
+        }
     }
 
     MatchManager& match_manager() { return match_manager_; }
+
+#ifdef TEST_BOT
+    auto& game_handles() { return game_handles_; }
+#else
     const auto& game_handles() const { return game_handles_; }
+#endif
 
     bool HasAdmin(const UserID uid) const { return admins_.find(uid) != admins_.end(); }
 
-    auto ToUserRaw(const UserID uid) const
-    {
-        return std::unique_ptr<MsgSenderForBot, DELETE_MSG_SENDER_CALLBACK>(new_msg_sender_cb_(Target::TO_USER, uid),
-                                                                            delete_msg_sender_cb_);
-    }
-
-    auto ToGroupRaw(const GroupID gid) const
-    {
-        return std::unique_ptr<MsgSenderForBot, DELETE_MSG_SENDER_CALLBACK>(new_msg_sender_cb_(Target::TO_GROUP, gid),
-                                                                            delete_msg_sender_cb_);
-    }
-
-    auto ToUser(const UserID uid) const { return MsgSenderWrapper(ToUserRaw(uid)); }
-
-    auto ToGroup(const GroupID gid) const { return MsgSenderWrapper(ToGroupRaw(gid)); }
-
-   private:
+  private:
     void LoadGameModules_(const char* const games_path);
     void LoadAdmins_(const uint64_t* const admins, const uint64_t admin_count);
 
     const UserID this_uid_;
-    const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb_;
-    const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb_;
     std::mutex mutex_;
     std::map<std::string, std::unique_ptr<GameHandle>> game_handles_;
     std::set<UserID> admins_;

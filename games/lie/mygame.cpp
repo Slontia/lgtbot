@@ -4,6 +4,7 @@
 
 #include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
+#include "game_framework/game_options.h"
 #include "utility/msg_checker.h"
 
 const std::string k_game_name = "LIE";
@@ -19,7 +20,7 @@ const std::string GameOption::StatusInfo() const
 class NumberStage : public SubGameStage<>
 {
    public:
-    NumberStage(const uint64_t questioner, const uint32_t max_number)
+    NumberStage(const PlayerID questioner, const uint32_t max_number)
             : GameStage("设置数字阶段",
                     MakeStageCommand("设置数字", &NumberStage::Number_, ArithChecker<int>(1, max_number, "数字"))),
               questioner_(questioner),
@@ -31,7 +32,7 @@ class NumberStage : public SubGameStage<>
     int num() const { return num_; }
 
    private:
-    AtomStageErrCode Number_(const uint64_t pid, const bool is_public, const replier_t& reply, const int num)
+    AtomStageErrCode Number_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int num)
     {
         reply() << pid << " " << questioner_;
         if (pid != questioner_) {
@@ -46,9 +47,9 @@ class NumberStage : public SubGameStage<>
         return CHECKOUT;
     }
 
-    virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) { return CHECKOUT; }
+    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) { return CHECKOUT; }
 
-    const uint64_t questioner_;
+    const PlayerID questioner_;
     int num_;
 };
 
@@ -66,7 +67,7 @@ class LieStage : public SubGameStage<>
     int lie_num() const { return lie_num_; }
 
    private:
-    AtomStageErrCode Lie_(const uint64_t pid, const bool is_public, const replier_t& reply, const int lie_num)
+    AtomStageErrCode Lie_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int lie_num)
     {
         if (pid != questioner_) {
             reply() << "[错误] 本回合您为猜测者，无法提问";
@@ -76,7 +77,7 @@ class LieStage : public SubGameStage<>
         return CHECKOUT;
     }
 
-    virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) override { return CHECKOUT; }
+    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) override { return CHECKOUT; }
 
     const uint64_t questioner_;
     int lie_num_;
@@ -97,7 +98,7 @@ class GuessStage : public SubGameStage<>
     bool doubt() const { return doubt_; }
 
    private:
-    AtomStageErrCode Guess_(const uint64_t pid, const bool is_public, const replier_t& reply, const bool doubt)
+    AtomStageErrCode Guess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool doubt)
     {
         if (pid != guesser_) {
             reply() << "[错误] 本回合您为提问者，无法猜测";
@@ -107,7 +108,7 @@ class GuessStage : public SubGameStage<>
         return CHECKOUT;
     }
 
-    virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) override { return CHECKOUT; }
+    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) override { return CHECKOUT; }
 
     const uint64_t guesser_;
     bool doubt_;
@@ -127,11 +128,11 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
     {
     }
 
-    uint64_t loser() const { return loser_; }
+    PlayerID loser() const { return loser_; }
 
     virtual VariantSubStage OnStageBegin() override
     {
-        Boardcast() << name_ << "开始，请玩家" << AtMsg(questioner_) << "私信裁判选择数字";
+        Boardcast() << name_ << "开始，请玩家" << At(questioner_) << "私信裁判选择数字";
         return std::make_unique<NumberStage>(questioner_, option_.GET_VALUE(数字种类));
     }
 
@@ -154,7 +155,7 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
         if (reason == CheckoutReason::BY_TIMEOUT) {
             Tell(questioner_) << "提问超时，默认提问数字1";
         }
-        Boardcast() << "玩家" << AtMsg(questioner_) << "提问数字" << lie_num_ << "，请玩家" << AtMsg(1 - questioner_)
+        Boardcast() << "玩家" << At(questioner_) << "提问数字" << lie_num_ << "，请玩家" << At(PlayerID{1 - questioner_})
                     << "相信或质疑";
         return std::make_unique<GuessStage>(1 - questioner_);
     }
@@ -169,12 +170,12 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
             Tell(questioner_) << "选择超时，默认为相信";
         }
         const bool suc = doubt ^ (num_ == lie_num_);
-        loser_ = suc ? questioner_ : 1 - questioner_;
+        loser_ = suc ? questioner_ : PlayerID{1 - questioner_};
         ++player_nums_[loser_][num_ - 1];
         auto boardcast = Boardcast();
         boardcast << "实际数字为" << num_ << "，" << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
-                  << "玩家" << AtMsg(loser_) << "获得数字" << num_ << "\n数字获得情况：\n"
-                  << AtMsg(0) << "：" << AtMsg(1);
+                  << "玩家" << At(loser_) << "获得数字" << num_ << "\n数字获得情况：\n"
+                  << At(PlayerID(0)) << "：" << At(PlayerID(1));
         for (int num = 1; num <= option_.GET_VALUE(数字种类); ++num) {
             boardcast << "\n" << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
         }
@@ -183,11 +184,11 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
 
    private:
     const GameOption& option_;
-    const uint64_t questioner_;
+    const PlayerID questioner_;
     int num_;
     int lie_num_;
     std::array<std::vector<int>, 2>& player_nums_;
-    uint64_t loser_;
+    PlayerID loser_;
 };
 
 class MainStage : public MainGameStage<RoundStage>
@@ -214,9 +215,9 @@ class MainStage : public MainGameStage<RoundStage>
         return std::make_unique<RoundStage>(option_, ++round_, questioner_, player_nums_);
     }
 
-    int64_t PlayerScore(const uint64_t pid) const
+    int64_t PlayerScore(const PlayerID pid) const
     {
-        const uint64_t loser_pid = leaver_.has_value() ? *leaver_ : questioner_;
+        const PlayerID loser_pid = leaver_.has_value() ? *leaver_ : questioner_;
         return pid == loser_pid ? 0 : 1; }
 
    private:
@@ -236,20 +237,20 @@ class MainStage : public MainGameStage<RoundStage>
         return has_all_num;
     }
 
-    virtual void OnPlayerLeave(const uint64_t pid) override { leaver_ = pid; }
+    virtual void OnPlayerLeave(const PlayerID pid) override { leaver_ = pid; }
 
     const GameOption& option_;
-    uint64_t questioner_;
+    PlayerID questioner_;
     uint64_t round_;
     std::array<std::vector<int>, 2> player_nums_;
-    std::optional<uint64_t> leaver_;
+    std::optional<PlayerID> leaver_;
 };
 
-std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameOption& options)
+MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options)
 {
     if (options.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << options.PlayerNum();
         return nullptr;
     }
-    return std::make_unique<MainStage>(options);
+    return new MainStage(options);
 }

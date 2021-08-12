@@ -50,57 +50,18 @@ ERRCODE_DEF(EC_GAME_REQUEST_UNKNOWN)
 
 #ifndef BOT_CORE_H
 #define BOT_CORE_H
+
 #include <stdint.h>
 
 #include <map>
 #include <memory>
 #include <string>
 
+#include "bot_core/defines.h"
+
 class GameHandle;
-class MsgSenderForBot;
-
-#define DEFINE_ID(idname) \
-struct idname \
-{ \
- public: \
-  constexpr idname() : id_(UINT64_MAX) {} \
-  constexpr idname(const uint64_t id) : id_(id) {} \
-  constexpr idname(const idname&) = default; \
-  constexpr idname& operator=(const uint64_t id) \
-  { \
-    id_ = id; \
-    return *this; \
-  } \
-  constexpr idname& operator=(const idname&) = default; \
-  operator uint64_t() const { return id_; } \
-  auto operator<=>(const uint64_t id) const { return id_ <=> id; } \
-  auto operator<=>(const idname&) const = default; \
-  idname& operator++() \
-  { \
-    id_ += 1; \
-    return *this; \
-  } \
-  template <typename Outputter> \
-  friend auto& operator<<(Outputter& outputter, const idname id) { return outputter << id.id_; } \
-  template <typename Inputter> \
-  friend auto& operator>>(Inputter& inputter, idname& id) { return inputter >> id.id_; } \
-  bool IsValid() const { return UINT64_MAX != id_; } \
-\
- private: \
-  uint64_t id_; \
-}
-
-DEFINE_ID(UserID);
-DEFINE_ID(GroupID);
-DEFINE_ID(MatchID);
-DEFINE_ID(ComputerID);
-DEFINE_ID(PlayerID);
 
 extern "C" {
-
-enum Target { TO_USER, TO_GROUP };
-typedef MsgSenderForBot* (*NEW_MSG_SENDER_CALLBACK)(const Target, const uint64_t);
-typedef void (*DELETE_MSG_SENDER_CALLBACK)(MsgSenderForBot* const msg_sender);
 
 enum ErrCode {
 #define ERRCODE_DEF_V(errcode, value) errcode = value,
@@ -134,13 +95,11 @@ inline const char* errcode2str(const ErrCode errcode)
 class BOT_API
 {
    public:
-    static DLLEXPORT(void*) Init(const uint64_t this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
-                                 const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const char* const game_path,
+    static DLLEXPORT(void*) Init(const uint64_t this_uid, const char* const game_path,
                                  const uint64_t* const admins, const uint64_t admin_count);
     static DLLEXPORT(void) Release(void* bot);
     static DLLEXPORT(ErrCode) HandlePrivateRequest(void* bot, const uint64_t uid, const char* const msg);
-    static DLLEXPORT(ErrCode)
-            HandlePublicRequest(void* bot, const uint64_t gid, const uint64_t uid, const char* const msg);
+    static DLLEXPORT(ErrCode) HandlePublicRequest(void* bot, const uint64_t gid, const uint64_t uid, const char* const msg);
 #ifdef WITH_MYSQL
     static DLLEXPORT(ErrCode) ConnectDatabase(void* bot, const char* const addr, const char* const user,
                                               const char* const passwd, const char* const db_name, const char** errmsg);

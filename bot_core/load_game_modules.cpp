@@ -5,7 +5,7 @@
 #include "log.h"
 #include "match.h"
 #include "util.h"
-#include "utility/msg_sender.h"
+#include "msg_sender.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -21,50 +21,10 @@
 static_assert(false, "Not support OS");
 #endif
 
-template <typename Sender>
-class MsgSenderForGameImpl : public MsgSenderForGame
-{
-   public:
-    MsgSenderForGameImpl(Match& match, Sender&& sender) : match_(match), sender_(std::forward<Sender>(sender)) {}
-    virtual ~MsgSenderForGameImpl() {}
-
-    virtual void String(const char* const str, const size_t len) { sender_ << std::string_view(str, len); }
-
-    virtual void PlayerName(const uint64_t pid) { match_.PrintPlayer<false>(sender_, pid); }
-
-    virtual void AtPlayer(const uint64_t pid) { match_.PrintPlayer<true>(sender_, pid); }
-
-   private:
-    Match& match_;
-    Sender sender_;
-};
-
-static MsgSenderForGame* Boardcast(void* match_p)
-{
-    Match& match = *static_cast<Match*>(match_p);
-    return new MsgSenderForGameImpl(match, match.Boardcast());
-}
-
-static MsgSenderForGame* Tell(void* match_p, const uint64_t pid)
-{
-    Match& match = *static_cast<Match*>(match_p);
-    return new MsgSenderForGameImpl(match, match.Tell(pid));
-}
-
-static void DeleteMsgSender(MsgSenderForGame* const sender) { delete sender; }
-
-static void MatchGamePrepare(void* match) { static_cast<Match*>(match)->GamePrepare(); }
-
-static void MatchGameOver(void* match, const int64_t scores[])
-{
-    Match& match_ref = *static_cast<Match*>(match);
-    match_ref.GameOver(scores);
-    match_ref.match_manager().DeleteMatch(match_ref.mid());
-}
-
-static void StartTimer(void* match, const uint64_t sec) { static_cast<Match*>(match)->StartTimer(sec); }
-
-static void StopTimer(void* match) { static_cast<Match*>(match)->StopTimer(); }
+MsgSenderBase::MsgSenderGuard Boardcast(void* match_p) { return static_cast<Match*>(match_p)->Boardcast(); }
+MsgSenderBase::MsgSenderGuard Tell(void* match_p, const uint64_t pid) { return static_cast<Match*>(match_p)->Tell(pid); }
+void StartTimer(void* match, const uint64_t sec) { static_cast<Match*>(match)->StartTimer(sec); }
+void StopTimer(void* match) { static_cast<Match*>(match)->StopTimer(); }
 
 static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
 {
@@ -77,31 +37,31 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
         return;
     }
 
-    typedef int(/*__cdecl*/ *Init)(const NEW_BOARDCAST_MSG_SENDER_CALLBACK, const NEW_TELL_MSG_SENDER_CALLBACK,
-                                   const DELETE_GAME_MSG_SENDER_CALLBACK, const GAME_PREPARE_CALLBACK,
-                                   const GAME_OVER_CALLBACK, const START_TIMER_CALLBACK, const STOP_TIMER_CALLBACK);
-    typedef char*(/*__cdecl*/ *GameInfo)(uint64_t*, const char**);
-    typedef GameBase*(/*__cdecl*/ *NewGame)(void* const match);
-    typedef int(/*__cdecl*/ *DeleteGame)(GameBase* const);
+    typedef char*(*GameInfo)(uint64_t*, const char**);
 
-    Init init = (Init)GetProcAddress(mod, "Init");
-    GameInfo game_info = (GameInfo)GetProcAddress(mod, "GameInfo");
-    NewGame new_game = (NewGame)GetProcAddress(mod, "NewGame");
-    DeleteGame delete_game = (DeleteGame)GetProcAddress(mod, "DeleteGame");
+    const auto load_proc = [&mod](const char* const name)
+    {
+        const auto proc = GetProcAddress(mod, name);
+        if (!proc) {
+            ErrorLog() << "Load proc " << name << " from module failed";
+            std::cerr << dlerror() << std::endl;
+        }
+        return proc;
+    };
 
-    if (!init || !game_info || !new_game || !delete_game) {
-        ErrorLog() << "Load failed: some interface not be defined." << std::boolalpha << static_cast<bool>(new_game);
-        return;
-    }
+    const auto game_info_fn = (GameInfo)load_proc("GameInfo");
+    const auto game_options_allocator_fn = (GameHandle::game_options_allocator)load_proc("NewGameOptions");
+    const auto game_options_deleter_fn = (GameHandle::game_options_deleter)load_proc("DeleteGameOptions");
+    const auto main_stage_allocator_fn = (GameHandle::main_stage_allocator)load_proc("NewMainStage");
+    const auto main_stage_deleter_fn = (GameHandle::main_stage_deleter)load_proc("DeleteMainStage");
 
-    if (!init(&Boardcast, &Tell, &DeleteMsgSender, &MatchGamePrepare, &MatchGameOver, &StartTimer, &StopTimer)) {
-        ErrorLog() << "Load failed: init failed";
+    if (!game_info_fn || !game_options_allocator_fn || !game_options_deleter_fn || !main_stage_allocator_fn || !main_stage_deleter_fn) {
         return;
     }
 
     const char* rule = nullptr;
     uint64_t max_player = 0;
-    char* name = game_info(&max_player, &rule);
+    char* name = game_info_fn(&max_player, &rule);
     if (!name) {
         ErrorLog() << "Load failed: Cannot get game game";
         return;
@@ -112,7 +72,9 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
         game_id = db_manager->GetGameIDWithName(name);
     }
 #endif
-    game_handles.emplace(name, std::make_unique<GameHandle>(game_id, name, max_player, rule, new_game, delete_game,
+    game_handles.emplace(name, std::make_unique<GameHandle>(game_id, name, max_player, rule,
+                                                            game_options_allocator_fn, game_options_deleter_fn,
+                                                            main_stage_allocator_fn, main_stage_deleter_fn,
                                                             [mod] { FreeLibrary(mod); }));
     InfoLog() << "Loaded successfully!";
 }
@@ -156,3 +118,4 @@ void BotCtx::LoadGameModules_(const char* const games_path)
     closedir(d);
 #endif
 }
+

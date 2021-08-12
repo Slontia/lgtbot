@@ -1,39 +1,18 @@
-#include "game_main.h"
-
 #include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
 #include <vector>
 
-#include "game.h"
-#include "util.h"
+#include "game_framework/game_main.h"
+#include "game_framework/util.h"
+#include "game_framework/game_options.h"
 
-NEW_BOARDCAST_MSG_SENDER_CALLBACK g_new_boardcast_msg_sender_cb = nullptr;
-NEW_TELL_MSG_SENDER_CALLBACK g_new_tell_msg_sender_cb = nullptr;
-DELETE_GAME_MSG_SENDER_CALLBACK g_delete_msg_sender_cb = nullptr;
-GAME_PREPARE_CALLBACK g_game_prepare_cb = nullptr;
-GAME_OVER_CALLBACK g_game_over_cb = nullptr;
-START_TIMER_CALLBACK g_start_timer_cb = nullptr;
-STOP_TIMER_CALLBACK g_stop_timer_cb = nullptr;
+extern MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options);
 
-bool /*__cdecl*/ Init(const NEW_BOARDCAST_MSG_SENDER_CALLBACK new_boardcast_msg_sender,
-                      const NEW_TELL_MSG_SENDER_CALLBACK new_tell_msg_sender,
-                      const DELETE_GAME_MSG_SENDER_CALLBACK delete_msg_sender, const GAME_PREPARE_CALLBACK game_prepare,
-                      const GAME_OVER_CALLBACK game_over, const START_TIMER_CALLBACK start_timer,
-                      const STOP_TIMER_CALLBACK stop_timer)
-{
-    g_new_boardcast_msg_sender_cb = new_boardcast_msg_sender;
-    g_new_tell_msg_sender_cb = new_tell_msg_sender;
-    g_delete_msg_sender_cb = delete_msg_sender;
-    g_game_prepare_cb = game_prepare;
-    g_game_over_cb = game_over;
-    g_start_timer_cb = start_timer;
-    g_stop_timer_cb = stop_timer;
-    return true;
-}
+extern "C" {
 
-const char* /*__cdecl*/ GameInfo(uint64_t* max_player, const char** rule)
+const char* GameInfo(uint64_t* max_player, const char** rule)
 {
     if (!max_player || !rule) {
         return nullptr;
@@ -43,10 +22,15 @@ const char* /*__cdecl*/ GameInfo(uint64_t* max_player, const char** rule)
     return k_game_name.c_str();
 }
 
-GameBase* /*__cdecl*/ NewGame(void* const match)
+GameOptionBase* NewGameOptions() { return new GameOption(); }
+
+void DeleteGameOptions(GameOptionBase* const game_options) { delete game_options; }
+
+MainStageBase* NewMainStage(MsgSenderBase& reply, const GameOptionBase& options)
 {
-    Game* game = new Game(match);
-    return game;
+    return MakeMainStage(reply, static_cast<const GameOption&>(options));
 }
 
-void /*__cdecl*/ DeleteGame(GameBase* const game) { delete (game); }
+void DeleteMainStage(MainStageBase* main_stage) { delete main_stage; }
+
+}

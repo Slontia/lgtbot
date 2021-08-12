@@ -7,7 +7,7 @@
 #include <optional>
 
 #include "bot_core/bot_core.h"
-#include "utility/msg_sender.h"
+#include "bot_core/msg_sender.h"
 
 #if __linux__
 #include "linenoise/linenoise.h"
@@ -51,40 +51,55 @@ static const char* ErrCodeColor(const ErrCode rc)
 std::ostream& Error() { return std::cerr << Red() << "[ERROR] " << Default(); }
 std::ostream& Log() { return std::clog << Blue() << "[LOG] " << Default(); }
 
-class MsgSenderForBotImpl : public MsgSenderForBot
+struct Messager
 {
-  public:
-    MsgSenderForBotImpl(const Target target, const uint64_t id) : target_(target), id_(id) {}
-
-    virtual ~MsgSenderForBotImpl()
-    {
-        if (target_ == TO_USER) {
-            std::cout << Blue() << "[BOT -> USER_" << id_ << "]" << Default() << std::endl << ss_.str() << std::endl;
-        } else if (target_ == TO_GROUP) {
-            std::cout << Purple() << "[BOT -> GROUP_" << id_ << "]" << Default() << std::endl << ss_.str() << std::endl;
-        }
-    }
-
-    virtual void String(const char* const str, const size_t len) override { ss_ << std::string_view(str, len); }
-
-    virtual void GroupUserName(const uint64_t uid, const uint64_t gid) override
-    {
-        ss_ << LightPink() << uid << "(gid=" << gid << ")" << Default();
-    }
-
-    virtual void UserName(const uint64_t uid) override { ss_ << LightPink() << uid << Default(); }
-
-    virtual void AtUser(const uint64_t uid) override { ss_ << LightPink() << "@" << uid << Default(); }
-
-  private:
-    const Target target_;
+    Messager(const uint64_t id, const bool is_uid) : id_(id), is_uid_(is_uid) {}
     const uint64_t id_;
+    const bool is_uid_;
     std::stringstream ss_;
 };
 
-MsgSenderForBot* create_msg_sender(const Target target, const uint64_t id) { return new MsgSenderForBotImpl(target, id); }
+void* OpenMessager(const uint64_t id, const bool is_uid)
+{
+    return new Messager(id, is_uid);
+}
 
-void delete_msg_sender(MsgSenderForBot* const msg_sender) { delete msg_sender; }
+void MessagerPostText(void* p, const char* data, uint64_t len)
+{
+    Messager* const messager = static_cast<Messager*>(p);
+    messager->ss_ << std::string_view(data, len);
+}
+
+void MessagerPostUser(void* p, uint64_t uid, bool is_at)
+{
+    Messager* const messager = static_cast<Messager*>(p);
+    messager->ss_ << LightPink();
+    if (is_at) {
+        messager->ss_ << "@" << uid;
+    } else if (messager->is_uid_) {
+        messager->ss_ << uid;
+    } else {
+        messager->ss_ << uid << "(gid=" << messager->id_ << ")";
+    }
+    messager->ss_ << Default();
+}
+
+void MessagerFlush(void* p)
+{
+    Messager* const messager = static_cast<Messager*>(p);
+    if (messager->is_uid_) {
+        std::cout << Blue() << "[BOT -> USER_" << messager->id_ << "]" << Default() << std::endl << messager->ss_.str() << std::endl;
+    } else {
+        std::cout << Purple() << "[BOT -> GROUP_" << messager->id_ << "]" << Default() << std::endl << messager->ss_.str() << std::endl;
+    }
+    messager->ss_.str("");
+}
+
+void CloseMessager(void* p)
+{
+    Messager* const messager = static_cast<Messager*>(p);
+    delete messager;
+}
 
 auto init_bot(int argc, char** argv) { const char* errmsg = nullptr; }
 
@@ -113,11 +128,11 @@ bool handle_request(void* bot, const std::string_view line)
     uint64_t uid = 0;
 
     try {
-        if (gid_s != "pri") {
+        if (gid_s != "-") {
             gid = std::stoull(gid_s.data());
         }
     } catch (const std::invalid_argument& e) {
-        Error() << "Invalid GroupID \'" << gid_s << "\', can only be integer or \'pri\'" << std::endl;
+        Error() << "Invalid GroupID \'" << gid_s << "\', can only be integer or \'-\' (which means send private message)" << std::endl;
         ;
         return false;
     }
@@ -165,8 +180,7 @@ int main(int argc, char** argv)
 {
     std::locale::global(std::locale(""));
     gflags::ParseCommandLineFlags(&argc, &argv, true);
-    auto bot = BOT_API::Init(FLAGS_bot_uid, create_msg_sender, delete_msg_sender, FLAGS_game_path.c_str(),
-                             &FLAGS_admin_uid, 1);
+    auto bot = BOT_API::Init(FLAGS_bot_uid, FLAGS_game_path.c_str(), &FLAGS_admin_uid, 1);
 #ifdef WITH_MYSQL
     ConnectDatabase(bot);
 #endif
@@ -195,7 +209,7 @@ int main(int argc, char** argv)
             linenoiseHistorySave(FLAGS_history_filename.c_str());
 #endif
         } else {
-            Error() << "Usage: <GroupID | \'pri\'> <UserID> <arg1> <arg2> ..." << std::endl;
+            Error() << "Usage: <GroupID | \'-\'> <UserID> <arg1> <arg2> ..." << std::endl;
         }
 #if __linux__
         linenoiseFree(line_cstr);

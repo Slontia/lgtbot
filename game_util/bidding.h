@@ -15,7 +15,7 @@ class BiddingManager
     }
 
     template <typename Sender>
-    bool Bid(const uint64_t pid, const std::optional<Chip>& chip, Sender&& sender)
+    bool Bid(const PlayerID pid, const std::optional<Chip>& chip, Sender&& sender)
     {
         auto& player = players_.at(pid);
         if (!player.is_allow_) {
@@ -41,15 +41,15 @@ class BiddingManager
     }
 
     template <typename Sender>
-    std::pair<std::optional<Chip>, std::vector<uint64_t>> BidOver(Sender&& sender, const bool show_detail = true)
+    std::pair<std::optional<Chip>, std::vector<PlayerID>> BidOver(Sender&& sender, const bool show_detail = true)
     {
-        std::pair<std::optional<Chip>, std::vector<uint64_t>> ret(std::max_element(players_.begin(), players_.end())->cur_chip_, {});
+        std::pair<std::optional<Chip>, std::vector<PlayerID>> ret(std::max_element(players_.begin(), players_.end())->cur_chip_, {});
         sender << "投标结束：";
         bool has_bid = false;
         for (auto& player : players_) {
             player.chip_ = player.cur_chip_;
             if (show_detail && player.is_allow_ && player.chip_.has_value()) {
-                sender << "\n" << AtMsg(player.pid_) << "出价：" << *player.chip_;
+                sender << "\n" << At(player.pid_) << "出价：" << *player.chip_;
                 has_bid = true;
             }
             if (player.chip_ < ret.first) {
@@ -64,7 +64,7 @@ class BiddingManager
         return ret;
     }
 
-    const auto& TotalChip(const uint64_t pid)
+    const auto& TotalChip(const PlayerID pid)
     {
         return players_.at(pid).total_chip_;
     }
@@ -97,8 +97,8 @@ class BiddingManager
 
     struct Player
     {
-        Player(const uint64_t pid) : pid_(pid) {}
-        const uint64_t pid_;
+        Player(const PlayerID pid) : pid_(pid) {}
+        const PlayerID pid_;
         bool is_allow_ = true;
         std::optional<Chip> chip_;
         std::optional<Chip> cur_chip_;

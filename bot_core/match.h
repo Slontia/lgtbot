@@ -4,11 +4,13 @@
 #include <map>
 #include <set>
 #include <bitset>
+#include <variant>
 
 #include "util.h"
-#include "utility/msg_sender.h"
+#include "bot_core/msg_sender.h"
 #include "utility/spinlock.h"
 #include "utility/timer.h"
+#include "utility/msg_checker.h"
 
 #define INVALID_LOBBY (QQ)0
 
@@ -30,41 +32,23 @@ class Match : public std::enable_shared_from_this<Match>
 {
   public:
     using VariantID = std::variant<UserID, ComputerID>;
-    enum State { IN_CONFIGURING = 'C', NOT_STARTED = 'N', IS_STARTED = 'S' };
+    enum State { IN_CONFIGURING = 'C', NOT_STARTED = 'N', IS_STARTED = 'S', IS_OVER = 'O' };
     static const uint32_t kAvgScoreOffset = 10;
 
     Match(BotCtx& bot, const MatchID id, const GameHandle& game_handle, const UserID host_uid,
           const std::optional<GroupID> gid, const std::bitset<MatchFlag::Count()>& flags);
     ~Match();
 
-    ErrCode GameSetComNum(const replier_t reply, const uint64_t com_num);
+    ErrCode GameSetComNum(MsgSenderBase& reply, const uint64_t com_num);
 
-    ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, const replier_t reply);
-    ErrCode GameConfigOver(const replier_t reply);
-    ErrCode GameStart(const bool is_public, const replier_t reply);
-    ErrCode Join(const UserID uid, const replier_t reply);
-    ErrCode Leave(const UserID uid, const replier_t reply, const bool force);
+    ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply);
+    ErrCode GameConfigOver(MsgSenderBase& reply);
+    ErrCode GameStart(const bool is_public, MsgSenderBase& reply);
+    ErrCode Join(const UserID uid, MsgSenderBase& reply);
+    ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force);
     ErrCode LeaveMidway(const UserID uid, const bool is_public);
-    MsgSenderWrapper<MsgSenderForBot> Boardcast() const;
-    MsgSenderWrapper<MsgSenderForBot> Tell(const uint64_t pid) const;
-    template <bool IS_AT, typename Sender>
-    void PrintPlayer(Sender& sender, const PlayerID pid)
-    {
-        sender << "[" << pid << "号]<";
-        const auto& id = players_[pid];
-        if (const auto pval = std::get_if<ComputerID>(&id)) {
-            sender << "机器人" << *pval << "号";
-        } else if (IS_AT) {
-            sender << AtMsg(std::get<UserID>(id));
-        } else if (gid().has_value()) {
-            sender << GroupUserMsg(std::get<UserID>(id), *gid());
-        } else {
-            sender << UserMsg(std::get<UserID>(id));
-        }
-        sender << ">";
-    }
-    void GamePrepare();
-    void GameOver(const int64_t scores[]);
+    MsgSenderBase::MsgSenderGuard Boardcast();
+    MsgSenderBase::MsgSenderGuard Tell(const uint64_t pid);
     void StartTimer(const uint64_t sec);
     void StopTimer();
     std::string OptionInfo() const;
@@ -81,7 +65,7 @@ class Match : public std::enable_shared_from_this<Match>
     MatchID mid() const { return mid_; }
     std::optional<GroupID> gid() const { return gid_; }
     UserID host_uid() const { return host_uid_; }
-    const std::set<UserID>& ready_uid_set() const { return ready_uid_set_; }
+    const auto& ready_uid_set() const { return ready_uid_set_; }
     const State state() const { return state_; }
     MatchManager& match_manager() { return bot_.match_manager(); }
 
@@ -102,10 +86,17 @@ class Match : public std::enable_shared_from_this<Match>
             return "未开始";
         case State::IS_STARTED:
             return "已开始";
+        case State::IS_OVER:
+            return "已结束";
         }
     }
     std::vector<ScoreInfo> CalScores_(const int64_t scores[]) const;
     bool SatisfyMaxPlayer_(const uint64_t new_player_num) const;
+    void OnGameOver_();
+    void Help_(MsgSenderBase& reply);
+    void Routine_();
+
+    mutable std::mutex mutex_;
 
     // bot
     BotCtx& bot_;
@@ -119,10 +110,13 @@ class Match : public std::enable_shared_from_this<Match>
     std::bitset<MatchFlag::Count()> flags_;
 
     // game
-    std::unique_ptr<GameBase, const std::function<void(GameBase* const)>> game_;
+    GameHandle::game_options_ptr options_;
+    GameHandle::main_stage_ptr main_stage_;
 
     // player info
-    std::set<UserID> ready_uid_set_; // players is now in game, exclude exited players
+    std::map<UserID, MsgSender> ready_uid_set_; // players is now in game, exclude exited players
+    using BoardcastMsgSender = MsgSenderBatch<decltype(ready_uid_set_), MsgSender& (*) (std::pair<const UserID, MsgSender>&)>;
+    std::variant<MsgSender, BoardcastMsgSender> boardcast_sender_;
     uint64_t com_num_;
     uint64_t player_num_each_user_;
 
@@ -136,4 +130,6 @@ class Match : public std::enable_shared_from_this<Match>
     std::chrono::time_point<std::chrono::system_clock> end_time_;
 
     const uint16_t multiple_;
+
+    const Command<void(MsgSenderBase&)> help_cmd_;
 };

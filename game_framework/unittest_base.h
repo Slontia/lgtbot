@@ -3,43 +3,79 @@
 #include <memory>
 #include <optional>
 
-#include "game_framework/game.h"
 #include "game_framework/game_stage.h"
-#include "utility/msg_sender.h"
+#include "game_framework/game_options.h"
+#include "game_framework/game_main.h"
+#include "bot_core/msg_sender.h"
 
-inline std::ostream& operator<<(std::ostream& os, const ErrCode e) { return os << errcode2str(e); }
+MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options);
 
-class MsgSenderForGameImpl : public MsgSenderForGame
+class MockMsgSender : public MsgSenderBase
 {
-   public:
-    MsgSenderForGameImpl() {}
-    MsgSenderForGameImpl(const uint64_t uid) : uid_(uid) {}
-
-    virtual ~MsgSenderForGameImpl()
+  public:
+    MockMsgSender() : is_public_(true) {}
+    MockMsgSender(const PlayerID pid, const bool is_public) : pid_(pid), is_public_(is_public) {}
+    virtual MsgSenderGuard operator()() override
     {
-        if (uid_.has_value()) {
-            std::cout << "[BOT -> " << *uid_ << "]" << std::endl << ss_.str() << std::endl;
-        } else {
-            std::cout << "[BOT -> GROUP]" << std::endl << ss_.str() << std::endl;
+        if (is_public_ && pid_.has_value())
+        {
+            SavePlayer(*pid_, true);
+            SaveText(" ", 1);
         }
+        return MsgSenderGuard(*this);
     }
 
-    virtual void String(const char* const str, const size_t len) override { ss_ << std::string_view(str, len); }
+  protected:
+    virtual void SaveText(const char* const data, const uint64_t len) override
+    {
+        ss_ << std::string_view(data, len);
+    }
 
-    virtual void PlayerName(const uint64_t uid) override { ss_ << uid; }
+    virtual void SaveUser(const UserID& pid, const bool is_at) override
+    {
+        throw std::runtime_error("user should not appear in game");
+    }
 
-    virtual void AtPlayer(const uint64_t uid) override { ss_ << "@" << uid; }
+    virtual void SavePlayer(const PlayerID& pid, const bool is_at)
+    {
+        if (is_at) {
+            ss_ << "@" << pid;
+        }
+        ss_ << "[PLAYER_" << pid << "]";
+    }
 
-   private:
-    const std::optional<uint64_t> uid_;
+    virtual void Flush() override
+    {
+        if (is_public_) {
+            std::cout << "[BOT -> GROUP]";
+        } else if (pid_.has_value()) {
+            std::cout << "[BOT -> PLAYER_" << *pid_ << "]";
+        } else {
+            throw std::runtime_error("invalid msg_sender");
+        }
+        std::cout << std::endl << ss_.str() << std::endl;
+    }
+
+  private:
+    const std::optional<PlayerID> pid_;
+    const bool is_public_;
     std::stringstream ss_;
 };
 
-MsgSenderForGame* NewBoardcastMsgSender(void*) { return new MsgSenderForGameImpl(); }
-MsgSenderForGame* NewTellMsgSender(void*, const uint64_t pid) { return new MsgSenderForGameImpl(pid); }
-void DeleteMsgSender(MsgSenderForGame* const msg_sender) { delete msg_sender; };
-void GamePrepare(void* p);
-void GameOver(void* p, const int64_t scores[]);
+
+MsgSenderBase::MsgSenderGuard Boardcast(void* match_p)
+{
+    static MockMsgSender boardcast_sender;
+    return boardcast_sender();
+}
+
+MsgSenderBase::MsgSenderGuard Tell(void* match_p, const uint64_t pid)
+{
+    static std::map<uint64_t, MockMsgSender> tell_senders;
+    auto it = tell_senders.try_emplace(pid, MockMsgSender(pid, false)).first;
+    return (it->second)();
+}
+
 void StartTimer(void*, const uint64_t) {}
 void StopTimer(void*) {}
 
@@ -50,31 +86,81 @@ class TestGame : public testing::Test
     using ScoreArray = std::array<int64_t, k_player_num>;
     static void SetUpTestCase()
     {
-        Init(NewBoardcastMsgSender, NewTellMsgSender, DeleteMsgSender, GamePrepare, GameOver, StartTimer, StopTimer);
     }
 
-    virtual void SetUp() { game_ = std::make_unique<Game>(this); }
+    virtual void SetUp()
+    {
+        option_.SetPlayerNum(k_player_num);
+    }
 
     virtual void SetDown() {}
 
-    bool StartGame() { return game_->StartGame(false /* is_public */, k_player_num, 0); }
+    bool StartGame()
+    {
+        MockMsgSender sender(0, false);
+        main_stage_.reset(MakeMainStage(sender, option_));
+        if (main_stage_) {
+            main_stage_->Init(this);
+        }
+        return main_stage_ != nullptr;
+    }
 
-    Game& game() { return *game_; }
     auto& expected_scores() const { return expected_scores_; }
 
-   private:
-    static void GamePrepare(void* p) {}
-
-    static void GameOver(void* p, const int64_t src_scores[])
+   protected:
+    StageBase::StageErrCode TIMEOUT()
     {
-        auto& dst_scores = static_cast<TestGame<k_player_num>*>(p)->expected_scores_.emplace();
-        for (size_t i = 0; i < dst_scores.size(); ++i) {
-            dst_scores.at(i) = src_scores[i];
+        std::cout << "[TIMEOUT]" << std::endl;
+        const auto rc = main_stage_->HandleTimeout();
+        HandleGameOver_();
+        return rc;
+    }
+
+
+    StageBase::StageErrCode PublicRequest(const PlayerID pid, const char* const msg)
+    {
+        std::cout << "[PLAYER_" << pid << " -> GROUP]" << std::endl << msg << std::endl;
+        return Request_(pid, msg, true);
+    }
+
+    StageBase::StageErrCode PrivateRequest(const PlayerID pid, const char* const msg)
+    {
+        std::cout << "[PLAYER_" << pid << " -> BOT]" << std::endl << msg << std::endl;
+        return Request_(pid, msg, false);
+    }
+
+    StageBase::StageErrCode Leave(const PlayerID pid)
+    {
+        std::cout << "[PLAYER_" << pid << " LEAVE GAME]" << std::endl;
+        const auto rc = main_stage_->HandleLeave(pid);
+        HandleGameOver_();
+        return rc;
+    }
+
+    GameOption option_;
+    std::unique_ptr<MainStageBase> main_stage_;
+    std::optional<ScoreArray> expected_scores_;
+
+  private:
+    void HandleGameOver_()
+    {
+        if (main_stage_ && main_stage_->IsOver()) {
+            auto& dst_scores = expected_scores_.emplace();
+            for (size_t i = 0; i < dst_scores.size(); ++i) {
+                dst_scores.at(i) = main_stage_->PlayerScore(i);
+            }
         }
     }
 
-    std::unique_ptr<Game> game_;
-    std::optional<ScoreArray> expected_scores_;
+    StageBase::StageErrCode Request_(const PlayerID pid, const char* const msg, const bool is_public)
+    {
+        MockMsgSender sender(pid, is_public);
+        const auto rc = main_stage_            ? main_stage_->HandleRequest(msg, pid, is_public, sender) :
+                        option_.SetOption(msg) ? StageBase::StageErrCode::OK :
+                                                 StageBase::StageErrCode::FAILED; // for easy test
+        HandleGameOver_();
+        return rc;
+    }
 };
 
 #define ASSERT_FINISHED(finished) ASSERT_EQ(expected_scores().has_value(), finished);
@@ -91,46 +177,21 @@ class TestGame : public testing::Test
         ASSERT_TRUE(StartGame()) << "Start game failed"; \
     } while (0)
 
-#define TIMEOUT()                              \
-    [&] {                                       \
-        std::cout << "[TIMEOUT]" << std::endl; \
-        bool stage_is_over = false;            \
-        return game().HandleTimeout(&stage_is_over);  \
-    }()
+#define ASSERT_TIMEOUT(ret) ASSERT_EQ(StageBase::StageErrCode::ret, (TIMEOUT()))
 
-#define ASSERT_TIMEOUT(ret) ASSERT_EQ(EC_GAME_REQUEST_##ret, (TIMEOUT()))
+#define CHECK_TIMEOUT(ret) (StageBase::StageErrCode::ret == (TIMEOUT()))
 
-#define CHECK_TIMEOUT(ret) (Ec_GAME_REQUEST_##ret == (TIMEOUT()))
+#define ASSERT_PUB_MSG(ret, pid, msg) ASSERT_EQ(StageBase::StageErrCode::ret, (PublicRequest(pid, msg))) << "Handle request failed"
 
-#define PUB_MSG(uid, msg)                                                              \
-    [&] {                                                                              \
-        std::cout << "[USER_" << uid << " -> GROUP]" << std::endl << msg << std::endl; \
-        return game().HandleRequest((uid), true, (msg));                               \
-    }()
+#define CHECK_PUB_MSG(ret, pid, msg) (StageBase::StageErrCode::ret == PublicRequest(pid, msg))
 
-#define ASSERT_PUB_MSG(ret, uid, msg) ASSERT_EQ(EC_GAME_REQUEST_##ret, (PUB_MSG(uid, msg))) << "Handle request failed"
+#define ASSERT_PRI_MSG(ret, pid, msg) ASSERT_EQ(StageBase::StageErrCode::ret, (PrivateRequest(pid, msg))) << "Handle request failed"
 
-#define CHECK_PUB_MSG(ret, uid, msg) (EC_GAME_REQUEST_##ret == PUB_MSG(uid, msg))
+#define CHECK_PRI_MSG(ret, pid, msg) (StageBase::StageErrCode::ret == PrivateRequest(pid, msg))
 
-#define PRI_MSG(uid, msg)                                                            \
-    [&] {                                                                            \
-        std::cout << "[USER_" << uid << " -> BOT]" << std::endl << msg << std::endl; \
-        return game().HandleRequest((uid), false, (msg));                            \
-    }()
+#define ASSERT_LEAVE(ret, pid) ASSERT_EQ(StageBase::StageErrCode::ret, Leave(pid)) << "Leave failed"
 
-#define ASSERT_PRI_MSG(ret, uid, msg) ASSERT_EQ(EC_GAME_REQUEST_##ret, (PRI_MSG(uid, msg))) << "Handle request failed"
-
-#define CHECK_PRI_MSG(ret, uid, msg) (EC_GAME_REQUEST_##ret == PRI_MSG(uid, msg))
-
-#define LEAVE(uid)                                               \
-[&] {                                                            \
-    std::cout << "[USER_" << uid << " LEAVE GAME]" << std::endl; \
-    return game().HandleLeave((uid), false);                     \
-}()
-
-#define ASSERT_LEAVE(ret, uid) ASSERT_EQ(EC_GAME_REQUEST_##ret, LEAVE(uid)) << "Leave failed"
-
-#define CHECK_LEAVE(ret, uid) (EC_GAME_REQUEST_##ret == LEAVE(uid))
+#define CHECK_LEAVE(ret, pid) (StageBase::StageErrCode::ret == Leave(pid))
 
 #define GAME_TEST(player_num, test_name)                              \
     using TestGame_##player_num##_##test_name = TestGame<player_num>; \

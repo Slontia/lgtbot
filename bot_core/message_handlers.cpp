@@ -12,7 +12,7 @@ static MetaCommand make_command(const char* const description, const auto& cb, a
     return MetaCommand(description, cb, std::move(checkers)...);
 };
 
-static ErrCode help(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const replier_t reply,
+static ErrCode help(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
                     const std::vector<MetaCommand>& cmds, const std::string& type)
 {
     auto sender = reply();
@@ -25,7 +25,7 @@ static ErrCode help(BotCtx& bot, const UserID uid, const std::optional<GroupID>&
 }
 
 ErrCode HandleRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgReader& reader,
-                      const replier_t reply, const std::vector<MetaCommand>& cmds)
+                      MsgSenderBase& reply, const std::vector<MetaCommand>& cmds)
 {
     reader.Reset();
     for (const MetaCommand& cmd : cmds) {
@@ -37,8 +37,30 @@ ErrCode HandleRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID
     return EC_REQUEST_NOT_FOUND;
 }
 
+ErrCode HandleMetaRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const std::string& msg,
+                          MsgSender& reply)
+{
+    MsgReader reader(msg);
+    const auto ret = HandleRequest(bot, uid, gid, reader, reply, meta_cmds);
+    if (ret == EC_REQUEST_NOT_FOUND) {
+        reply() << "[错误] 未预料的元指令，您可以通过\"#帮助\"查看所有支持的元指令";
+    }
+    return ret;
+}
+
+ErrCode HandleAdminRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const std::string& msg,
+                           MsgSender& reply)
+{
+    MsgReader reader(msg);
+    const auto ret = HandleRequest(bot, uid, gid, reader, reply, admin_cmds);
+    if (ret == EC_REQUEST_NOT_FOUND) {
+        reply() << "[错误] 未预料的管理指令，您可以通过\"%帮助\"查看所有支持的管理指令";
+    }
+    return ret;
+}
+
 static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid,
-                             const replier_t reply)
+                             MsgSenderBase& reply)
 {
     int i = 0;
     if (bot.game_handles().empty()) {
@@ -56,7 +78,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
     return EC_OK;
 }
 
-static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const replier_t reply,
+static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
                         const std::string& gamename, const std::bitset<MatchFlag::Count()>& flags)
 {
     const auto it = bot.game_handles().find(gamename);
@@ -67,30 +89,30 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
     return bot.match_manager().NewMatch(*it->second, uid, gid, flags, reply);
 }
 
-static ErrCode config_over(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const replier_t reply)
+static ErrCode config_over(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
 {
     return bot.match_manager().ConfigOver(uid, gid, reply);
 }
 
-static ErrCode set_com_num(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const replier_t reply,
+static ErrCode set_com_num(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
         const uint64_t com_num)
 {
     return bot.match_manager().SetComNum(uid, gid, reply, com_num);
 }
 
-static ErrCode start_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const replier_t reply)
+static ErrCode start_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
 {
     return bot.match_manager().StartGame(uid, gid, reply);
 }
 
 template <bool even_if_game_started>
-static ErrCode leave(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const replier_t reply)
+static ErrCode leave(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
 {
     return bot.match_manager().DeletePlayer(uid, gid, reply, even_if_game_started);
 }
 
 static ErrCode join_private(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid,
-                            const replier_t reply, const MatchID match_id)
+                            MsgSenderBase& reply, const MatchID match_id)
 {
     if (gid.has_value()) {
         reply() << "[错误] 加入失败：请私信裁判加入私密游戏，或去掉比赛ID以加入当前房间游戏";
@@ -99,7 +121,7 @@ static ErrCode join_private(BotCtx& bot, const UserID uid, const std::optional<G
     return bot.match_manager().AddPlayerToPrivateGame(match_id, uid, reply);
 }
 
-static ErrCode join_public(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const replier_t reply)
+static ErrCode join_public(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
 {
     if (!gid.has_value()) {
         reply() << "[错误] 加入失败：若要加入私密游戏，请指明比赛ID";
@@ -109,7 +131,7 @@ static ErrCode join_public(BotCtx& bot, const UserID uid, const std::optional<Gr
 }
 
 static ErrCode show_private_matches(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                                    const replier_t reply)
+                                    MsgSenderBase& reply)
 {
     uint64_t count = 0;
     auto sender = reply();
@@ -129,7 +151,7 @@ static ErrCode show_private_matches(BotCtx& bot, const UserID uid, const std::op
 }
 
 static ErrCode show_match_status(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                                 const replier_t reply)
+                                 MsgSenderBase& reply)
 {
     // TODO: make it thread safe
     std::shared_ptr<Match> match = bot.match_manager().GetMatch(uid, gid);
@@ -165,36 +187,24 @@ static ErrCode show_match_status(BotCtx& bot, const UserID uid, const std::optio
     } else {
         sender << match->game_handle().max_player_;
     }
-    sender << "人"
-           << "\n房主：";
-    if (match->gid().has_value()) {
-        sender << GroupUserMsg(match->host_uid(), *match->gid());
-    } else {
-        sender << UserMsg(match->host_uid());
-    }
+    sender << "人\n房主：" << Name(match->host_uid());
     if (match->state() == Match::State::IS_STARTED) {
         const auto num = match->PlayerNum();
         sender << "\n玩家列表：" << num << "人";
         for (uint64_t pid = 0; pid < num; ++pid) {
-            sender << "\n" << pid << "号：";
-            match->PrintPlayer<false>(sender, pid);
+            sender << "\n" << pid << "号：" << Name(PlayerID{pid});
         }
     } else {
-        const std::set<UserID>& ready_uid_set = match->ready_uid_set();
+        const auto& ready_uid_set = match->ready_uid_set();
         sender << "\n当前报名玩家：" << ready_uid_set.size() << "人";
-        for (const UserID uid : ready_uid_set) {
-            sender << "\n";
-            if (match->gid().has_value()) {
-                sender << GroupUserMsg(uid, *match->gid());
-            } else {
-                sender << UserMsg(uid);
-            }
+        for (const auto& [uid, _] : ready_uid_set) {
+            sender << "\n" << Name(uid);
         }
     }
     return EC_OK;
 }
 
-static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, const replier_t reply,
+static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
                          const std::string& gamename)
 {
     const auto it = bot.game_handles().find(gamename);
@@ -217,7 +227,7 @@ static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<Grou
 
 #ifdef WITH_MYSQL
 static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                            const replier_t reply)
+                            MsgSenderBase& reply)
 {
     const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager();
     if (db_manager == nullptr) {
@@ -233,7 +243,7 @@ const std::vector<MetaCommand> meta_cmds = {
         // GAME INFO: can be executed at any time
         make_command(
                 "查看帮助",
-                [](BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, const replier_t reply) {
+                [](BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply) {
                     return help(bot, uid, gid, reply, meta_cmds, "元");
                 },
                 VoidChecker("#帮助")),
@@ -263,7 +273,7 @@ const std::vector<MetaCommand> meta_cmds = {
 
 #ifdef WITH_MYSQL
 static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                            const replier_t reply, const std::string& gamename)
+                            MsgSenderBase& reply, const std::string& gamename)
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
@@ -291,7 +301,7 @@ static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<G
 #endif
 
 static ErrCode interrupt_public(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                                const replier_t reply)
+                                MsgSenderBase& reply)
 {
     if (!gid.has_value()) {
         reply() << "[错误] 中断失败：需要在房间中使用该指令";
@@ -308,7 +318,7 @@ static ErrCode interrupt_public(BotCtx& bot, const UserID uid, const std::option
 }
 
 static ErrCode interrupt_private(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                                 const replier_t reply, const MatchID match_id)
+                                 MsgSenderBase& reply, const MatchID match_id)
 {
     const auto match = bot.match_manager().GetMatch(match_id);
     if (!match) {
@@ -323,7 +333,7 @@ static ErrCode interrupt_private(BotCtx& bot, const UserID uid, const std::optio
 const std::vector<MetaCommand> admin_cmds = {
         make_command(
                 "查看帮助",
-                [](BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, const replier_t reply) {
+                [](BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply) {
                     return help(bot, uid, gid, reply, admin_cmds, "管理");
                 },
                 VoidChecker("%帮助")),

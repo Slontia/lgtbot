@@ -25,7 +25,6 @@ foreach (GAME_DIR ${GAME_DIRS})
 
     set(SOURCE_FILES
       ${GAME_DIR}/mygame.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/game.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/game_main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource_loader.cpp
     )

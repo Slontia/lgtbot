@@ -2,14 +2,15 @@
 
 #include <fstream>
 
-#include "db_manager.h"
-#include "game_framework/game_main.h"
-#include "log.h"
-#include "match.h"
-#include "message_handlers.h"
-#include "util.h"
 #include "utility/msg_checker.h"
-#include "utility/msg_sender.h"
+#include "game_framework/game_main.h"
+
+#include "bot_core/db_manager.h"
+#include "bot_core/log.h"
+#include "bot_core/match.h"
+#include "bot_core/message_handlers.h"
+#include "bot_core/util.h"
+#include "bot_core/msg_sender.h"
 
 extern void LoadGameModules();
 
@@ -26,9 +27,8 @@ void BotCtx::LoadAdmins_(const uint64_t* const admins, const uint64_t admin_coun
     }
 }
 
-template <typename Reply>
 static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, const UserID uid, const std::string& msg,
-                             Reply&& reply)
+                             MsgSender& reply)
 {
     if (std::string first_arg; !(std::stringstream(msg) >> first_arg) || first_arg.empty()) {
         reply() << "[错误] 我不理解，所以你是想表达什么？";
@@ -36,13 +36,13 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
     } else {
         switch (first_arg[0]) {
         case '#':
-            return HandleMetaRequest(bot, uid, gid, MsgReader(msg), reply);
+            return HandleMetaRequest(bot, uid, gid, msg, reply);
         case '%':
             if (!bot.HasAdmin(uid)) {
                 reply() << "[错误] 您未持有管理员权限";
                 return EC_REQUEST_NOT_ADMIN;
             }
-            return HandleAdminRequest(bot, uid, gid, MsgReader(msg), reply);
+            return HandleAdminRequest(bot, uid, gid, msg, reply);
         default:
             std::shared_ptr<Match> match = bot.match_manager().GetMatch(uid, gid);
             if (!match) {
@@ -60,14 +60,14 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
     }
 }
 
-void* /*__cdecl*/ BOT_API::Init(const uint64_t this_uid, const NEW_MSG_SENDER_CALLBACK new_msg_sender_cb,
-                                const DELETE_MSG_SENDER_CALLBACK delete_msg_sender_cb, const char* const game_path,
-                                const uint64_t* const admins, const uint64_t admin_count)
+
+
+void* /*__cdecl*/ BOT_API::Init(const uint64_t this_uid, const char* const game_path, const uint64_t* const admins, const uint64_t admin_count)
 {
-    if (this_uid == 0 || !new_msg_sender_cb || !delete_msg_sender_cb || !game_path) {
+    if (this_uid == 0 || (!admins && admin_count > 0)) {
         return nullptr;
     }
-    return new BotCtx(this_uid, new_msg_sender_cb, delete_msg_sender_cb, game_path, admins, admin_count);
+    return new BotCtx(this_uid, game_path, admins, admin_count);
 }
 
 void /*__cdelcl*/ BOT_API::Release(void* const bot) { delete static_cast<BotCtx*>(bot); }
@@ -78,8 +78,23 @@ ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const uint6
         return EC_NOT_INIT;
     }
     BotCtx& bot = *static_cast<BotCtx*>(bot_p);
-    return HandleRequest(bot, {}, uid, msg, [uid, &bot] { return bot.ToUser(uid); });
+    MsgSender sender(UserID{uid});
+    return HandleRequest(bot, std::nullopt, uid, msg, sender);
 }
+
+class PublicReplyMsgSender : public MsgSender
+{
+  public:
+    PublicReplyMsgSender(const GroupID& gid, const UserID& uid) : MsgSender(gid), uid_(uid) {}
+    MsgSenderGuard operator()() override
+    {
+        MsgSenderGuard guard(*this);
+        guard << At(uid_) << " ";
+        return guard;
+    }
+  private:
+    const UserID uid_;
+};
 
 ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const uint64_t gid, const uint64_t uid,
                                                  const char* const msg)
@@ -88,11 +103,8 @@ ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const uint64
         return EC_NOT_INIT;
     }
     BotCtx& bot = *static_cast<BotCtx*>(bot_p);
-    return HandleRequest(bot, gid, uid, msg, [uid, gid, &bot] {
-        auto sender = bot.ToGroup(gid);
-        sender << AtMsg(uid) << "\n";
-        return sender;
-    });
+    PublicReplyMsgSender sender(GroupID{gid}, UserID{uid});
+    return HandleRequest(bot, gid, uid, msg, sender);
 }
 
 #ifdef WITH_MYSQL

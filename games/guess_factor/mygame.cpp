@@ -5,6 +5,7 @@
 
 #include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
+#include "game_framework/game_options.h"
 #include "utility/msg_checker.h"
 
 const std::string k_game_name = "因数游戏";
@@ -38,7 +39,7 @@ const std::string GameOption::StatusInfo() const
 class Player
 {
    public:
-    Player(const uint64_t pid) : pid_(pid), score_(0), state_(ONLINE) {}
+    Player(const PlayerID pid) : pid_(pid), score_(0), state_(ONLINE) {}
 
     friend auto operator<=>(const Player& _1, const Player& _2) { return _1.score_ <=> _2.score_; }
 
@@ -47,7 +48,7 @@ class Player
     template <typename Sender>
     void Info(Sender& sender, const bool show_current = false) const
     {
-        sender << AtMsg(pid_) << "（" << score_ << "分";
+        sender << At(pid_) << "（" << score_ << "分";
         if (state_ == ELIMINATED) {
             sender << "，已淘汰）";
             return;
@@ -68,7 +69,7 @@ class Player
     template <typename Sender>
     void AddScore(Sender&& sender, const uint64_t sum)
     {
-        sender << AtMsg(pid_) << "：" << score_;
+        sender << At(pid_) << "：" << score_;
         if (state_ == ELIMINATED) {
             sender << "分，已淘汰";
             return;
@@ -147,7 +148,7 @@ class Player
         return true;
     }
 
-    uint64_t pid() const { return pid_; }
+    PlayerID pid() const { return pid_; }
     uint64_t score() const { return score_; }
     bool eliminated() const { return state_ == ELIMINATED; }
     bool online() const { return state_ == ONLINE; }
@@ -155,7 +156,7 @@ class Player
     const std::optional<uint32_t>& current_factor() const { return current_factor_; }
 
    private:
-    const uint64_t pid_;
+    const PlayerID pid_;
     uint64_t score_;
     enum { LEAVED, ELIMINATED, ONLINE } state_;
     std::list<uint32_t> factor_pool_;
@@ -188,7 +189,7 @@ class RoundStage : public SubGameStage<>
     }
 
    private:
-    AtomStageErrCode Guess_(const uint64_t pid, const bool is_public, const replier_t& reply, const uint32_t factor)
+    AtomStageErrCode Guess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t factor)
     {
         if (is_public) {
             reply() << "猜测失败：请私信裁判猜测，不要暴露自己的数字哦~";
@@ -198,7 +199,7 @@ class RoundStage : public SubGameStage<>
         for (const auto& p : players_) {
             if (std::any_of(p.factor_pool().begin(), p.factor_pool().end(),
                             [factor](const uint64_t& f) { return f == factor; })) {
-                reply() << "猜测失败：因数" << factor << "已经在玩家" << PlayerMsg(p.pid()) << "的因数池中，无法选择该因数";
+                reply() << "猜测失败：因数" << factor << "已经在玩家" << Name(p.pid()) << "的因数池中，无法选择该因数";
                 return FAILED;
             }
         }
@@ -208,7 +209,7 @@ class RoundStage : public SubGameStage<>
         return CanOver_() ? CHECKOUT : OK;
     }
 
-    AtomStageErrCode Pass_(const uint64_t pid, const bool is_public, const replier_t& reply)
+    AtomStageErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "pass失败：请私信裁判进行pass操作~";
@@ -220,7 +221,7 @@ class RoundStage : public SubGameStage<>
         return CanOver_() ? CHECKOUT : OK;
     }
 
-    virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) override
+    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) override
     {
         players_[pid].Leave();
         return CanOver_() ? CHECKOUT : OK;
@@ -242,7 +243,7 @@ class MainStage : public MainGameStage<RoundStage>
    public:
     MainStage(const GameOption& option) : option_(option), round_(1)
     {
-        for (uint64_t pid = 0; pid < option_.PlayerNum(); ++pid) {
+        for (PlayerID pid = 0; pid < option_.PlayerNum(); ++pid) {
             players_.emplace_back(pid);
         }
     }
@@ -268,7 +269,7 @@ class MainStage : public MainGameStage<RoundStage>
         }
     }
 
-    int64_t PlayerScore(const uint64_t pid) const { return players_[pid].score(); }
+    int64_t PlayerScore(const PlayerID pid) const { return players_[pid].score(); }
 
    private:
     virtual std::optional<bool> NextSubStageMayEliminated_()
@@ -284,7 +285,7 @@ class MainStage : public MainGameStage<RoundStage>
         return MayEliminated_();
     }
 
-    uint64_t SumPool_(MsgSenderWrapper<MsgSenderForGame>& sender)
+    uint64_t SumPool_(MsgSenderBase::MsgSenderGuard& sender)
     {
         uint64_t sum = 0;
         uint64_t addition = 0;
@@ -300,7 +301,7 @@ class MainStage : public MainGameStage<RoundStage>
         return sum + addition;
     }
 
-    void AddScore_(MsgSenderWrapper<MsgSenderForGame>& sender, const uint64_t sum)
+    void AddScore_(MsgSenderBase::MsgSenderGuard& sender, const uint64_t sum)
     {
         [[unlikely]] if (sum == 0) {
             sender << "\n\n无人猜测";
@@ -322,7 +323,7 @@ class MainStage : public MainGameStage<RoundStage>
         }
     }
 
-    void ShowScore_(MsgSenderWrapper<MsgSenderForGame>& sender)
+    void ShowScore_(MsgSenderBase::MsgSenderGuard& sender)
     {
         uint64_t sum = 0;
         sender << "\n\n当前各玩家预测池情况：\n";
@@ -340,7 +341,7 @@ class MainStage : public MainGameStage<RoundStage>
                (round_ - option_.GET_VALUE(淘汰回合)) % option_.GET_VALUE(淘汰间隔) == 0;
     }
 
-    void Eliminate_(MsgSenderWrapper<MsgSenderForGame>& sender)
+    void Eliminate_(MsgSenderBase::MsgSenderGuard& sender)
     {
         bool achieve_high_score = false;
         bool achieve_diff_score = true;
@@ -368,7 +369,7 @@ class MainStage : public MainGameStage<RoundStage>
         } else if (!achieve_diff_score) {
             sender << "\n无人淘汰：分数最末尾玩家与次末尾玩家相差未达到" << option_.GET_VALUE(淘汰分差) << "分";
         } else {
-            sender << "\n本回合淘汰：" << AtMsg(player_to_eliminate->pid());
+            sender << "\n本回合淘汰：" << At(player_to_eliminate->pid());
             player_to_eliminate->Eliminate();
         }
     }
@@ -388,7 +389,7 @@ class MainStage : public MainGameStage<RoundStage>
     std::vector<Player> players_;
 };
 
-std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameOption& options)
+MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options)
 {
     if (options.PlayerNum() < 2) {
         reply() << "该游戏至少两人参加";
@@ -399,5 +400,5 @@ std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameO
                 << "，当前设置的开始淘汰的回合数为" << options.GET_VALUE(淘汰回合);
         return nullptr;
     }
-    return std::make_unique<MainStage>(options);
+    return new MainStage(options);
 }

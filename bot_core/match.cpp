@@ -3,11 +3,11 @@
 #include <assert.h>
 
 #include "db_manager.h"
-#include "game_framework/game_base.h"
-#include "game_framework/game_main.h"
 #include "log.h"
 #include "match.h"
 #include "util.h"
+#include "utility/msg_checker.h"
+#include "game_framework/game_main.h"
 
 // func can appear only once
 #define RETURN_IF_FAILED(func)                                 \
@@ -15,7 +15,8 @@
         if (const auto ret = (func); ret != EC_OK) return ret; \
     } while (0);
 
-static void BoardcastMatchCanJoin(const Match& match)
+
+static void BoardcastMatchCanJoin(Match& match)
 {
     if (match.gid().has_value()) {
         match.Boardcast() << "现在玩家可以在群里通过\"#加入游戏\"报名比赛";
@@ -25,7 +26,7 @@ static void BoardcastMatchCanJoin(const Match& match)
 }
 
 ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
-                               const std::bitset<MatchFlag::Count()>& flags, const replier_t reply)
+                               const std::bitset<MatchFlag::Count()>& flags, MsgSenderBase& reply)
 {
     std::lock_guard<SpinLock> l(spinlock_);
     if (GetMatch_(uid, uid2match_)) {
@@ -43,14 +44,14 @@ ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, 
     if (gid.has_value()) {
         BindMatch_(*gid, gid2match_, new_match);
     }
-    if (flags.test(MatchFlag::配置)) {
+    if (!flags.test(MatchFlag::配置)) {
         BoardcastMatchCanJoin(*new_match);
     }
     return EC_OK;
 }
 
 std::variant<ErrCode, std::shared_ptr<Match>> MatchManager::UnsafeGetMatchByHost_(
-        const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
+        const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
     const std::shared_ptr<Match>& match = GetMatch_(uid, uid2match_);
     if (!match) {
@@ -68,7 +69,7 @@ std::variant<ErrCode, std::shared_ptr<Match>> MatchManager::UnsafeGetMatchByHost
     return match;
 }
 
-ErrCode MatchManager::ConfigOver(const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
+ErrCode MatchManager::ConfigOver(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
     std::lock_guard<SpinLock> l(spinlock_);
     const auto match_or_errcode = UnsafeGetMatchByHost_(uid, gid, reply);
@@ -79,7 +80,7 @@ ErrCode MatchManager::ConfigOver(const UserID uid, const std::optional<GroupID> 
     return match->GameConfigOver(reply);
 }
 
-ErrCode MatchManager::SetComNum(const UserID uid, const std::optional<GroupID> gid, const replier_t reply, const uint64_t com_num)
+ErrCode MatchManager::SetComNum(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply, const uint64_t com_num)
 {
     std::lock_guard<SpinLock> l(spinlock_);
     const auto match_or_errcode = UnsafeGetMatchByHost_(uid, gid, reply);
@@ -90,7 +91,7 @@ ErrCode MatchManager::SetComNum(const UserID uid, const std::optional<GroupID> g
     return match->GameSetComNum(reply, com_num);
 }
 
-ErrCode MatchManager::StartGame(const UserID uid, const std::optional<GroupID> gid, const replier_t reply)
+ErrCode MatchManager::StartGame(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
     std::lock_guard<SpinLock> l(spinlock_);
     const auto match_or_errcode = UnsafeGetMatchByHost_(uid, gid, reply);
@@ -101,7 +102,7 @@ ErrCode MatchManager::StartGame(const UserID uid, const std::optional<GroupID> g
     return match->GameStart(gid.has_value(), reply);
 }
 
-ErrCode MatchManager::AddPlayerToPrivateGame(const MatchID mid, const UserID uid, const replier_t reply)
+ErrCode MatchManager::AddPlayerToPrivateGame(const MatchID mid, const UserID uid, MsgSenderBase& reply)
 {
     std::lock_guard<SpinLock> l(spinlock_);
     const std::shared_ptr<Match> match = GetMatch_(mid, mid2match_);
@@ -116,7 +117,7 @@ ErrCode MatchManager::AddPlayerToPrivateGame(const MatchID mid, const UserID uid
     return AddPlayer_(match, uid, reply);
 }
 
-ErrCode MatchManager::AddPlayerToPublicGame(const GroupID gid, const UserID uid, const replier_t reply)
+ErrCode MatchManager::AddPlayerToPublicGame(const GroupID gid, const UserID uid, MsgSenderBase& reply)
 {
     std::lock_guard<SpinLock> l(spinlock_);
     const std::shared_ptr<Match> match = GetMatch_(gid, gid2match_);
@@ -127,7 +128,7 @@ ErrCode MatchManager::AddPlayerToPublicGame(const GroupID gid, const UserID uid,
     return AddPlayer_(match, uid, reply);
 }
 
-ErrCode MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const UserID uid, const replier_t reply)
+ErrCode MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const UserID uid, MsgSenderBase& reply)
 {
     assert(match);
     if (const std::shared_ptr<Match>& user_match = GetMatch_(uid, uid2match_); user_match == match) {
@@ -142,7 +143,7 @@ ErrCode MatchManager::AddPlayer_(const std::shared_ptr<Match>& match, const User
     return EC_OK;
 }
 
-ErrCode MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID> gid, const replier_t reply, const bool force)
+ErrCode MatchManager::DeletePlayer(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply, const bool force)
 {
     std::shared_ptr<Match> match = nullptr;
     {
@@ -188,9 +189,9 @@ void MatchManager::DeleteMatch_(const MatchID mid)
         if (match->gid().has_value()) {
             UnbindMatch_(*match->gid(), gid2match_);
         }
-        const std::set<UserID>& ready_uid_set = match->ready_uid_set();
+        const auto& ready_uid_set = match->ready_uid_set();
         for (auto it = ready_uid_set.begin(); it != ready_uid_set.end(); ++it) {
-            UnbindMatch_(*it, uid2match_);
+            UnbindMatch_(it->first, uid2match_);
         }
     }
 }
@@ -254,17 +255,26 @@ void MatchManager::UnbindMatch_(const IDType id, std::map<IDType, std::shared_pt
 
 Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, const UserID host_uid,
              const std::optional<GroupID> gid, const std::bitset<MatchFlag::Count()>& flags)
-        : bot_(bot),
-          mid_(mid),
-          game_handle_(game_handle),
-          host_uid_(host_uid),
-          gid_(gid),
-          state_(flags.test(MatchFlag::配置) ? State::IN_CONFIGURING : State::NOT_STARTED),
-          flags_(flags),
-          game_(game_handle_.new_game_(this), game_handle_.delete_game_),
-          player_num_each_user_(1),
-          com_num_(0),
-          multiple_(1)
+        : bot_(bot)
+        , mid_(mid)
+        , game_handle_(game_handle)
+        , host_uid_(host_uid)
+        , gid_(gid)
+        , state_(flags.test(MatchFlag::配置) ? State::IN_CONFIGURING : State::NOT_STARTED)
+        , flags_(flags)
+        , options_(game_handle.make_game_options())
+        , main_stage_(nullptr, [](const MainStageBase*) {}) // make when game starts
+        , player_num_each_user_(1)
+        , boardcast_sender_(
+              gid.has_value() ? std::variant<MsgSender, BoardcastMsgSender>(MsgSender(*gid_))// : std::variant<MsgSender, BoardcastMsgSender>(MsgSender(*gid_))
+                              : std::variant<MsgSender, BoardcastMsgSender>(BoardcastMsgSender(
+                                      ready_uid_set_,
+                                      [](std::pair<const UserID, MsgSender>& pair) -> MsgSender& { return pair.second; })
+                                )
+          )
+        , com_num_(0)
+        , multiple_(1)
+        , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助")))
 {
 }
 
@@ -280,8 +290,9 @@ Match::VariantID Match::ConvertPid(const PlayerID pid) const
     return players_[pid];
 }
 
-ErrCode Match::GameSetComNum(const replier_t reply, const uint64_t com_num)
+ErrCode Match::GameSetComNum(MsgSenderBase& reply, const uint64_t com_num)
 {
+    std::lock_guard<std::mutex> l(mutex_);
     if (!flags_.test(MatchFlag::电脑)) {
         reply() << "[错误] 设置失败：该比赛不允许设置电脑玩家";
         return EC_MATCH_FORBIDDEN_OPERATION;
@@ -291,28 +302,63 @@ ErrCode Match::GameSetComNum(const replier_t reply, const uint64_t com_num)
         return EC_MATCH_ACHIEVE_MAX_PLAYER;
     }
     com_num_ = com_num;
+    reply() << "[错误] 设置成功：当前电脑玩家数为" << com_num_;
     return EC_OK;
 }
 
-ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg,
-                       const replier_t reply)
+static ErrCode ConverErrCode(const StageBase::StageErrCode& stage_errcode)
 {
+    switch (stage_errcode) {
+    case StageBase::StageErrCode::OK: return EC_GAME_REQUEST_OK;
+    case StageBase::StageErrCode::CHECKOUT: return EC_GAME_REQUEST_CHECKOUT;
+    case StageBase::StageErrCode::FAILED: return EC_GAME_REQUEST_FAILED;
+    case StageBase::StageErrCode::NOT_FOUND: return EC_GAME_REQUEST_NOT_FOUND;
+    default: return EC_GAME_REQUEST_UNKNOWN;
+    }
+}
+
+ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg,
+                       MsgSender& reply)
+{
+    std::lock_guard<std::mutex> l(mutex_);
     if (state_ == State::NOT_STARTED) {
         reply() << "[错误] 当前阶段等待玩家加入，无法执行游戏请求\n"
                    "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
         return EC_MATCH_NOT_BEGIN;
+    } else if (state_ == State::IS_OVER) {
+        reply() << "[错误] 游戏已经结束";
+        return EC_MATCH_ALREADY_OVER;
     }
-    if (state_ == State::IN_CONFIGURING) {
-        return game_->HandleRequest(0, gid.has_value(), msg.c_str());
-    } else {
-        const auto it = uid2pid_.find(uid);
-        assert(it != uid2pid_.end());
-        return game_->HandleRequest(it->second, gid.has_value(), msg.c_str());
+    reply.SetMatch(this);
+    const auto it = uid2pid_.find(uid);
+    assert(it != uid2pid_.end());
+    const auto pid = it->second;
+    if (MsgReader reader(msg); help_cmd_.CallIfValid(reader, reply)) {
+        return EC_GAME_REQUEST_OK;
     }
+    if (main_stage_) {
+        assert(state_ == State::IS_STARTED);
+        const auto stage_rc = main_stage_->HandleRequest(msg.c_str(), pid, gid.has_value(), reply);
+        if (stage_rc == StageBase::StageErrCode::NOT_FOUND) {
+            reply() << "[错误] 未预料的游戏指令，您可以通过\"帮助\"（不带#号）查看所有支持的游戏指令\n"
+                        "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
+        }
+        Routine_();
+        return ConverErrCode(stage_rc);
+    }
+    if (!options_->SetOption(msg.c_str())) {
+        assert(state_ == State::IN_CONFIGURING);
+        reply() << "[错误] 未预料的游戏设置，您可以通过\"帮助\"（不带#号）查看所有支持的游戏设置\n"
+                    "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
+        return EC_GAME_REQUEST_NOT_FOUND;
+    }
+    reply() << "设置成功！目前配置：" << OptionInfo();
+    return EC_GAME_REQUEST_OK;
 }
 
-ErrCode Match::GameConfigOver(const replier_t reply)
+ErrCode Match::GameConfigOver(MsgSenderBase& reply)
 {
+    std::lock_guard<std::mutex> l(mutex_);
     if (state_ != State::IN_CONFIGURING) {
         reply() << "[错误] 结束配置失败：游戏未处于配置状态";
         return EC_MATCH_NOT_IN_CONFIG;
@@ -322,8 +368,9 @@ ErrCode Match::GameConfigOver(const replier_t reply)
     return EC_OK;
 }
 
-ErrCode Match::GameStart(const bool is_public, const replier_t reply)
+ErrCode Match::GameStart(const bool is_public, MsgSenderBase& reply)
 {
+    std::lock_guard<std::mutex> l(mutex_);
     if (state_ == State::IN_CONFIGURING) {
         reply() << "[错误] 开始失败：游戏正处于配置阶段，请结束配置，等待玩家加入后再开始游戏";
         return EC_MATCH_IN_CONFIG;
@@ -332,17 +379,33 @@ ErrCode Match::GameStart(const bool is_public, const replier_t reply)
         reply() << "[错误] 开始失败：游戏已经开始";
         return EC_MATCH_ALREADY_BEGIN;
     }
-    const uint64_t player_num = ready_uid_set_.size();
-    if (!game_->StartGame(is_public, player_num * player_num_each_user_, com_num_)) {
+    const uint64_t player_num = ready_uid_set_.size() * player_num_each_user_ + com_num_;
+    assert(main_stage_ == nullptr);
+    assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
+    options_->SetPlayerNum(player_num);
+    if (!(main_stage_ = game_handle_.make_main_stage(reply, *options_))) {
         reply() << "[错误] 开始失败：不符合游戏参数的预期";
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
-
+    state_ = State::IS_STARTED;
+    main_stage_->Init(this);
+    for (auto& [uid, sender] : ready_uid_set_) {
+        uid2pid_.emplace(uid, players_.size());
+        players_.emplace_back(uid);
+        sender.SetMatch(this);
+    }
+    for (ComputerID cid = 0; cid < com_num_; ++cid) {
+        players_.emplace_back(cid);
+    }
+    std::visit([this](auto& sender) { sender.SetMatch(this); }, boardcast_sender_);
+    Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
+    start_time_ = std::chrono::system_clock::now();
     return EC_OK;
 }
 
-ErrCode Match::Join(const UserID uid, const replier_t reply)
+ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
 {
+    std::lock_guard<std::mutex> l(mutex_);
     assert(!Has(uid));
     if (state_ == State::IN_CONFIGURING && uid != host_uid_) {
         reply() << "[错误] 加入失败：房主正在配置游戏参数";
@@ -356,21 +419,22 @@ ErrCode Match::Join(const UserID uid, const replier_t reply)
         reply() << "[错误] 加入失败：比赛人数已达到游戏上限";
         return EC_MATCH_ACHIEVE_MAX_PLAYER;
     }
-    ready_uid_set_.emplace(uid);
-    Boardcast() << "玩家 " << AtMsg(uid) << " 加入了游戏";
+    ready_uid_set_.emplace(uid, MsgSender(uid));
+    Boardcast() << "玩家 " << At(uid) << " 加入了游戏";
     return EC_OK;
 }
 
-ErrCode Match::Leave(const UserID uid, const replier_t reply, const bool force)
+ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
 {
+    std::lock_guard<std::mutex> l(mutex_);
     assert(Has(uid));
     if (state_ != State::IS_STARTED) {
-        Boardcast() << "玩家 " << AtMsg(uid) << " 退出了游戏";
+        Boardcast() << "玩家 " << At(uid) << " 退出了游戏";
         ready_uid_set_.erase(uid);
         return EC_OK;
     }
     if (force) {
-        Boardcast() << "玩家 " << AtMsg(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
+        Boardcast() << "玩家 " << At(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
         ready_uid_set_.erase(uid);
         return EC_OK;
     }
@@ -380,78 +444,33 @@ ErrCode Match::Leave(const UserID uid, const replier_t reply, const bool force)
 
 ErrCode Match::LeaveMidway(const UserID uid, const bool is_public)
 {
-    if (state_ == State::IS_STARTED) {
-        const auto it = uid2pid_.find(uid);
-        assert(it != uid2pid_.end());
-        return game_->HandleLeave(it->second, is_public);
+    if (state_ != State::IS_STARTED) {
+        return EC_OK;
     }
-    return EC_OK;
+    const auto it = uid2pid_.find(uid);
+    assert(it != uid2pid_.end());
+    const auto pid = it->second;
+    assert(main_stage_);
+    const auto rc = ConverErrCode(main_stage_->HandleLeave(pid));
+    Routine_();
+    return rc;
 }
 
-MsgSenderWrapper<MsgSenderForBot> Match::Boardcast() const
+MsgSenderBase::MsgSenderGuard Match::Boardcast()
 {
-    if (gid_.has_value()) {
-        return MsgSenderWrapper(bot_.ToGroupRaw(*gid_));
-    } else {
-        MsgSenderWrapper<MsgSenderForBot>::Container senders;
-        for (const UserID uid : ready_uid_set_) {
-            senders.emplace_back(bot_.ToUserRaw(uid));
-        }
-        return MsgSenderWrapper(std::move(senders));
-    }
+    return std::visit([](auto& sender) { return sender(); }, boardcast_sender_);
 }
 
-MsgSenderWrapper<MsgSenderForBot> Match::Tell(const uint64_t pid) const
+MsgSenderBase::MsgSenderGuard Match::Tell(const uint64_t pid)
 {
     const auto& id = ConvertPid(pid);
-    if (const auto pval = std::get_if<UserID>(&id)) {
-        return bot_.ToUser(*pval);
+    if (const auto pval = std::get_if<UserID>(&id); !pval) {
+        return EmptyMsgSender::Get()(); // is computer
+    } else if (const auto it = ready_uid_set_.find(*pval); it != ready_uid_set_.end()) {
+        return (it->second)();
     } else {
-        return {};
+        return EmptyMsgSender::Get()(); // player exit
     }
-}
-
-void Match::GamePrepare()
-{
-    // TODO: check player_num_each_user_
-    state_ = State::IS_STARTED;
-    for (UserID uid : ready_uid_set_) {
-        uid2pid_.emplace(uid, players_.size());
-        players_.emplace_back(uid);
-    }
-    for (ComputerID cid = 0; cid < com_num_; ++cid) {
-        players_.emplace_back(cid);
-    }
-    Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
-    start_time_ = std::chrono::system_clock::now();
-}
-
-void Match::GameOver(const int64_t scores[])
-{
-    if (!scores) {
-        Boardcast() << "游戏中断，该局游戏成绩无效，感谢诸位参与！";
-        return;
-    }
-    end_time_ = std::chrono::system_clock::now();
-    auto sender = Boardcast();
-    sender << "游戏结束，公布分数：\n";
-    for (PlayerID pid = 0; pid < PlayerNum(); ++pid) {
-        PrintPlayer<true>(sender, pid);
-        sender << " " << scores[pid] << "\n";
-    }
-    sender << "感谢诸位参与！";
-#ifdef WITH_MYSQL
-    const std::vector<Match::ScoreInfo> score_info = CalScores_(scores);
-    if (auto& db_manager = DBManager::GetDBManager(); !db_manager) {
-        sender << "\n[警告] 未连接数据库，游戏结果不会被记录";
-    } else if (std::optional<uint64_t> game_id = game_handle_.game_id_.load(); !game_id.has_value()) {
-        sender << "\n[警告] 该游戏未发布，游戏结果不会被记录";
-    } else if (!db_manager->RecordMatch(*game_id, gid_, host_uid_, multiple_, score_info)) {
-        sender << "\n[错误] 游戏结果写入数据库失败，请联系管理员";
-    } else {
-        sender << "\n游戏结果写入数据库成功！";
-    }
-#endif
 }
 
 std::vector<Match::ScoreInfo> Match::CalScores_(const int64_t scores[]) const
@@ -491,8 +510,8 @@ bool Match::SwitchHost()
         return false;
     }
     if (state_ == NOT_STARTED) {
-        host_uid_ = *ready_uid_set_.begin();
-        Boardcast() << AtMsg(host_uid_) << "被选为新房主";
+        host_uid_ = ready_uid_set_.begin()->first;
+        Boardcast() << At(host_uid_) << "被选为新房主";
     }
     return true;
 }
@@ -500,6 +519,7 @@ bool Match::SwitchHost()
 void Match::StartTimer(const uint64_t sec)
 {
     static const uint64_t kMinAlertSec = 10;
+    std::lock_guard<std::mutex> l(mutex_);
     if (sec == 0) {
         return;
     }
@@ -510,7 +530,11 @@ void Match::StartTimer(const uint64_t sec)
         delete timer;
     };
     std::function<void()> timeout_handler = [match = shared_from_this(), stage_is_over]() {
-        match->game_->HandleTimeout(stage_is_over.get());
+        // TODO: lock match
+        if (!*stage_is_over) {
+            match->main_stage_->HandleTimeout();
+            match->Routine_();
+        }
     };
     if (kMinAlertSec > sec / 2) {
         tasks.emplace_front(sec, timeout_handler);
@@ -527,9 +551,17 @@ void Match::StartTimer(const uint64_t sec)
     timer_ = std::unique_ptr<Timer, std::function<void(Timer*)>>(new Timer(std::move(tasks)), std::move(deleter));
 }
 
-void Match::StopTimer() { timer_ = nullptr; }
+void Match::StopTimer()
+{
+    std::lock_guard<std::mutex> l(mutex_);
+    timer_ = nullptr;
+}
 
-std::string Match::OptionInfo() const { return game_->OptionInfo(); }
+std::string Match::OptionInfo() const
+{
+    std::lock_guard<std::mutex> l(mutex_);
+    return options_->Status();
+}
 
 bool Match::SatisfyMaxPlayer_(const uint64_t new_player_num) const
 {
@@ -537,4 +569,66 @@ bool Match::SatisfyMaxPlayer_(const uint64_t new_player_num) const
     // If is in config, should consider host as player
     return game_handle_.max_player_ == 0 ||
            ready_uid_set_.size() + com_num_ + new_player_num <= game_handle_.max_player_;
+}
+
+void Match::OnGameOver_()
+{
+    state_ = State::IS_OVER; // is necessary because other thread may own a match reference
+    std::vector<int64_t> scores(options_->PlayerNum());
+    for (uint64_t pid = 0; pid < options_->PlayerNum(); ++pid) {
+        scores[pid] = main_stage_->PlayerScore(pid);
+    }
+    end_time_ = std::chrono::system_clock::now();
+    auto sender = Boardcast();
+    sender << "游戏结束，公布分数：\n";
+    for (PlayerID pid = 0; pid < PlayerNum(); ++pid) {
+        sender << At(pid) << " " << scores[pid] << "\n";
+    }
+    sender << "感谢诸位参与！";
+#ifdef WITH_MYSQL
+    const std::vector<Match::ScoreInfo> score_info = CalScores_(scores);
+    if (auto& db_manager = DBManager::GetDBManager(); !db_manager) {
+        sender << "\n[警告] 未连接数据库，游戏结果不会被记录";
+    } else if (std::optional<uint64_t> game_id = game_handle_.game_id_.load(); !game_id.has_value()) {
+        sender << "\n[警告] 该游戏未发布，游戏结果不会被记录";
+    } else if (!db_manager->RecordMatch(*game_id, gid_, host_uid_, multiple_, score_info)) {
+        sender << "\n[错误] 游戏结果写入数据库失败，请联系管理员";
+    } else {
+        sender << "\n游戏结果写入数据库成功！";
+    }
+#endif
+    match_manager().DeleteMatch(mid_);
+}
+
+void Match::Help_(MsgSenderBase& reply)
+{
+    auto sender = reply();
+    if (main_stage_) {
+        sender << "\n[当前阶段]\n";
+        main_stage_->StageInfo(sender);
+        sender << "\n\n";
+    }
+    sender << "[当前可使用游戏命令]";
+    sender << "\n[1] " << help_cmd_.Info();
+    if (main_stage_) {
+        main_stage_->CommandInfo(1, sender);
+    } else {
+        const auto option_size = options_->Size();
+        for (uint64_t i = 0; i < option_size; ++i) {
+            sender << "\n[" << (i + 1) << "] " << options_->Info(i);
+        }
+    }
+}
+
+void Match::Routine_()
+{
+    if (main_stage_->IsOver()) {
+        OnGameOver_();
+        return;
+    }
+    const uint64_t user_controlled_num = ready_uid_set_.size() * player_num_each_user_;
+    main_stage_->HandleComputerAct(user_controlled_num, user_controlled_num + com_num_);
+    if (main_stage_->IsOver()) {
+        OnGameOver_();
+    }
 }

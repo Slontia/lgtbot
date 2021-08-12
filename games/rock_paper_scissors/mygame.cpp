@@ -4,6 +4,7 @@
 
 #include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
+#include "game_framework/game_options.h"
 #include "utility/msg_checker.h"
 
 const std::string k_game_name = "猜拳游戏";
@@ -52,9 +53,9 @@ class RoundStage : public SubGameStage<>
         if (cur_choise_[0] == NONE_CHOISE && cur_choise_[1] == NONE_CHOISE) {
             return {};
         }
-        Boardcast() << "玩家" << AtMsg(0) << "：" << Choise2Str(cur_choise_[0]) << "\n玩家" << AtMsg(1) << "："
+        Boardcast() << "玩家" << At(PlayerID{0}) << "：" << Choise2Str(cur_choise_[0]) << "\n玩家" << At(PlayerID{1}) << "："
                     << Choise2Str(cur_choise_[1]);
-        const auto is_win = [&cur_choise = cur_choise_](const uint64_t pid) {
+        const auto is_win = [&cur_choise = cur_choise_](const PlayerID pid) {
             const Choise& my_choise = cur_choise[pid];
             const Choise& oppo_choise = cur_choise[1 - pid];
             return (my_choise == PAPER_CHOISE && oppo_choise == ROCK_CHOISE) ||
@@ -69,8 +70,17 @@ class RoundStage : public SubGameStage<>
         return {};
     }
 
+  protected:
+    virtual AtomStageErrCode OnComputerAct(const uint64_t begin_pid, const uint64_t end_pid) override
+    {
+        std::srand(std::time(nullptr));
+        const auto n = std::rand();
+        return Act_(begin_pid, false, EmptyMsgSender::Get(), n % 3 == 0 ? Choise::PAPER_CHOISE :
+                                                             n % 3 == 1 ? Choise::ROCK_CHOISE  : Choise::SCISSORS_CHOISE);
+    }
+
    private:
-    AtomStageErrCode Act_(const uint64_t pid, const bool is_public, const replier_t& reply, Choise choise)
+    AtomStageErrCode Act_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, Choise choise)
     {
         if (is_public) {
             reply() << "请私信裁判选择，公开选择无效";
@@ -83,7 +93,7 @@ class RoundStage : public SubGameStage<>
     }
 
     // The other player win. Game Over.
-    virtual AtomStageErrCode OnPlayerLeave(const uint64_t pid) { return CHECKOUT; }
+    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) { return CHECKOUT; }
 
     const uint32_t max_round_sec_;
     std::array<Choise, 2> cur_choise_;
@@ -123,20 +133,20 @@ class MainStage : public MainGameStage<RoundStage>
         return {};
     }
 
-    virtual void OnPlayerLeave(const uint64_t pid)
+    virtual void OnPlayerLeave(const PlayerID pid)
     {
         assert(!winner_.has_value());
         winner_ = 1 - pid;
     }
 
-    int64_t PlayerScore(const uint64_t pid) const { return (winner_.has_value() && *winner_ == pid) ? 1 : 0; }
+    int64_t PlayerScore(const PlayerID pid) const { return (winner_.has_value() && *winner_ == pid) ? 1 : 0; }
 
    private:
     void HandleRoundResult_(const std::optional<uint64_t>& winner)
     {
         auto boardcast = Boardcast();
-        const auto on_win = [this, &boardcast, &win_count = win_count_](const uint64_t pid) {
-            boardcast << "玩家" << AtMsg(pid) << "胜利\n";
+        const auto on_win = [this, &boardcast, &win_count = win_count_](const PlayerID pid) {
+            boardcast << "玩家" << At(pid) << "胜利\n";
             ++win_count[pid];
         };
         if (winner.has_value()) {
@@ -145,7 +155,7 @@ class MainStage : public MainGameStage<RoundStage>
             boardcast << "平局\n";
         }
         boardcast << "目前比分：\n";
-        boardcast << AtMsg(0) << " " << win_count_[0] << " - " << win_count_[1] << " " << AtMsg(1);
+        boardcast << At(PlayerID{0}) << " " << win_count_[0] << " - " << win_count_[1] << " " << At(PlayerID{1});
     }
 
     const uint32_t k_max_win_count_;
@@ -155,11 +165,11 @@ class MainStage : public MainGameStage<RoundStage>
     std::optional<uint64_t> winner_;
 };
 
-std::unique_ptr<MainStageBase> MakeMainStage(const replier_t& reply, const GameOption& options)
+MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options)
 {
     if (options.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << options.PlayerNum();
         return nullptr;
     }
-    return std::make_unique<MainStage>(options);
+    return new MainStage(options);
 }
