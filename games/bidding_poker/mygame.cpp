@@ -168,7 +168,7 @@ class MainBidStage : public SubGameStage<BidStage>
             return _1.second.size() < _2.second.size() ||
                    (_1.second.size() == _2.second.size() && *_1.second.begin() < *_2.second.begin());
         };
-        std::erase_if(poker_items_, [](const PokerItems::value_type& item) { return item.second.empty(); });
+        assert(!poker_items_.empty());
         std::sort(poker_items_.begin(), poker_items_.end(), cmp);
         auto sender = Boardcast();
         sender << name_ << "开始，请私信裁判进行投标，商品列表：";
@@ -213,9 +213,20 @@ class DiscardStage : public SubGameStage<>
           option_(option), poker_items_(poker_items), players_(players), masker_(option.PlayerNum())
     {}
 
+    void OnStageBegin()
+    {
+        Boardcast() << "弃牌阶段开始，请私信裁判进行弃牌，当到达时间限制，或所有玩家皆选择完毕后，回合结束。"
+                       "\n回合结束前您可以随意更改您的选择。";
+        StartTimer(option_.GET_VALUE(弃牌时间));
+    }
+
   private:
     AtomStageErrCode Discard_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<std::string>& poker_strs)
     {
+        if (is_public) {
+            reply() << "弃牌失败：请私信裁判进行弃牌";
+            return FAILED;
+        }
         if (poker_strs.empty()) {
             reply() << "弃牌失败：弃牌为空";
             return FAILED;
@@ -251,7 +262,7 @@ class DiscardStage : public SubGameStage<>
     AtomStageErrCode Cancel_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         if (is_public) {
-            reply() << "行动失败：请私信裁判行动";
+            reply() << "失败：请私信裁判取消弃牌";
             return FAILED;
         }
         for (auto& [discarder, pokers] : poker_items_) {
@@ -288,6 +299,11 @@ class RoundStage : public SubGameStage<DiscardStage, MainBidStage>
 
     virtual VariantSubStage NextSubStage(DiscardStage& sub_stage, const CheckoutReason reason) override
     {
+        std::erase_if(poker_items_, [](const PokerItems::value_type& item) { return item.second.empty(); });
+        if (poker_items_.empty()) {
+            Boardcast() << "无商品，跳过投标阶段";
+            return {};
+        }
         return std::make_unique<MainBidStage>(option_, poker_items_, players_);
     }
 
@@ -419,8 +435,8 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options)
 {
-    if (options.PlayerNum() < 5) {
-        reply() << "该游戏至少5人参加，当前玩家数为" << options.PlayerNum();
+    if (options.PlayerNum() < 2) {
+        reply() << "该游戏至少2人参加，当前玩家数为" << options.PlayerNum();
         return nullptr;
     }
     return new MainStage(options);

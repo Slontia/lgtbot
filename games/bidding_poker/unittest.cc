@@ -1,6 +1,6 @@
 #include "game_framework/unittest_base.h"
 
-GAME_TEST(4, player_not_enough)
+GAME_TEST(1, player_not_enough)
 {
     ASSERT_FALSE(StartGame());
 }
@@ -104,6 +104,24 @@ GAME_TEST(5, do_nothing_2)
     }
 
     ASSERT_SCORE(100, 100, 100, 100, 100);
+}
+
+GAME_TEST(5, do_nothing_no_items)
+{
+    ASSERT_PUB_MSG(OK, 0, "投标轮数 2");
+    ASSERT_PUB_MSG(OK, 0, "初始金币数 100");
+    ASSERT_PUB_MSG(OK, 0, "回合数 5");
+    START_GAME();
+
+    for (int j = 0; j < 10; ++j) {
+        ASSERT_PRI_MSG(OK, 0, "1");
+        ASSERT_TIMEOUT(CHECKOUT);
+    }
+    for (int i = 0; i < 5; ++i) {
+        ASSERT_TIMEOUT(CHECKOUT);
+    }
+
+    ASSERT_SCORE(300, 50, 50, 50, 50);
 }
 
 // 种子 ABC

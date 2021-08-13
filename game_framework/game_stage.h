@@ -11,7 +11,6 @@
 template <typename RetType>
 using GameCommand = Command<RetType(const uint64_t, const bool, MsgSenderBase&)>;
 
-
 enum class CheckoutReason { BY_REQUEST, BY_TIMEOUT, BY_LEAVE };
 
 template <typename SubStage, typename RetType>

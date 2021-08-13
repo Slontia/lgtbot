@@ -8,6 +8,19 @@
 #include "game_framework/game_main.h"
 #include "bot_core/msg_sender.h"
 
+static const char* StageErrCodeToString(const StageBase::StageErrCode& rc)
+{
+    switch (rc) {
+#define HANDLE_ERRCODE(rc) case StageBase::StageErrCode::rc: return #rc;
+        HANDLE_ERRCODE(OK)
+        HANDLE_ERRCODE(CHECKOUT)
+        HANDLE_ERRCODE(FAILED)
+        HANDLE_ERRCODE(NOT_FOUND)
+#undef HANDLE_ERRCODE
+    }
+    return nullptr; // should not reach here
+}
+
 MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options);
 
 class MockMsgSender : public MsgSenderBase
@@ -40,8 +53,9 @@ class MockMsgSender : public MsgSenderBase
     {
         if (is_at) {
             ss_ << "@" << pid;
+        } else {
+            ss_ << "[PLAYER_" << pid << "]";
         }
-        ss_ << "[PLAYER_" << pid << "]";
     }
 
     virtual void Flush() override
@@ -54,6 +68,7 @@ class MockMsgSender : public MsgSenderBase
             throw std::runtime_error("invalid msg_sender");
         }
         std::cout << std::endl << ss_.str() << std::endl;
+        ss_.str("");
     }
 
   private:
@@ -76,8 +91,8 @@ MsgSenderBase::MsgSenderGuard Tell(void* match_p, const uint64_t pid)
     return (it->second)();
 }
 
-void StartTimer(void*, const uint64_t) {}
-void StopTimer(void*) {}
+void StartTimer(void* p, const uint64_t) { *static_cast<bool*>(p) = true; }
+void StopTimer(void* p) { *static_cast<bool*>(p) = false; }
 
 template <uint64_t k_player_num>
 class TestGame : public testing::Test
@@ -87,6 +102,8 @@ class TestGame : public testing::Test
     static void SetUpTestCase()
     {
     }
+
+    TestGame() : timer_started_(false) {}
 
     virtual void SetUp()
     {
@@ -100,7 +117,7 @@ class TestGame : public testing::Test
         MockMsgSender sender(0, false);
         main_stage_.reset(MakeMainStage(sender, option_));
         if (main_stage_) {
-            main_stage_->Init(this);
+            main_stage_->Init(&timer_started_);
         }
         return main_stage_ != nullptr;
     }
@@ -110,6 +127,9 @@ class TestGame : public testing::Test
    protected:
     StageBase::StageErrCode TIMEOUT()
     {
+        if (!timer_started_) {
+            throw std::runtime_error("timer is not started");
+        }
         std::cout << "[TIMEOUT]" << std::endl;
         const auto rc = main_stage_->HandleTimeout();
         HandleGameOver_();
@@ -140,6 +160,7 @@ class TestGame : public testing::Test
     GameOption option_;
     std::unique_ptr<MainStageBase> main_stage_;
     std::optional<ScoreArray> expected_scores_;
+    bool timer_started_;
 
   private:
     void HandleGameOver_()
@@ -165,34 +186,36 @@ class TestGame : public testing::Test
 
 #define ASSERT_FINISHED(finished) ASSERT_EQ(expected_scores().has_value(), finished);
 
-#define ASSERT_SCORE(scores...)                                                   \
-    do {                                                                          \
-        ASSERT_TRUE(expected_scores().has_value()) << "Game not finish";          \
+#define ASSERT_SCORE(scores...) \
+    do { \
+        ASSERT_TRUE(expected_scores().has_value()) << "Game not finish"; \
         ASSERT_EQ((ScoreArray{scores}), *expected_scores()) << "Score not match"; \
     } while (0)
 
-#define START_GAME()                                     \
-    do {                                                 \
-        std::cout << "[GAME START]" << std::endl;        \
+#define START_GAME() \
+    do { \
+        std::cout << "[GAME START]" << std::endl; \
         ASSERT_TRUE(StartGame()) << "Start game failed"; \
     } while (0)
 
-#define ASSERT_TIMEOUT(ret) ASSERT_EQ(StageBase::StageErrCode::ret, (TIMEOUT()))
+#define __ASSERT_ERRCODE_BASE(ret, statement) \
+    do { \
+        const auto rc = statement; \
+        ASSERT_EQ(StageBase::StageErrCode::ret, rc) << "ErrCode Mismatch, Actual: " << StageErrCodeToString(rc); \
+    } while (0)
 
+#define ASSERT_TIMEOUT(ret) __ASSERT_ERRCODE_BASE(ret, (TIMEOUT()))
 #define CHECK_TIMEOUT(ret) (StageBase::StageErrCode::ret == (TIMEOUT()))
 
-#define ASSERT_PUB_MSG(ret, pid, msg) ASSERT_EQ(StageBase::StageErrCode::ret, (PublicRequest(pid, msg))) << "Handle request failed"
-
+#define ASSERT_PUB_MSG(ret, pid, msg) __ASSERT_ERRCODE_BASE(ret, (PublicRequest(pid, msg)))
 #define CHECK_PUB_MSG(ret, pid, msg) (StageBase::StageErrCode::ret == PublicRequest(pid, msg))
 
-#define ASSERT_PRI_MSG(ret, pid, msg) ASSERT_EQ(StageBase::StageErrCode::ret, (PrivateRequest(pid, msg))) << "Handle request failed"
-
+#define ASSERT_PRI_MSG(ret, pid, msg) __ASSERT_ERRCODE_BASE(ret, (PrivateRequest(pid, msg)))
 #define CHECK_PRI_MSG(ret, pid, msg) (StageBase::StageErrCode::ret == PrivateRequest(pid, msg))
 
-#define ASSERT_LEAVE(ret, pid) ASSERT_EQ(StageBase::StageErrCode::ret, Leave(pid)) << "Leave failed"
-
+#define ASSERT_LEAVE(ret, pid) __ASSERT_ERRCODE_BASE(ret, Leave(pid))
 #define CHECK_LEAVE(ret, pid) (StageBase::StageErrCode::ret == Leave(pid))
 
-#define GAME_TEST(player_num, test_name)                              \
+#define GAME_TEST(player_num, test_name) \
     using TestGame_##player_num##_##test_name = TestGame<player_num>; \
     TEST_F(TestGame_##player_num##_##test_name, test_name)
