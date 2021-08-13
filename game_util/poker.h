@@ -51,6 +51,7 @@ ENUM_END(PatternType)
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <regex>
 #include <cassert>
 #include <random>
@@ -430,43 +431,77 @@ class Hand
 
     std::optional<Deck> BestPairPattern_() const
     {
-        std::array<std::deque<PokerNumber>, PokerSuit::Count() + 1> poker_numbers;
+        // If poker_ is AA22233334, the same_number_poker_counts will be:
+        // [0]: A 4 3 2 (at least has one)
+        // [1]: A 3 2 (at least has two)
+        // [2]: 3 2 (at least has three)
+        // [3]: 3 (at least has four)
+        // Then we go through from the back of poker_number to fill the deck.
+        // When at [3], the deck become 3333?
+        // When at [2], the deck become 3333A, which is the result deck.
+        std::array<std::deque<PokerNumber>, PokerSuit::Count()> same_number_poker_counts_accurate;
+        std::array<std::deque<PokerNumber>, PokerSuit::Count()> same_number_poker_counts;
         for (const auto number : PokerNumber::Members()) {
             const uint64_t count = std::count(pokers_[static_cast<uint32_t>(number)].begin(),
                                               pokers_[static_cast<uint32_t>(number)].end(), true);
-            poker_numbers[count].emplace_front(number);
+            same_number_poker_counts_accurate[count - 1].emplace_back(number);
+            for (uint64_t i = 0; i < count; ++i) {
+                same_number_poker_counts[i].emplace_back(number);
+            }
         }
+        std::set<PokerNumber> already_used_numbers;
         std::vector<Poker> pokers;
-        // fill big pair poker first
-        for (auto it = poker_numbers.rbegin(); it != poker_numbers.rend(); ++it) {
-            // fill big number poker first
-            for (auto number_it = it->rbegin(); number_it != it->rend(); ++number_it) {
-                for (const auto suit : PokerSuit::Members()) {
-                    if (pokers_[static_cast<uint32_t>(*number_it)][static_cast<uint32_t>(suit)]) {
-                        pokers.emplace_back(*number_it, suit);
-                        if (pokers.size() == 5) {
-                            return Deck(PairPatternType_(poker_numbers),
-                                        std::array<Poker, 5>{pokers[0], pokers[1], pokers[2], pokers[3], pokers[4]});
-                        }
+
+        const auto fill_pair_to_deck = [&](const PokerNumber& number)
+        {
+            for (auto suit_it = PokerSuit::Members().rbegin();  suit_it != PokerSuit::Members().rend(); ++suit_it) {
+                if (pokers_[static_cast<uint32_t>(number)][static_cast<uint32_t>(*suit_it)]) {
+                    pokers.emplace_back(number, *suit_it);
+                    if (pokers.size() == 5) {
+                        return;
                     }
                 }
             }
+        };
+
+        const auto fill_best_pair_to_deck = [&]()
+        {
+            // fill big pair poker first
+            for (int64_t i = std::min(PokerSuit::Count(), 5 - pokers.size()) - 1; i >= 0; --i) {
+                const auto& owned_numbers = same_number_poker_counts[i];
+                // fill big number poker first
+                for (auto number_it = owned_numbers.rbegin(); number_it != owned_numbers.rend(); ++number_it) {
+                    if (already_used_numbers.emplace(*number_it).second) {
+                        fill_pair_to_deck(*number_it);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+
+        while (fill_best_pair_to_deck() && pokers.size() < 5)
+            ;
+        if (pokers.size() < 5) {
+            return std::nullopt;
         }
-        return std::nullopt;
+        return Deck(PairPatternType_(same_number_poker_counts_accurate),
+                    std::array<Poker, 5>{pokers[0], pokers[1], pokers[2], pokers[3], pokers[4]});
     }
 
     static PatternType PairPatternType_(
-            const std::array<std::deque<PokerNumber>, PokerSuit::Count() + 1>& poker_numbers)
+            const std::array<std::deque<PokerNumber>, PokerSuit::Count()>& same_number_poker_counts)
     {
-        if (!poker_numbers[4].empty()) {
+        if (!same_number_poker_counts[4 - 1].empty()) {
             return PatternType::FOUR_OF_A_KIND;
-        } else if (poker_numbers[3].size() >= 2 || (!poker_numbers[3].empty() && !poker_numbers[2].empty())) {
+        } else if (same_number_poker_counts[3 - 1].size() >= 2 ||
+                   (!same_number_poker_counts[3 - 1].empty() && !same_number_poker_counts[2 - 1].empty())) {
             return PatternType::FULL_HOUSE;
-        } else if (!poker_numbers[3].empty()) {
+        } else if (!same_number_poker_counts[3 - 1].empty()) {
             return PatternType::THREE_OF_A_KIND;
-        } else if (poker_numbers[2].size() >= 2) {
+        } else if (same_number_poker_counts[2 - 1].size() >= 2) {
             return PatternType::TWO_PAIRS;
-        } else if (!poker_numbers[2].empty()) {
+        } else if (!same_number_poker_counts[2 - 1].empty()) {
             return PatternType::ONE_PAIR;
         } else {
             return PatternType::HIGH_CARD;

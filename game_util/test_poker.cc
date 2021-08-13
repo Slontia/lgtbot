@@ -73,7 +73,7 @@ TEST_F(TestPoker, four_of_a_kind)
     ASSERT_TRUE(best_deck->type_ == poker::PatternType::FOUR_OF_A_KIND) << "best_deck: " << best_deck->type_;
 }
 
-TEST_F(TestPoker, four_of_a_kind_mix_1)
+TEST_F(TestPoker, four_of_a_kind_1)
 {
     poker::Hand hand;
     hand.Add(poker::PokerNumber::_A, poker::PokerSuit::SPADE);
@@ -85,6 +85,29 @@ TEST_F(TestPoker, four_of_a_kind_mix_1)
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
     ASSERT_TRUE(best_deck->type_ == poker::PatternType::FOUR_OF_A_KIND) << "best_deck: " << best_deck->type_;
+}
+
+TEST_F(TestPoker, four_of_a_kind_2)
+{
+    poker::Hand hand;
+    hand.Add(poker::PokerNumber::_A, poker::PokerSuit::SPADE);
+    hand.Add(poker::PokerNumber::_A, poker::PokerSuit::DIANMOND);
+    hand.Add(poker::PokerNumber::_Q, poker::PokerSuit::DIANMOND);
+    hand.Add(poker::PokerNumber::_Q, poker::PokerSuit::SPADE);
+    hand.Add(poker::PokerNumber::_Q, poker::PokerSuit::CLUB);
+    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::CLUB);
+    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::HEART);
+    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::SPADE);
+    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::DIANMOND);
+    const auto best_deck = hand.BestDeck();
+    ASSERT_TRUE(best_deck.has_value());
+    ASSERT_TRUE(*best_deck == (poker::Deck{poker::PatternType::FOUR_OF_A_KIND, std::array<poker::Poker, 5> {
+                poker::Poker{poker::PokerNumber::_6, poker::PokerSuit::SPADE},
+                poker::Poker{poker::PokerNumber::_6, poker::PokerSuit::HEART},
+                poker::Poker{poker::PokerNumber::_6, poker::PokerSuit::DIANMOND},
+                poker::Poker{poker::PokerNumber::_6, poker::PokerSuit::CLUB},
+                poker::Poker{poker::PokerNumber::_A, poker::PokerSuit::SPADE},
+            }})) << "Actual: " << *best_deck;
 }
 
 TEST_F(TestPoker, full_house)
