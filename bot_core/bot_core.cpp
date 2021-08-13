@@ -89,7 +89,7 @@ class PublicReplyMsgSender : public MsgSender
     MsgSenderGuard operator()() override
     {
         MsgSenderGuard guard(*this);
-        guard << At(uid_) << " ";
+        guard << At(uid_) << "\n ";
         return guard;
     }
   private:

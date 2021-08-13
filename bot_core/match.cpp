@@ -273,6 +273,7 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
                                 )
           )
         , com_num_(0)
+        , stage_is_over_(false)
         , multiple_(1)
         , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助")))
 {
@@ -516,24 +517,24 @@ bool Match::SwitchHost()
     return true;
 }
 
+// REQUIRE: should be protected by mutex_
 void Match::StartTimer(const uint64_t sec)
 {
     static const uint64_t kMinAlertSec = 10;
-    std::lock_guard<std::mutex> l(mutex_);
     if (sec == 0) {
         return;
     }
     Timer::TaskSet tasks;
-    std::shared_ptr<bool> stage_is_over = std::make_shared<bool>(false);
-    std::function<void(Timer*)> deleter = [stage_is_over](Timer* timer) {
-        *stage_is_over = true;
-        delete timer;
-    };
-    std::function<void()> timeout_handler = [match = shared_from_this(), stage_is_over]() {
-        // TODO: lock match
-        if (!*stage_is_over) {
-            match->main_stage_->HandleTimeout();
-            match->Routine_();
+    stage_is_over_.store(false);
+    const auto timeout_handler = [this]() {
+        // Handle a reference because match may be removed from match_manager if timeout cause game over.
+        auto match = shared_from_this();
+        // Timeout event should not be triggered during request handling, so we need lock here.
+        std::lock_guard<std::mutex> l(mutex_);
+        // If stage has been finished by other request, timeout event should not be triggered again, so we check stage_is_over_ here.
+        if (!stage_is_over_.load()) {
+            main_stage_->HandleTimeout();
+            Routine_();
         }
     };
     if (kMinAlertSec > sec / 2) {
@@ -548,13 +549,16 @@ void Match::StartTimer(const uint64_t sec)
         }
         tasks.emplace_front(sec - sum_alert_sec, [] {});
     }
-    timer_ = std::unique_ptr<Timer, std::function<void(Timer*)>>(new Timer(std::move(tasks)), std::move(deleter));
+    assert(timer_ == nullptr);
+    timer_ = std::make_unique<Timer>(std::move(tasks)); // start timer
 }
 
+// This function can be invoked event if timer is not started.
+// REQUIRE: should be protected by mutex_
 void Match::StopTimer()
 {
-    std::lock_guard<std::mutex> l(mutex_);
-    timer_ = nullptr;
+    stage_is_over_ = true;
+    timer_ = nullptr; // stop timer
 }
 
 std::string Match::OptionInfo() const

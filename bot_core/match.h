@@ -125,7 +125,8 @@ class Match : public std::enable_shared_from_this<Match>
     std::vector<VariantID> players_; // all players, include computers
 
     // time info
-    std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;
+    std::atomic<bool> stage_is_over_; // must release after timer_
+    std::unique_ptr<Timer> timer_;
     std::chrono::time_point<std::chrono::system_clock> start_time_;
     std::chrono::time_point<std::chrono::system_clock> end_time_;
 

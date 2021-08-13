@@ -55,6 +55,7 @@ void MessagerFlush(void* p)
     } else {
         std::cout << "[BOT -> GROUP_" << messager->id_ << "]" << std::endl << messager->ss_.str() << std::endl;
     }
+    messager->ss_.str("");
 }
 
 void CloseMessager(void* p)
@@ -63,11 +64,24 @@ void CloseMessager(void* p)
     delete messager;
 }
 
-class EmptyMainStage : public MainGameStage<>
+class MockMainStage : public MainGameStage<>
 {
   public:
-    EmptyMainStage() : GameStage() {}
+    MockMainStage() : GameStage("主阶段",
+            MakeStageCommand("结束", &MockMainStage::Over_, VoidChecker("结束"))) {}
+
+    virtual void OnStageBegin() override
+    {
+        StartTimer(1);
+    }
+
     virtual int64_t PlayerScore(const PlayerID pid) const override { return 1; };
+
+  private:
+    AtomStageErrCode Over_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        return CHECKOUT;
+    }
 };
 
 class EmptyGameOption : public GameOptionBase
@@ -94,13 +108,13 @@ class TestBot : public testing::Test
     }
 
   protected:
-    void NewGame(const char* const name, const uint64_t max_player)
+    void AddGame(const char* const name, const uint64_t max_player)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
                     std::nullopt, name, max_player, "这是规则介绍",
                     []() -> GameOptionBase* { return new EmptyGameOption(); },
                     [](const GameOptionBase* const options) { delete options; },
-                    [](MsgSenderBase&, const GameOptionBase&) -> MainStageBase* { return new EmptyMainStage(); },
+                    [](MsgSenderBase&, const GameOptionBase&) -> MainStageBase* { return new MockMainStage(); },
                     [](const MainStageBase* const main_stage) { delete main_stage; },
                     []() {}
         ));
@@ -126,25 +140,25 @@ do\
 
 TEST_F(TestBot, pub_join_game_failed)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_MATCH_GROUP_NOT_IN_MATCH, 1, 1, "#加入游戏");
 }
 
 TEST_F(TestBot, pub_join_pri_game_failed)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_MATCH_NEED_REQUEST_PRIVATE, 1, 1, "#加入游戏 1");
 }
 
 TEST_F(TestBot, pri_join_game_failed)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_MATCH_NOT_EXIST, 1, "#加入游戏 1");
 }
 
 TEST_F(TestBot, pri_join_pub_game_failed)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_MATCH_NEED_ID, 1, "#加入游戏");
 }
 
@@ -152,35 +166,35 @@ TEST_F(TestBot, pri_join_pub_game_failed)
 
 TEST_F(TestBot, pub_repeat_new_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, 1, 1, "#新游戏 测试游戏");
 }
 
 TEST_F(TestBot, pub_repeat_new_game_other_group)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, 2, 1, "#新游戏 测试游戏");
 }
 
 TEST_F(TestBot, pub_repeat_new_pri_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, 1, "#新游戏 测试游戏");
 }
 
 TEST_F(TestBot, pri_repeat_new_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, 1, "#新游戏 测试游戏");
 }
 
 TEST_F(TestBot, pri_repeat_new_pub_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, 1, 1, "#新游戏 测试游戏");
 }
@@ -189,14 +203,14 @@ TEST_F(TestBot, pri_repeat_new_pub_game)
 
 TEST_F(TestBot, pub_join_self_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, 1, 1, "#加入游戏");
 }
 
 TEST_F(TestBot, pri_join_self_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, 1, "#加入游戏 1");
 }
@@ -205,7 +219,7 @@ TEST_F(TestBot, pri_join_self_game)
 
 TEST_F(TestBot, pub_join_other_pub_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 2, 2, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_MATCH_USER_ALREADY_IN_OTHER_MATCH, 2, 1, "#加入游戏");
@@ -213,7 +227,7 @@ TEST_F(TestBot, pub_join_other_pub_game)
 
 TEST_F(TestBot, pub_join_other_pri_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_OTHER_MATCH, 1, "#加入游戏 2");
@@ -221,7 +235,7 @@ TEST_F(TestBot, pub_join_other_pri_game)
 
 TEST_F(TestBot, pri_join_other_pub_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 2, 2, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_MATCH_USER_ALREADY_IN_OTHER_MATCH, 2, 1, "#加入游戏");
@@ -229,7 +243,7 @@ TEST_F(TestBot, pri_join_other_pub_game)
 
 TEST_F(TestBot, pri_join_other_pri_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_OTHER_MATCH, 1, "#加入游戏 2");
@@ -239,7 +253,7 @@ TEST_F(TestBot, pri_join_other_pri_game)
 
 TEST_F(TestBot, pub_start_game_not_host)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
   ASSERT_PUB_MSG(EC_MATCH_NOT_HOST, 1, 2, "#开始游戏");
@@ -248,7 +262,7 @@ TEST_F(TestBot, pub_start_game_not_host)
 
 TEST_F(TestBot, pri_start_game_not_host)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
   ASSERT_PRI_MSG(EC_MATCH_NOT_HOST, 2, "#开始游戏");
@@ -257,7 +271,7 @@ TEST_F(TestBot, pri_start_game_not_host)
 
 TEST_F(TestBot, pub_start_game_not_in_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
   ASSERT_PUB_MSG(EC_MATCH_USER_NOT_IN_MATCH, 1, 3, "#开始游戏");
@@ -266,7 +280,7 @@ TEST_F(TestBot, pub_start_game_not_in_game)
 
 TEST_F(TestBot, pri_start_game_not_in_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
   ASSERT_PRI_MSG(EC_MATCH_USER_NOT_IN_MATCH, 3, "#开始游戏");
@@ -275,7 +289,7 @@ TEST_F(TestBot, pri_start_game_not_in_game)
 
 TEST_F(TestBot, pub_start_other_pub_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
   ASSERT_PUB_MSG(EC_OK, 2, 3, "#新游戏 测试游戏");
@@ -287,7 +301,7 @@ TEST_F(TestBot, pub_start_other_pub_game)
 
 TEST_F(TestBot, pri_start_other_pub_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
   ASSERT_PUB_MSG(EC_OK, 2, 3, "#新游戏 测试游戏");
@@ -299,7 +313,7 @@ TEST_F(TestBot, pri_start_other_pub_game)
 
 TEST_F(TestBot, pub_game_pri_start)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
@@ -309,13 +323,13 @@ TEST_F(TestBot, pub_game_pri_start)
 
 TEST_F(TestBot, pub_exit_not_exist_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_MATCH_USER_NOT_IN_MATCH, 1, 1, "#退出游戏");
 }
 
 TEST_F(TestBot, pri_exit_not_exist_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_MATCH_USER_NOT_IN_MATCH, 1, "#退出游戏");
 }
 
@@ -323,7 +337,7 @@ TEST_F(TestBot, pri_exit_not_exist_game)
 
 TEST_F(TestBot, exit_pub_game_then_new_pub_game_same_group)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
@@ -331,7 +345,7 @@ TEST_F(TestBot, exit_pub_game_then_new_pub_game_same_group)
 
 TEST_F(TestBot, exit_pub_game_then_new_pub_game_other_group)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出游戏");
   ASSERT_PUB_MSG(EC_OK, 2, 1, "#新游戏 测试游戏");
@@ -340,7 +354,7 @@ TEST_F(TestBot, exit_pub_game_then_new_pub_game_other_group)
 
 TEST_F(TestBot, exit_pri_game_then_new_pub_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 1, "#退出游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
@@ -349,7 +363,7 @@ TEST_F(TestBot, exit_pri_game_then_new_pub_game)
 
 TEST_F(TestBot, exit_pri_game_then_new_pri_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 1, "#退出游戏");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
@@ -361,7 +375,7 @@ TEST_F(TestBot, exit_pri_game_then_new_pri_game)
 
 TEST_F(TestBot, exit_pub_game_then_join_pub_game_same_group)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出游戏");
@@ -370,7 +384,7 @@ TEST_F(TestBot, exit_pub_game_then_join_pub_game_same_group)
 
 TEST_F(TestBot, exit_pub_game_then_join_pub_game_other_group)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 2, 2, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出游戏");
@@ -379,7 +393,7 @@ TEST_F(TestBot, exit_pub_game_then_join_pub_game_other_group)
 
 TEST_F(TestBot, exit_pri_game_then_join_pub_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 1, "#退出游戏");
@@ -388,7 +402,7 @@ TEST_F(TestBot, exit_pri_game_then_join_pub_game)
 
 TEST_F(TestBot, exit_pri_game_then_join_pri_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 1, "#退出游戏");
@@ -400,7 +414,7 @@ TEST_F(TestBot, exit_pri_game_then_join_pri_game)
 
 TEST_F(TestBot, switch_host)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出游戏");
@@ -414,7 +428,7 @@ TEST_F(TestBot, switch_host)
 
 TEST_F(TestBot, config_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏 配置");
   ASSERT_PUB_MSG(EC_MATCH_IN_CONFIG, 1, 1, "#开始游戏");
   ASSERT_PUB_MSG(EC_MATCH_IN_CONFIG, 1, 2, "#加入游戏");
@@ -426,7 +440,7 @@ TEST_F(TestBot, config_game)
 
 TEST_F(TestBot, config_game_exit)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏 配置");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出游戏");
   ASSERT_PUB_MSG(EC_MATCH_GROUP_NOT_IN_MATCH, 1, 2, "#加入游戏");
@@ -436,7 +450,7 @@ TEST_F(TestBot, config_game_exit)
 
 TEST_F(TestBot, exceed_max_player)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
   ASSERT_PUB_MSG(EC_MATCH_ACHIEVE_MAX_PLAYER, 1, 3, "#加入游戏");
@@ -447,19 +461,19 @@ TEST_F(TestBot, exceed_max_player)
 
 TEST_F(TestBot, interrupt_private_without_mid)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_MATCH_NEED_REQUEST_PUBLIC, k_admin_qq, "%中断游戏");
 }
 
 TEST_F(TestBot, interrupt_public_not_game)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_MATCH_GROUP_NOT_IN_MATCH, 1, k_admin_qq, "%中断游戏");
 }
 
 TEST_F(TestBot, interrupt_public_config)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏 配置");
   ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
@@ -467,7 +481,7 @@ TEST_F(TestBot, interrupt_public_config)
 
 TEST_F(TestBot, interrupt_public_wait)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
   ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断游戏");
@@ -476,7 +490,7 @@ TEST_F(TestBot, interrupt_public_wait)
 
 TEST_F(TestBot, interrupt_public_start)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始游戏");
@@ -486,7 +500,7 @@ TEST_F(TestBot, interrupt_public_start)
 
 TEST_F(TestBot, interrupt_private_wait)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 配置");
   ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断游戏 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
@@ -494,7 +508,7 @@ TEST_F(TestBot, interrupt_private_wait)
 
 TEST_F(TestBot, interrupt_private_config)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
   ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断游戏 1");
@@ -503,7 +517,7 @@ TEST_F(TestBot, interrupt_private_config)
 
 TEST_F(TestBot, interrupt_private_start)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
@@ -513,7 +527,7 @@ TEST_F(TestBot, interrupt_private_start)
 
 TEST_F(TestBot, interrupt_private_wait_in_public)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 配置");
   ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断游戏 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
@@ -521,7 +535,7 @@ TEST_F(TestBot, interrupt_private_wait_in_public)
 
 TEST_F(TestBot, interrupt_private_config_in_public)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
   ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断游戏 1");
@@ -530,7 +544,7 @@ TEST_F(TestBot, interrupt_private_config_in_public)
 
 TEST_F(TestBot, interrupt_private_start_in_public)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
@@ -542,7 +556,7 @@ TEST_F(TestBot, interrupt_private_start_in_public)
 
 TEST_F(TestBot, set_computer)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 电脑");
   ASSERT_PRI_MSG(EC_OK, 1, "#电脑数量 1");
   ASSERT_PRI_MSG(EC_MATCH_ACHIEVE_MAX_PLAYER, 2, ("#加入游戏 1"));
@@ -551,7 +565,7 @@ TEST_F(TestBot, set_computer)
 
 TEST_F(TestBot, set_computer_config)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 配置 电脑");
   ASSERT_PRI_MSG(EC_OK, 1, "#电脑数量 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#配置完成");
@@ -561,14 +575,14 @@ TEST_F(TestBot, set_computer_config)
 
 TEST_F(TestBot, not_allow_set_computer)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_MATCH_FORBIDDEN_OPERATION, 1, "#电脑数量 1");
 }
 
 TEST_F(TestBot, computer_exceed_max_player)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 电脑");
   ASSERT_PRI_MSG(EC_MATCH_ACHIEVE_MAX_PLAYER, 1, "#电脑数量 2");
   ASSERT_PRI_MSG(EC_OK, 2, ("#加入游戏 1"));
@@ -576,10 +590,32 @@ TEST_F(TestBot, computer_exceed_max_player)
 
 TEST_F(TestBot, computer_exceed_max_player_when_config)
 {
-  NewGame("测试游戏", 2);
+  AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 配置 电脑");
   ASSERT_PRI_MSG(EC_MATCH_ACHIEVE_MAX_PLAYER, 1, "#电脑数量 2");
   ASSERT_PRI_MSG(EC_OK, 1, ("#配置完成"));
+}
+
+// Test Game Over
+
+TEST_F(TestBot, game_over_by_request)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "结束");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, game_over_by_timeup)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
+  std::this_thread::sleep_for(std::chrono::seconds(2));
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
 
 int main(int argc, char** argv)

@@ -5,6 +5,7 @@
 #include <functional>
 #include <list>
 #include <thread>
+#include <iostream> //
 
 class Timer
 {
@@ -26,10 +27,15 @@ class Timer
             }
         }); /* make sure thread_ is inited last */
     }
+    Timer(const Timer&) = delete;
+    Timer(Timer&&) = delete;
     ~Timer()
     {
         if (thread_.joinable()) {
-            is_over_.store(true);
+            {
+                std::unique_lock<std::mutex> lock(mutex_);
+                is_over_.store(true);
+            }
             cv_.notify_all();
             thread_.join();
         }
