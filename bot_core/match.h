@@ -95,6 +95,7 @@ class Match : public std::enable_shared_from_this<Match>
     void OnGameOver_();
     void Help_(MsgSenderBase& reply);
     void Routine_();
+    std::string OptionInfo_() const;
 
     mutable std::mutex mutex_;
 

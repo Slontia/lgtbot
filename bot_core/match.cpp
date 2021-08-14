@@ -331,13 +331,13 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         return EC_MATCH_ALREADY_OVER;
     }
     reply.SetMatch(this);
-    const auto it = uid2pid_.find(uid);
-    assert(it != uid2pid_.end());
-    const auto pid = it->second;
     if (MsgReader reader(msg); help_cmd_.CallIfValid(reader, reply)) {
         return EC_GAME_REQUEST_OK;
     }
     if (main_stage_) {
+        const auto it = uid2pid_.find(uid);
+        assert(it != uid2pid_.end());
+        const auto pid = it->second;
         assert(state_ == State::IS_STARTED);
         const auto stage_rc = main_stage_->HandleRequest(msg.c_str(), pid, gid.has_value(), reply);
         if (stage_rc == StageBase::StageErrCode::NOT_FOUND) {
@@ -353,7 +353,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
                     "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
         return EC_GAME_REQUEST_NOT_FOUND;
     }
-    reply() << "设置成功！目前配置：" << OptionInfo();
+    reply() << "设置成功！目前配置：" << OptionInfo_();
     return EC_GAME_REQUEST_OK;
 }
 
@@ -564,6 +564,11 @@ void Match::StopTimer()
 std::string Match::OptionInfo() const
 {
     std::lock_guard<std::mutex> l(mutex_);
+    return OptionInfo_();
+}
+
+std::string Match::OptionInfo_() const
+{
     return options_->Status();
 }
 

@@ -84,10 +84,10 @@ class MockMainStage : public MainGameStage<>
     }
 };
 
-class EmptyGameOption : public GameOptionBase
+class MockGameOption : public GameOptionBase
 {
   public:
-    EmptyGameOption() : GameOptionBase(0) {}
+    MockGameOption() : GameOptionBase(0) {}
     virtual const char* Info(const uint64_t index) const { return "这是配置介绍"; };
     virtual const char* Status() const { return "这是配置状态"; };
     virtual bool SetOption(const char* const msg) { return true; };
@@ -112,7 +112,7 @@ class TestBot : public testing::Test
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
                     std::nullopt, name, max_player, "这是规则介绍",
-                    []() -> GameOptionBase* { return new EmptyGameOption(); },
+                    []() -> GameOptionBase* { return new MockGameOption(); },
                     [](const GameOptionBase* const options) { delete options; },
                     [](MsgSenderBase&, const GameOptionBase&) -> MainStageBase* { return new MockMainStage(); },
                     [](const MainStageBase* const main_stage) { delete main_stage; },
@@ -432,6 +432,7 @@ TEST_F(TestBot, config_game)
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏 配置");
   ASSERT_PUB_MSG(EC_MATCH_IN_CONFIG, 1, 1, "#开始游戏");
   ASSERT_PUB_MSG(EC_MATCH_IN_CONFIG, 1, 2, "#加入游戏");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "测试配置");
   ASSERT_PUB_MSG(EC_MATCH_USER_NOT_IN_MATCH, 1, 2, "#配置完成");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#配置完成");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
@@ -610,6 +611,7 @@ TEST_F(TestBot, game_over_by_request)
 
 TEST_F(TestBot, game_over_by_timeup)
 {
+  //TODO: support control timer
   AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
