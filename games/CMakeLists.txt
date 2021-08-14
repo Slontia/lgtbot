@@ -29,10 +29,12 @@ foreach (GAME_DIR ${GAME_DIRS})
       ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource_loader.cpp
     )
 
+    set(RULE_BINARY ${CMAKE_CURRENT_BINARY_DIR}/${GAME}_rule.o)
+
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
       add_custom_target(${GAME}_rule ALL
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMAND cd ${GAME_DIR} && objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA rule.txt ${CMAKE_CURRENT_SOURCE_DIR}/rule.o
+        COMMAND cd ${GAME_DIR} && objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA rule.txt ${RULE_BINARY}
         COMMENT "Build rule"
       )
     endif()
@@ -44,7 +46,7 @@ foreach (GAME_DIR ${GAME_DIRS})
 
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
       add_dependencies(${GAME} ${GAME}_rule)
-      target_link_libraries(${GAME} ${CMAKE_CURRENT_SOURCE_DIR}/rule.o)
+      target_link_libraries(${GAME} ${RULE_BINARY})
     endif()
 
     if (WITH_TEST)
@@ -55,7 +57,7 @@ foreach (GAME_DIR ${GAME_DIRS})
       target_include_directories(test_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
       if (CMAKE_SYSTEM_NAME MATCHES "Linux")
         add_dependencies(test_game_${GAME} ${GAME}_rule)
-        target_link_libraries(test_game_${GAME} ${CMAKE_CURRENT_SOURCE_DIR}/rule.o)
+        target_link_libraries(test_game_${GAME} ${RULE_BINARY})
         add_test(NAME test_game_${GAME} COMMAND test_game_${GAME})
       endif()
     endif()
