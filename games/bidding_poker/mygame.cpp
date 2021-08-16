@@ -270,6 +270,7 @@ class DiscardStage : public SubGameStage<>
                 pokers.clear();
             }
         }
+        reply() << "成功，您当前选择不弃牌";
         return masker_.Set(pid) ? CHECKOUT : OK;
     }
 
@@ -321,7 +322,10 @@ class RoundStage : public SubGameStage<DiscardStage, MainBidStage>
 class MainStage : public MainGameStage<MainBidStage, RoundStage>
 {
   public:
-    MainStage(const GameOption& option) : option_(option), round_(0)
+    MainStage(const GameOption& option)
+        : GameStage("主阶段", MakeStageCommand("场况", &MainStage::Status_, VoidChecker("场况")))
+        , option_(option)
+        , round_(0)
     {
         for (PlayerID pid = 0; pid < option.PlayerNum(); ++pid) {
             players_.emplace_back(pid, option_.GET_VALUE(初始金币数));
@@ -387,9 +391,8 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
             value = value - half_value;
             return half_value;
         };
-        uint32_t bonus_coins = std::accumulate(players_.begin(), players_.end(),
-                option_.GET_VALUE(初始金币数) * option_.PlayerNum() ,
-                [](const uint32_t _1, const Player& _2) { return _1 - _2.coins_; });
+
+        uint32_t bonus_coins = BonusCoins_();
 
         // decrease coins
         const auto decrese_coins = [&](const PlayerID pid)
@@ -427,6 +430,23 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
     int64_t PlayerScore(const PlayerID pid) const { return players_[pid].coins_; }
 
   private:
+    CompStageErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        auto sender = reply();
+        sender << "奖池金币数：" << BonusCoins_() << "枚\n";
+        for (const Player& player : players_) {
+            sender << "\n" << Name(player.pid_) << "：" << player.coins_ << "枚金币";
+            sender << "\n手牌：" << player.hand_;
+        }
+        return OK;
+    }
+
+    uint32_t BonusCoins_() const
+    {
+        return std::accumulate(players_.begin(), players_.end(), option_.GET_VALUE(初始金币数) * option_.PlayerNum(),
+                [](const uint32_t _1, const Player& _2) { return _1 - _2.coins_; });
+    }
+
     const GameOption& option_;
     PokerItems poker_items_;
     std::vector<Player> players_;
