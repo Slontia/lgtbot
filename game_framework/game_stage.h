@@ -6,7 +6,6 @@
 
 #include "game_framework/util.h"
 #include "utility/msg_checker.h"
-#include "utility/timer.h"
 
 template <typename RetType>
 using GameCommand = Command<RetType(const uint64_t, const bool, MsgSenderBase&)>;
@@ -243,7 +242,7 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBaseImpl, S
    public:
     template <typename ...Commands>
     GameStage(std::string&& name = "", Commands&&... commands)
-            : Base(std::move(name)), timer_(nullptr), commands_{std::forward<Commands>(commands)...}
+            : Base(std::move(name)), commands_{std::forward<Commands>(commands)...}
     {
     }
     virtual ~GameStage() { ::StopTimer(Base::match_); }
@@ -344,10 +343,8 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBaseImpl, S
     }
     virtual void Over() override final
     {
-        timer_ = nullptr;
         StageBase::Over();
     }
-    std::unique_ptr<Timer, std::function<void(Timer*)>> timer_;
     // if command return true, the stage will be over
     std::vector<GameCommand<AtomStageErrCode>> commands_;
     std::optional<std::chrono::time_point<std::chrono::steady_clock>> finish_time_;

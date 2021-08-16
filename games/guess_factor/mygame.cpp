@@ -2,6 +2,7 @@
 #include <functional>
 #include <memory>
 #include <numeric>
+#include <list>
 
 #include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"

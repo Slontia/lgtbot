@@ -1,9 +1,21 @@
+#include <future>
+
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
+
 #include "bot_core/util.h"
 #include "bot_core/msg_sender.h"
 #include "bot_core/bot_core.h"
+#include "bot_core/timer.h"
 #include "game_framework/game_stage.h"
+
+static_assert(TEST_BOT);
+
+std::condition_variable Timer::cv_;
+bool Timer::skip_timer_ = false;
+std::condition_variable Timer::remaining_thread_cv_;
+uint64_t Timer::remaining_thread_count_ = 0;
+std::mutex Timer::mutex_;
 
 static std::ostream& operator<<(std::ostream& os, const ErrCode e) { return os << errcode2str(e); }
 
@@ -64,24 +76,108 @@ void CloseMessager(void* p)
     delete messager;
 }
 
-class MockMainStage : public MainGameStage<>
+class TestBot;
+
+static std::mutex substage_blocked_mutex_;
+static std::condition_variable substage_block_request_cv_;
+static std::atomic<bool> substage_blocked_;
+
+class MockSubStage : public SubGameStage<>
 {
   public:
-    MockMainStage() : GameStage("主阶段",
-            MakeStageCommand("结束", &MockMainStage::Over_, VoidChecker("结束"))) {}
+    MockSubStage()
+        : GameStage("子阶段", MakeStageCommand("结束", &MockSubStage::Over_, VoidChecker("结束子阶段"))
+                            , MakeStageCommand("准备重新计时", &MockSubStage::ToResetTimer_, VoidChecker("准备重新计时"))
+                            , MakeStageCommand("阻塞", &MockSubStage::Block_, VoidChecker("阻塞"))
+                            , MakeStageCommand("阻塞并结束", &MockSubStage::BlockAndOver_, VoidChecker("阻塞并结束"))
+          )
+        , to_reset_timer_(false)
+    {}
 
     virtual void OnStageBegin() override
     {
+        Boardcast() << "子阶段开始";
         StartTimer(1);
     }
 
-    virtual int64_t PlayerScore(const PlayerID pid) const override { return 1; };
+    virtual AtomStageErrCode OnTimeout() override
+    {
+        if (to_reset_timer_) {
+            to_reset_timer_ = false;
+            StartTimer(1);
+            Boardcast() << "时间到，但是回合继续";
+            return OK;
+        }
+        Boardcast() << "时间到，回合结束";
+        return CHECKOUT;
+    }
 
   private:
     AtomStageErrCode Over_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         return CHECKOUT;
     }
+
+    AtomStageErrCode ToResetTimer_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        to_reset_timer_ = true;
+        return OK;
+    }
+
+    AtomStageErrCode Block_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        std::unique_lock<std::mutex> l(substage_blocked_mutex_);
+        if (substage_blocked_.exchange(true) == true) {
+            throw std::runtime_error("a substage has ready been blocked");
+        }
+        substage_block_request_cv_.wait(l);
+        substage_blocked_ = false;
+        return OK;
+    }
+
+    AtomStageErrCode BlockAndOver_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        Block_(pid, is_public, reply);
+        return CHECKOUT;
+    }
+
+    bool to_reset_timer_;
+};
+
+class MockMainStage : public MainGameStage<MockSubStage>
+{
+  public:
+    MockMainStage()
+        : GameStage("主阶段", MakeStageCommand("准备切换", &MockMainStage::ToCheckout_, VoidChecker("准备切换")))
+        , to_checkout_(false)
+    {}
+
+    virtual VariantSubStage OnStageBegin() override
+    {
+        return std::make_unique<MockSubStage>();
+    }
+
+    virtual VariantSubStage NextSubStage(MockSubStage& sub_stage, const CheckoutReason reason) override
+    {
+        if (to_checkout_) {
+            Boardcast() << "回合结束，切换子阶段";
+            to_checkout_ = false;
+            return std::make_unique<MockSubStage>();
+        }
+        Boardcast() << "回合结束，游戏结束";
+        return {};
+    }
+
+    virtual int64_t PlayerScore(const PlayerID pid) const override { return 1; };
+
+  private:
+    CompStageErrCode ToCheckout_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        to_checkout_ = true;
+        return OK;
+    }
+
+    bool to_checkout_;
 };
 
 class MockGameOption : public GameOptionBase
@@ -98,6 +194,7 @@ class TestBot : public testing::Test
   public:
     virtual void SetUp() override
     {
+        Timer::skip_timer_ = false;
         bot_ = BOT_API::Init(k_this_qq, nullptr, &k_admin_qq, 1);
         ASSERT_NE(bot_, nullptr) << "init bot failed";
     }
@@ -119,7 +216,38 @@ class TestBot : public testing::Test
                     []() {}
         ));
     }
+
+    static void SkipTimer()
+    {
+        std::unique_lock<std::mutex> l(Timer::mutex_);
+        Timer::skip_timer_ = true;
+        Timer::cv_.notify_all();
+    }
+
+    static void WaitTimerThreadFinish()
+    {
+        std::unique_lock<std::mutex> l(Timer::mutex_);
+        Timer::remaining_thread_cv_.wait(l, [] { return Timer::remaining_thread_count_ == 0; });
+    }
+
+    static void BlockTimer()
+    {
+        Timer::skip_timer_ = false;
+    }
+
+    void NotifySubStage()
+    {
+        substage_block_request_cv_.notify_all();
+    }
+
+    void WaitSubStageBlock()
+    {
+        while (!substage_blocked_.load())
+            ;
+    }
+
     void* bot_;
+
 };
 
 #define ASSERT_PUB_MSG(ret, gid, uid, msg)\
@@ -597,7 +725,7 @@ TEST_F(TestBot, computer_exceed_max_player_when_config)
   ASSERT_PRI_MSG(EC_OK, 1, ("#配置完成"));
 }
 
-// Test Game Over
+// Test Game
 
 TEST_F(TestBot, game_over_by_request)
 {
@@ -605,7 +733,7 @@ TEST_F(TestBot, game_over_by_request)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
-  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "结束");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "结束子阶段");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
 
@@ -616,7 +744,68 @@ TEST_F(TestBot, game_over_by_timeup)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
-  std::this_thread::sleep_for(std::chrono::seconds(2));
+  SkipTimer();
+  WaitTimerThreadFinish();
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, checkout_substage_by_request)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备切换");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "结束子阶段");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "结束子阶段");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, checkout_substage_by_timeout)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备切换");
+  SkipTimer();
+  WaitTimerThreadFinish();
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, substage_reset_timer)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备重新计时");
+  SkipTimer();
+  WaitTimerThreadFinish();
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, timeout_during_handle_rquest)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入游戏 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
+
+  auto fut_1 = std::async([this]
+        {
+            ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "阻塞并结束");
+        });
+  WaitSubStageBlock();
+  SkipTimer();
+  auto fut_2 = std::async([this]
+        {
+            WaitTimerThreadFinish();
+        });
+  NotifySubStage();
+  fut_1.wait();
+  fut_2.wait();
+
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
 

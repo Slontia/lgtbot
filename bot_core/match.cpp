@@ -273,7 +273,6 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
                                 )
           )
         , com_num_(0)
-        , stage_is_over_(false)
         , multiple_(1)
         , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助")))
 {
@@ -389,6 +388,7 @@ ErrCode Match::GameStart(const bool is_public, MsgSenderBase& reply)
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
     state_ = State::IS_STARTED;
+    Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
     main_stage_->Init(this);
     for (auto& [uid, sender] : ready_uid_set_) {
         uid2pid_.emplace(uid, players_.size());
@@ -399,7 +399,6 @@ ErrCode Match::GameStart(const bool is_public, MsgSenderBase& reply)
         players_.emplace_back(cid);
     }
     std::visit([this](auto& sender) { sender.SetMatch(this); }, boardcast_sender_);
-    Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
     start_time_ = std::chrono::system_clock::now();
     return EC_OK;
 }
@@ -525,16 +524,21 @@ void Match::StartTimer(const uint64_t sec)
         return;
     }
     Timer::TaskSet tasks;
-    stage_is_over_.store(false);
-    const auto timeout_handler = [this]() {
+    timer_is_over_ = std::make_shared<bool>(false);
+    // We must store a timer_is_over because it may be reset to true when new timer begins.
+    const auto timeout_handler = [timer_is_over = timer_is_over_, match_wk = weak_from_this()]() {
         // Handle a reference because match may be removed from match_manager if timeout cause game over.
-        auto match = shared_from_this();
+        auto match = match_wk.lock();
+        if (!match) {
+            return; // match is released
+        }
         // Timeout event should not be triggered during request handling, so we need lock here.
-        std::lock_guard<std::mutex> l(mutex_);
+        // timer_is_over also should protected in lock. Otherwise, a rquest may be handled after checking timer_is_over and before timeout_timer lock match.
+        std::lock_guard<std::mutex> l(match->mutex_);
         // If stage has been finished by other request, timeout event should not be triggered again, so we check stage_is_over_ here.
-        if (!stage_is_over_.load()) {
-            main_stage_->HandleTimeout();
-            Routine_();
+        if (!*timer_is_over) {
+            match->main_stage_->HandleTimeout();
+            match->Routine_();
         }
     };
     if (kMinAlertSec > sec / 2) {
@@ -549,7 +553,6 @@ void Match::StartTimer(const uint64_t sec)
         }
         tasks.emplace_front(sec - sum_alert_sec, [] {});
     }
-    assert(timer_ == nullptr);
     timer_ = std::make_unique<Timer>(std::move(tasks)); // start timer
 }
 
@@ -557,7 +560,9 @@ void Match::StartTimer(const uint64_t sec)
 // REQUIRE: should be protected by mutex_
 void Match::StopTimer()
 {
-    stage_is_over_ = true;
+    if (timer_is_over_ != nullptr) {
+        *timer_is_over_ = true;
+    }
     timer_ = nullptr; // stop timer
 }
 

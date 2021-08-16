@@ -8,8 +8,7 @@
 
 #include "util.h"
 #include "bot_core/msg_sender.h"
-#include "utility/spinlock.h"
-#include "utility/timer.h"
+#include "bot_core/timer.h"
 #include "utility/msg_checker.h"
 
 #define INVALID_LOBBY (QQ)0
@@ -126,7 +125,7 @@ class Match : public std::enable_shared_from_this<Match>
     std::vector<VariantID> players_; // all players, include computers
 
     // time info
-    std::atomic<bool> stage_is_over_; // must release after timer_
+    std::shared_ptr<bool> timer_is_over_;
     std::unique_ptr<Timer> timer_;
     std::chrono::time_point<std::chrono::system_clock> start_time_;
     std::chrono::time_point<std::chrono::system_clock> end_time_;
