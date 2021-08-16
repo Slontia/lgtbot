@@ -1,8 +1,10 @@
 #pragma once
+
 #include <memory>
 #include <variant>
 #include <vector>
-#include "bot_core/defines.h"
+
+#include "bot_core/id.h"
 
 void* OpenMessager(uint64_t id, bool is_uid);
 void MessagerPostText(void* p, const char* data, uint64_t len);

@@ -1,15 +1,18 @@
 #pragma once
-#include <assert.h>
+
+#include <cassert>
 
 #include <map>
 #include <set>
 #include <bitset>
 #include <variant>
 
-#include "util.h"
+#include "utility/msg_checker.h"
+
 #include "bot_core/msg_sender.h"
 #include "bot_core/timer.h"
-#include "utility/msg_checker.h"
+#include "bot_core/game_handle.h"
+#include "bot_core/bot_ctx.h"
 
 #define INVALID_LOBBY (QQ)0
 

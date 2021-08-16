@@ -1,11 +1,4 @@
-
 #include <regex>
-
-#include "db_manager.h"
-#include "log.h"
-#include "match.h"
-#include "util.h"
-#include "msg_sender.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -20,6 +13,11 @@
 #else
 static_assert(false, "Not support OS");
 #endif
+
+#include "bot_core/db_manager.h"
+#include "bot_core/log.h"
+#include "bot_core/match.h"
+#include "bot_core/msg_sender.h"
 
 MsgSenderBase::MsgSenderGuard Boardcast(void* match_p) { return static_cast<Match*>(match_p)->Boardcast(); }
 MsgSenderBase::MsgSenderGuard Tell(void* match_p, const uint64_t pid) { return static_cast<Match*>(match_p)->Tell(pid); }

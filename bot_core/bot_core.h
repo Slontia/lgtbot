@@ -57,7 +57,7 @@ ERRCODE_DEF(EC_GAME_REQUEST_UNKNOWN)
 #include <memory>
 #include <string>
 
-#include "bot_core/defines.h"
+#include "bot_core/id.h"
 
 class GameHandle;
 

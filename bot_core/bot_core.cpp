@@ -9,7 +9,6 @@
 #include "bot_core/log.h"
 #include "bot_core/match.h"
 #include "bot_core/message_handlers.h"
-#include "bot_core/util.h"
 #include "bot_core/msg_sender.h"
 
 extern void LoadGameModules();

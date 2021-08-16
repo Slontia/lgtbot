@@ -3,11 +3,13 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-#include "bot_core/util.h"
+#include "game_framework/game_stage.h"
+
 #include "bot_core/msg_sender.h"
 #include "bot_core/bot_core.h"
 #include "bot_core/timer.h"
-#include "game_framework/game_stage.h"
+#include "bot_core/bot_ctx.h"
+#include "bot_core/game_handle.h"
 
 static_assert(TEST_BOT);
 

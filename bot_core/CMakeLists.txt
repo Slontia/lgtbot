@@ -16,6 +16,7 @@ list(APPEND SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/bot_core.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/db_manager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/match.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/match_manager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/message_handlers.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/load_game_modules.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cpp

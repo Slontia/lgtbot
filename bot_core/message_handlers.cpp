@@ -1,11 +1,11 @@
-#include "message_handlers.h"
+#include "bot_core/message_handlers.h"
 
-#include "bot_core.h"
-#include "db_manager.h"
-#include "log.h"
-#include "match.h"
-#include "util.h"
 #include "utility/msg_checker.h"
+
+#include "bot_core/bot_core.h"
+#include "bot_core/db_manager.h"
+#include "bot_core/log.h"
+#include "bot_core/match.h"
 
 static MetaCommand make_command(const char* const description, const auto& cb, auto&&... checkers)
 {
