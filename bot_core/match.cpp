@@ -32,8 +32,8 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
         , main_stage_(nullptr, [](const MainStageBase*) {}) // make when game starts
         , player_num_each_user_(1)
         , boardcast_sender_(
-              gid.has_value() ? std::variant<MsgSender, BoardcastMsgSender>(MsgSender(*gid_))// : std::variant<MsgSender, BoardcastMsgSender>(MsgSender(*gid_))
-                              : std::variant<MsgSender, BoardcastMsgSender>(BoardcastMsgSender(
+              gid.has_value() ? std::variant<MsgSender, BoardcastBatchMsgSender>(MsgSender(*gid_))// : std::variant<MsgSender, BoardcastBatchMsgSender>(MsgSender(*gid_))
+                              : std::variant<MsgSender, BoardcastBatchMsgSender>(BoardcastBatchMsgSender(
                                       ready_uid_set_,
                                       [](std::pair<const UserID, MsgSender>& pair) -> MsgSender& { return pair.second; })
                                 )
@@ -71,7 +71,7 @@ ErrCode Match::GameSetComNum(MsgSenderBase& reply, const uint64_t com_num)
         return EC_MATCH_ACHIEVE_MAX_PLAYER;
     }
     com_num_ = com_num;
-    reply() << "[错误] 设置成功：当前电脑玩家数为" << com_num_;
+    reply() << "设置成功：当前电脑玩家数为" << com_num_;
     return EC_OK;
 }
 
@@ -225,20 +225,20 @@ ErrCode Match::LeaveMidway(const UserID uid, const bool is_public)
     return rc;
 }
 
-MsgSenderBase::MsgSenderGuard Match::Boardcast()
+MsgSenderBase& Match::BoardcastMsgSender()
 {
-    return std::visit([](auto& sender) { return sender(); }, boardcast_sender_);
+    return std::visit([](auto& sender) -> MsgSenderBase& { return sender; }, boardcast_sender_);
 }
 
-MsgSenderBase::MsgSenderGuard Match::Tell(const uint64_t pid)
+MsgSenderBase& Match::TellMsgSender(const PlayerID pid)
 {
     const auto& id = ConvertPid(pid);
     if (const auto pval = std::get_if<UserID>(&id); !pval) {
-        return EmptyMsgSender::Get()(); // is computer
+        return EmptyMsgSender::Get(); // is computer
     } else if (const auto it = ready_uid_set_.find(*pval); it != ready_uid_set_.end()) {
-        return (it->second)();
+        return it->second;
     } else {
-        return EmptyMsgSender::Get()(); // player exit
+        return EmptyMsgSender::Get(); // player exit
     }
 }
 

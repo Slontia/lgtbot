@@ -4,8 +4,8 @@
 #include "game_framework/game_main.h"
 #include "bot_core/msg_sender.h"
 
-extern MsgSenderBase::MsgSenderGuard Boardcast(void* match_p);
-extern MsgSenderBase::MsgSenderGuard Tell(void* match_p, const uint64_t pid);
+extern MsgSenderBase& BoardcastMsgSender(void* match_p);
+extern MsgSenderBase& TellMsgSender(void* match_p, const uint64_t pid);
 extern void StartTimer(void* match, const uint64_t sec);
 extern void StopTimer(void* match);
 extern const char* Rule();

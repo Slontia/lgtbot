@@ -5,6 +5,8 @@
 #include <variant>
 
 #include "game_framework/util.h"
+
+#include "bot_core/match_base.h"
 #include "utility/msg_checker.h"
 
 template <typename RetType>
@@ -30,7 +32,7 @@ class StageBaseImpl : virtual public StageBase
     {
     }
     virtual ~StageBaseImpl() {}
-    virtual void Init(void* const match)
+    virtual void Init(MatchBase* const match)
     {
         match_ = match;
     }
@@ -47,8 +49,10 @@ class StageBaseImpl : virtual public StageBase
     virtual StageErrCode HandleLeave(const PlayerID pid) = 0;
     virtual StageErrCode HandleComputerAct(const uint64_t begin_pid, const uint64_t end_pid) = 0;
     virtual void StageInfo(MsgSenderBase::MsgSenderGuard& sender) const = 0;
-    decltype(auto) Boardcast() const { return ::Boardcast(match_); }
-    decltype(auto) Tell(const PlayerID pid) const { return ::Tell(match_, pid); }
+    decltype(auto) BoardcastMsgSender() const { return match_->BoardcastMsgSender(); }
+    decltype(auto) TellMsgSender(const PlayerID pid) const { return match_->TellMsgSender(pid); }
+    decltype(auto) Boardcast() const { return BoardcastMsgSender()(); }
+    decltype(auto) Tell(const PlayerID pid) const { return TellMsgSender(pid)(); }
 
   protected:
     template <typename Stage, typename RetType, typename... Args, typename... Checkers>
@@ -64,8 +68,9 @@ class StageBaseImpl : virtual public StageBase
         sender << "\n[" << (++i) << "] " << cmd.Info();
         return i;
     }
+
     const std::string name_;
-    void* match_;
+    MatchBase* match_;
 };
 
 class MainStageBaseImpl : public MainStageBase, public StageBaseImpl
@@ -109,7 +114,7 @@ class GameStage<IsMain, SubStage, SubStages...>
 
     virtual VariantSubStage OnStageBegin() = 0;
 
-    virtual void Init(void* const match)
+    virtual void Init(MatchBase* const match)
     {
         Base::Init(match);
         sub_stage_ = OnStageBegin();
@@ -147,8 +152,9 @@ class GameStage<IsMain, SubStage, SubStages...>
 
     virtual StageBase::StageErrCode HandleComputerAct(const uint64_t begin_pid, const uint64_t end_pid) override
     {
-        // We must call CompStage's OnPlayerLeave first so that it can deceide whether to finish game when substage is over.
-        this->OnComputerAct(begin_pid, end_pid);
+        for (PlayerID pid = begin_pid; pid < end_pid; ++pid) {
+            OnComputerAct(pid, Base::TellMsgSender(pid));
+        }
         return PassToSubStage_(
                 [begin_pid, end_pid](auto&& sub_stage) { return sub_stage->HandleComputerAct(begin_pid, end_pid); },
                 CheckoutReason::BY_REQUEST); // game logic not care abort computer
@@ -197,7 +203,7 @@ class GameStage<IsMain, SubStage, SubStages...>
 
     // CompStage cannot checkout by itself so return type is void
     virtual void OnPlayerLeave(const PlayerID pid) {}
-    virtual void OnComputerAct(const uint64_t begin_pid, const uint64_t end_pid) {}
+    virtual void OnComputerAct(const PlayerID pid, MsgSenderBase& reply) {}
 
     template <typename Task>
     StageBase::StageErrCode PassToSubStage_(const Task& internal_task, const CheckoutReason checkout_reason)
@@ -245,9 +251,9 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBaseImpl, S
             : Base(std::move(name)), commands_{std::forward<Commands>(commands)...}
     {
     }
-    virtual ~GameStage() { ::StopTimer(Base::match_); }
+    virtual ~GameStage() { Base::match_->StopTimer(); }
     virtual void OnStageBegin() {}
-    virtual void Init(void* const match)
+    virtual void Init(MatchBase* const match)
     {
         Base::Init(match);
         OnStageBegin();
@@ -276,7 +282,15 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBaseImpl, S
 
     virtual StageBase::StageErrCode HandleComputerAct(const uint64_t begin_pid, const uint64_t end_pid) override final
     {
-        return Handle_([this, begin_pid, end_pid] { return OnComputerAct(begin_pid, end_pid); });
+        return Handle_([this, begin_pid, end_pid]
+                {
+                    for (PlayerID pid = begin_pid; pid < end_pid; ++pid) {
+                        if (CHECKOUT == OnComputerAct(pid, Base::TellMsgSender(pid))) {
+                            return CHECKOUT;
+                        }
+                    }
+                    return OK;
+                });
     }
 
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const override
@@ -301,12 +315,12 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBaseImpl, S
   protected:
     virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) { return AtomStageErrCode::OK; }
     virtual AtomStageErrCode OnTimeout() { return AtomStageErrCode::CHECKOUT; }
-    virtual AtomStageErrCode OnComputerAct(const uint64_t begin_pid, const uint64_t end_pid) { return AtomStageErrCode::OK; }
+    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return AtomStageErrCode::OK; }
 
     void StartTimer(const uint64_t sec)
     {
         finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
-        ::StartTimer(Base::match_, sec);
+        Base::match_->StartTimer(sec);
     }
 
     void StopTimer()

@@ -41,7 +41,6 @@ foreach (GAME_DIR ${GAME_DIRS})
 
     add_library(${GAME} SHARED ${SOURCE_FILES})
 
-    #include_directories(${GAME_DIR})
     target_include_directories(${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
 
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
@@ -52,15 +51,22 @@ foreach (GAME_DIR ${GAME_DIRS})
     if (WITH_TEST)
       enable_testing()
       find_package(GTest REQUIRED)
+
       add_executable(test_game_${GAME} ${SOURCE_FILES} ${GAME_DIR}/unittest.cc)
       target_link_libraries(test_game_${GAME} GTest::GTest GTest::Main)
       target_include_directories(test_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
+      add_test(NAME test_game_${GAME} COMMAND test_game_${GAME})
+
+      add_executable(run_game_${GAME} ${SOURCE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/run_game.cpp)
+      target_include_directories(run_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
+      target_link_libraries(run_game_${GAME} gflags)
+
       if (CMAKE_SYSTEM_NAME MATCHES "Linux")
         add_dependencies(test_game_${GAME} ${GAME}_rule)
         target_link_libraries(test_game_${GAME} ${RULE_BINARY})
-        add_test(NAME test_game_${GAME} COMMAND test_game_${GAME})
+        target_link_libraries(run_game_${GAME} ${RULE_BINARY})
       endif()
     endif()
 
   endif()
-endforeach() 
+endforeach()

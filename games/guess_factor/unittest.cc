@@ -104,7 +104,7 @@ GAME_TEST(2, timeout)
   ASSERT_PRI_MSG(OK, 0, "淘汰分数 1");
   START_GAME();
   ASSERT_PRI_MSG(OK, 0, "1");
-  TIMEOUT();
+  Timeout();
   ASSERT_SCORE(1, 0);
 }
 

@@ -41,18 +41,18 @@ GAME_TEST(2, timeout)
   ASSERT_PUB_MSG(OK, 0, "胜利局数 3");
   START_GAME();
   ASSERT_PRI_MSG(OK, 0, "石头");
-  TIMEOUT();
+  Timeout();
   ASSERT_PRI_MSG(OK, 0, "剪刀");
-  TIMEOUT();
+  Timeout();
   ASSERT_PRI_MSG(OK, 0, "布");
-  TIMEOUT();
+  Timeout();
   ASSERT_SCORE(1, 0);
 }
 
 GAME_TEST(2, all_timeout)
 {
   START_GAME();
-  TIMEOUT();
+  Timeout();
   ASSERT_SCORE(0, 0);
 }
 

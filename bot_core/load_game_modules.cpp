@@ -19,11 +19,6 @@ static_assert(false, "Not support OS");
 #include "bot_core/match.h"
 #include "bot_core/msg_sender.h"
 
-MsgSenderBase::MsgSenderGuard Boardcast(void* match_p) { return static_cast<Match*>(match_p)->Boardcast(); }
-MsgSenderBase::MsgSenderGuard Tell(void* match_p, const uint64_t pid) { return static_cast<Match*>(match_p)->Tell(pid); }
-void StartTimer(void* match, const uint64_t sec) { static_cast<Match*>(match)->StartTimer(sec); }
-void StopTimer(void* match) { static_cast<Match*>(match)->StopTimer(); }
-
 static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
 {
     if (!mod) {

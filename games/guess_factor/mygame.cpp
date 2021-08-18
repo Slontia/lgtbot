@@ -189,6 +189,15 @@ class RoundStage : public SubGameStage<>
         StartTimer(option_.GET_VALUE(局时));
     }
 
+    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    {
+        const auto rc = Guess_(pid, false, reply, std::rand() % option_.GET_VALUE(最大数字) + 1);
+        if (rc == FAILED) {
+            return Pass_(pid, false, reply);
+        }
+        return rc;
+    }
+
    private:
     AtomStageErrCode Guess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t factor)
     {
@@ -401,5 +410,6 @@ MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options)
                 << "，当前设置的开始淘汰的回合数为" << options.GET_VALUE(淘汰回合);
         return nullptr;
     }
+    std::srand(std::time(nullptr));
     return new MainStage(options);
 }

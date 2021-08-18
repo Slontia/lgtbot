@@ -1,12 +1,11 @@
-#include <gtest/gtest.h>
+#pragma once
 
-#include <memory>
-#include <optional>
+#include <gtest/gtest.h>
 
 #include "game_framework/game_stage.h"
 #include "game_framework/game_options.h"
 #include "game_framework/game_main.h"
-#include "bot_core/msg_sender.h"
+#include "game_framework/mock_match.h"
 
 static const char* StageErrCodeToString(const StageBase::StageErrCode& rc)
 {
@@ -23,109 +22,39 @@ static const char* StageErrCodeToString(const StageBase::StageErrCode& rc)
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options);
 
-class MockMsgSender : public MsgSenderBase
-{
-  public:
-    MockMsgSender() : is_public_(true) {}
-    MockMsgSender(const PlayerID pid, const bool is_public) : pid_(pid), is_public_(is_public) {}
-    virtual MsgSenderGuard operator()() override
-    {
-        if (is_public_ && pid_.has_value())
-        {
-            SavePlayer(*pid_, true);
-            SaveText(" ", 1);
-        }
-        return MsgSenderGuard(*this);
-    }
-
-  protected:
-    virtual void SaveText(const char* const data, const uint64_t len) override
-    {
-        ss_ << std::string_view(data, len);
-    }
-
-    virtual void SaveUser(const UserID& pid, const bool is_at) override
-    {
-        throw std::runtime_error("user should not appear in game");
-    }
-
-    virtual void SavePlayer(const PlayerID& pid, const bool is_at)
-    {
-        if (is_at) {
-            ss_ << "@" << pid;
-        } else {
-            ss_ << "[PLAYER_" << pid << "]";
-        }
-    }
-
-    virtual void Flush() override
-    {
-        if (is_public_) {
-            std::cout << "[BOT -> GROUP]";
-        } else if (pid_.has_value()) {
-            std::cout << "[BOT -> PLAYER_" << *pid_ << "]";
-        } else {
-            throw std::runtime_error("invalid msg_sender");
-        }
-        std::cout << std::endl << ss_.str() << std::endl;
-        ss_.str("");
-    }
-
-  private:
-    const std::optional<PlayerID> pid_;
-    const bool is_public_;
-    std::stringstream ss_;
-};
-
-
-MsgSenderBase::MsgSenderGuard Boardcast(void* match_p)
-{
-    static MockMsgSender boardcast_sender;
-    return boardcast_sender();
-}
-
-MsgSenderBase::MsgSenderGuard Tell(void* match_p, const uint64_t pid)
-{
-    static std::map<uint64_t, MockMsgSender> tell_senders;
-    auto it = tell_senders.try_emplace(pid, MockMsgSender(pid, false)).first;
-    return (it->second)();
-}
-
-void StartTimer(void* p, const uint64_t) { *static_cast<bool*>(p) = true; }
-void StopTimer(void* p) { *static_cast<bool*>(p) = false; }
-
 template <uint64_t k_player_num>
-class TestGame : public testing::Test
+class TestGame : public MockMatch, public testing::Test
 {
    public:
     using ScoreArray = std::array<int64_t, k_player_num>;
-    static void SetUpTestCase()
-    {
-    }
 
     TestGame() : timer_started_(false) {}
+
+    virtual ~TestGame() {}
 
     virtual void SetUp()
     {
         option_.SetPlayerNum(k_player_num);
     }
 
-    virtual void SetDown() {}
-
     bool StartGame()
     {
-        MockMsgSender sender(0, false);
+        MockMsgSender sender;
         main_stage_.reset(MakeMainStage(sender, option_));
         if (main_stage_) {
-            main_stage_->Init(&timer_started_);
+            main_stage_->Init(this);
         }
         return main_stage_ != nullptr;
     }
 
     auto& expected_scores() const { return expected_scores_; }
 
+    virtual void StartTimer(const uint64_t /*sec*/) override { timer_started_ = true; }
+
+    virtual void StopTimer() override { timer_started_ = false; }
+
    protected:
-    StageBase::StageErrCode TIMEOUT()
+    StageBase::StageErrCode Timeout()
     {
         if (!timer_started_) {
             throw std::runtime_error("timer is not started");
@@ -135,7 +64,6 @@ class TestGame : public testing::Test
         HandleGameOver_();
         return rc;
     }
-
 
     StageBase::StageErrCode PublicRequest(const PlayerID pid, const char* const msg)
     {
@@ -204,8 +132,8 @@ class TestGame : public testing::Test
         ASSERT_EQ(StageBase::StageErrCode::ret, rc) << "ErrCode Mismatch, Actual: " << StageErrCodeToString(rc); \
     } while (0)
 
-#define ASSERT_TIMEOUT(ret) __ASSERT_ERRCODE_BASE(ret, (TIMEOUT()))
-#define CHECK_TIMEOUT(ret) (StageBase::StageErrCode::ret == (TIMEOUT()))
+#define ASSERT_TIMEOUT(ret) __ASSERT_ERRCODE_BASE(ret, (Timeout()))
+#define CHECK_TIMEOUT(ret) (StageBase::StageErrCode::ret == (Timeout()))
 
 #define ASSERT_PUB_MSG(ret, pid, msg) __ASSERT_ERRCODE_BASE(ret, (PublicRequest(pid, msg)))
 #define CHECK_PUB_MSG(ret, pid, msg) (StageBase::StageErrCode::ret == PublicRequest(pid, msg))

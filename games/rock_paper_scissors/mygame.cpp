@@ -71,12 +71,11 @@ class RoundStage : public SubGameStage<>
     }
 
   protected:
-    virtual AtomStageErrCode OnComputerAct(const uint64_t begin_pid, const uint64_t end_pid) override
+    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        std::srand(std::time(nullptr));
         const auto n = std::rand();
-        return Act_(begin_pid, false, EmptyMsgSender::Get(), n % 3 == 0 ? Choise::PAPER_CHOISE :
-                                                             n % 3 == 1 ? Choise::ROCK_CHOISE  : Choise::SCISSORS_CHOISE);
+        return Act_(pid, false, reply, n % 3 == 0 ? Choise::PAPER_CHOISE :
+                                       n % 3 == 1 ? Choise::ROCK_CHOISE  : Choise::SCISSORS_CHOISE);
     }
 
    private:
@@ -171,5 +170,6 @@ MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options)
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << options.PlayerNum();
         return nullptr;
     }
+    std::srand(std::time(nullptr));
     return new MainStage(options);
 }

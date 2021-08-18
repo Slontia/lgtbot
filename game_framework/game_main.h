@@ -10,6 +10,7 @@
 #endif
 
 class MsgSenderForGame;
+class MatchBase;
 
 class GameOptionBase
 {
@@ -33,7 +34,7 @@ class StageBase
     StageBase() : is_over_(false) {}
     enum class StageErrCode { OK, CHECKOUT, FAILED, NOT_FOUND };
     virtual ~StageBase() {}
-    virtual void Init(void* const match) = 0;
+    virtual void Init(MatchBase* const match) = 0;
     virtual StageErrCode HandleTimeout() = 0;
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const = 0;
     virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,

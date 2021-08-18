@@ -9,6 +9,7 @@
 
 #include "utility/msg_checker.h"
 
+#include "bot_core/match_base.h"
 #include "bot_core/msg_sender.h"
 #include "bot_core/timer.h"
 #include "bot_core/game_handle.h"
@@ -30,7 +31,7 @@ class DiscussMatch;
 class MatchManager;
 class GameHandle;
 
-class Match : public std::enable_shared_from_this<Match>
+class Match : public MatchBase, public std::enable_shared_from_this<Match>
 {
   public:
     using VariantID = std::variant<UserID, ComputerID>;
@@ -49,10 +50,12 @@ class Match : public std::enable_shared_from_this<Match>
     ErrCode Join(const UserID uid, MsgSenderBase& reply);
     ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force);
     ErrCode LeaveMidway(const UserID uid, const bool is_public);
-    MsgSenderBase::MsgSenderGuard Boardcast();
-    MsgSenderBase::MsgSenderGuard Tell(const uint64_t pid);
-    void StartTimer(const uint64_t sec);
-    void StopTimer();
+    virtual MsgSenderBase& BoardcastMsgSender() override;
+    virtual MsgSenderBase& TellMsgSender(const PlayerID pid) override;
+    MsgSenderBase::MsgSenderGuard Boardcast() { return BoardcastMsgSender()(); }
+    MsgSenderBase::MsgSenderGuard Tell(const PlayerID pid) { return TellMsgSender(pid)(); }
+    virtual void StartTimer(const uint64_t sec) override;
+    virtual void StopTimer() override;
     std::string OptionInfo() const;
 
     bool SwitchHost();
@@ -118,8 +121,8 @@ class Match : public std::enable_shared_from_this<Match>
 
     // player info
     std::map<UserID, MsgSender> ready_uid_set_; // players is now in game, exclude exited players
-    using BoardcastMsgSender = MsgSenderBatch<decltype(ready_uid_set_), MsgSender& (*) (std::pair<const UserID, MsgSender>&)>;
-    std::variant<MsgSender, BoardcastMsgSender> boardcast_sender_;
+    using BoardcastBatchMsgSender = MsgSenderBatch<decltype(ready_uid_set_), MsgSender& (*) (std::pair<const UserID, MsgSender>&)>;
+    std::variant<MsgSender, BoardcastBatchMsgSender> boardcast_sender_;
     uint64_t com_num_;
     uint64_t player_num_each_user_;
 

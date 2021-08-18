@@ -289,7 +289,7 @@ class FlagsChecker : public MsgArgChecker<std::bitset<Enum::Count()>>
         std::stringstream ss;
         ss << "{";
         auto it = Enum::Members().cbegin();
-        ss << *it;
+        ss << *(it++);
         for (; it != Enum::Members().cend(); ++it) {
             ss << ", " << *it;
         }
@@ -300,8 +300,8 @@ class FlagsChecker : public MsgArgChecker<std::bitset<Enum::Count()>>
     {
         std::stringstream ss;
         auto it = Enum::Members().cbegin();
-        ss << *it;
-        if ((++it) != Enum::Members().cend()) {
+        ss << *(it++);
+        if (it != Enum::Members().cend()) {
             ss << " " << *it;
         }
         return ss.str();
