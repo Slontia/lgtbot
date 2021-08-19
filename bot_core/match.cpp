@@ -169,6 +169,7 @@ ErrCode Match::GameStart(const bool is_public, MsgSenderBase& reply)
     }
     std::visit([this](auto& sender) { sender.SetMatch(this); }, boardcast_sender_);
     start_time_ = std::chrono::system_clock::now();
+    Routine_(); // computer act first
     return EC_OK;
 }
 
@@ -387,7 +388,7 @@ void Match::Help_(MsgSenderBase& reply)
 {
     auto sender = reply();
     if (main_stage_) {
-        sender << "\n[当前阶段]\n";
+        sender << "[当前阶段]\n";
         main_stage_->StageInfo(sender);
         sender << "\n\n";
     }
@@ -410,7 +411,12 @@ void Match::Routine_()
         return;
     }
     const uint64_t user_controlled_num = ready_uid_set_.size() * player_num_each_user_;
-    main_stage_->HandleComputerAct(user_controlled_num, user_controlled_num + com_num_);
+    while (!main_stage_->IsOver()) {
+        const auto rc = main_stage_->HandleComputerAct(user_controlled_num, user_controlled_num + com_num_);
+        if (rc == StageBase::StageErrCode::OK) {
+            break;
+        }
+    }
     if (main_stage_->IsOver()) {
         OnGameOver_();
     }

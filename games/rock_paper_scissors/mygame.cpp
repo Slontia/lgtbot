@@ -170,6 +170,5 @@ MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options)
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << options.PlayerNum();
         return nullptr;
     }
-    std::srand(std::time(nullptr));
     return new MainStage(options);
 }

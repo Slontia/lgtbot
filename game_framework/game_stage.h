@@ -153,7 +153,10 @@ class GameStage<IsMain, SubStage, SubStages...>
     virtual StageBase::StageErrCode HandleComputerAct(const uint64_t begin_pid, const uint64_t end_pid) override
     {
         for (PlayerID pid = begin_pid; pid < end_pid; ++pid) {
-            OnComputerAct(pid, Base::TellMsgSender(pid));
+            const auto rc = OnComputerAct(pid, Base::TellMsgSender(pid));
+            if (rc != OK) {
+                return ToStageErrCode(rc);
+            }
         }
         return PassToSubStage_(
                 [begin_pid, end_pid](auto&& sub_stage) { return sub_stage->HandleComputerAct(begin_pid, end_pid); },
@@ -203,7 +206,7 @@ class GameStage<IsMain, SubStage, SubStages...>
 
     // CompStage cannot checkout by itself so return type is void
     virtual void OnPlayerLeave(const PlayerID pid) {}
-    virtual void OnComputerAct(const PlayerID pid, MsgSenderBase& reply) {}
+    virtual CompStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return CompStageErrCode::OK; }
 
     template <typename Task>
     StageBase::StageErrCode PassToSubStage_(const Task& internal_task, const CheckoutReason checkout_reason)
@@ -285,8 +288,9 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBaseImpl, S
         return Handle_([this, begin_pid, end_pid]
                 {
                     for (PlayerID pid = begin_pid; pid < end_pid; ++pid) {
-                        if (CHECKOUT == OnComputerAct(pid, Base::TellMsgSender(pid))) {
-                            return CHECKOUT;
+                        const auto rc = OnComputerAct(pid, Base::TellMsgSender(pid));
+                        if (rc != OK) {
+                            return rc;
                         }
                     }
                     return OK;

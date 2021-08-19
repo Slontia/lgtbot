@@ -24,11 +24,21 @@ class NumberStage : public SubGameStage<>
             : GameStage("设置数字阶段",
                     MakeStageCommand("设置数字", &NumberStage::Number_, ArithChecker<int>(1, max_number, "数字"))),
               questioner_(questioner),
+              max_number_(max_number),
               num_(0)
     {
     }
 
     virtual void OnStageBegin() override { StartTimer(60); }
+
+    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    {
+        if (questioner_ == pid) {
+            return Number_(pid, false, reply, std::rand() % max_number_ + 1);
+        }
+        return OK;
+    }
+
     int num() const { return num_; }
 
    private:
@@ -50,20 +60,32 @@ class NumberStage : public SubGameStage<>
     virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) { return CHECKOUT; }
 
     const PlayerID questioner_;
+    const uint32_t max_number_;
     int num_;
 };
 
 class LieStage : public SubGameStage<>
 {
    public:
-    LieStage(const uint64_t questioner, const uint32_t max_number)
+    LieStage(const uint64_t questioner, const uint32_t max_number, const uint32_t num)
             : GameStage("设置数字阶段", MakeStageCommand("提问数字", &LieStage::Lie_, ArithChecker<int>(1, max_number, "数字"))),
               questioner_(questioner),
+              max_number_(max_number),
+              num_(num),
               lie_num_(0)
     {
     }
 
     virtual void OnStageBegin() override { StartTimer(60); }
+
+    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    {
+        if (questioner_ == pid) {
+            return Lie_(pid, false, reply, std::rand() % 2 ? std::rand() % max_number_ + 1 : num_);
+        }
+        return OK;
+    }
+
     int lie_num() const { return lie_num_; }
 
    private:
@@ -80,6 +102,8 @@ class LieStage : public SubGameStage<>
     virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) override { return CHECKOUT; }
 
     const uint64_t questioner_;
+    const uint32_t max_number_;
+    const int num_; // for computer
     int lie_num_;
 };
 
@@ -94,6 +118,14 @@ class GuessStage : public SubGameStage<>
     }
 
     virtual void OnStageBegin() override { StartTimer(60); }
+
+    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    {
+        if (guesser_ == pid) {
+            return Guess_(pid, false, reply, std::rand() % 2);
+        }
+        return OK;
+    }
 
     bool doubt() const { return doubt_; }
 
@@ -143,7 +175,7 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
         }
         num_ = reason == CheckoutReason::BY_TIMEOUT ? 1 : sub_stage.num();
         Tell(questioner_) << (reason == CheckoutReason::BY_TIMEOUT ? "设置超时，数字设置为默认值1，请提问数字" : "设置成功，请提问数字");
-        return std::make_unique<LieStage>(questioner_, option_.GET_VALUE(数字种类));
+        return std::make_unique<LieStage>(questioner_, option_.GET_VALUE(数字种类), num_);
     }
 
     virtual VariantSubStage NextSubStage(LieStage& sub_stage, const CheckoutReason reason) override
@@ -198,7 +230,6 @@ class MainStage : public MainGameStage<RoundStage>
             : option_(option), questioner_(0), round_(1),
               player_nums_{std::vector<int>(option.GET_VALUE(数字种类), 0), std::vector<int>(option.GET_VALUE(数字种类), 0)}
     {
-        std::srand(std::time(0));
     }
 
     virtual VariantSubStage OnStageBegin() override

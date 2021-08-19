@@ -63,6 +63,7 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
 
 void* /*__cdecl*/ BOT_API::Init(const uint64_t this_uid, const char* const game_path, const uint64_t* const admins, const uint64_t admin_count)
 {
+    std::srand(std::chrono::steady_clock::now().time_since_epoch().count());
     if (this_uid == 0 || (!admins && admin_count > 0)) {
         return nullptr;
     }
