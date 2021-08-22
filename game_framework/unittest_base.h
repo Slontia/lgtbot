@@ -20,7 +20,7 @@ static const char* StageErrCodeToString(const StageBase::StageErrCode& rc)
     return nullptr; // should not reach here
 }
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options);
+MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match);
 
 template <uint64_t k_player_num>
 class TestGame : public MockMatch, public testing::Test
@@ -40,9 +40,9 @@ class TestGame : public MockMatch, public testing::Test
     bool StartGame()
     {
         MockMsgSender sender;
-        main_stage_.reset(MakeMainStage(sender, option_));
+        main_stage_.reset(MakeMainStage(sender, option_, *this));
         if (main_stage_) {
-            main_stage_->Init(this);
+            main_stage_->Init();
         }
         return main_stage_ != nullptr;
     }

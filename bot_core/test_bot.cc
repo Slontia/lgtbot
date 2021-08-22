@@ -84,14 +84,17 @@ static std::mutex substage_blocked_mutex_;
 static std::condition_variable substage_block_request_cv_;
 static std::atomic<bool> substage_blocked_;
 
-class MockSubStage : public SubGameStage<>
+class MainStage;
+
+class SubStage : public SubGameStage<>
 {
   public:
-    MockSubStage()
-        : GameStage("子阶段", MakeStageCommand("结束", &MockSubStage::Over_, VoidChecker("结束子阶段"))
-                            , MakeStageCommand("准备重新计时", &MockSubStage::ToResetTimer_, VoidChecker("准备重新计时"))
-                            , MakeStageCommand("阻塞", &MockSubStage::Block_, VoidChecker("阻塞"))
-                            , MakeStageCommand("阻塞并结束", &MockSubStage::BlockAndOver_, VoidChecker("阻塞并结束"))
+    SubStage(MainStage& main_stage)
+        : GameStage(main_stage, "子阶段"
+                , MakeStageCommand("结束", &SubStage::Over_, VoidChecker("结束子阶段"))
+                , MakeStageCommand("准备重新计时", &SubStage::ToResetTimer_, VoidChecker("准备重新计时"))
+                , MakeStageCommand("阻塞", &SubStage::Block_, VoidChecker("阻塞"))
+                , MakeStageCommand("阻塞并结束", &SubStage::BlockAndOver_, VoidChecker("阻塞并结束"))
           )
         , to_reset_timer_(false)
     {}
@@ -102,31 +105,31 @@ class MockSubStage : public SubGameStage<>
         StartTimer(1);
     }
 
-    virtual AtomStageErrCode OnTimeout() override
+    virtual StageErrCode OnTimeout() override
     {
         if (to_reset_timer_) {
             to_reset_timer_ = false;
             StartTimer(1);
             Boardcast() << "时间到，但是回合继续";
-            return OK;
+            return StageErrCode::OK;
         }
         Boardcast() << "时间到，回合结束";
-        return CHECKOUT;
+        return StageErrCode::CHECKOUT;
     }
 
   private:
-    AtomStageErrCode Over_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    StageErrCode Over_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        return CHECKOUT;
+        return StageErrCode::CHECKOUT;
     }
 
-    AtomStageErrCode ToResetTimer_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    StageErrCode ToResetTimer_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         to_reset_timer_ = true;
-        return OK;
+        return StageErrCode::OK;
     }
 
-    AtomStageErrCode Block_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    StageErrCode Block_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         std::unique_lock<std::mutex> l(substage_blocked_mutex_);
         if (substage_blocked_.exchange(true) == true) {
@@ -134,37 +137,37 @@ class MockSubStage : public SubGameStage<>
         }
         substage_block_request_cv_.wait(l);
         substage_blocked_ = false;
-        return OK;
+        return StageErrCode::OK;
     }
 
-    AtomStageErrCode BlockAndOver_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    StageErrCode BlockAndOver_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         Block_(pid, is_public, reply);
-        return CHECKOUT;
+        return StageErrCode::CHECKOUT;
     }
 
     bool to_reset_timer_;
 };
 
-class MockMainStage : public MainGameStage<MockSubStage>
+class MainStage : public MainGameStage<SubStage>
 {
   public:
-    MockMainStage()
-        : GameStage("主阶段", MakeStageCommand("准备切换", &MockMainStage::ToCheckout_, VoidChecker("准备切换")))
+    MainStage(const GameOption& option, MatchBase& match)
+        : GameStage(option, match, "主阶段", MakeStageCommand("准备切换", &MainStage::ToCheckout_, VoidChecker("准备切换")))
         , to_checkout_(false)
     {}
 
     virtual VariantSubStage OnStageBegin() override
     {
-        return std::make_unique<MockSubStage>();
+        return std::make_unique<SubStage>(*this);
     }
 
-    virtual VariantSubStage NextSubStage(MockSubStage& sub_stage, const CheckoutReason reason) override
+    virtual VariantSubStage NextSubStage(SubStage& sub_stage, const CheckoutReason reason) override
     {
         if (to_checkout_) {
             Boardcast() << "回合结束，切换子阶段";
             to_checkout_ = false;
-            return std::make_unique<MockSubStage>();
+            return std::make_unique<SubStage>(*this);
         }
         Boardcast() << "回合结束，游戏结束";
         return {};
@@ -173,19 +176,19 @@ class MockMainStage : public MainGameStage<MockSubStage>
     virtual int64_t PlayerScore(const PlayerID pid) const override { return 1; };
 
   private:
-    CompStageErrCode ToCheckout_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    StageErrCode ToCheckout_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         to_checkout_ = true;
-        return OK;
+        return StageErrCode::OK;
     }
 
     bool to_checkout_;
 };
 
-class MockGameOption : public GameOptionBase
+class GameOption : public GameOptionBase
 {
   public:
-    MockGameOption() : GameOptionBase(0) {}
+    GameOption() : GameOptionBase(0) {}
     virtual const char* Info(const uint64_t index) const { return "这是配置介绍"; };
     virtual const char* Status() const { return "这是配置状态"; };
     virtual bool SetOption(const char* const msg) { return true; };
@@ -211,9 +214,10 @@ class TestBot : public testing::Test
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
                     std::nullopt, name, max_player, "这是规则介绍",
-                    []() -> GameOptionBase* { return new MockGameOption(); },
+                    []() -> GameOptionBase* { return new GameOption(); },
                     [](const GameOptionBase* const options) { delete options; },
-                    [](MsgSenderBase&, const GameOptionBase&) -> MainStageBase* { return new MockMainStage(); },
+                    [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
+                            -> MainStageBase* { return new MainStage(static_cast<const GameOption&>(option), match); },
                     [](const MainStageBase* const main_stage) { delete main_stage; },
                     []() {}
         ));

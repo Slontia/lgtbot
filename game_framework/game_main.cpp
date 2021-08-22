@@ -8,7 +8,7 @@
 #include "game_framework/util.h"
 #include "game_framework/game_options.h"
 
-extern MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options);
+extern MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match);
 
 extern "C" {
 
@@ -26,9 +26,9 @@ GameOptionBase* NewGameOptions() { return new GameOption(); }
 
 void DeleteGameOptions(GameOptionBase* const game_options) { delete game_options; }
 
-MainStageBase* NewMainStage(MsgSenderBase& reply, const GameOptionBase& options)
+MainStageBase* NewMainStage(MsgSenderBase& reply, const GameOptionBase& options, MatchBase& match)
 {
-    return MakeMainStage(reply, static_cast<const GameOption&>(options));
+    return MakeMainStage(reply, static_cast<const GameOption&>(options), match);
 }
 
 void DeleteMainStage(MainStageBase* main_stage) { delete main_stage; }

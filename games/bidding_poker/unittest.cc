@@ -17,10 +17,9 @@ GAME_TEST(5, bid_1)
     ASSERT_PRI_MSG(OK, 1, "12");
     ASSERT_PRI_MSG(OK, 2, "11");
     ASSERT_PRI_MSG(OK, 3, "10");
-    ASSERT_PRI_MSG(OK, 4, "11");
     ASSERT_PRI_MSG(FAILED, 3, "101");
     ASSERT_PRI_MSG(FAILED, 4, "0");
-    ASSERT_TIMEOUT(CHECKOUT); // player 1 wins
+    ASSERT_PRI_MSG(CHECKOUT, 4, "11"); // player 1 wins
 
     // item 2
     ASSERT_PRI_MSG(OK, 2, "100"); // coins not decrease in item 1
@@ -47,8 +46,7 @@ GAME_TEST(5, bid_2)
     ASSERT_PUB_MSG(FAILED, 2, "撤标"); // must be private
     ASSERT_PRI_MSG(OK, 2, "撤标"); // cancel
     ASSERT_PRI_MSG(OK, 3, "10"); // modify
-    ASSERT_PRI_MSG(OK, 4, "10");
-    ASSERT_TIMEOUT(OK); // player 1 3 4 win
+    ASSERT_PRI_MSG(OK, 4, "10"); // player 1 3 4 win
     ASSERT_PRI_MSG(FAILED, 0, "30"); // lose in term 1
     ASSERT_PRI_MSG(FAILED, 2, "30"); // lose in term 1
     ASSERT_PRI_MSG(FAILED, 1, "9"); // should greater than 10

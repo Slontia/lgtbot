@@ -10,7 +10,7 @@
 DEFINE_uint64(player, 2, "Player number"); // TODO: if set to 0, random player for each run
 DEFINE_uint64(repeat, 1, "Repeat times"); // TODO: if set to 0, run unlimitedly
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options);
+MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match);
 
 int Run()
 {
@@ -20,12 +20,12 @@ int Run()
     option.SetPlayerNum(FLAGS_player);
 
     MockMsgSender sender;
-    std::unique_ptr<MainStageBase> main_stage(MakeMainStage(sender, option));
+    std::unique_ptr<MainStageBase> main_stage(MakeMainStage(sender, option, match));
     if (!main_stage) {
         std::cerr << "Start Game Failed!" << std::endl;
         return -1;
     }
-    main_stage->Init(&match);
+    main_stage->Init();
 
     while (!main_stage->IsOver()) {
         const auto rc = main_stage->HandleComputerAct(0, FLAGS_player);

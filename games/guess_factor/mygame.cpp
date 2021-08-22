@@ -167,17 +167,7 @@ class Player
 class RoundStage : public SubGameStage<>
 {
    public:
-    RoundStage(const GameOption& option, const uint64_t round, std::vector<Player>& players, const bool eliminate_round)
-        : GameStage("第" + std::to_string(round) + "回合",
-                  MakeStageCommand("预测因数", &RoundStage::Guess_,
-                      ArithChecker<uint32_t>(1, option.GET_VALUE(最大数字), "选择")),
-                  MakeStageCommand("不猜测", &RoundStage::Pass_, VoidChecker("pass"))
-              ),
-              option_(option),
-              eliminate_round_(eliminate_round),
-              players_(players)
-    {
-    }
+    RoundStage(MainStage& main_stage, const uint64_t round, std::vector<Player>& players, const bool eliminate_round);
 
     virtual void OnStageBegin() override
     {
@@ -186,16 +176,16 @@ class RoundStage : public SubGameStage<>
         if (eliminate_round_) {
             sender << "（本回合可能会淘汰分数末尾玩家）";
         }
-        StartTimer(option_.GET_VALUE(局时));
+        StartTimer(option().GET_VALUE(局时));
     }
 
     virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         if (players_[pid].eliminated()) {
-            return OK;
+            return StageErrCode::OK;
         }
-        const auto rc = Guess_(pid, false, reply, std::rand() % option_.GET_VALUE(最大数字) + 1);
-        if (rc == FAILED) {
+        const auto rc = Guess_(pid, false, reply, std::rand() % option().GET_VALUE(最大数字) + 1);
+        if (rc == StageErrCode::FAILED) {
             return Pass_(pid, false, reply);
         }
         return rc;
@@ -206,38 +196,38 @@ class RoundStage : public SubGameStage<>
     {
         if (is_public) {
             reply() << "猜测失败：请私信裁判猜测，不要暴露自己的数字哦~";
-            return FAILED;
+            return StageErrCode::FAILED;
         }
-        assert(factor != 0 && factor <= option_.GET_VALUE(最大数字));
+        assert(factor != 0 && factor <= option().GET_VALUE(最大数字));
         for (const auto& p : players_) {
             if (std::any_of(p.factor_pool().begin(), p.factor_pool().end(),
                             [factor](const uint64_t& f) { return f == factor; })) {
                 reply() << "猜测失败：因数" << factor << "已经在玩家" << Name(p.pid()) << "的因数池中，无法选择该因数";
-                return FAILED;
+                return StageErrCode::FAILED;
             }
         }
         if (!players_[pid].Guess(reply(), factor)) {
-            return FAILED;
+            return StageErrCode::FAILED;
         }
-        return CanOver_() ? CHECKOUT : OK;
+        return CanOver_() ? StageErrCode::CHECKOUT : StageErrCode::OK;
     }
 
     AtomStageErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "pass失败：请私信裁判进行pass操作~";
-            return FAILED;
+            return StageErrCode::FAILED;
         }
         if (!players_[pid].Pass(reply())) {
-            return FAILED;
+            return StageErrCode::FAILED;
         }
-        return CanOver_() ? CHECKOUT : OK;
+        return CanOver_() ? StageErrCode::CHECKOUT : StageErrCode::OK;
     }
 
     virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) override
     {
         players_[pid].Leave();
-        return CanOver_() ? CHECKOUT : OK;
+        return CanOver_() ? StageErrCode::CHECKOUT : StageErrCode::OK;
     }
 
     bool CanOver_() const
@@ -246,7 +236,6 @@ class RoundStage : public SubGameStage<>
                            [](const Player& p) { return p.eliminated() || p.current_factor().has_value(); });
     }
 
-    const GameOption& option_;
     const bool eliminate_round_;
     std::vector<Player>& players_;
 };
@@ -254,16 +243,16 @@ class RoundStage : public SubGameStage<>
 class MainStage : public MainGameStage<RoundStage>
 {
    public:
-    MainStage(const GameOption& option) : option_(option), round_(1)
+    MainStage(const GameOption& option, MatchBase& match) : GameStage(option, match), round_(1)
     {
-        for (PlayerID pid = 0; pid < option_.PlayerNum(); ++pid) {
+        for (PlayerID pid = 0; pid < option.PlayerNum(); ++pid) {
             players_.emplace_back(pid);
         }
     }
 
     virtual VariantSubStage OnStageBegin() override
     {
-        return std::make_unique<RoundStage>(option_, 1, players_, MayEliminated_());
+        return std::make_unique<RoundStage>(*this, 1, players_, MayEliminated_());
     }
 
     virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override
@@ -271,7 +260,7 @@ class MainStage : public MainGameStage<RoundStage>
         while (true) {
             if (const auto may_eliminated = NextSubStageMayEliminated_(); may_eliminated.has_value()) {
                 if (HasOnline_()) {
-                    return std::make_unique<RoundStage>(option_, round_, players_, *may_eliminated);
+                    return std::make_unique<RoundStage>(*this, round_, players_, *may_eliminated);
                 } else {
                     Boardcast() << "所有玩家都已经退出游戏，游戏自动进行";
                     continue;
@@ -290,7 +279,7 @@ class MainStage : public MainGameStage<RoundStage>
         auto sender = Boardcast();
         const uint64_t sum = SumPool_(sender);
         AddScore_(sender, sum);
-        if (MayEliminated_() && (Eliminate_(sender), SurviveCount_() == 1 || round_ == option_.GET_VALUE(最大回合))) {
+        if (MayEliminated_() && (Eliminate_(sender), SurviveCount_() == 1 || round_ == option().GET_VALUE(最大回合))) {
             return std::nullopt;
         }
         ShowScore_(sender);
@@ -322,8 +311,8 @@ class MainStage : public MainGameStage<RoundStage>
                 player.ResetCurrentFactor();
             }
         } else {
-            sender << "\n\n" << sum << "的" << option_.GET_VALUE(最大数字) << "以内因数包括：";
-            for (uint32_t factor = 1; factor <= option_.GET_VALUE(最大数字); ++factor) {
+            sender << "\n\n" << sum << "的" << option().GET_VALUE(最大数字) << "以内因数包括：";
+            for (uint32_t factor = 1; factor <= option().GET_VALUE(最大数字); ++factor) {
                 if (sum % factor == 0) {
                     sender << factor << " ";
                 }
@@ -350,8 +339,8 @@ class MainStage : public MainGameStage<RoundStage>
 
     bool MayEliminated_() const
     {
-        return round_ >= option_.GET_VALUE(淘汰回合) &&
-               (round_ - option_.GET_VALUE(淘汰回合)) % option_.GET_VALUE(淘汰间隔) == 0;
+        return round_ >= option().GET_VALUE(淘汰回合) &&
+               (round_ - option().GET_VALUE(淘汰回合)) % option().GET_VALUE(淘汰间隔) == 0;
     }
 
     void Eliminate_(MsgSenderBase::MsgSenderGuard& sender)
@@ -364,23 +353,23 @@ class MainStage : public MainGameStage<RoundStage>
             if (player.eliminated()) {
                 continue;
             }
-            if (player.score() >= option_.GET_VALUE(淘汰分数)) {
+            if (player.score() >= option().GET_VALUE(淘汰分数)) {
                 achieve_high_score = true;
             }
             if (!player_to_eliminate) {
                 player_to_eliminate = &player;
             } else if (player_to_eliminate->score() > player.score()) {
-                achieve_diff_score = player_to_eliminate->score() - player.score() >= option_.GET_VALUE(淘汰分差);
+                achieve_diff_score = player_to_eliminate->score() - player.score() >= option().GET_VALUE(淘汰分差);
                 player_to_eliminate = &player;
             } else {
-                achieve_diff_score &= player.score() - player_to_eliminate->score() >= option_.GET_VALUE(淘汰分差);
+                achieve_diff_score &= player.score() - player_to_eliminate->score() >= option().GET_VALUE(淘汰分差);
             }
         }
         assert(player_to_eliminate != nullptr);
         if (!achieve_high_score) {
-            sender << "\n无人淘汰：最高分玩家未达到" << option_.GET_VALUE(淘汰分数) << "分";
+            sender << "\n无人淘汰：最高分玩家未达到" << option().GET_VALUE(淘汰分数) << "分";
         } else if (!achieve_diff_score) {
-            sender << "\n无人淘汰：分数最末尾玩家与次末尾玩家相差未达到" << option_.GET_VALUE(淘汰分差) << "分";
+            sender << "\n无人淘汰：分数最末尾玩家与次末尾玩家相差未达到" << option().GET_VALUE(淘汰分差) << "分";
         } else {
             sender << "\n本回合淘汰：" << At(player_to_eliminate->pid());
             player_to_eliminate->Eliminate();
@@ -397,12 +386,22 @@ class MainStage : public MainGameStage<RoundStage>
         return std::any_of(players_.begin(), players_.end(), [](const Player& p) { return p.online(); });
     }
 
-    const GameOption& option_;
     uint32_t round_;
     std::vector<Player> players_;
 };
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options)
+RoundStage::RoundStage(MainStage& main_stage, const uint64_t round, std::vector<Player>& players, const bool eliminate_round)
+    : GameStage(main_stage, "第" + std::to_string(round) + "回合",
+                MakeStageCommand("预测因数", &RoundStage::Guess_,
+                    ArithChecker<uint32_t>(1, main_stage.option().GET_VALUE(最大数字), "选择")),
+                MakeStageCommand("不猜测", &RoundStage::Pass_, VoidChecker("pass"))
+            ),
+            eliminate_round_(eliminate_round),
+            players_(players)
+{
+}
+
+MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
 {
     if (options.PlayerNum() < 2) {
         reply() << "该游戏至少两人参加";
@@ -413,5 +412,5 @@ MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options)
                 << "，当前设置的开始淘汰的回合数为" << options.GET_VALUE(淘汰回合);
         return nullptr;
     }
-    return new MainStage(options);
+    return new MainStage(options, match);
 }

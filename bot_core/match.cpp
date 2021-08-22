@@ -152,13 +152,13 @@ ErrCode Match::GameStart(const bool is_public, MsgSenderBase& reply)
     assert(main_stage_ == nullptr);
     assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
     options_->SetPlayerNum(player_num);
-    if (!(main_stage_ = game_handle_.make_main_stage(reply, *options_))) {
+    if (!(main_stage_ = game_handle_.make_main_stage(reply, *options_, *this))) {
         reply() << "[错误] 开始失败：不符合游戏参数的预期";
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
     state_ = State::IS_STARTED;
     Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
-    main_stage_->Init(this);
+    main_stage_->Init();
     for (auto& [uid, sender] : ready_uid_set_) {
         uid2pid_.emplace(uid, players_.size());
         players_.emplace_back(uid);

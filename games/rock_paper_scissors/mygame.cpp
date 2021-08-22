@@ -29,8 +29,8 @@ static std::string Choise2Str(const Choise& choise)
 class RoundStage : public SubGameStage<>
 {
    public:
-    RoundStage(const uint64_t round, const uint32_t max_round_sec)
-            : GameStage("第" + std::to_string(round) + "回合",
+    RoundStage(MainStage& main_stage, const uint64_t round, const uint32_t max_round_sec)
+            : GameStage(main_stage, "第" + std::to_string(round) + "回合",
                                 MakeStageCommand("出拳", &RoundStage::Act_,
                                         AlterChecker<Choise>(std::map<std::string, Choise>{{"剪刀", SCISSORS_CHOISE},
                                                                                            {"石头", ROCK_CHOISE},
@@ -83,16 +83,16 @@ class RoundStage : public SubGameStage<>
     {
         if (is_public) {
             reply() << "请私信裁判选择，公开选择无效";
-            return FAILED;
+            return StageErrCode::FAILED;
         }
         Choise& cur_choise = cur_choise_[pid];
         cur_choise = choise;
         reply() << "选择成功，您当前选择为：" << Choise2Str(cur_choise);
-        return cur_choise_[0] != NONE_CHOISE && cur_choise_[1] != NONE_CHOISE ? CHECKOUT : OK;
+        return cur_choise_[0] != NONE_CHOISE && cur_choise_[1] != NONE_CHOISE ? StageErrCode::CHECKOUT : StageErrCode::OK;
     }
 
     // The other player win. Game Over.
-    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) { return CHECKOUT; }
+    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CHECKOUT; }
 
     const uint32_t max_round_sec_;
     std::array<Choise, 2> cur_choise_;
@@ -101,15 +101,16 @@ class RoundStage : public SubGameStage<>
 class MainStage : public MainGameStage<RoundStage>
 {
    public:
-    MainStage(const GameOption& option)
-            : k_max_win_count_(option.GET_VALUE(胜利局数)),
-              k_max_round_sec_(option.GET_VALUE(局时)),
-              round_(1),
-              win_count_{0, 0}
+    MainStage(const GameOption& option, MatchBase& match)
+            : GameStage(option, match)
+            , k_max_win_count_(option.GET_VALUE(胜利局数))
+            , k_max_round_sec_(option.GET_VALUE(局时))
+            , round_(1)
+            , win_count_{0, 0}
     {
     }
 
-    virtual VariantSubStage OnStageBegin() override { return std::make_unique<RoundStage>(1, k_max_round_sec_); }
+    virtual VariantSubStage OnStageBegin() override { return std::make_unique<RoundStage>(*this, 1, k_max_round_sec_); }
 
     virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override
     {
@@ -126,7 +127,7 @@ class MainStage : public MainGameStage<RoundStage>
             } else if (win_count_[1] == k_max_win_count_) {
                 winner_ = 1;
             } else {
-                return std::make_unique<RoundStage>(++round_, k_max_round_sec_);
+                return std::make_unique<RoundStage>(*this, ++round_, k_max_round_sec_);
             }
         }
         return {};
@@ -164,11 +165,11 @@ class MainStage : public MainGameStage<RoundStage>
     std::optional<uint64_t> winner_;
 };
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options)
+MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
 {
     if (options.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << options.PlayerNum();
         return nullptr;
     }
-    return new MainStage(options);
+    return new MainStage(options, match);
 }

@@ -3,11 +3,43 @@
 #include <chrono>
 #include <optional>
 #include <variant>
-
-#include "game_framework/util.h"
+#include <concepts>
 
 #include "bot_core/match_base.h"
 #include "utility/msg_checker.h"
+
+#include "game_framework/util.h"
+
+class Masker
+{
+  public:
+    Masker(const size_t size) : bitset_(size, false), count_(0) {}
+
+    bool Set(const size_t index)
+    {
+        const bool old_value = bitset_[index];
+        bitset_[index] = true;
+        if (old_value == false) {
+            ++count_;
+        }
+        return count_ == bitset_.size();
+    }
+
+    void Unset(const size_t index)
+    {
+        const bool old_value = bitset_[index];
+        bitset_[index] = false;
+        if (old_value == true) {
+            --count_;
+        }
+    }
+
+    void Clear() { bitset_.clear(); }
+
+  private:
+    std::vector<bool> bitset_;
+    size_t count_;
+};
 
 template <typename RetType>
 using GameCommand = Command<RetType(const uint64_t, const bool, MsgSenderBase&)>;
@@ -21,45 +53,56 @@ class SubStageCheckoutHelper
     virtual RetType NextSubStage(SubStage& sub_stage, const CheckoutReason reason) = 0;
 };
 
-template <bool IsMain, typename... SubStages>
-class GameStage;
-
-class StageBaseImpl : virtual public StageBase
+template <bool IS_ATOM>
+class StageBaseWrapper : virtual public StageBase
 {
   public:
-    StageBaseImpl(std::string&& name)
-            : name_(name.empty() ? "（匿名阶段）" : std::move(name)), match_(nullptr)
-    {
-    }
-    virtual ~StageBaseImpl() {}
-    virtual void Init(MatchBase* const match)
-    {
-        match_ = match;
-    }
-    virtual StageErrCode HandleTimeout() = 0;
-    virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const = 0;
+    template <typename String, typename ...Commands>
+    StageBaseWrapper(const GameOptionBase& option, MatchBase& match, String&& name, Commands&& ...commands)
+        : option_(option)
+        , match_(match)
+        , name_(std::forward<String>(name))
+        , commands_{std::forward<Commands>(commands)...}
+    {}
+
+    virtual ~StageBaseWrapper() {}
+
+    virtual void Init() {}
+
     virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
                                        MsgSenderBase& reply)
     {
         MsgReader reader(msg);
         return HandleRequest(reader, player_id, is_public, reply);
     }
+
+    decltype(auto) BoardcastMsgSender() const { return match_.BoardcastMsgSender(); }
+
+    decltype(auto) TellMsgSender(const PlayerID pid) const { return match_.TellMsgSender(pid); }
+
+    decltype(auto) Boardcast() const { return BoardcastMsgSender()(); }
+
+    decltype(auto) Tell(const PlayerID pid) const { return TellMsgSender(pid)(); }
+
+    const std::string& name() const { return name_; }
+
+    MatchBase& match() { return match_; }
+
+    virtual StageErrCode HandleTimeout() = 0;
+    virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const = 0;
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
                                        MsgSenderBase& reply) = 0;
     virtual StageErrCode HandleLeave(const PlayerID pid) = 0;
     virtual StageErrCode HandleComputerAct(const uint64_t begin_pid, const uint64_t end_pid) = 0;
     virtual void StageInfo(MsgSenderBase::MsgSenderGuard& sender) const = 0;
-    decltype(auto) BoardcastMsgSender() const { return match_->BoardcastMsgSender(); }
-    decltype(auto) TellMsgSender(const PlayerID pid) const { return match_->TellMsgSender(pid); }
-    decltype(auto) Boardcast() const { return BoardcastMsgSender()(); }
-    decltype(auto) Tell(const PlayerID pid) const { return TellMsgSender(pid)(); }
 
   protected:
     template <typename Stage, typename RetType, typename... Args, typename... Checkers>
-    GameCommand<RetType> MakeStageCommand(const char* const description,
-            RetType (Stage::*cb)(Args...), Checkers&&... checkers)
+    GameCommand<RetType> MakeStageCommand(const char* const description, RetType (Stage::*cb)(Args...),
+            Checkers&&... checkers)
     {
-        return GameCommand<RetType>(description, std::bind_front(cb, static_cast<Stage*>(this)), std::forward<Checkers>(checkers)...);
+        return GameCommand<RetType>(description, std::bind_front(cb, static_cast<Stage*>(this)),
+                std::forward<Checkers>(checkers)...);
     }
 
     template <typename Command>
@@ -70,61 +113,87 @@ class StageBaseImpl : virtual public StageBase
     }
 
     const std::string name_;
-    MatchBase* match_;
+    const GameOptionBase& option_;
+    MatchBase& match_;
+
+    enum class AtomStageErrCode { OK, CHECKOUT, READY, FAILED };
+    enum class CompStageErrCode { OK, FAILED };
+
+    std::vector<GameCommand<std::conditional_t<IS_ATOM, AtomStageErrCode, CompStageErrCode>>> commands_;
 };
 
-class MainStageBaseImpl : public MainStageBase, public StageBaseImpl
+template <bool IS_ATOM, typename MainStage>
+class SubStageBaseWrapper : public StageBaseWrapper<IS_ATOM>
 {
-   public:
-    MainStageBaseImpl(std::string&& name) : StageBaseImpl(name.empty() ? "（主阶段）" : std::move(name)) {}
+  public:
+    template <typename ...Commands>
+    SubStageBaseWrapper(MainStage& main_stage, Commands&& ...commands)
+        : StageBaseWrapper<IS_ATOM>(main_stage.option(), main_stage.match(), "（匿名子阶段）", std::forward<Commands>(commands)...)
+        , main_stage_(main_stage)
+    {}
+
+    template <typename String, typename ...Commands>
+    SubStageBaseWrapper(MainStage& main_stage, String&& name, Commands&& ...commands)
+        : StageBaseWrapper<IS_ATOM>(main_stage.option(), main_stage.match(), std::forward<String>(name), std::forward<Commands>(commands)...)
+        , main_stage_(main_stage)
+    {}
+
+    MainStage& main_stage() { return main_stage_; }
+    const MainStage& main_stage() const { return main_stage_; }
+
+  private:
+    MainStage& main_stage_;
+};
+
+template <bool IS_ATOM>
+class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_ATOM>
+{
+  public:
+    template <typename ...Commands>
+    MainStageBaseWrapper(const GameOptionBase& option, MatchBase& match, Commands&& ...commands)
+        : StageBaseWrapper<IS_ATOM>(option, match, "（匿名主阶段）", std::forward<Commands>(commands)...)
+    {}
+
+    template <typename String, typename ...Commands>
+    MainStageBaseWrapper(const GameOptionBase& option, MatchBase& match, String&& name, Commands&& ...commands)
+        : StageBaseWrapper<IS_ATOM>(option, match, std::forward<String>(name), std::forward<Commands>(commands)...)
+    {}
+
     virtual int64_t PlayerScore(const PlayerID pid) const = 0;
 };
 
-template <typename... SubStages>
-using SubGameStage = GameStage<false, SubStages...>;
-template <typename... SubStages>
-using MainGameStage = GameStage<true, SubStages...>;
+template <typename GameOption, typename MainStage, typename... SubStages>
+class GameStage;
 
-template <bool IsMain, typename SubStage, typename... SubStages>
-class GameStage<IsMain, SubStage, SubStages...>
-        : public std::conditional_t<IsMain, MainStageBaseImpl, StageBaseImpl>,
-          public SubStageCheckoutHelper<SubStage,
-                                        std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>>,
-          public SubStageCheckoutHelper<SubStages,
-                                        std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>>...
+template <typename GameOption, typename MainStage, typename... SubStages> requires (sizeof...(SubStages) > 0)
+class GameStage<GameOption, MainStage, SubStages...>
+    : public std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<false>, SubStageBaseWrapper<false, MainStage>>
+    , public SubStageCheckoutHelper<SubStages, std::variant<std::unique_ptr<SubStages>...>>...
 {
-   private:
-    using Base = std::conditional_t<IsMain, MainStageBaseImpl, StageBaseImpl>;
-
-   protected:
-    enum CompStageErrCode { OK, FAILED };
-
-   public:
-    using VariantSubStage = std::variant<std::unique_ptr<SubStage>, std::unique_ptr<SubStages>...>;
-    using SubStageCheckoutHelper<SubStage, VariantSubStage>::NextSubStage;
+  public:
+    using Base = std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<false>, SubStageBaseWrapper<false, MainStage>>;
+    using StageErrCode = Base::CompStageErrCode;
+    using VariantSubStage = std::variant<std::unique_ptr<SubStages>...>;
     using SubStageCheckoutHelper<SubStages, VariantSubStage>::NextSubStage...;
 
-    template <typename ...Commands>
-    GameStage(std::string&& name = "", Commands&&... commands)
-            : Base(std::move(name)), sub_stage_(), commands_{std::forward<Commands>(commands)...}
-    {
-    }
+    template <typename ...Args>
+    GameStage(Args&& ...args) : Base(std::forward<Args>(args)...) {}
 
     virtual ~GameStage() {}
 
     virtual VariantSubStage OnStageBegin() = 0;
 
-    virtual void Init(MatchBase* const match)
+    virtual void Init()
     {
-        Base::Init(match);
+        Base::Init();
         sub_stage_ = OnStageBegin();
-        std::visit([match](auto&& sub_stage) { sub_stage->Init(match); }, sub_stage_);
+        std::visit([](auto&& sub_stage) { sub_stage->Init(); }, sub_stage_);
     }
 
     virtual StageBase::StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
                                                   MsgSenderBase& reply) override
     {
-        for (const auto& cmd : commands_) {
+        for (const auto& cmd : Base::commands_) {
             if (const auto rc = cmd.CallIfValid(reader, player_id, is_public, reply); rc.has_value()) {
                 return ToStageErrCode(*rc);
             }
@@ -154,7 +223,7 @@ class GameStage<IsMain, SubStage, SubStages...>
     {
         for (PlayerID pid = begin_pid; pid < end_pid; ++pid) {
             const auto rc = OnComputerAct(pid, Base::TellMsgSender(pid));
-            if (rc != OK) {
+            if (rc != StageErrCode::OK) {
                 return ToStageErrCode(rc);
             }
         }
@@ -165,7 +234,7 @@ class GameStage<IsMain, SubStage, SubStages...>
 
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const override
     {
-        for (const auto& cmd : commands_) {
+        for (const auto& cmd : Base::commands_) {
             i = Base::CommandInfo(i, sender, cmd);
         }
         return std::visit([&i, &sender](auto&& sub_stage) { return sub_stage->CommandInfo(i, sender); }, sub_stage_);
@@ -195,18 +264,20 @@ class GameStage<IsMain, SubStage, SubStages...>
                         Over();
                         // no more substages
                     } else {
-                        sub_stage->Init(Base::match_);
+                        sub_stage->Init();
                     }
                 },
                 sub_stage_);
     }
 
-   private:
+    const GameOption& option() const { return static_cast<const GameOption&>(Base::option_); }
+
+  private:
     using StageBase::Over;
 
     // CompStage cannot checkout by itself so return type is void
     virtual void OnPlayerLeave(const PlayerID pid) {}
-    virtual CompStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return CompStageErrCode::OK; }
+    virtual StageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::OK; }
 
     template <typename Task>
     StageBase::StageErrCode PassToSubStage_(const Task& internal_task, const CheckoutReason checkout_reason)
@@ -222,12 +293,12 @@ class GameStage<IsMain, SubStage, SubStages...>
         return std::visit(task, sub_stage_);
     }
 
-    static StageBase::StageErrCode ToStageErrCode(const CompStageErrCode rc)
+    static StageBase::StageErrCode ToStageErrCode(const StageErrCode rc)
     {
         switch (rc) {
-        case OK:
+        case StageErrCode::OK:
             return StageBase::StageErrCode::OK;
-        case FAILED:
+        case StageErrCode::FAILED:
             return StageBase::StageErrCode::FAILED;
         default:
             assert(false);
@@ -236,29 +307,24 @@ class GameStage<IsMain, SubStage, SubStages...>
         // no more error code
     }
     VariantSubStage sub_stage_;
-    std::vector<GameCommand<CompStageErrCode>> commands_;
 };
 
-template <bool IsMain>
-class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBaseImpl, StageBaseImpl>
+template <typename GameOption, typename MainStage>
+class GameStage<GameOption, MainStage>
+    : public std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<true>, SubStageBaseWrapper<true, MainStage>>
 {
-   private:
-    using Base = std::conditional_t<IsMain, MainStageBaseImpl, StageBaseImpl>;
-
-   protected:
-    enum AtomStageErrCode { OK, CHECKOUT, FAILED };
-
    public:
-    template <typename ...Commands>
-    GameStage(std::string&& name = "", Commands&&... commands)
-            : Base(std::move(name)), commands_{std::forward<Commands>(commands)...}
-    {
-    }
-    virtual ~GameStage() { Base::match_->StopTimer(); }
+    using Base = std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<true>, SubStageBaseWrapper<true, MainStage>>;
+    using StageErrCode = Base::AtomStageErrCode;
+
+    template <typename ...Args>
+    GameStage(Args&& ...args) : Base(std::forward<Args>(args)...), masker_(Base::option_.PlayerNum()) {}
+
+    virtual ~GameStage() { Base::match_.StopTimer(); }
     virtual void OnStageBegin() {}
-    virtual void Init(MatchBase* const match)
+    virtual void Init()
     {
-        Base::Init(match);
+        Base::Init();
         OnStageBegin();
     }
 
@@ -272,12 +338,18 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBaseImpl, S
         return Handle_([this, pid] { return OnPlayerLeave(pid); });
     }
 
-    virtual StageBase::StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
+    virtual StageBase::StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public,
                                                   MsgSenderBase& reply) override final
     {
-        for (const auto& cmd : commands_) {
-            if (const auto rc = cmd.CallIfValid(reader, player_id, is_public, reply); rc.has_value()) {
-                return Handle_([rc] { return *rc; });
+        for (const auto& cmd : Base::commands_) {
+            if (const auto rc = cmd.CallIfValid(reader, pid, is_public, reply); rc.has_value()) {
+                return Handle_([rc, this, pid]
+                        {
+                            if (rc != StageErrCode::READY) {
+                                return *rc;
+                            }
+                            return masker_.Set(pid) ? OnAllPlayerReady() : StageErrCode::OK;
+                        });
             }
         }
         return StageBase::StageErrCode::NOT_FOUND;
@@ -289,17 +361,17 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBaseImpl, S
                 {
                     for (PlayerID pid = begin_pid; pid < end_pid; ++pid) {
                         const auto rc = OnComputerAct(pid, Base::TellMsgSender(pid));
-                        if (rc != OK) {
+                        if (rc != StageErrCode::OK) {
                             return rc;
                         }
                     }
-                    return OK;
+                    return StageErrCode::OK;
                 });
     }
 
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const override
     {
-        for (const auto& cmd : commands_) {
+        for (const auto& cmd : Base::commands_) {
             i = Base::CommandInfo(i, sender, cmd);
         }
         return i;
@@ -316,44 +388,51 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBaseImpl, S
         }
     }
 
+    const GameOption& option() const { return static_cast<const GameOption&>(Base::option_); }
+
   protected:
-    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) { return AtomStageErrCode::OK; }
-    virtual AtomStageErrCode OnTimeout() { return AtomStageErrCode::CHECKOUT; }
-    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return AtomStageErrCode::OK; }
+    virtual StageErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::OK; }
+    virtual StageErrCode OnTimeout() { return StageErrCode::CHECKOUT; }
+    virtual StageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::OK; }
+    virtual StageErrCode OnAllPlayerReady() { return StageErrCode::CHECKOUT; }
 
     void StartTimer(const uint64_t sec)
     {
         finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
-        Base::match_->StartTimer(sec);
+        Base::match_.StartTimer(sec);
     }
 
     void StopTimer()
     {
-        StopTimer(Base::match_);
+        StopTimer();
         finish_time_ = nullptr;
     }
+
+    void ClearReady() { masker_.Clear(); }
+    void ClearReady(const PlayerID pid) { masker_.Unset(pid); }
 
    private:
     template <typename Task>
     StageBase::StageErrCode Handle_(const Task& task)
     {
         const auto rc = task();
-        if (rc == CHECKOUT) {
+        if (rc == StageErrCode::CHECKOUT) {
             Over();
         }
         return ToStageErrCode(rc);
     }
 
-    static StageBase::StageErrCode ToStageErrCode(const AtomStageErrCode rc)
+    static StageBase::StageErrCode ToStageErrCode(const StageErrCode rc)
     {
         switch (rc) {
-        case OK:
+        case StageErrCode::OK:
             return StageBase::StageErrCode::OK;
-        case CHECKOUT:
+        case StageErrCode::CHECKOUT:
             return StageBase::StageErrCode::CHECKOUT;
-        case FAILED:
+        case StageErrCode::FAILED:
             return StageBase::StageErrCode::FAILED;
         default:
+            // READY should not be returned
             assert(false);
             return StageBase::StageErrCode::FAILED;
         }
@@ -364,6 +443,16 @@ class GameStage<IsMain> : public std::conditional_t<IsMain, MainStageBaseImpl, S
         StageBase::Over();
     }
     // if command return true, the stage will be over
-    std::vector<GameCommand<AtomStageErrCode>> commands_;
     std::optional<std::chrono::time_point<std::chrono::steady_clock>> finish_time_;
+    Masker masker_;
 };
+
+class GameOption;
+class MainStage;
+
+template <typename... SubStages>
+using SubGameStage = GameStage<GameOption, MainStage, SubStages...>;
+
+template <typename... SubStages>
+using MainGameStage = GameStage<GameOption, void, SubStages...>;
+
