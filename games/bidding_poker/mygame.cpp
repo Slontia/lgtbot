@@ -118,6 +118,14 @@ class BidStage : public SubGameStage<>
         StartTimer(option().GET_VALUE(投标时间));
     }
 
+    virtual StageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
+    {
+        const auto max_bid_coins = main_stage().players()[pid].coins_ / 4;
+        if (max_bid_coins > 0) {
+            Bid_(pid, false, reply, std::rand() % max_bid_coins + 1);
+        }
+        return StageErrCode::READY;
+    }
 
     AtomStageErrCode OnTimeout() { return BidOver_(); }
     AtomStageErrCode OnAllPlayerReady() { return BidOver_(); }
@@ -156,14 +164,14 @@ class BidStage : public SubGameStage<>
             sender << "\n最大金额投标者有多名玩家，分别是：";
             for (const auto& winner : ret.second) {
                 sender << At(winner);
+                ClearReady(winner);
             }
             sender << "\n开始新的一轮投标，这些玩家可在此轮中重新投标（投标额不得少于上一轮）";
             if (bid_count_ + 1 == option().GET_VALUE(投标轮数)) {
                 sender << "\n注意：若本轮仍未能决出中标者，则商品流标";
             }
             StartTimer(option().GET_VALUE(投标时间));
-            ClearReady();
-            return StageErrCode::OK;
+            return StageErrCode::FAILED;
         }
     }
 
@@ -266,6 +274,28 @@ class DiscardStage : public SubGameStage<>
         Boardcast() << "弃牌阶段开始，请私信裁判进行弃牌，当到达时间限制，或所有玩家皆选择完毕后，回合结束。"
                        "\n回合结束前您可以随意更改您的选择。";
         StartTimer(option().GET_VALUE(弃牌时间));
+    }
+
+    virtual StageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
+    {
+        if (std::rand() % 2) {
+            return StageErrCode::READY;
+        }
+        const auto best_deck = main_stage().players()[pid].hand_.BestDeck();
+        std::vector<std::string> discard_poker_strs;
+        std::vector<poker::Poker> shuffled_pokers = poker::ShuffledPokers();
+        for (const auto& poker : shuffled_pokers) {
+            // should not break the best deck
+            if (main_stage().players()[pid].hand_.Has(poker) &&
+                (!best_deck.has_value() || std::find(best_deck->pokers_.begin(), best_deck->pokers_.end(), poker) == best_deck->pokers_.end())) {
+                discard_poker_strs.emplace_back(poker.ToString());
+                if (discard_poker_strs.size() == 3) {
+                    break;
+                }
+            }
+        }
+        Discard_(pid, false, reply, discard_poker_strs);
+        return StageErrCode::READY;
     }
 
   private:

@@ -360,7 +360,10 @@ class GameStage<GameOption, MainStage>
         return Handle_([this, begin_pid, end_pid]
                 {
                     for (PlayerID pid = begin_pid; pid < end_pid; ++pid) {
-                        const auto rc = OnComputerAct(pid, Base::TellMsgSender(pid));
+                        auto rc = OnComputerAct(pid, Base::TellMsgSender(pid));
+                        if (rc == StageErrCode::READY) {
+                            rc = masker_.Set(pid) ? OnAllPlayerReady() : StageErrCode::OK;
+                        }
                         if (rc != StageErrCode::OK) {
                             return rc;
                         }
@@ -393,7 +396,7 @@ class GameStage<GameOption, MainStage>
   protected:
     virtual StageErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::OK; }
     virtual StageErrCode OnTimeout() { return StageErrCode::CHECKOUT; }
-    virtual StageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::OK; }
+    virtual StageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::READY; }
     virtual StageErrCode OnAllPlayerReady() { return StageErrCode::CHECKOUT; }
 
     void StartTimer(const uint64_t sec)

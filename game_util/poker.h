@@ -55,6 +55,7 @@ ENUM_END(PatternType)
 #include <regex>
 #include <cassert>
 #include <random>
+#include <sstream>
 
 namespace poker {
 
@@ -64,6 +65,7 @@ namespace poker {
 struct Poker
 {
     auto operator<=>(const Poker&) const = default;
+    std::string ToString() const;
     const PokerNumber number_;
     const PokerSuit suit_;
 };
@@ -119,6 +121,13 @@ Sender& operator<<(Sender& sender, const Poker& poker)
         case PokerNumber::_A: sender << "A"; break;
     }
     return sender;
+}
+
+std::string Poker::ToString() const
+{
+    std::stringstream ss;
+    ss << *this;
+    return ss.str();
 }
 
 template <typename String, typename Sender>
