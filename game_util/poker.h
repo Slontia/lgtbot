@@ -99,13 +99,13 @@ std::vector<Poker> ShuffledPokers(const std::string_view& sv = "")
 template <typename Sender>
 Sender& operator<<(Sender& sender, const Poker& poker)
 {
-    switch (poker.suit_.ToUInt()) {
+    switch (poker.suit_) {
         case PokerSuit::SPADE: sender << "♠"; break;
         case PokerSuit::HEART: sender << "♡"; break;
         case PokerSuit::CLUB: sender << "♣"; break;
         case PokerSuit::DIANMOND: sender << "♢"; break;
     }
-    switch (poker.number_.ToUInt()) {
+    switch (poker.number_) {
         case PokerNumber::_2: sender << "2"; break;
         case PokerNumber::_3: sender << "3"; break;
         case PokerNumber::_4: sender << "4"; break;
@@ -264,7 +264,7 @@ template <typename Sender>
 Sender& operator<<(Sender& sender, const Deck& deck)
 {
     sender << "[";
-    switch (deck.type_.ToUInt()) {
+    switch (deck.type_) {
         case PatternType::HIGH_CARD: sender << "高牌"; break;
         case PatternType::ONE_PAIR: sender << "一对"; break;
         case PatternType::TWO_PAIRS: sender << "两对"; break;
@@ -357,7 +357,7 @@ class Hand
         };
 
         for (auto suit_it = PokerSuit::Members().rbegin(); suit_it != PokerSuit::Members().rend(); ++suit_it) {
-            update_deck(BestFlushPattern_<true>(suit_it->ToUInt()));
+            update_deck(BestFlushPattern_<true>(*suit_it));
         }
         if (best_deck_.has_value()) {
             return best_deck_;
@@ -369,7 +369,7 @@ class Hand
         }
 
         for (auto suit_it = PokerSuit::Members().rbegin(); suit_it != PokerSuit::Members().rend(); ++suit_it) {
-            update_deck(BestFlushPattern_<false>(suit_it->ToUInt()));
+            update_deck(BestFlushPattern_<false>(*suit_it));
         }
         if (best_deck_.has_value() && best_deck_->type_ >= PatternType::FLUSH) {
             return best_deck_;
@@ -410,7 +410,7 @@ class Hand
         };
         const auto deck = CollectNonPairDeck_<FIND_STRAIGHT>(get_poker);
         if (deck.has_value()) {
-            return Deck(FIND_STRAIGHT ? PatternType::STRAIGHT_FLUSH : PatternType::FLUSH, *deck);
+            return Deck(PatternType::Condition(FIND_STRAIGHT, PatternType::STRAIGHT_FLUSH, PatternType::FLUSH), *deck);
         } else {
             return std::nullopt;
         }

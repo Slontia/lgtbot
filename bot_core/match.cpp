@@ -20,13 +20,13 @@ static void BoardcastMatchCanJoin(Match& match)
 }
 
 Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, const UserID host_uid,
-             const std::optional<GroupID> gid, const std::bitset<MatchFlag::Count()>& flags)
+             const std::optional<GroupID> gid, const MatchFlag::BitSet& flags)
         : bot_(bot)
         , mid_(mid)
         , game_handle_(game_handle)
         , host_uid_(host_uid)
         , gid_(gid)
-        , state_(flags.test(MatchFlag::配置) ? State::IN_CONFIGURING : State::NOT_STARTED)
+        , state_(flags[MatchFlag::配置] ? State::IN_CONFIGURING : State::NOT_STARTED)
         , flags_(flags)
         , options_(game_handle.make_game_options())
         , main_stage_(nullptr, [](const MainStageBase*) {}) // make when game starts
@@ -42,7 +42,7 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
         , multiple_(1)
         , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助")))
 {
-    if (!flags.test(MatchFlag::配置)) {
+    if (!flags[MatchFlag::配置]) {
         BoardcastMatchCanJoin(*this);
     }
 }
@@ -62,7 +62,7 @@ Match::VariantID Match::ConvertPid(const PlayerID pid) const
 ErrCode Match::GameSetComNum(MsgSenderBase& reply, const uint64_t com_num)
 {
     std::lock_guard<std::mutex> l(mutex_);
-    if (!flags_.test(MatchFlag::电脑)) {
+    if (!flags_[MatchFlag::电脑]) {
         reply() << "[错误] 设置失败：该比赛不允许设置电脑玩家";
         return EC_MATCH_FORBIDDEN_OPERATION;
     }
@@ -75,13 +75,13 @@ ErrCode Match::GameSetComNum(MsgSenderBase& reply, const uint64_t com_num)
     return EC_OK;
 }
 
-static ErrCode ConverErrCode(const StageBase::StageErrCode& stage_errcode)
+static ErrCode ConverErrCode(const StageErrCode& stage_errcode)
 {
     switch (stage_errcode) {
-    case StageBase::StageErrCode::OK: return EC_GAME_REQUEST_OK;
-    case StageBase::StageErrCode::CHECKOUT: return EC_GAME_REQUEST_CHECKOUT;
-    case StageBase::StageErrCode::FAILED: return EC_GAME_REQUEST_FAILED;
-    case StageBase::StageErrCode::NOT_FOUND: return EC_GAME_REQUEST_NOT_FOUND;
+    case StageErrCode::OK: return EC_GAME_REQUEST_OK;
+    case StageErrCode::CHECKOUT: return EC_GAME_REQUEST_CHECKOUT;
+    case StageErrCode::FAILED: return EC_GAME_REQUEST_FAILED;
+    case StageErrCode::NOT_FOUND: return EC_GAME_REQUEST_NOT_FOUND;
     default: return EC_GAME_REQUEST_UNKNOWN;
     }
 }
@@ -108,7 +108,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         const auto pid = it->second;
         assert(state_ == State::IS_STARTED);
         const auto stage_rc = main_stage_->HandleRequest(msg.c_str(), pid, gid.has_value(), reply);
-        if (stage_rc == StageBase::StageErrCode::NOT_FOUND) {
+        if (stage_rc == StageErrCode::NOT_FOUND) {
             reply() << "[错误] 未预料的游戏指令，您可以通过\"帮助\"（不带#号）查看所有支持的游戏指令\n"
                         "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
         }
@@ -413,7 +413,7 @@ void Match::Routine_()
     const uint64_t user_controlled_num = ready_uid_set_.size() * player_num_each_user_;
     while (!main_stage_->IsOver()) {
         const auto rc = main_stage_->HandleComputerAct(user_controlled_num, user_controlled_num + com_num_);
-        if (rc == StageBase::StageErrCode::OK) {
+        if (rc == StageErrCode::OK) {
             break;
         }
     }

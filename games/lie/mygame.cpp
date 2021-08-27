@@ -31,7 +31,7 @@ class NumberStage : public SubGameStage<>
 
     virtual void OnStageBegin() override { StartTimer(60); }
 
-    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         if (questioner_ == pid) {
             return Number_(pid, false, reply, std::rand() % max_number_ + 1);
@@ -42,7 +42,7 @@ class NumberStage : public SubGameStage<>
     int num() const { return num_; }
 
    private:
-    AtomStageErrCode Number_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int num)
+    AtomReqErrCode Number_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int num)
     {
         reply() << pid << " " << questioner_;
         if (pid != questioner_) {
@@ -57,7 +57,7 @@ class NumberStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CHECKOUT; }
+    virtual AtomReqErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CHECKOUT; }
 
     const PlayerID questioner_;
     const uint32_t max_number_;
@@ -78,7 +78,7 @@ class LieStage : public SubGameStage<>
 
     virtual void OnStageBegin() override { StartTimer(60); }
 
-    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         if (questioner_ == pid) {
             return Lie_(pid, false, reply, std::rand() % 2 ? std::rand() % max_number_ + 1 : num_);
@@ -89,7 +89,7 @@ class LieStage : public SubGameStage<>
     int lie_num() const { return lie_num_; }
 
    private:
-    AtomStageErrCode Lie_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int lie_num)
+    AtomReqErrCode Lie_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int lie_num)
     {
         if (pid != questioner_) {
             reply() << "[错误] 本回合您为猜测者，无法提问";
@@ -99,7 +99,7 @@ class LieStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
+    virtual AtomReqErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
 
     const uint64_t questioner_;
     const uint32_t max_number_;
@@ -119,7 +119,7 @@ class GuessStage : public SubGameStage<>
 
     virtual void OnStageBegin() override { StartTimer(60); }
 
-    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         if (guesser_ == pid) {
             return Guess_(pid, false, reply, std::rand() % 2);
@@ -130,7 +130,7 @@ class GuessStage : public SubGameStage<>
     bool doubt() const { return doubt_; }
 
    private:
-    AtomStageErrCode Guess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool doubt)
+    AtomReqErrCode Guess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool doubt)
     {
         if (pid != guesser_) {
             reply() << "[错误] 本回合您为提问者，无法猜测";
@@ -140,7 +140,7 @@ class GuessStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
+    virtual AtomReqErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
 
     const uint64_t guesser_;
     bool doubt_;

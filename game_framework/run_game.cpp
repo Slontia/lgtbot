@@ -29,7 +29,7 @@ int Run()
 
     while (!main_stage->IsOver()) {
         const auto rc = main_stage->HandleComputerAct(0, FLAGS_player);
-        if (rc == StageBase::StageErrCode::OK) {
+        if (rc == StageErrCode::OK) {
             break;
         }
     }

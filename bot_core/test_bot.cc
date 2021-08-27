@@ -95,6 +95,7 @@ class SubStage : public SubGameStage<>
                 , MakeStageCommand("准备重新计时", &SubStage::ToResetTimer_, VoidChecker("准备重新计时"))
                 , MakeStageCommand("阻塞", &SubStage::Block_, VoidChecker("阻塞"))
                 , MakeStageCommand("阻塞并结束", &SubStage::BlockAndOver_, VoidChecker("阻塞并结束"))
+                , MakeStageCommand("准备", &SubStage::Ready_, VoidChecker("准备"))
           )
         , to_reset_timer_(false)
     {}
@@ -105,7 +106,7 @@ class SubStage : public SubGameStage<>
         StartTimer(1);
     }
 
-    virtual StageErrCode OnTimeout() override
+    virtual CheckoutErrCode OnTimeout() override
     {
         if (to_reset_timer_) {
             to_reset_timer_ = false;
@@ -118,18 +119,23 @@ class SubStage : public SubGameStage<>
     }
 
   private:
-    StageErrCode Over_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Ready_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        return StageErrCode::READY;
+    }
+
+    AtomReqErrCode Over_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         return StageErrCode::CHECKOUT;
     }
 
-    StageErrCode ToResetTimer_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode ToResetTimer_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         to_reset_timer_ = true;
         return StageErrCode::OK;
     }
 
-    StageErrCode Block_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Block_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         std::unique_lock<std::mutex> l(substage_blocked_mutex_);
         if (substage_blocked_.exchange(true) == true) {
@@ -140,7 +146,7 @@ class SubStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    StageErrCode BlockAndOver_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode BlockAndOver_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         Block_(pid, is_public, reply);
         return StageErrCode::CHECKOUT;
@@ -176,7 +182,7 @@ class MainStage : public MainGameStage<SubStage>
     virtual int64_t PlayerScore(const PlayerID pid) const override { return 1; };
 
   private:
-    StageErrCode ToCheckout_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode ToCheckout_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         to_checkout_ = true;
         return StageErrCode::OK;

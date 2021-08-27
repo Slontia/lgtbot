@@ -36,7 +36,7 @@ class MatchManager
    public:
     MatchManager(BotCtx& bot) : bot_(bot), next_mid_(0) {}
     ErrCode NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
-                     const std::bitset<MatchFlag::Count()>& flags, MsgSenderBase& reply);
+                     const MatchFlag::BitSet& flags, MsgSenderBase& reply);
     ErrCode ConfigOver(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply);
     ErrCode SetComNum(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply, const uint64_t com_num);
     ErrCode StartGame(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply);

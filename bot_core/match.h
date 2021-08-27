@@ -39,7 +39,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     static const uint32_t kAvgScoreOffset = 10;
 
     Match(BotCtx& bot, const MatchID id, const GameHandle& game_handle, const UserID host_uid,
-          const std::optional<GroupID> gid, const std::bitset<MatchFlag::Count()>& flags);
+          const std::optional<GroupID> gid, const MatchFlag::BitSet& flags);
     ~Match();
 
     ErrCode GameSetComNum(MsgSenderBase& reply, const uint64_t com_num);
@@ -113,7 +113,13 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     UserID host_uid_;
     const std::optional<GroupID> gid_;
     State state_;
-    std::bitset<MatchFlag::Count()> flags_;
+    MatchFlag::BitSet flags_;
+
+    // time info
+    std::shared_ptr<bool> timer_is_over_; // must before match because atom stage will call StopTimer
+    std::unique_ptr<Timer> timer_;
+    std::chrono::time_point<std::chrono::system_clock> start_time_;
+    std::chrono::time_point<std::chrono::system_clock> end_time_;
 
     // game
     GameHandle::game_options_ptr options_;
@@ -129,12 +135,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     // player info (fill when game ready to start)
     std::map<UserID, uint64_t> uid2pid_; // players user currently use
     std::vector<VariantID> players_; // all players, include computers
-
-    // time info
-    std::shared_ptr<bool> timer_is_over_;
-    std::unique_ptr<Timer> timer_;
-    std::chrono::time_point<std::chrono::system_clock> start_time_;
-    std::chrono::time_point<std::chrono::system_clock> end_time_;
 
     const uint16_t multiple_;
 

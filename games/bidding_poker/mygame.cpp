@@ -69,7 +69,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
     const std::vector<Player>& players() const { return players_; }
 
   private:
-    CompStageErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         auto sender = reply();
         sender << "奖池金币数：" << BonusCoins_() << "枚\n";
@@ -118,7 +118,7 @@ class BidStage : public SubGameStage<>
         StartTimer(option().GET_VALUE(投标时间));
     }
 
-    virtual StageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
     {
         const auto max_bid_coins = main_stage().players()[pid].coins_ / 4;
         if (max_bid_coins > 0) {
@@ -127,11 +127,11 @@ class BidStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomStageErrCode OnTimeout() { return BidOver_(); }
-    AtomStageErrCode OnAllPlayerReady() { return BidOver_(); }
+    TimeoutErrCode OnTimeout() { return TimeoutErrCode::Condition(BidOver_(), StageErrCode::CHECKOUT, StageErrCode::FAILED); }
+    AllReadyErrCode OnAllPlayerReady() { return AllReadyErrCode::Condition(BidOver_(), StageErrCode::CHECKOUT, StageErrCode::OK); }
 
   private:
-    AtomStageErrCode BidOver_()
+    bool BidOver_()
     {
         auto sender = Boardcast();
         const auto ret = bidding_manager_.BidOver(sender);
@@ -152,13 +152,13 @@ class BidStage : public SubGameStage<>
             }
             pokers_.clear();
             sender << "\n恭喜" << At(ret.second[0]) << "中标，现持有卡牌：\n" << winner.hand_;
-            return StageErrCode::CHECKOUT;
+            return true;
         } else if ((++bid_count_) == option().GET_VALUE(投标轮数)) {
             sender << "\n投标轮数达到最大值，本商品流标";
             if (discarder_.has_value()) {
                 pokers_.clear();
             }
-            return StageErrCode::CHECKOUT;
+            return true;
         } else {
             auto sender = Boardcast();
             sender << "\n最大金额投标者有多名玩家，分别是：";
@@ -171,11 +171,11 @@ class BidStage : public SubGameStage<>
                 sender << "\n注意：若本轮仍未能决出中标者，则商品流标";
             }
             StartTimer(option().GET_VALUE(投标时间));
-            return StageErrCode::FAILED;
+            return false;
         }
     }
 
-    AtomStageErrCode Bid_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t chip)
+    AtomReqErrCode Bid_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t chip)
     {
         if (is_public) {
             reply() << "投标失败：请私信裁判进行投标";
@@ -193,10 +193,10 @@ class BidStage : public SubGameStage<>
             reply() << "投标失败：投标金币数超过了您所持有的金币数，当前持有" << main_stage().players()[pid].coins_ << "枚";
             return StageErrCode::FAILED;
         }
-        return bidding_manager_.Bid(pid, chip, reply()) ? StageErrCode::READY : StageErrCode::FAILED;
+        return AtomReqErrCode::Condition(bidding_manager_.Bid(pid, chip, reply()), StageErrCode::READY, StageErrCode::FAILED);
     }
 
-    AtomStageErrCode Cancel_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Cancel_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "撤标失败：请私信裁判撤标";
@@ -206,7 +206,7 @@ class BidStage : public SubGameStage<>
             reply() << "撤标失败：您是该商品的拍卖者，不可以撤标";
             return StageErrCode::FAILED;
         }
-        return bidding_manager_.Bid(pid, std::nullopt, reply()) ? StageErrCode::READY : StageErrCode::FAILED;
+        return AtomReqErrCode::Condition(bidding_manager_.Bid(pid, std::nullopt, reply()), StageErrCode::READY, StageErrCode::FAILED);
     }
 
     const std::optional<PlayerID>& discarder_;
@@ -276,7 +276,7 @@ class DiscardStage : public SubGameStage<>
         StartTimer(option().GET_VALUE(弃牌时间));
     }
 
-    virtual StageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
     {
         if (std::rand() % 2) {
             return StageErrCode::READY;
@@ -299,7 +299,7 @@ class DiscardStage : public SubGameStage<>
     }
 
   private:
-    AtomStageErrCode Discard_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<std::string>& poker_strs)
+    AtomReqErrCode Discard_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<std::string>& poker_strs)
     {
         if (is_public) {
             reply() << "弃牌失败：请私信裁判进行弃牌";
@@ -337,7 +337,7 @@ class DiscardStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomStageErrCode Cancel_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Cancel_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "失败：请私信裁判取消弃牌";
@@ -352,7 +352,7 @@ class DiscardStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomStageErrCode OnTimeout()
+    TimeoutErrCode OnTimeout()
     {
         return StageErrCode::CHECKOUT;
     }

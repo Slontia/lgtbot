@@ -1,4 +1,22 @@
-#pragma once
+#ifdef ENUM_BEGIN
+#ifdef ENUM_MEMBER
+#ifdef ENUM_END
+
+ENUM_BEGIN(StageErrCode)
+ENUM_MEMBER(StageErrCode, OK)
+ENUM_MEMBER(StageErrCode, CHECKOUT)
+ENUM_MEMBER(StageErrCode, READY)
+ENUM_MEMBER(StageErrCode, FAILED)
+ENUM_MEMBER(StageErrCode, NOT_FOUND)
+ENUM_END(StageErrCode)
+
+#endif
+#endif
+#endif
+
+#ifndef GAME_MAIN_H_
+#define GAME_MAIN_H_
+
 #include <stdint.h>
 
 #include "bot_core/msg_sender.h"
@@ -8,6 +26,9 @@
 #else
 #define DLLEXPORT(type) type
 #endif
+
+#define ENUM_FILE "game_framework/game_main.h"
+#include "utility/extend_enum.h"
 
 class MsgSenderForGame;
 class MatchBase;
@@ -32,7 +53,6 @@ class StageBase
 {
   public:
     StageBase() : is_over_(false) {}
-    enum class StageErrCode { OK, CHECKOUT, FAILED, NOT_FOUND };
     virtual ~StageBase() {}
     virtual void Init() = 0;
     virtual StageErrCode HandleTimeout() = 0;
@@ -54,3 +74,4 @@ class MainStageBase : virtual public StageBase
     virtual int64_t PlayerScore(const PlayerID pid) const = 0;
 };
 
+#endif

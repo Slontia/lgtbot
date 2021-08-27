@@ -281,7 +281,7 @@ class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg
 };
 
 template <typename Enum>
-class FlagsChecker : public MsgArgChecker<std::bitset<Enum::Count()>>
+class FlagsChecker : public MsgArgChecker<typename Enum::BitSet>
 {
   public:
     virtual std::string FormatInfo() const override
@@ -306,12 +306,12 @@ class FlagsChecker : public MsgArgChecker<std::bitset<Enum::Count()>>
         }
         return ss.str();
     }
-    virtual std::optional<std::bitset<Enum::Count()>> Check(MsgReader& reader) const override
+    virtual std::optional<typename Enum::BitSet> Check(MsgReader& reader) const override
     {
-        std::optional<std::bitset<Enum::Count()>> ret(std::in_place);
+        std::optional<typename Enum::BitSet> ret(std::in_place);
         while (reader.HasNext()) {
             if (const auto e = Enum::Parse(reader.NextArg()); e.has_value()) {
-                ret->set(e->ToUInt());
+                (*ret)[*e] = true;
             } else {
                 return std::nullopt;
             }

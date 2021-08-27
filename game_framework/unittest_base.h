@@ -7,19 +7,6 @@
 #include "game_framework/game_main.h"
 #include "game_framework/mock_match.h"
 
-static const char* StageErrCodeToString(const StageBase::StageErrCode& rc)
-{
-    switch (rc) {
-#define HANDLE_ERRCODE(rc) case StageBase::StageErrCode::rc: return #rc;
-        HANDLE_ERRCODE(OK)
-        HANDLE_ERRCODE(CHECKOUT)
-        HANDLE_ERRCODE(FAILED)
-        HANDLE_ERRCODE(NOT_FOUND)
-#undef HANDLE_ERRCODE
-    }
-    return nullptr; // should not reach here
-}
-
 MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match);
 
 template <uint64_t k_player_num>
@@ -54,7 +41,7 @@ class TestGame : public MockMatch, public testing::Test
     virtual void StopTimer() override { timer_started_ = false; }
 
    protected:
-    StageBase::StageErrCode Timeout()
+    StageErrCode Timeout()
     {
         if (!timer_started_) {
             throw std::runtime_error("timer is not started");
@@ -65,19 +52,19 @@ class TestGame : public MockMatch, public testing::Test
         return rc;
     }
 
-    StageBase::StageErrCode PublicRequest(const PlayerID pid, const char* const msg)
+    StageErrCode PublicRequest(const PlayerID pid, const char* const msg)
     {
         std::cout << "[PLAYER_" << pid << " -> GROUP]" << std::endl << msg << std::endl;
         return Request_(pid, msg, true);
     }
 
-    StageBase::StageErrCode PrivateRequest(const PlayerID pid, const char* const msg)
+    StageErrCode PrivateRequest(const PlayerID pid, const char* const msg)
     {
         std::cout << "[PLAYER_" << pid << " -> BOT]" << std::endl << msg << std::endl;
         return Request_(pid, msg, false);
     }
 
-    StageBase::StageErrCode Leave(const PlayerID pid)
+    StageErrCode Leave(const PlayerID pid)
     {
         std::cout << "[PLAYER_" << pid << " LEAVE GAME]" << std::endl;
         const auto rc = main_stage_->HandleLeave(pid);
@@ -101,12 +88,14 @@ class TestGame : public MockMatch, public testing::Test
         }
     }
 
-    StageBase::StageErrCode Request_(const PlayerID pid, const char* const msg, const bool is_public)
+    StageErrCode Request_(const PlayerID pid, const char* const msg, const bool is_public)
     {
         MockMsgSender sender(pid, is_public);
-        const auto rc = main_stage_            ? main_stage_->HandleRequest(msg, pid, is_public, sender) :
-                        option_.SetOption(msg) ? StageBase::StageErrCode::OK :
-                                                 StageBase::StageErrCode::FAILED; // for easy test
+        if (main_stage_) {
+            
+        }
+        const auto rc = main_stage_ != nullptr ? main_stage_->HandleRequest(msg, pid, is_public, sender) :
+                        StageErrCode::Condition(option_.SetOption(msg), StageErrCode::OK , StageErrCode::FAILED); // for easy test
         HandleGameOver_();
         return rc;
     }
@@ -126,23 +115,25 @@ class TestGame : public MockMatch, public testing::Test
         ASSERT_TRUE(StartGame()) << "Start game failed"; \
     } while (0)
 
+#define ASSERT_ERRCODE(expected, actual) ASSERT_TRUE((expected) == (actual)) << "ErrCode Mismatch, Actual: " << (actual)
+
 #define __ASSERT_ERRCODE_BASE(ret, statement) \
     do { \
         const auto rc = statement; \
-        ASSERT_EQ(StageBase::StageErrCode::ret, rc) << "ErrCode Mismatch, Actual: " << StageErrCodeToString(rc); \
+        ASSERT_ERRCODE(StageErrCode::ret, rc); \
     } while (0)
 
 #define ASSERT_TIMEOUT(ret) __ASSERT_ERRCODE_BASE(ret, (Timeout()))
-#define CHECK_TIMEOUT(ret) (StageBase::StageErrCode::ret == (Timeout()))
+#define CHECK_TIMEOUT(ret) (StageErrCode::ret == (Timeout()))
 
 #define ASSERT_PUB_MSG(ret, pid, msg) __ASSERT_ERRCODE_BASE(ret, (PublicRequest(pid, msg)))
-#define CHECK_PUB_MSG(ret, pid, msg) (StageBase::StageErrCode::ret == PublicRequest(pid, msg))
+#define CHECK_PUB_MSG(ret, pid, msg) (StageErrCode::ret == PublicRequest(pid, msg))
 
 #define ASSERT_PRI_MSG(ret, pid, msg) __ASSERT_ERRCODE_BASE(ret, (PrivateRequest(pid, msg)))
-#define CHECK_PRI_MSG(ret, pid, msg) (StageBase::StageErrCode::ret == PrivateRequest(pid, msg))
+#define CHECK_PRI_MSG(ret, pid, msg) (StageErrCode::ret == PrivateRequest(pid, msg))
 
 #define ASSERT_LEAVE(ret, pid) __ASSERT_ERRCODE_BASE(ret, Leave(pid))
-#define CHECK_LEAVE(ret, pid) (StageBase::StageErrCode::ret == Leave(pid))
+#define CHECK_LEAVE(ret, pid) (StageErrCode::ret == Leave(pid))
 
 #define GAME_TEST(player_num, test_name) \
     using TestGame_##player_num##_##test_name = TestGame<player_num>; \

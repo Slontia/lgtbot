@@ -79,7 +79,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
 }
 
 static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
-                        const std::string& gamename, const std::bitset<MatchFlag::Count()>& flags)
+                        const std::string& gamename, const MatchFlag::BitSet& flags)
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {

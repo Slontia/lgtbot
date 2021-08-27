@@ -1,4 +1,5 @@
 #pragma once
+
 #include <cassert>
 #include <chrono>
 #include <optional>
@@ -9,6 +10,20 @@
 #include "utility/msg_checker.h"
 
 #include "game_framework/util.h"
+
+using AtomReqErrCode = StageErrCode::SubSet<StageErrCode::OK,        // act successfully
+                                              StageErrCode::FAILED,    // act failed
+                                              StageErrCode::READY,     // act successfully and ready to checkout
+                                              StageErrCode::CHECKOUT>; // to checkout
+
+using CompReqErrCode = StageErrCode::SubSet<StageErrCode::OK,
+                                              StageErrCode::FAILED>;
+
+using TimeoutErrCode = StageErrCode::SubSet<StageErrCode::FAILED,
+                                             StageErrCode::CHECKOUT>;
+
+using AllReadyErrCode = StageErrCode::SubSet<StageErrCode::OK,
+                                             StageErrCode::CHECKOUT>;
 
 class Masker
 {
@@ -67,10 +82,10 @@ class StageBaseWrapper : virtual public StageBase
 
     virtual ~StageBaseWrapper() {}
 
-    virtual void Init() {}
+    virtual void Init() override {}
 
     virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
-                                       MsgSenderBase& reply)
+                                       MsgSenderBase& reply) override
     {
         MsgReader reader(msg);
         return HandleRequest(reader, player_id, is_public, reply);
@@ -116,10 +131,7 @@ class StageBaseWrapper : virtual public StageBase
     const GameOptionBase& option_;
     MatchBase& match_;
 
-    enum class AtomStageErrCode { OK, CHECKOUT, READY, FAILED };
-    enum class CompStageErrCode { OK, FAILED };
-
-    std::vector<GameCommand<std::conditional_t<IS_ATOM, AtomStageErrCode, CompStageErrCode>>> commands_;
+    std::vector<GameCommand<std::conditional_t<IS_ATOM, AtomReqErrCode, CompReqErrCode>>> commands_;
 };
 
 template <bool IS_ATOM, typename MainStage>
@@ -172,7 +184,6 @@ class GameStage<GameOption, MainStage, SubStages...>
 {
   public:
     using Base = std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<false>, SubStageBaseWrapper<false, MainStage>>;
-    using StageErrCode = Base::CompStageErrCode;
     using VariantSubStage = std::variant<std::unique_ptr<SubStages>...>;
     using SubStageCheckoutHelper<SubStages, VariantSubStage>::NextSubStage...;
 
@@ -190,12 +201,12 @@ class GameStage<GameOption, MainStage, SubStages...>
         std::visit([](auto&& sub_stage) { sub_stage->Init(); }, sub_stage_);
     }
 
-    virtual StageBase::StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
+    virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
                                                   MsgSenderBase& reply) override
     {
         for (const auto& cmd : Base::commands_) {
             if (const auto rc = cmd.CallIfValid(reader, player_id, is_public, reply); rc.has_value()) {
-                return ToStageErrCode(*rc);
+                return *rc;
             }
         }
         return PassToSubStage_(
@@ -203,14 +214,14 @@ class GameStage<GameOption, MainStage, SubStages...>
                 CheckoutReason::BY_REQUEST);
     }
 
-    virtual StageBase::StageErrCode HandleTimeout() override
+    virtual StageErrCode HandleTimeout() override
     {
         return PassToSubStage_(
                 [](auto&& sub_stage) { return sub_stage->HandleTimeout(); },
                 CheckoutReason::BY_TIMEOUT);
     }
 
-    virtual StageBase::StageErrCode HandleLeave(const PlayerID pid) override
+    virtual StageErrCode HandleLeave(const PlayerID pid) override
     {
         // We must call CompStage's OnPlayerLeave first so that it can deceide whether to finish game when substage is over.
         this->OnPlayerLeave(pid);
@@ -219,12 +230,12 @@ class GameStage<GameOption, MainStage, SubStages...>
                 CheckoutReason::BY_LEAVE);
     }
 
-    virtual StageBase::StageErrCode HandleComputerAct(const uint64_t begin_pid, const uint64_t end_pid) override
+    virtual StageErrCode HandleComputerAct(const uint64_t begin_pid, const uint64_t end_pid) override
     {
         for (PlayerID pid = begin_pid; pid < end_pid; ++pid) {
             const auto rc = OnComputerAct(pid, Base::TellMsgSender(pid));
             if (rc != StageErrCode::OK) {
-                return ToStageErrCode(rc);
+                return rc;
             }
         }
         return PassToSubStage_(
@@ -277,10 +288,10 @@ class GameStage<GameOption, MainStage, SubStages...>
 
     // CompStage cannot checkout by itself so return type is void
     virtual void OnPlayerLeave(const PlayerID pid) {}
-    virtual StageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::OK; }
+    virtual CompReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::OK; }
 
     template <typename Task>
-    StageBase::StageErrCode PassToSubStage_(const Task& internal_task, const CheckoutReason checkout_reason)
+    StageErrCode PassToSubStage_(const Task& internal_task, const CheckoutReason checkout_reason)
     {
         const auto task = [this, &internal_task, checkout_reason](auto&& sub_stage) {
             // return rc to check in unittest
@@ -293,19 +304,6 @@ class GameStage<GameOption, MainStage, SubStages...>
         return std::visit(task, sub_stage_);
     }
 
-    static StageBase::StageErrCode ToStageErrCode(const StageErrCode rc)
-    {
-        switch (rc) {
-        case StageErrCode::OK:
-            return StageBase::StageErrCode::OK;
-        case StageErrCode::FAILED:
-            return StageBase::StageErrCode::FAILED;
-        default:
-            assert(false);
-            return StageBase::StageErrCode::FAILED;
-        }
-        // no more error code
-    }
     VariantSubStage sub_stage_;
 };
 
@@ -315,7 +313,6 @@ class GameStage<GameOption, MainStage>
 {
    public:
     using Base = std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<true>, SubStageBaseWrapper<true, MainStage>>;
-    using StageErrCode = Base::AtomStageErrCode;
 
     template <typename ...Args>
     GameStage(Args&& ...args) : Base(std::forward<Args>(args)...), masker_(Base::option_.PlayerNum()) {}
@@ -328,22 +325,22 @@ class GameStage<GameOption, MainStage>
         OnStageBegin();
     }
 
-    virtual StageBase::StageErrCode HandleTimeout() override final
+    virtual StageErrCode HandleTimeout() override final
     {
         return Handle_([this] { return OnTimeout(); });
     }
 
-    virtual StageBase::StageErrCode HandleLeave(const PlayerID pid) override final
+    virtual StageErrCode HandleLeave(const PlayerID pid) override final
     {
         return Handle_([this, pid] { return OnPlayerLeave(pid); });
     }
 
-    virtual StageBase::StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public,
+    virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public,
                                                   MsgSenderBase& reply) override final
     {
         for (const auto& cmd : Base::commands_) {
             if (const auto rc = cmd.CallIfValid(reader, pid, is_public, reply); rc.has_value()) {
-                return Handle_([rc, this, pid]
+                return Handle_([rc, this, pid]() -> StageErrCode
                         {
                             if (rc != StageErrCode::READY) {
                                 return *rc;
@@ -352,15 +349,15 @@ class GameStage<GameOption, MainStage>
                         });
             }
         }
-        return StageBase::StageErrCode::NOT_FOUND;
+        return StageErrCode::NOT_FOUND;
     }
 
-    virtual StageBase::StageErrCode HandleComputerAct(const uint64_t begin_pid, const uint64_t end_pid) override final
+    virtual StageErrCode HandleComputerAct(const uint64_t begin_pid, const uint64_t end_pid) override final
     {
-        return Handle_([this, begin_pid, end_pid]
+        return Handle_([this, begin_pid, end_pid]() -> StageErrCode
                 {
                     for (PlayerID pid = begin_pid; pid < end_pid; ++pid) {
-                        auto rc = OnComputerAct(pid, Base::TellMsgSender(pid));
+                        StageErrCode rc = OnComputerAct(pid, Base::TellMsgSender(pid));
                         if (rc == StageErrCode::READY) {
                             rc = masker_.Set(pid) ? OnAllPlayerReady() : StageErrCode::OK;
                         }
@@ -394,10 +391,10 @@ class GameStage<GameOption, MainStage>
     const GameOption& option() const { return static_cast<const GameOption&>(Base::option_); }
 
   protected:
-    virtual StageErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::OK; }
-    virtual StageErrCode OnTimeout() { return StageErrCode::CHECKOUT; }
-    virtual StageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::READY; }
-    virtual StageErrCode OnAllPlayerReady() { return StageErrCode::CHECKOUT; }
+    virtual AtomReqErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::OK; }
+    virtual TimeoutErrCode OnTimeout() { return StageErrCode::CHECKOUT; }
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::READY; }
+    virtual AllReadyErrCode OnAllPlayerReady() { return StageErrCode::CHECKOUT; }
 
     void StartTimer(const uint64_t sec)
     {
@@ -416,31 +413,15 @@ class GameStage<GameOption, MainStage>
 
    private:
     template <typename Task>
-    StageBase::StageErrCode Handle_(const Task& task)
+    StageErrCode Handle_(const Task& task)
     {
         const auto rc = task();
         if (rc == StageErrCode::CHECKOUT) {
             Over();
         }
-        return ToStageErrCode(rc);
+        return rc;
     }
 
-    static StageBase::StageErrCode ToStageErrCode(const StageErrCode rc)
-    {
-        switch (rc) {
-        case StageErrCode::OK:
-            return StageBase::StageErrCode::OK;
-        case StageErrCode::CHECKOUT:
-            return StageBase::StageErrCode::CHECKOUT;
-        case StageErrCode::FAILED:
-            return StageBase::StageErrCode::FAILED;
-        default:
-            // READY should not be returned
-            assert(false);
-            return StageBase::StageErrCode::FAILED;
-        }
-        // no more error code
-    }
     virtual void Over() override final
     {
         StageBase::Over();

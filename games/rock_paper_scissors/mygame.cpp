@@ -71,7 +71,7 @@ class RoundStage : public SubGameStage<>
     }
 
   protected:
-    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         const auto n = std::rand();
         return Act_(pid, false, reply, n % 3 == 0 ? Choise::PAPER_CHOISE :
@@ -79,7 +79,7 @@ class RoundStage : public SubGameStage<>
     }
 
    private:
-    AtomStageErrCode Act_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, Choise choise)
+    AtomReqErrCode Act_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, Choise choise)
     {
         if (is_public) {
             reply() << "请私信裁判选择，公开选择无效";
@@ -88,11 +88,11 @@ class RoundStage : public SubGameStage<>
         Choise& cur_choise = cur_choise_[pid];
         cur_choise = choise;
         reply() << "选择成功，您当前选择为：" << Choise2Str(cur_choise);
-        return cur_choise_[0] != NONE_CHOISE && cur_choise_[1] != NONE_CHOISE ? StageErrCode::CHECKOUT : StageErrCode::OK;
+        return AtomReqErrCode::Condition(cur_choise_[0] != NONE_CHOISE && cur_choise_[1] != NONE_CHOISE, StageErrCode::CHECKOUT, StageErrCode::OK);
     }
 
     // The other player win. Game Over.
-    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CHECKOUT; }
+    virtual AtomReqErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CHECKOUT; }
 
     const uint32_t max_round_sec_;
     std::array<Choise, 2> cur_choise_;

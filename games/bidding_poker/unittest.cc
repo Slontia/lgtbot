@@ -54,8 +54,7 @@ GAME_TEST(5, bid_2)
     ASSERT_PRI_MSG(FAILED, 1, "撤标"); // cannot cancel in term 2
     ASSERT_PRI_MSG(FAILED, 2, "11"); // lose in term 1
     ASSERT_PRI_MSG(OK, 3, "10");
-    ASSERT_PRI_MSG(OK, 4, "11");
-    ASSERT_TIMEOUT(CHECKOUT); // player 1 wins
+    ASSERT_PRI_MSG(CHECKOUT, 4, "11");
 }
 
 GAME_TEST(5, do_nothing)
@@ -66,13 +65,13 @@ GAME_TEST(5, do_nothing)
     START_GAME();
 
     for (int j = 0; j < 10; ++j) {
-        ASSERT_TIMEOUT(OK);
+        ASSERT_TIMEOUT(FAILED);
         ASSERT_TIMEOUT(CHECKOUT);
     }
     for (int i = 0; i < 5; ++i) {
         ASSERT_TIMEOUT(CHECKOUT); // discard stage
         for (int j = 0; j < 10; ++j) {
-            ASSERT_TIMEOUT(OK);
+            ASSERT_TIMEOUT(FAILED);
             ASSERT_TIMEOUT(CHECKOUT);
         }
     }
@@ -88,7 +87,7 @@ GAME_TEST(5, do_nothing_2)
     START_GAME();
 
     for (int j = 0; j < 10; ++j) {
-        ASSERT_TIMEOUT(OK);
+        ASSERT_TIMEOUT(FAILED);
         ASSERT_TIMEOUT(CHECKOUT);
     }
     for (int i = 0; i < 5; ++i) {
@@ -97,7 +96,7 @@ GAME_TEST(5, do_nothing_2)
         }
         ASSERT_PRI_MSG(CHECKOUT, 4, "不弃牌");
         for (int j = 0; j < 10; ++j) {
-            ASSERT_TIMEOUT(OK);
+            ASSERT_TIMEOUT(FAILED);
             ASSERT_TIMEOUT(CHECKOUT);
         }
     }

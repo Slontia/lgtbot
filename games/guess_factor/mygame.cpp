@@ -179,7 +179,7 @@ class RoundStage : public SubGameStage<>
         StartTimer(option().GET_VALUE(局时));
     }
 
-    virtual AtomStageErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         if (players_[pid].eliminated()) {
             return StageErrCode::OK;
@@ -192,7 +192,7 @@ class RoundStage : public SubGameStage<>
     }
 
    private:
-    AtomStageErrCode Guess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t factor)
+    AtomReqErrCode Guess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t factor)
     {
         if (is_public) {
             reply() << "猜测失败：请私信裁判猜测，不要暴露自己的数字哦~";
@@ -209,10 +209,10 @@ class RoundStage : public SubGameStage<>
         if (!players_[pid].Guess(reply(), factor)) {
             return StageErrCode::FAILED;
         }
-        return CanOver_() ? StageErrCode::CHECKOUT : StageErrCode::OK;
+        return AtomReqErrCode::Condition(CanOver_(), StageErrCode::CHECKOUT, StageErrCode::OK);
     }
 
-    AtomStageErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "pass失败：请私信裁判进行pass操作~";
@@ -221,13 +221,13 @@ class RoundStage : public SubGameStage<>
         if (!players_[pid].Pass(reply())) {
             return StageErrCode::FAILED;
         }
-        return CanOver_() ? StageErrCode::CHECKOUT : StageErrCode::OK;
+        return AtomReqErrCode::Condition(CanOver_(), StageErrCode::CHECKOUT, StageErrCode::OK);
     }
 
-    virtual AtomStageErrCode OnPlayerLeave(const PlayerID pid) override
+    virtual AtomReqErrCode OnPlayerLeave(const PlayerID pid) override
     {
         players_[pid].Leave();
-        return CanOver_() ? StageErrCode::CHECKOUT : StageErrCode::OK;
+        return AtomReqErrCode::Condition(CanOver_(), StageErrCode::CHECKOUT, StageErrCode::OK);
     }
 
     bool CanOver_() const

@@ -12,7 +12,7 @@
     } while (0);
 
 ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
-                               const std::bitset<MatchFlag::Count()>& flags, MsgSenderBase& reply)
+                               const MatchFlag::BitSet& flags, MsgSenderBase& reply)
 {
     std::lock_guard<std::mutex> l(mutex_);
     if (GetMatch_(uid, uid2match_)) {
