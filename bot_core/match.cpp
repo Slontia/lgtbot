@@ -32,10 +32,13 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
         , main_stage_(nullptr, [](const MainStageBase*) {}) // make when game starts
         , player_num_each_user_(1)
         , boardcast_sender_(
-              gid.has_value() ? std::variant<MsgSender, BoardcastBatchMsgSender>(MsgSender(*gid_))// : std::variant<MsgSender, BoardcastBatchMsgSender>(MsgSender(*gid_))
-                              : std::variant<MsgSender, BoardcastBatchMsgSender>(BoardcastBatchMsgSender(
-                                      ready_uid_set_,
-                                      [](std::pair<const UserID, MsgSender>& pair) -> MsgSender& { return pair.second; })
+              gid.has_value() ? std::variant<MsgSender, MsgSenderBatch>(MsgSender(*gid_))
+                              : std::variant<MsgSender, MsgSenderBatch>(MsgSenderBatch([this](const std::function<void(MsgSender&)>& fn)
+                                        {
+                                            for (auto& [_, player_info] : ready_uid_set_) {
+                                                fn(player_info.sender_);
+                                            }
+                                        })
                                 )
           )
         , com_num_(0)
@@ -159,10 +162,10 @@ ErrCode Match::GameStart(const bool is_public, MsgSenderBase& reply)
     state_ = State::IS_STARTED;
     Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
     main_stage_->Init();
-    for (auto& [uid, sender] : ready_uid_set_) {
+    for (auto& [uid, player_info] : ready_uid_set_) {
         uid2pid_.emplace(uid, players_.size());
         players_.emplace_back(uid);
-        sender.SetMatch(this);
+        player_info.sender_.SetMatch(this);
     }
     for (ComputerID cid = 0; cid < com_num_; ++cid) {
         players_.emplace_back(cid);
@@ -189,7 +192,7 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         reply() << "[错误] 加入失败：比赛人数已达到游戏上限";
         return EC_MATCH_ACHIEVE_MAX_PLAYER;
     }
-    ready_uid_set_.emplace(uid, MsgSender(uid));
+    ready_uid_set_.emplace(uid, Player(uid));
     Boardcast() << "玩家 " << At(uid) << " 加入了游戏";
     return EC_OK;
 }
@@ -237,7 +240,7 @@ MsgSenderBase& Match::TellMsgSender(const PlayerID pid)
     if (const auto pval = std::get_if<UserID>(&id); !pval) {
         return EmptyMsgSender::Get(); // is computer
     } else if (const auto it = ready_uid_set_.find(*pval); it != ready_uid_set_.end()) {
-        return it->second;
+        return it->second.sender_;
     } else {
         return EmptyMsgSender::Get(); // player exit
     }
@@ -336,10 +339,44 @@ void Match::StopTimer()
     timer_ = nullptr; // stop timer
 }
 
-std::string Match::OptionInfo() const
+void Match::ShowInfo(const std::optional<GroupID>& gid, MsgSenderBase& reply) const
 {
     std::lock_guard<std::mutex> l(mutex_);
-    return OptionInfo_();
+    auto sender = reply();
+    sender << "游戏名称：" << game_handle().name_ << "\n";
+    sender << "配置信息：" << OptionInfo_() << "\n";
+    sender << "电脑数量：" << com_num_ << "\n";
+    sender << "游戏状态："
+           << (state() == Match::State::IN_CONFIGURING
+                       ? "配置中"
+                       : state() == Match::State::NOT_STARTED ? "未开始" : "已开始")
+           << "\n";
+    sender << "房间号：";
+    if (gid_.has_value()) {
+        sender << *gid << "\n";
+    } else {
+        sender << "私密游戏"
+               << "\n";
+    }
+    sender << "最多可参加人数：";
+    if (game_handle().max_player_ == 0) {
+        sender << "无限制";
+    } else {
+        sender << game_handle().max_player_;
+    }
+    sender << "人\n房主：" << Name(host_uid());
+    if (state() == Match::State::IS_STARTED) {
+        const auto num = PlayerNum();
+        sender << "\n玩家列表：" << num << "人";
+        for (uint64_t pid = 0; pid < num; ++pid) {
+            sender << "\n" << pid << "号：" << Name(PlayerID{pid});
+        }
+    } else {
+        sender << "\n当前报名玩家：" << ready_uid_set_.size() << "人";
+        for (const auto& [uid, _] : ready_uid_set_) {
+            sender << "\n" << Name(uid);
+        }
+    }
 }
 
 std::string Match::OptionInfo_() const

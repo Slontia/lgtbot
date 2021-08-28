@@ -106,7 +106,7 @@ class SubStage : public SubGameStage<>
         StartTimer(1);
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual TimeoutErrCode OnTimeout() override
     {
         if (to_reset_timer_) {
             to_reset_timer_ = false;

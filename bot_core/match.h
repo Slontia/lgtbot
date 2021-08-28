@@ -56,7 +56,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     MsgSenderBase::MsgSenderGuard Tell(const PlayerID pid) { return TellMsgSender(pid)(); }
     virtual void StartTimer(const uint64_t sec) override;
     virtual void StopTimer() override;
-    std::string OptionInfo() const;
+    void ShowInfo(const std::optional<GroupID>&, MsgSenderBase& reply) const;
 
     bool SwitchHost();
 
@@ -126,9 +126,21 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     GameHandle::main_stage_ptr main_stage_;
 
     // player info
-    std::map<UserID, MsgSender> ready_uid_set_; // players is now in game, exclude exited players
-    using BoardcastBatchMsgSender = MsgSenderBatch<decltype(ready_uid_set_), MsgSender& (*) (std::pair<const UserID, MsgSender>&)>;
-    std::variant<MsgSender, BoardcastBatchMsgSender> boardcast_sender_;
+    struct Player
+    {
+        Player(const UserID uid)
+            : uid_(uid)
+            , sender_(uid)
+            , is_left_during_game_(false)
+            , leave_when_config_changed_(false)
+        {}
+        const UserID uid_;
+        MsgSender sender_;
+        bool leave_when_config_changed_;
+        bool is_left_during_game_;
+    };
+    std::map<UserID, Player> ready_uid_set_; // players is now in game, exclude exited players
+    std::variant<MsgSender, MsgSenderBatch> boardcast_sender_;
     uint64_t com_num_;
     uint64_t player_num_each_user_;
 

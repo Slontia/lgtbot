@@ -150,7 +150,7 @@ static ErrCode show_private_matches(BotCtx& bot, const UserID uid, const std::op
     return EC_OK;
 }
 
-static ErrCode show_match_status(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+static ErrCode show_match_info(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
                                  MsgSenderBase& reply)
 {
     // TODO: make it thread safe
@@ -166,41 +166,7 @@ static ErrCode show_match_status(BotCtx& bot, const UserID uid, const std::optio
         reply() << "[错误] 查看失败：您未加入游戏";
         return EC_MATCH_USER_NOT_IN_MATCH;
     };
-    auto sender = reply();
-    sender << "游戏名称：" << match->game_handle().name_ << "\n";
-    sender << "配置信息：" << match->OptionInfo() << "\n";
-    sender << "游戏状态："
-           << (match->state() == Match::State::IN_CONFIGURING
-                       ? "配置中"
-                       : match->state() == Match::State::NOT_STARTED ? "未开始" : "已开始")
-           << "\n";
-    sender << "房间号：";
-    if (match->gid().has_value()) {
-        sender << *gid << "\n";
-    } else {
-        sender << "私密游戏"
-               << "\n";
-    }
-    sender << "最多可参加人数：";
-    if (match->game_handle().max_player_ == 0) {
-        sender << "无限制";
-    } else {
-        sender << match->game_handle().max_player_;
-    }
-    sender << "人\n房主：" << Name(match->host_uid());
-    if (match->state() == Match::State::IS_STARTED) {
-        const auto num = match->PlayerNum();
-        sender << "\n玩家列表：" << num << "人";
-        for (uint64_t pid = 0; pid < num; ++pid) {
-            sender << "\n" << pid << "号：" << Name(PlayerID{pid});
-        }
-    } else {
-        const auto& ready_uid_set = match->ready_uid_set();
-        sender << "\n当前报名玩家：" << ready_uid_set.size() << "人";
-        for (const auto& [uid, _] : ready_uid_set) {
-            sender << "\n" << Name(uid);
-        }
-    }
+    match->ShowInfo(gid, reply);
     return EC_OK;
 }
 
@@ -254,7 +220,7 @@ const std::vector<MetaCommand> meta_cmds = {
         make_command("查看游戏规则（游戏名称可以通过\"#游戏列表\"查看）", show_rule, VoidChecker("#规则"),
                      AnyArg("游戏名称", "某游戏名")),
         make_command("查看当前所有未开始的私密比赛", show_private_matches, VoidChecker("#私密游戏列表")),
-        make_command("查看已加入，或该房间正在进行的比赛信息", show_match_status, VoidChecker("#游戏信息")),
+        make_command("查看已加入，或该房间正在进行的比赛信息", show_match_info, VoidChecker("#游戏信息")),
 
         // NEW GAME: can only be executed by host
         make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏（游戏名称可以通过\"#游戏列表\"查看）",

@@ -3,6 +3,7 @@
 #include <memory>
 #include <variant>
 #include <vector>
+#include <functional>
 
 #include "bot_core/id.h"
 
@@ -107,7 +108,8 @@ class MsgSender : public MsgSenderBase
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override;
     virtual void Flush() override { MessagerFlush(sender_); }
     void SaveText_(const std::string_view& sv) { SaveText(sv.data(), sv.size()); }
-    template <typename Container, typename GetFn> friend class MsgSenderBatch;
+    friend class MsgSenderBatch;
+
   private:
     static void* Open_(const UserID& uid) { return OpenMessager(uid, true); }
     static void* Open_(const GroupID& gid) { return OpenMessager(gid, false); }
@@ -152,46 +154,37 @@ MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const s
     return *this;
 }
 
-template <typename Container, typename GetFn>
 class MsgSenderBatch : public MsgSenderBase
 {
   public:
-    MsgSenderBatch(Container& container, const GetFn& get_fn) : container_(container), get_fn_(get_fn) {}
+    template <typename Fn>
+    MsgSenderBatch(Fn&& fn) : fn_(std::forward<Fn>(fn)) {}
 
     virtual void SaveText(const char* const data, const uint64_t len) override
     {
-        for (auto& e : container_) {
-            get_fn_(e).SaveText(data, len);
-        }
+        fn_([&](MsgSender& sender) { sender.SaveText(data, len); });
     }
 
     virtual void SaveUser(const UserID& uid, const bool is_at) override
     {
-        for (auto& e : container_) {
-            get_fn_(e).SaveUser(uid, is_at);
-        }
+        fn_([&](MsgSender& sender) { sender.SaveUser(uid, is_at); });
     }
 
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override
     {
-        for (auto& e : container_) {
-            get_fn_(e).SavePlayer(pid, is_at);
-        }
+        fn_([&](MsgSender& sender) { sender.SavePlayer(pid, is_at); });
     }
 
     virtual void Flush() override
     {
-        for (auto& e : container_) {
-            get_fn_(e).Flush();
-        }
+        fn_([&](MsgSender& sender) { sender.Flush(); });
     }
 
-    void SetMatch(Match* const match) {
-        for (auto& e : container_) {
-            get_fn_(e).SetMatch(match);
-        }
+    void SetMatch(Match* const match)
+    {
+        fn_([&](MsgSender& sender) { sender.SetMatch(match); });
     }
+
   private:
-    Container& container_;
-    const GetFn get_fn_;
+    const std::function<void(const std::function<void(MsgSender&)>&)> fn_;
 };
