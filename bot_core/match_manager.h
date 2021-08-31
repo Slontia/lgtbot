@@ -1,18 +1,4 @@
-#ifdef ENUM_BEGIN
-#ifdef ENUM_MEMBER
-#ifdef ENUM_END
-
-ENUM_BEGIN(MatchFlag)
-ENUM_MEMBER(MatchFlag, 配置)
-ENUM_MEMBER(MatchFlag, 电脑)
-ENUM_END(MatchFlag)
-
-#endif
-#endif
-#endif
-
-#ifndef MATCH_MANAGER_H
-#define MATCH_MANAGER_H
+#pragma once
 
 #include <optional>
 #include <bitset>
@@ -24,9 +10,6 @@ ENUM_END(MatchFlag)
 
 #include "bot_core/bot_core.h"
 
-#define ENUM_FILE "bot_core/match_manager.h"
-#include "utility/extend_enum.h"
-
 class Match;
 class BotCtx;
 class MsgSenderBase;
@@ -35,39 +18,62 @@ class MatchManager
 {
    public:
     MatchManager(BotCtx& bot) : bot_(bot), next_mid_(0) {}
+
     ErrCode NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
-                     const MatchFlag::BitSet& flags, MsgSenderBase& reply);
-    ErrCode ConfigOver(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply);
-    ErrCode SetComNum(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply, const uint64_t com_num);
-    ErrCode StartGame(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply);
-    ErrCode AddPlayerToPrivateGame(const MatchID mid, const UserID uid, MsgSenderBase& reply);
-    ErrCode AddPlayerToPublicGame(const GroupID gid, const UserID uid, MsgSenderBase& reply);
-    ErrCode DeletePlayer(const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply, const bool force);
-    ErrCode DeleteMatch(const MatchID id);
-    std::shared_ptr<Match> GetMatch(const MatchID mid);
-    std::shared_ptr<Match> GetMatch(const UserID uid, const std::optional<GroupID> gid);
-    std::shared_ptr<Match> GetMatch(const GroupID gid);
-    void ForEachMatch(const std::function<void(const std::shared_ptr<Match>)>);
+                     MsgSenderBase& reply);
+
+    template <typename IdType>
+    std::shared_ptr<Match> GetMatch(const IdType id)
+    {
+        std::lock_guard<std::mutex> l(mutex_);
+        return GetMatch_(id);
+    }
+
+    std::vector<std::shared_ptr<Match>> Matches() const;
+
+    template <typename IdType>
+    bool BindMatch(const IdType id, std::shared_ptr<Match> match)
+    {
+        std::lock_guard<std::mutex> l(mutex_);
+        return BindMatch_(id, std::move(match));
+    }
+
+    template <typename IdType>
+    void UnbindMatch(const IdType id)
+    {
+        std::lock_guard<std::mutex> l(mutex_);
+        UnbindMatch_(id);
+    }
 
    private:
-    std::variant<ErrCode, std::shared_ptr<Match>> UnsafeGetMatchByHost_(
-            const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply);
-    ErrCode AddPlayer_(const std::shared_ptr<Match>& match, const UserID, MsgSenderBase& reply);
     void DeleteMatch_(const MatchID id);
-    template <typename IDType>
-    std::shared_ptr<Match> GetMatch_(const IDType id, const std::map<IDType, std::shared_ptr<Match>>& id2match);
-    template <typename IDType>
-    void BindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match, std::shared_ptr<Match> match);
-    template <typename IDType>
-    void UnbindMatch_(const IDType id, std::map<IDType, std::shared_ptr<Match>>& id2match);
+
+    template <typename IdType>
+    std::shared_ptr<Match> GetMatch_(const IdType id)
+    {
+        const auto it = id2match<IdType>().find(id);
+        return (it == id2match<IdType>().end()) ? nullptr : it->second;
+    }
+
+    template <typename IdType>
+    bool BindMatch_(const IdType id, std::shared_ptr<Match> match)
+    {
+        return id2match<IdType>().emplace(id, match).second;
+    }
+
+    template <typename IdType>
+    void UnbindMatch_(const IdType id)
+    {
+        id2match<IdType>().erase(id);
+    }
+
     MatchID NewMatchID_();
 
     BotCtx& bot_;
-    std::mutex mutex_;
-    std::map<MatchID, std::shared_ptr<Match>> mid2match_;
-    std::map<UserID, std::shared_ptr<Match>> uid2match_;
-    std::map<GroupID, std::shared_ptr<Match>> gid2match_;
+    mutable std::mutex mutex_;
+    template <typename IdType> using Id2Map = std::map<IdType, std::shared_ptr<Match>>;
+    std::tuple<Id2Map<UserID>, Id2Map<MatchID>, Id2Map<GroupID>> id2match_;
+    template <typename IdType> Id2Map<IdType>& id2match() { return std::get<Id2Map<IdType>>(id2match_); }
+    template <typename IdType> const Id2Map<IdType>& id2match() const { return std::get<Id2Map<IdType>>(id2match_); }
     MatchID next_mid_;
 };
-
-#endif

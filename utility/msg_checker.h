@@ -77,6 +77,7 @@ class AnyArg : public MsgArgChecker<std::string>
 
 // Request: the argument should be <true_str> or <false_str>
 // Return: if argument is <true_str>, return true; if argument is <false_str>, return false
+template <bool OPTIONAL = false>
 class BoolChecker : public MsgArgChecker<bool>
 {
   public:
@@ -89,7 +90,11 @@ class BoolChecker : public MsgArgChecker<bool>
     virtual std::optional<bool> Check(MsgReader& reader) const override
     {
         if (!reader.HasNext()) {
-            return std::nullopt;
+            if (OPTIONAL) {
+                return false;
+            } else {
+                return std::nullopt;
+            }
         }
         const std::string str = reader.NextArg();
         if (str == true_str_) {

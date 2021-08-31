@@ -35,11 +35,11 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 {
   public:
     using VariantID = std::variant<UserID, ComputerID>;
-    enum State { IN_CONFIGURING = 'C', NOT_STARTED = 'N', IS_STARTED = 'S', IS_OVER = 'O' };
+    enum State { NOT_STARTED = 'N', IS_STARTED = 'S', IS_OVER = 'O' };
     static const uint32_t kAvgScoreOffset = 10;
 
     Match(BotCtx& bot, const MatchID id, const GameHandle& game_handle, const UserID host_uid,
-          const std::optional<GroupID> gid, const MatchFlag::BitSet& flags);
+          const std::optional<GroupID> gid);
     ~Match();
 
     ErrCode GameSetComNum(MsgSenderBase& reply, const uint64_t com_num);
@@ -66,6 +66,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     VariantID ConvertPid(const PlayerID pid) const;
 
+    void Interrupt();
+
     const GameHandle& game_handle() const { return game_handle_; }
     MatchID mid() const { return mid_; }
     std::optional<GroupID> gid() const { return gid_; }
@@ -85,8 +87,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     std::string State2String()
     {
         switch (state_) {
-        case State::IN_CONFIGURING:
-            return "配置中";
         case State::NOT_STARTED:
             return "未开始";
         case State::IS_STARTED:
@@ -101,6 +101,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     void Help_(MsgSenderBase& reply);
     void Routine_();
     std::string OptionInfo_() const;
+    void KickAll_(const bool is_interrupt);
+    void Unbind_();
 
     mutable std::mutex mutex_;
 
@@ -113,7 +115,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     UserID host_uid_;
     const std::optional<GroupID> gid_;
     State state_;
-    MatchFlag::BitSet flags_;
 
     // time info
     std::shared_ptr<bool> timer_is_over_; // must before match because atom stage will call StopTimer
@@ -126,20 +127,20 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     GameHandle::main_stage_ptr main_stage_;
 
     // player info
-    struct Player
+    struct ParticipantUser
     {
-        Player(const UserID uid)
+        ParticipantUser(const UserID uid)
             : uid_(uid)
             , sender_(uid)
             , is_left_during_game_(false)
-            , leave_when_config_changed_(false)
+            , leave_when_config_changed_(true)
         {}
         const UserID uid_;
         MsgSender sender_;
         bool leave_when_config_changed_;
         bool is_left_during_game_;
     };
-    std::map<UserID, Player> ready_uid_set_; // players is now in game, exclude exited players
+    std::map<UserID, ParticipantUser> ready_uid_set_; // players is now in game, exclude exited players
     std::variant<MsgSender, MsgSenderBatch> boardcast_sender_;
     uint64_t com_num_;
     uint64_t player_num_each_user_;

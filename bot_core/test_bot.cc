@@ -566,23 +566,10 @@ TEST_F(TestBot, switch_host)
 
 // Config Game
 
-TEST_F(TestBot, config_game)
-{
-  AddGame("测试游戏", 2);
-  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏 配置");
-  ASSERT_PUB_MSG(EC_MATCH_IN_CONFIG, 1, 1, "#开始游戏");
-  ASSERT_PUB_MSG(EC_MATCH_IN_CONFIG, 1, 2, "#加入游戏");
-  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "测试配置");
-  ASSERT_PUB_MSG(EC_MATCH_USER_NOT_IN_MATCH, 1, 2, "#配置完成");
-  ASSERT_PUB_MSG(EC_OK, 1, 1, "#配置完成");
-  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入游戏");
-  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始游戏");
-}
-
 TEST_F(TestBot, config_game_exit)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏 配置");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出游戏");
   ASSERT_PUB_MSG(EC_MATCH_GROUP_NOT_IN_MATCH, 1, 2, "#加入游戏");
 }
@@ -615,7 +602,7 @@ TEST_F(TestBot, interrupt_public_not_game)
 TEST_F(TestBot, interrupt_public_config)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏 配置");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
 }
@@ -642,7 +629,7 @@ TEST_F(TestBot, interrupt_public_start)
 TEST_F(TestBot, interrupt_private_wait)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 配置");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断游戏 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
@@ -669,7 +656,7 @@ TEST_F(TestBot, interrupt_private_start)
 TEST_F(TestBot, interrupt_private_wait_in_public)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 配置");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断游戏 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
@@ -698,7 +685,7 @@ TEST_F(TestBot, interrupt_private_start_in_public)
 TEST_F(TestBot, set_computer)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 电脑");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 1, "#电脑数量 1");
   ASSERT_PRI_MSG(EC_MATCH_ACHIEVE_MAX_PLAYER, 2, ("#加入游戏 1"));
   ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
@@ -707,24 +694,16 @@ TEST_F(TestBot, set_computer)
 TEST_F(TestBot, set_computer_config)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 配置 电脑");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 1, "#电脑数量 1");
-  ASSERT_PRI_MSG(EC_OK, 1, "#配置完成");
   ASSERT_PRI_MSG(EC_MATCH_ACHIEVE_MAX_PLAYER, 2, ("#加入游戏 1"));
   ASSERT_PRI_MSG(EC_OK, 1, "#开始游戏");
-}
-
-TEST_F(TestBot, not_allow_set_computer)
-{
-  AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
-  ASSERT_PRI_MSG(EC_MATCH_FORBIDDEN_OPERATION, 1, "#电脑数量 1");
 }
 
 TEST_F(TestBot, computer_exceed_max_player)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 电脑");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_MATCH_ACHIEVE_MAX_PLAYER, 1, "#电脑数量 2");
   ASSERT_PRI_MSG(EC_OK, 2, ("#加入游戏 1"));
 }
@@ -732,9 +711,8 @@ TEST_F(TestBot, computer_exceed_max_player)
 TEST_F(TestBot, computer_exceed_max_player_when_config)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏 配置 电脑");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_MATCH_ACHIEVE_MAX_PLAYER, 1, "#电脑数量 2");
-  ASSERT_PRI_MSG(EC_OK, 1, ("#配置完成"));
 }
 
 // Test Game

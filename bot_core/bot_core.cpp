@@ -43,7 +43,7 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
             }
             return HandleAdminRequest(bot, uid, gid, msg, reply);
         default:
-            std::shared_ptr<Match> match = bot.match_manager().GetMatch(uid, gid);
+            std::shared_ptr<Match> match = bot.match_manager().GetMatch(uid);
             if (!match) {
                 reply() << "[错误] 您未参与游戏\n"
                            "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";

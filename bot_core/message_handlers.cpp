@@ -7,6 +7,12 @@
 #include "bot_core/log.h"
 #include "bot_core/match.h"
 
+// para func can appear only once
+#define RETURN_IF_FAILED(func)                                 \
+    do {                                                       \
+        if (const auto ret = (func); ret != EC_OK) return ret; \
+    } while (0);
+
 static MetaCommand make_command(const char* const description, const auto& cb, auto&&... checkers)
 {
     return MetaCommand(description, cb, std::move(checkers)...);
@@ -79,46 +85,90 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
 }
 
 static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
-                        const std::string& gamename, const MatchFlag::BitSet& flags)
+                        const std::string& gamename)
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
         reply() << "[错误] 创建失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
-    return bot.match_manager().NewMatch(*it->second, uid, gid, flags, reply);
+    return bot.match_manager().NewMatch(*it->second, uid, gid, reply);
 }
 
-static ErrCode config_over(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
+static std::variant<ErrCode, std::shared_ptr<Match>> GetMatchByHost(BotCtx& bot,
+        const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
-    return bot.match_manager().ConfigOver(uid, gid, reply);
+    const auto match = bot.match_manager().GetMatch(uid);
+    if (!match) {
+        reply() << "[错误] 开始失败：您未加入游戏";
+        return EC_MATCH_USER_NOT_IN_MATCH;
+    }
+    if (match->host_uid() != uid) {
+        reply() << "[错误] 开始失败：您不是房主，没有开始游戏的权限";
+        return EC_MATCH_NOT_HOST;
+    }
+    if (gid.has_value() && match->gid() != gid) {
+        reply() << "[错误] 开始失败，您是在其他房间创建的游戏，若您忘记该房间，可以尝试私信裁判\"#开始\"以开始游戏";
+        return EC_MATCH_NOT_THIS_GROUP;
+    }
+    return match;
 }
 
 static ErrCode set_com_num(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
         const uint64_t com_num)
 {
-    return bot.match_manager().SetComNum(uid, gid, reply, com_num);
+    const auto match_or_errcode = GetMatchByHost(bot, uid, gid, reply);
+    if (const auto p_errcode = std::get_if<0>(&match_or_errcode)) {
+        return *p_errcode;
+    }
+    const auto match = std::get<1>(match_or_errcode);
+    return match->GameSetComNum(reply, com_num);
 }
 
 static ErrCode start_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
 {
-    return bot.match_manager().StartGame(uid, gid, reply);
+    const auto match_or_errcode = GetMatchByHost(bot, uid, gid, reply);
+    if (const auto p_errcode = std::get_if<0>(&match_or_errcode)) {
+        return *p_errcode;
+    }
+    const auto match = std::get<1>(match_or_errcode);
+    return match->GameStart(gid.has_value(), reply);
 }
 
-template <bool even_if_game_started>
-static ErrCode leave(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
+static ErrCode leave(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+        const bool force)
 {
-    return bot.match_manager().DeletePlayer(uid, gid, reply, even_if_game_started);
+    const auto match = bot.match_manager().GetMatch(uid);
+    if (!match) {
+        reply() << "[错误] 退出失败：您未加入游戏";
+        return EC_MATCH_USER_NOT_IN_MATCH;
+    }
+    if (gid.has_value() && match->gid() != *gid) {
+        reply() << "[错误] 退出失败：您未加入本房间游戏，您可以尝试私信裁判\"#退出\"以退出您所在的游戏";
+        return EC_MATCH_NOT_THIS_GROUP;
+    }
+    RETURN_IF_FAILED(match->Leave(uid, reply, force));
+    return EC_OK;
 }
 
 static ErrCode join_private(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid,
-                            MsgSenderBase& reply, const MatchID match_id)
+                            MsgSenderBase& reply, const MatchID mid)
 {
     if (gid.has_value()) {
         reply() << "[错误] 加入失败：请私信裁判加入私密游戏，或去掉比赛ID以加入当前房间游戏";
         return EC_MATCH_NEED_REQUEST_PRIVATE;
     }
-    return bot.match_manager().AddPlayerToPrivateGame(match_id, uid, reply);
+    const auto match = bot.match_manager().GetMatch(mid);
+    if (!match) {
+        reply() << "[错误] 加入失败：游戏ID不存在";
+        return EC_MATCH_NOT_EXIST;
+    }
+    if (!match->IsPrivate()) {
+        reply() << "[错误] 加入失败：该游戏属于公开比赛，请前往房间加入游戏";
+        return EC_MATCH_NEED_REQUEST_PUBLIC;
+    }
+    RETURN_IF_FAILED(match->Join(uid, reply));
+    return EC_OK;
 }
 
 static ErrCode join_public(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
@@ -127,7 +177,14 @@ static ErrCode join_public(BotCtx& bot, const UserID uid, const std::optional<Gr
         reply() << "[错误] 加入失败：若要加入私密游戏，请指明比赛ID";
         return EC_MATCH_NEED_ID;
     }
-    return bot.match_manager().AddPlayerToPublicGame(*gid, uid, reply);
+    const auto match = bot.match_manager().GetMatch(*gid);
+    if (!match) {
+        reply() << "[错误] 加入失败：该房间未进行游戏";
+        return EC_MATCH_GROUP_NOT_IN_MATCH;
+    }
+    assert(!match->IsPrivate());
+    RETURN_IF_FAILED(match->Join(uid, reply));
+    return EC_OK;
 }
 
 static ErrCode show_private_matches(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
@@ -135,13 +192,14 @@ static ErrCode show_private_matches(BotCtx& bot, const UserID uid, const std::op
 {
     uint64_t count = 0;
     auto sender = reply();
-    bot.match_manager().ForEachMatch([&sender, &count](const std::shared_ptr<Match> match) {
+    const auto matches = bot.match_manager().Matches();
+    for (const auto& match : matches) {
         if (match->IsPrivate() && match->state() == Match::State::NOT_STARTED) {
             ++count;
             sender << match->game_handle().name_ << " - [房主ID] " << match->host_uid() << " - [比赛ID] "
                    << match->mid() << "\n";
         }
-    });
+    }
     if (count == 0) {
         sender << "当前无未开始的私密比赛";
     } else {
@@ -154,18 +212,14 @@ static ErrCode show_match_info(BotCtx& bot, const UserID uid, const std::optiona
                                  MsgSenderBase& reply)
 {
     // TODO: make it thread safe
-    std::shared_ptr<Match> match = bot.match_manager().GetMatch(uid, gid);
-    if (!match && gid.has_value()) {
-        match = bot.match_manager().GetMatch(*gid);
-    }
-    if (!match && gid.has_value()) {
+    std::shared_ptr<Match> match;
+    if (gid.has_value() && !(match = bot.match_manager().GetMatch(*gid))) {
+        reply() << "[错误] 查看失败：该房间未进行游戏";
+        return EC_MATCH_GROUP_NOT_IN_MATCH;
+    } else if (!gid.has_value() && !(match = bot.match_manager().GetMatch(uid))) {
         reply() << "[错误] 查看失败：该房间未进行游戏";
         return EC_MATCH_GROUP_NOT_IN_MATCH;
     }
-    if (!match && !gid.has_value()) {
-        reply() << "[错误] 查看失败：您未加入游戏";
-        return EC_MATCH_USER_NOT_IN_MATCH;
-    };
     match->ShowInfo(gid, reply);
     return EC_OK;
 }
@@ -224,8 +278,7 @@ const std::vector<MetaCommand> meta_cmds = {
 
         // NEW GAME: can only be executed by host
         make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏（游戏名称可以通过\"#游戏列表\"查看）",
-                     new_game, VoidChecker("#新游戏"), AnyArg("游戏名称", "某游戏名"), FlagsChecker<MatchFlag>()),
-        make_command("完成游戏参数配置后，允许玩家进入房间", config_over, VoidChecker("#配置完成")),
+                     new_game, VoidChecker("#新游戏"), AnyArg("游戏名称", "某游戏名")),
         make_command("设置参与游戏的AI数量", set_com_num, VoidChecker("#电脑数量"), ArithChecker<uint32_t>(0, 12, "数量")),
         make_command("房主开始游戏", start_game, VoidChecker("#开始游戏")),
 
@@ -233,8 +286,8 @@ const std::vector<MetaCommand> meta_cmds = {
         make_command("加入当前房间的公开游戏", join_public, VoidChecker("#加入游戏")),
         make_command("私信bot以加入私密游戏（私密比赛编号可以通过\"#私密游戏列表\"查看）", join_private,
                      VoidChecker("#加入游戏"), BasicChecker<MatchID>("私密比赛编号")),
-        make_command("在游戏开始前退出游戏", leave<false>, VoidChecker("#退出游戏")),
-        make_command("可以在游戏进行中退出游戏，需注意退出后无法继续参与原游戏", leave<true>, VoidChecker("#强制退出游戏")),
+        make_command("退出游戏（若附带了「强制」参数，则可以在游戏进行中退出游戏，需注意退出后无法继续参与原游戏",
+                     leave, VoidChecker("#退出游戏"),  BoolChecker<true>("强制", "常规")),
 };
 
 #ifdef WITH_MYSQL
@@ -278,22 +331,22 @@ static ErrCode interrupt_public(BotCtx& bot, const UserID uid, const std::option
         reply() << "[错误] 中断失败：该房间未进行游戏";
         return EC_MATCH_GROUP_NOT_IN_MATCH;
     }
-    const auto rc = bot.match_manager().DeleteMatch(match->mid());
-    reply() << (rc == EC_OK ? "中断成功" : "[错误] 中断失败：未知错误");
-    return rc;
+    match->Interrupt();
+    reply() <<  "中断成功";
+    return EC_OK;
 }
 
 static ErrCode interrupt_private(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                                 MsgSenderBase& reply, const MatchID match_id)
+                                 MsgSenderBase& reply, const MatchID mid)
 {
-    const auto match = bot.match_manager().GetMatch(match_id);
+    const auto match = bot.match_manager().GetMatch(mid);
     if (!match) {
         reply() << "[错误] 中断失败：游戏ID不存在";
         return EC_MATCH_NOT_EXIST;
     }
-    const auto rc = bot.match_manager().DeleteMatch(match_id);
-    reply() << (rc == EC_OK ? "中断成功" : "[错误] 中断失败：未知错误");
-    return rc;
+    match->Interrupt();
+    reply() << "中断成功";
+    return EC_OK;
 }
 
 const std::vector<MetaCommand> admin_cmds = {
