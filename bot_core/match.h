@@ -42,7 +42,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
           const std::optional<GroupID> gid);
     ~Match();
 
-    ErrCode GameSetComNum(MsgSenderBase& reply, const uint64_t com_num);
+    ErrCode SetBenchTo(MsgSenderBase& reply, const uint64_t com_num);
 
     ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply);
     ErrCode GameConfigOver(MsgSenderBase& reply);
@@ -72,9 +72,12 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     MatchID mid() const { return mid_; }
     std::optional<GroupID> gid() const { return gid_; }
     UserID host_uid() const { return host_uid_; }
-    const auto& ready_uid_set() const { return ready_uid_set_; }
+    const auto& users() const { return users_; }
     const State state() const { return state_; }
     MatchManager& match_manager() { return bot_.match_manager(); }
+
+    const uint64_t user_controlled_player_num() const { return users_.size() * player_num_each_user_; }
+    const uint64_t com_num() const { return std::max(0L, static_cast<int64_t>(bench_to_player_num_ - user_controlled_player_num())); }
 
     struct ScoreInfo {
         UserID uid_;
@@ -95,8 +98,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
             return "已结束";
         }
     }
-    std::vector<ScoreInfo> CalScores_(const int64_t scores[]) const;
-    bool SatisfyMaxPlayer_(const uint64_t new_player_num) const;
+    std::vector<ScoreInfo> CalScores_(const std::vector<int64_t>& scores) const;
     void OnGameOver_();
     void Help_(MsgSenderBase& reply);
     void Routine_();
@@ -136,20 +138,21 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
             , leave_when_config_changed_(true)
         {}
         const UserID uid_;
+        std::vector<PlayerID> pids_;
         MsgSender sender_;
         bool leave_when_config_changed_;
         bool is_left_during_game_;
     };
-    std::map<UserID, ParticipantUser> ready_uid_set_; // players is now in game, exclude exited players
+    std::map<UserID, ParticipantUser> users_;
     std::variant<MsgSender, MsgSenderBatch> boardcast_sender_;
-    uint64_t com_num_;
+
+    // other options
+    uint64_t bench_to_player_num_;
     uint64_t player_num_each_user_;
+    uint16_t multiple_;
 
     // player info (fill when game ready to start)
-    std::map<UserID, uint64_t> uid2pid_; // players user currently use
     std::vector<VariantID> players_; // all players, include computers
-
-    const uint16_t multiple_;
 
     const Command<void(MsgSenderBase&)> help_cmd_;
 };

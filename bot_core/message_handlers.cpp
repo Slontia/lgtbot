@@ -114,15 +114,15 @@ static std::variant<ErrCode, std::shared_ptr<Match>> GetMatchByHost(BotCtx& bot,
     return match;
 }
 
-static ErrCode set_com_num(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
-        const uint64_t com_num)
+static ErrCode set_bench_to(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+        const uint64_t bench_to_player_num)
 {
     const auto match_or_errcode = GetMatchByHost(bot, uid, gid, reply);
     if (const auto p_errcode = std::get_if<0>(&match_or_errcode)) {
         return *p_errcode;
     }
     const auto match = std::get<1>(match_or_errcode);
-    return match->GameSetComNum(reply, com_num);
+    return match->SetBenchTo(reply, bench_to_player_num);
 }
 
 static ErrCode start_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
@@ -273,21 +273,22 @@ const std::vector<MetaCommand> meta_cmds = {
         make_command("查看游戏列表", show_gamelist, VoidChecker("#游戏列表")),
         make_command("查看游戏规则（游戏名称可以通过\"#游戏列表\"查看）", show_rule, VoidChecker("#规则"),
                      AnyArg("游戏名称", "某游戏名")),
-        make_command("查看当前所有未开始的私密比赛", show_private_matches, VoidChecker("#私密游戏列表")),
         make_command("查看已加入，或该房间正在进行的比赛信息", show_match_info, VoidChecker("#游戏信息")),
+        make_command("查看当前所有未开始的私密比赛", show_private_matches, VoidChecker("#私密游戏列表")),
 
         // NEW GAME: can only be executed by host
         make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏（游戏名称可以通过\"#游戏列表\"查看）",
                      new_game, VoidChecker("#新游戏"), AnyArg("游戏名称", "某游戏名")),
-        make_command("设置参与游戏的AI数量", set_com_num, VoidChecker("#电脑数量"), ArithChecker<uint32_t>(0, 12, "数量")),
-        make_command("房主开始游戏", start_game, VoidChecker("#开始游戏")),
+        make_command("房主设置参与游戏的AI数量，使得玩家不低于一定数量", set_bench_to, VoidChecker("#替补至"),
+                      ArithChecker<uint32_t>(0, 12, "数量")),
+        make_command("房主开始游戏", start_game, VoidChecker("#开始")),
 
         // JOIN/LEAVE GAME: can only be executed by player
-        make_command("加入当前房间的公开游戏", join_public, VoidChecker("#加入游戏")),
-        make_command("私信bot以加入私密游戏（私密比赛编号可以通过\"#私密游戏列表\"查看）", join_private,
-                     VoidChecker("#加入游戏"), BasicChecker<MatchID>("私密比赛编号")),
+        make_command("加入当前房间的公开游戏", join_public, VoidChecker("#加入")),
+        make_command("私信bot以加入私密游戏（可通过「#私密游戏列表」查看比赛编号）", join_private, VoidChecker("#加入"),
+                     BasicChecker<MatchID>("私密比赛编号")),
         make_command("退出游戏（若附带了「强制」参数，则可以在游戏进行中退出游戏，需注意退出后无法继续参与原游戏",
-                     leave, VoidChecker("#退出游戏"),  BoolChecker<true>("强制", "常规")),
+                     leave, VoidChecker("#退出"),  BoolChecker<true>("强制", "常规")),
 };
 
 #ifdef WITH_MYSQL
