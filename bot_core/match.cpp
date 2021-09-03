@@ -442,7 +442,7 @@ void Match::Routine_()
     }
 }
 
-void Match::Interrupt()
+void Match::Terminate()
 {
     const std::lock_guard<std::mutex> l(mutex_);
     KickAll_(true);

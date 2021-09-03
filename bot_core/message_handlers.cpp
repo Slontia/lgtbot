@@ -279,8 +279,8 @@ const std::vector<MetaCommand> meta_cmds = {
         // NEW GAME: can only be executed by host
         make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏（游戏名称可以通过\"#游戏列表\"查看）",
                      new_game, VoidChecker("#新游戏"), AnyArg("游戏名称", "某游戏名")),
-        make_command("房主设置参与游戏的AI数量，使得玩家不低于一定数量", set_bench_to, VoidChecker("#替补至"),
-                      ArithChecker<uint32_t>(0, 12, "数量")),
+        make_command("房主设置参与游戏的AI数量，使得玩家不低于一定数量（属于配置变更，会使得全部玩家退出游戏）",
+                     set_bench_to, VoidChecker("#替补至"), ArithChecker<uint32_t>(0, 12, "数量")),
         make_command("房主开始游戏", start_game, VoidChecker("#开始")),
 
         // JOIN/LEAVE GAME: can only be executed by player
@@ -332,7 +332,7 @@ static ErrCode interrupt_public(BotCtx& bot, const UserID uid, const std::option
         reply() << "[错误] 中断失败：该房间未进行游戏";
         return EC_MATCH_GROUP_NOT_IN_MATCH;
     }
-    match->Interrupt();
+    match->Terminate();
     reply() <<  "中断成功";
     return EC_OK;
 }
@@ -345,7 +345,7 @@ static ErrCode interrupt_private(BotCtx& bot, const UserID uid, const std::optio
         reply() << "[错误] 中断失败：游戏ID不存在";
         return EC_MATCH_NOT_EXIST;
     }
-    match->Interrupt();
+    match->Terminate();
     reply() << "中断成功";
     return EC_OK;
 }

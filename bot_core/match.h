@@ -66,7 +66,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     VariantID ConvertPid(const PlayerID pid) const;
 
-    void Interrupt();
+    void Terminate();
 
     const GameHandle& game_handle() const { return game_handle_; }
     MatchID mid() const { return mid_; }

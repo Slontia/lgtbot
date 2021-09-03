@@ -1,4 +1,5 @@
 #pragma once
+
 #include <functional>
 #include <iostream>
 #include <map>
@@ -10,7 +11,7 @@
 #include <vector>
 #include <sstream>
 #include <bitset>
-static const std::string k_empty_str_ = "";
+#include <charconv>
 
 // TODO: check callback parameters
 
@@ -30,7 +31,11 @@ class MsgReader final
 
     bool HasNext() const { return iter_ != args_.end(); }
 
-    const std::string& NextArg() { return iter_ == args_.end() ? k_empty_str_ : *(iter_++); }
+    const std::string& NextArg()
+    {
+        static const std::string k_empty;
+        return iter_ == args_.end() ? k_empty : *(iter_++);
+    }
 
     void Reset() { iter_ = args_.begin(); }
 
@@ -125,23 +130,23 @@ class AlterChecker : public MsgArgChecker<T>
     virtual ~AlterChecker() {}
     virtual std::string FormatInfo() const override
     {
-        std::stringstream ss;
-        ss << "<" << meaning_ << "：";
+        std::string outstr;
+        outstr += "<" + meaning_ + "：";
         if (arg_map_.empty()) {
-            ss << "(错误，可选项为空)";
+            outstr += "(错误，可选项为空)";
         } else {
             bool is_first = true;
             for (const auto& [arg_str, _] : arg_map_) {
                 if (is_first) {
                     is_first = !is_first;
                 } else {
-                    ss << "|";
+                    outstr += "|";
                 }
-                ss << arg_str;
+                outstr += arg_str;
             }
         }
-        ss << ">";
-        return ss.str();
+        outstr += ">";
+        return outstr;
     }
     virtual std::string ExampleInfo() const override
     {
@@ -182,13 +187,14 @@ class ArithChecker : public MsgArgChecker<T>
         if (!reader.HasNext()) {
             return std::nullopt;
         }
-        std::stringstream ss;
-        ss << reader.NextArg();
-        if (T value; ss >> value && min_ <= value && value <= max_) {
-            return value;
+        const std::string str = reader.NextArg();
+        T result{};
+        const auto [ptr, ec] { std::from_chars(str.data(), str.data() + str.size(), result) };
+        if (ec == std::errc() && ptr == str.data() + str.size() && min_ <= result && result <= max_) {
+            return result;
         } else {
             return {};
-        };
+        }
     }
 
   private:
@@ -217,9 +223,7 @@ class BasicChecker : public MsgArgChecker<T>
         if (!reader.HasNext()) {
             return std::nullopt;
         }
-        std::stringstream ss;
-        ss << reader.NextArg();
-        if (T value; ss >> value) {
+        if (T value; std::stringstream(reader.NextArg()) >> value) {
             return value;
         } else {
             return std::nullopt;
@@ -258,15 +262,15 @@ class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg
     RepeatableChecker(Args&&... args) : checker_(std::forward<Args>(args)...) {}
     virtual std::string FormatInfo() const override
     {
-        std::stringstream ss;
-        ss << "[" << checker_.FormatInfo() << "...]";
-        return ss.str();
+        std::string outstr;
+        outstr += "[" + checker_.FormatInfo() + "...]";
+        return outstr;
     }
     virtual std::string ExampleInfo() const override
     {
-        std::stringstream ss;
-        ss << checker_.ExampleInfo() << " " << checker_.ExampleInfo();
-        return ss.str();
+        std::string outstr;
+        outstr += checker_.ExampleInfo() + " " + checker_.ExampleInfo();
+        return outstr;
     }
     virtual std::optional<std::vector<typename Checker::arg_type>> Check(MsgReader& reader) const override
     {
@@ -285,31 +289,62 @@ class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg
     const Checker checker_;
 };
 
+template <typename Checker>
+class OptionalChecker : public MsgArgChecker<std::optional<typename Checker::arg_type>>
+{
+  public:
+    template <typename ...Args>
+    OptionalChecker(Args&&... args) : checker_(std::forward<Args>(args)...) {}
+    virtual std::string FormatInfo() const override
+    {
+        return "[" + checker_.FormatInfo() + "]";
+    }
+    virtual std::string ExampleInfo() const override
+    {
+        return checker_.ExampleInfo();
+    }
+    virtual std::optional<std::optional<typename Checker::arg_type>> Check(MsgReader& reader) const override
+    {
+        if (!reader.HasNext()) {
+            return std::optional<typename Checker::arg_type>(std::nullopt);
+        } else if (auto tmp_ret = checker_.Check(reader); tmp_ret.has_value()) {
+            return std::optional<typename Checker::arg_type>(std::in_place, std::move(*tmp_ret));
+        } else {
+            return std::nullopt;
+        }
+    }
+
+  private:
+    const Checker checker_;
+};
+
 template <typename Enum>
 class FlagsChecker : public MsgArgChecker<typename Enum::BitSet>
 {
   public:
     virtual std::string FormatInfo() const override
     {
-        std::stringstream ss;
-        ss << "{";
+        std::string outstr;
+        outstr += "{";
         auto it = Enum::Members().cbegin();
-        ss << *(it++);
+        outstr += (it++)->ToString();
         for (; it != Enum::Members().cend(); ++it) {
-            ss << ", " << *it;
+            outstr += ", ";
+            outstr += it->ToString();
         }
-        ss << "}";
-        return ss.str();
+        outstr += "}";
+        return outstr;
     }
     virtual std::string ExampleInfo() const override
     {
-        std::stringstream ss;
+        std::string outstr;
         auto it = Enum::Members().cbegin();
-        ss << *(it++);
+        outstr += (it++)->ToString();
         if (it != Enum::Members().cend()) {
-            ss << " " << *it;
+            outstr += " ";
+            outstr += it->ToString();
         }
-        return ss.str();
+        return outstr;
     }
     virtual std::optional<typename Enum::BitSet> Check(MsgReader& reader) const override
     {
@@ -406,17 +441,16 @@ class Command<UserResult(UserArgs...)>
 
         virtual std::string Info(const bool with_example) const override
         {
-            std::stringstream ss;
-            ss << description_ << std::endl;
-            ss << "格式：";
-            std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers.FormatInfo() + " ")); }, checkers_);
+            std::string outstr;
+            outstr += description_;
+            outstr += "\n格式：";
+            std::apply([this, &outstr](const auto&... checkers) { ((outstr += checkers.FormatInfo() + " "), ...); }, checkers_);
             if (with_example) {
-                ss << std::endl;
-                ss << "例如：";
-                std::apply([this, &ss](const auto&... checkers) { (ss << ... << (checkers.ExampleInfo() + " ")); },
+                outstr += "\n例如：";
+                std::apply([this, &outstr](const auto&... checkers) { ((outstr += checkers.ExampleInfo() + " "), ...); },
                         checkers_);
             }
-            return ss.str();
+            return outstr;
         }
 
       private:
