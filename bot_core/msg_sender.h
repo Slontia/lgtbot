@@ -28,13 +28,16 @@ class MsgSenderBase
     class MsgSenderGuard
     {
       public:
-        MsgSenderGuard(MsgSenderBase& sender) : enable_at_(false), sender_(&sender) {}
+        MsgSenderGuard(MsgSenderBase& sender) : sender_(&sender) {}
         MsgSenderGuard(const MsgSenderGuard&) = delete;
-        MsgSenderGuard(MsgSenderGuard&& other) : enable_at_(other.enable_at_), sender_(other.sender_)
+        MsgSenderGuard(MsgSenderGuard&& other) : sender_(other.sender_)
         {
             other.sender_ = nullptr; // prevent call Flush
         }
+
         inline ~MsgSenderGuard();
+
+        void Release() { sender_ = nullptr; }
 
         inline MsgSenderGuard& operator<<(const std::string_view& sv);
 
@@ -50,7 +53,6 @@ class MsgSenderBase
         inline MsgSenderGuard& operator<<(const Name<PlayerID>&);
 
       private:
-        bool enable_at_;
         MsgSenderBase* sender_;
     };
 

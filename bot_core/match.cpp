@@ -61,9 +61,13 @@ Match::VariantID Match::ConvertPid(const PlayerID pid) const
     return players_[pid];
 }
 
-ErrCode Match::SetBenchTo(MsgSenderBase& reply, const uint64_t bench_to_player_num)
+ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_to_player_num)
 {
     std::lock_guard<std::mutex> l(mutex_);
+    if (uid != host_uid_) {
+        reply() << "[错误] 您并非房主，没有变更游戏设置的权限";
+        return EC_MATCH_NOT_HOST;
+    }
     auto sender = reply();
     if (bench_to_player_num <= user_controlled_player_num()) {
         sender << "[警告] 当前玩家数" << user_controlled_player_num() << "已满足条件";
@@ -73,6 +77,7 @@ ErrCode Match::SetBenchTo(MsgSenderBase& reply, const uint64_t bench_to_player_n
     }
     bench_to_player_num_ = bench_to_player_num;
     sender << "设置成功：当前电脑玩家数为" << com_num();
+    KickForConfigChange_();
     return EC_OK;
 }
 
@@ -91,11 +96,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
                        MsgSender& reply)
 {
     std::lock_guard<std::mutex> l(mutex_);
-    if (state_ == State::NOT_STARTED) {
-        reply() << "[错误] 当前阶段等待玩家加入，无法执行游戏请求\n"
-                   "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
-        return EC_MATCH_NOT_BEGIN;
-    } else if (state_ == State::IS_OVER) {
+    if (state_ == State::IS_OVER) {
         reply() << "[错误] 游戏已经结束";
         return EC_MATCH_ALREADY_OVER;
     }
@@ -117,21 +118,30 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         Routine_();
         return ConverErrCode(stage_rc);
     }
+    if (uid != host_uid_) {
+        reply() << "[错误] 您并非房主，没有变更游戏设置的权限";
+        return EC_MATCH_NOT_HOST;
+    }
     if (!options_->SetOption(msg.c_str())) {
         reply() << "[错误] 未预料的游戏设置，您可以通过\"帮助\"（不带#号）查看所有支持的游戏设置\n"
                     "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
         return EC_GAME_REQUEST_NOT_FOUND;
     }
     reply() << "设置成功！目前配置：" << OptionInfo_();
+    KickForConfigChange_();
     return EC_GAME_REQUEST_OK;
 }
 
-ErrCode Match::GameStart(const bool is_public, MsgSenderBase& reply)
+ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& reply)
 {
     std::lock_guard<std::mutex> l(mutex_);
     if (state_ == State::IS_STARTED) {
         reply() << "[错误] 开始失败：游戏已经开始";
         return EC_MATCH_ALREADY_BEGIN;
+    }
+    if (uid != host_uid_) {
+        reply() << "[错误] 您并非房主，没有变更游戏设置的权限";
+        return EC_MATCH_NOT_HOST;
     }
     const uint64_t player_num = std::max(user_controlled_player_num(), bench_to_player_num_);
     assert(main_stage_ == nullptr);
@@ -400,8 +410,7 @@ void Match::OnGameOver_()
         sender << "\n游戏结果写入数据库成功！";
     }
 #endif
-    KickAll_(true);
-    Unbind_();
+    Terminate_();
 }
 
 void Match::Help_(MsgSenderBase& reply)
@@ -445,17 +454,36 @@ void Match::Routine_()
 void Match::Terminate()
 {
     const std::lock_guard<std::mutex> l(mutex_);
-    KickAll_(true);
+    Terminate_();
+}
+
+void Match::Terminate_()
+{
+    for (auto& [uid, uesr_info] : users_) {
+        match_manager().UnbindMatch(uid);
+    }
+    users_.clear();
     Unbind_();
 }
 
-void Match::KickAll_(const bool is_interrupt)
+void Match::KickForConfigChange_()
 {
+    auto sender = Boardcast();
+    bool has_kicked = false;
     for (auto it = users_.begin(); it != users_.end(); ) {
-        if (is_interrupt || (it->first != host_uid_ && it->second.leave_when_config_changed_)) {
+        if (it->first != host_uid_ && it->second.leave_when_config_changed_) {
+            sender << At(it->first);
             match_manager().UnbindMatch(it->first);
             it = users_.erase(it);
+            has_kicked = true;
+        } else {
+            ++it;
         }
+    }
+    if (has_kicked) {
+        sender << "\n游戏配置已经发生变更，请重新加入游戏";
+    } else {
+        sender.Release();
     }
 }
 

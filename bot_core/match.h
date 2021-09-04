@@ -42,11 +42,11 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
           const std::optional<GroupID> gid);
     ~Match();
 
-    ErrCode SetBenchTo(MsgSenderBase& reply, const uint64_t com_num);
+    ErrCode SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t com_num);
 
     ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply);
     ErrCode GameConfigOver(MsgSenderBase& reply);
-    ErrCode GameStart(const bool is_public, MsgSenderBase& reply);
+    ErrCode GameStart(const UserID uid, const bool is_public, MsgSenderBase& reply);
     ErrCode Join(const UserID uid, MsgSenderBase& reply);
     ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force);
     ErrCode LeaveMidway(const UserID uid, const bool is_public);
@@ -103,8 +103,9 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     void Help_(MsgSenderBase& reply);
     void Routine_();
     std::string OptionInfo_() const;
-    void KickAll_(const bool is_interrupt);
+    void KickForConfigChange_();
     void Unbind_();
+    void Terminate_();
 
     mutable std::mutex mutex_;
 
