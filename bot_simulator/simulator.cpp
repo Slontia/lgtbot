@@ -84,6 +84,13 @@ void MessagerPostUser(void* p, uint64_t uid, bool is_at)
     messager->ss_ << Default();
 }
 
+void MessagerPostImage(void* p, const char* path)
+{
+    std::cout << "sdfsdf";
+    Messager* const messager = static_cast<Messager*>(p);
+    messager->ss_ << "[image=" << std::string_view(path) << "]";
+}
+
 void MessagerFlush(void* p)
 {
     Messager* const messager = static_cast<Messager*>(p);
@@ -180,7 +187,14 @@ int main(int argc, char** argv)
 {
     std::locale::global(std::locale(""));
     gflags::ParseCommandLineFlags(&argc, &argv, true);
-    auto bot = BOT_API::Init(FLAGS_bot_uid, FLAGS_game_path.c_str(), &FLAGS_admin_uid, 1);
+    const uint64_t admins[2] = { FLAGS_admin_uid, 0 };
+    const BotOption option {
+        .this_uid_ = FLAGS_bot_uid,
+        .game_path_ = FLAGS_game_path.c_str(),
+        .image_path_ = "/image_path/",
+        .admins_ = admins,
+    };
+    auto bot = BOT_API::Init(&option);
 #ifdef WITH_MYSQL
     ConnectDatabase(bot);
 #endif

@@ -25,6 +25,10 @@ LGTBot是一个基于C++实现的，用于在 **聊天室** 或 **其它通讯�
 	
 		$ sudo yum install gflags-devel glog-devel
 
+- qt
+
+        $ sudo yum install qt5-qtwebkit
+
 - MySQL Connector C++
 
 ### 2.2 编译

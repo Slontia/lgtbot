@@ -30,12 +30,21 @@ foreach (GAME_DIR ${GAME_DIRS})
     )
 
     set(RULE_BINARY ${CMAKE_CURRENT_BINARY_DIR}/${GAME}_rule.o)
+    set(RULE_IMAGE ${LIBRARY_OUTPUT_PATH}/${GAME}_rule.png)
 
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-      add_custom_target(${GAME}_rule ALL
+      add_custom_target(${GAME}_rule_binary ALL
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMAND cd ${GAME_DIR} && objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA rule.txt ${RULE_BINARY}
-        COMMENT "Build rule"
+        COMMAND cd ${GAME_DIR} && objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA rule.md ${RULE_BINARY}
+        COMMENT "Build rule binary"
+      )
+    endif()
+
+    if (WITH_IMAGE)
+      add_custom_target(${GAME}_rule_image ALL
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMAND cd ${GAME_DIR} && ${CMAKE_BINARY_DIR}/markdown2image --input rule.md --output ${RULE_IMAGE} --width 700
+        COMMENT "Build rule image"
       )
     endif()
 
@@ -44,7 +53,7 @@ foreach (GAME_DIR ${GAME_DIRS})
     target_include_directories(${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
 
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-      add_dependencies(${GAME} ${GAME}_rule)
+      add_dependencies(${GAME} ${GAME}_rule_binary)
       target_link_libraries(${GAME} ${RULE_BINARY})
     endif()
 
@@ -53,16 +62,19 @@ foreach (GAME_DIR ${GAME_DIRS})
       find_package(GTest REQUIRED)
 
       add_executable(test_game_${GAME} ${SOURCE_FILES} ${GAME_DIR}/unittest.cc)
-      target_link_libraries(test_game_${GAME} GTest::GTest GTest::Main)
       target_include_directories(test_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
+      target_link_libraries(test_game_${GAME} GTest::GTest GTest::Main)
+      target_compile_definitions(test_bot PUBLIC TEST_BOT)
       add_test(NAME test_game_${GAME} COMMAND test_game_${GAME})
 
       add_executable(run_game_${GAME} ${SOURCE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/run_game.cpp)
       target_include_directories(run_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
+      target_compile_definitions(test_bot PUBLIC TEST_BOT)
       target_link_libraries(run_game_${GAME} gflags)
 
       if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-        add_dependencies(test_game_${GAME} ${GAME}_rule)
+        add_dependencies(test_game_${GAME} ${GAME}_rule_binary)
+        add_dependencies(run_game_${GAME} ${GAME}_rule_binary)
         target_link_libraries(test_game_${GAME} ${RULE_BINARY})
         target_link_libraries(run_game_${GAME} ${RULE_BINARY})
       endif()

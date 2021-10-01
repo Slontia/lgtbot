@@ -111,6 +111,7 @@ class BidStage : public SubGameStage<>
         sender << "\n拍卖人：";
         if (discarder_.has_value()) {
             sender << At(*discarder_);
+            SetReady(*discarder_);
         } else {
             sender << "（无）";
         }
@@ -274,6 +275,11 @@ class DiscardStage : public SubGameStage<>
         Boardcast() << "弃牌阶段开始，请私信裁判进行弃牌，当到达时间限制，或所有玩家皆选择完毕后，回合结束。"
                        "\n回合结束前您可以随意更改您的选择。";
         StartTimer(option().GET_VALUE(弃牌时间));
+        for (const auto& player : main_stage().players()) {
+            if (player.hand_.Empty()) {
+                SetReady(player.pid_); // need not discard
+            }
+        }
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)

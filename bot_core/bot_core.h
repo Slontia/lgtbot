@@ -92,11 +92,18 @@ inline const char* errcode2str(const ErrCode errcode)
 #define DLLEXPORT(type) type
 #endif
 
+struct BotOption
+{
+    uint64_t this_uid_ = 0;
+    const char* game_path_ = nullptr;
+    const char* image_path_ = nullptr;
+    const uint64_t* admins_ = nullptr;
+};
+
 class BOT_API
 {
    public:
-    static DLLEXPORT(void*) Init(const uint64_t this_uid, const char* const game_path,
-                                 const uint64_t* const admins, const uint64_t admin_count);
+    static DLLEXPORT(void*) Init(const BotOption* option);
     static DLLEXPORT(void) Release(void* bot);
     static DLLEXPORT(ErrCode) HandlePrivateRequest(void* bot, const uint64_t uid, const char* const msg);
     static DLLEXPORT(ErrCode) HandlePublicRequest(void* bot, const uint64_t gid, const uint64_t uid, const char* const msg);

@@ -4,12 +4,16 @@
 #include <variant>
 #include <vector>
 #include <functional>
+#include <filesystem>
 
 #include "bot_core/id.h"
+
+std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path);
 
 void* OpenMessager(uint64_t id, bool is_uid);
 void MessagerPostText(void* p, const char* data, uint64_t len);
 void MessagerPostUser(void* p, uint64_t uid, bool is_at);
+void MessagerPostImage(void* p, const char* path);
 void MessagerFlush(void* p);
 void CloseMessager(void* p);
 class PlayerID;
@@ -19,6 +23,7 @@ class Match;
 
 template <typename IdType> struct At { IdType id_; };
 template <typename IdType> struct Name { IdType id_; };
+struct Image { std::string path_; };
 
 template <typename T> concept CanToString = requires(T&& t) { std::to_string(std::forward<T>(t)); };
 
@@ -51,6 +56,7 @@ class MsgSenderBase
         inline MsgSenderGuard& operator<<(const At<PlayerID>&);
         inline MsgSenderGuard& operator<<(const Name<UserID>&);
         inline MsgSenderGuard& operator<<(const Name<PlayerID>&);
+        inline MsgSenderGuard& operator<<(const Image&);
 
       private:
         MsgSenderBase* sender_;
@@ -66,6 +72,7 @@ class MsgSenderBase
     virtual void SaveText(const char* const data, const uint64_t len) = 0;
     virtual void SaveUser(const UserID& id, const bool is_at) = 0;
     virtual void SavePlayer(const PlayerID& id, const bool is_at) = 0;
+    virtual void SaveImage(const std::filesystem::path& path) = 0;
     virtual void Flush() = 0;
 };
 
@@ -82,6 +89,7 @@ class EmptyMsgSender : public MsgSenderBase
     virtual void SaveText(const char* const data, const uint64_t len) override {}
     virtual void SaveUser(const UserID& uid, const bool is_at) override {}
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override {}
+    virtual void SaveImage(const std::filesystem::path& path) override {};
     virtual void Flush() override {}
 
   private:
@@ -108,6 +116,7 @@ class MsgSender : public MsgSenderBase
     virtual void SaveText(const char* const data, const uint64_t len) override { MessagerPostText(sender_, data, len); }
     virtual void SaveUser(const UserID& uid, const bool is_at) override { MessagerPostUser(sender_, uid, is_at); }
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override;
+    virtual void SaveImage(const std::filesystem::path& path) override { MessagerPostImage(sender_, ImageAbsPath(path).c_str()); }
     virtual void Flush() override { MessagerFlush(sender_); }
     void SaveText_(const std::string_view& sv) { SaveText(sv.data(), sv.size()); }
     friend class MsgSenderBatch;
@@ -150,6 +159,12 @@ MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const N
     return *this;
 }
 
+MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const Image& image_msg)
+{
+    sender_->SaveImage(image_msg.path_);
+    return *this;
+}
+
 MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const std::string_view& sv)
 {
     sender_->SaveText(sv.data(), sv.size());
@@ -175,6 +190,11 @@ class MsgSenderBatch : public MsgSenderBase
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override
     {
         fn_([&](MsgSender& sender) { sender.SavePlayer(pid, is_at); });
+    }
+
+    virtual void SaveImage(const std::filesystem::path& path) override
+    {
+        fn_([&](MsgSender& sender) { sender.SaveImage(path); });
     }
 
     virtual void Flush() override

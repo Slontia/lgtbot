@@ -324,6 +324,13 @@ class Hand
 
     bool Has(const Poker& poker) const { return Has(poker.number_, poker.suit_); }
 
+    bool Empty() const
+    {
+        return std::all_of(pokers_.begin(), pokers_.end(),
+                [](const auto& array) { return std::all_of(array.begin(), array.end(),
+                    [](const bool has) { return !has; }); });
+    }
+
     template <typename Sender>
     friend Sender& operator<<(Sender& sender, const Hand& hand)
     {

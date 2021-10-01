@@ -410,6 +410,7 @@ class GameStage<GameOption, MainStage>
 
     void ClearReady() { masker_.Clear(); }
     void ClearReady(const PlayerID pid) { masker_.Unset(pid); }
+    void SetReady(const PlayerID pid) { masker_.Set(pid); }
 
    private:
     template <typename Task>

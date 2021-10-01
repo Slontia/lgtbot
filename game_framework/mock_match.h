@@ -41,6 +41,11 @@ class MockMsgSender : public MsgSenderBase
         }
     }
 
+    virtual void SaveImage(const std::filesystem::path& path)
+    {
+        ss_ << "[image=" << path << "]";
+    }
+
     virtual void Flush() override
     {
         if (is_public_) {

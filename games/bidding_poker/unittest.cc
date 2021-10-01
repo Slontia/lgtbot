@@ -134,6 +134,27 @@ GAME_TEST(5, do_nothing_no_items)
 // 9号商品： ♢2 ♢5 ♡8 ♠9 ♣Q ♡Q
 // 10号商品： ♠2 ♡7 ♠Q ♣K ♡K ♣A
 
+GAME_TEST(5, discarder_auto_ready)
+{
+    ASSERT_PUB_MSG(OK, 0, "种子 ABC");
+    ASSERT_PUB_MSG(OK, 0, "投标轮数 1");
+    ASSERT_PUB_MSG(OK, 0, "初始金币数 100");
+    ASSERT_PUB_MSG(OK, 0, "回合数 1");
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "50");
+    for (int i = 0; i < 10; ++i) {
+        ASSERT_TIMEOUT(CHECKOUT);
+    }
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "梅花2"); // others need not discard
+
+    for (int i = 1; i < 4; ++i) {
+        ASSERT_PRI_MSG(OK, i, "梅花2");
+    }
+    ASSERT_PRI_MSG(CHECKOUT, 5, "梅花2"); // player 0 need not bid
+}
+
 GAME_TEST(5, discard_1)
 {
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");

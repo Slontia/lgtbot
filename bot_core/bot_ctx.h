@@ -12,18 +12,7 @@ using GameHandleMap = std::map<std::string, std::unique_ptr<GameHandle>>;
 class BotCtx
 {
   public:
-    BotCtx(const uint64_t this_uid, const char* const game_path, const uint64_t* const admins, const uint64_t admin_count)
-            : this_uid_(this_uid),
-              match_manager_(*this)
-    {
-        if (game_path) {
-            LoadGameModules_(game_path);
-        }
-        if (admins && admin_count > 0) {
-            LoadAdmins_(admins, admin_count);
-        }
-    }
-
+    BotCtx(const BotOption& option);
     MatchManager& match_manager() { return match_manager_; }
 
 #ifdef TEST_BOT
@@ -36,7 +25,7 @@ class BotCtx
 
   private:
     void LoadGameModules_(const char* const games_path);
-    void LoadAdmins_(const uint64_t* const admins, const uint64_t admin_count);
+    void LoadAdmins_(const uint64_t* const admins);
 
     const UserID this_uid_;
     std::mutex mutex_;

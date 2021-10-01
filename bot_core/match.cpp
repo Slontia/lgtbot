@@ -71,7 +71,7 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t
     auto sender = reply();
     if (bench_to_player_num <= user_controlled_player_num()) {
         sender << "[警告] 当前玩家数" << user_controlled_player_num() << "已满足条件";
-    } else if (bench_to_player_num > game_handle_.max_player_) {
+    } else if (game_handle_.max_player_ != 0 && bench_to_player_num > game_handle_.max_player_) {
         sender << "[错误] 设置失败：比赛人数将超过上限" << game_handle_.max_player_ << "人";
         return EC_MATCH_ACHIEVE_MAX_PLAYER;
     }

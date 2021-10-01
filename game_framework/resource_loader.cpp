@@ -47,8 +47,8 @@ const char* Rule()
 
 #elif __linux__
 
-extern char _binary_rule_txt_start[];
+extern char _binary_rule_md_start[];
 
-const char* Rule() { return _binary_rule_txt_start; }
+const char* Rule() { return _binary_rule_md_start; }
 
 #endif

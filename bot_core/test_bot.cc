@@ -61,6 +61,12 @@ void MessagerPostUser(void* p, uint64_t uid, bool is_at)
     }
 }
 
+void MessagerPostImage(void* p, const char* path)
+{
+    Messager* const messager = static_cast<Messager*>(p);
+    messager->ss_ << "[image=" << std::string_view(path) << "]";
+}
+
 void MessagerFlush(void* p)
 {
     Messager* const messager = static_cast<Messager*>(p);
@@ -223,7 +229,14 @@ class TestBot : public testing::Test
     virtual void SetUp() override
     {
         Timer::skip_timer_ = false;
-        bot_ = BOT_API::Init(k_this_qq, nullptr, &k_admin_qq, 1);
+        const uint64_t admins[2] = { k_admin_qq, 0 };
+        const BotOption option {
+            .this_uid_ = k_this_qq,
+            .game_path_ = nullptr,
+            .image_path_ = "/image_path/",
+            .admins_ = admins,
+        };
+        bot_ = BOT_API::Init(&option);
         ASSERT_NE(bot_, nullptr) << "init bot failed";
     }
 
@@ -728,6 +741,15 @@ TEST_F(TestBot, set_computer)
   ASSERT_PRI_MSG(EC_OK, 1, "#替补至 5");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "电脑行动次数 4");
+}
+
+TEST_F(TestBot, set_computer_no_limit)
+{
+  AddGame("测试游戏", 0);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 1, "#替补至 12");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "电脑行动次数 11");
 }
 
 TEST_F(TestBot, set_computer_not_host)

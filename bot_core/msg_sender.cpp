@@ -16,3 +16,4 @@ void MsgSender::SavePlayer(const PlayerID& pid, const bool is_at)
     }
     SaveText_(">");
 }
+

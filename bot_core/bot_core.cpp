@@ -15,14 +15,20 @@ extern void LoadGameModules();
 
 const int32_t LGT_AC = -1;
 
-void BotCtx::LoadAdmins_(const uint64_t* const admins, const uint64_t admin_count)
+BotCtx::BotCtx(const BotOption& option) : this_uid_(option.this_uid_), match_manager_(*this)
+{
+    LoadGameModules_(option.game_path_);
+    LoadAdmins_(option.admins_);
+}
+
+void BotCtx::LoadAdmins_(const uint64_t* admins)
 {
     if (admins == nullptr) {
         return;
     }
-    for (uint64_t i = 0; i < admin_count; ++i) {
-        InfoLog() << "New administor: " << admins[i];
-        admins_.emplace(admins[i]);
+    for (; *admins != 0; ++admins) {
+        InfoLog() << "New administor: " << *admins;
+        admins_.emplace(*admins);
     }
 }
 
@@ -61,13 +67,13 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
 
 
 
-void* /*__cdecl*/ BOT_API::Init(const uint64_t this_uid, const char* const game_path, const uint64_t* const admins, const uint64_t admin_count)
+void* /*__cdecl*/ BOT_API::Init(const BotOption* option)
 {
     std::srand(std::chrono::steady_clock::now().time_since_epoch().count());
-    if (this_uid == 0 || (!admins && admin_count > 0)) {
+    if (option == nullptr) {
         return nullptr;
     }
-    return new BotCtx(this_uid, game_path, admins, admin_count);
+    return new BotCtx(*option);
 }
 
 void /*__cdelcl*/ BOT_API::Release(void* const bot) { delete static_cast<BotCtx*>(bot); }

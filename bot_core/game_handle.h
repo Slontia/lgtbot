@@ -6,6 +6,9 @@
 #include <optional>
 #include <string>
 #include <memory>
+#include <filesystem>
+
+#include "image.h"
 
 class MainStageBase;
 class GameOptionBase;
@@ -37,7 +40,9 @@ struct GameHandle {
         , main_stage_allocator_(main_stage_allocator_fn)
         , main_stage_deleter_(main_stage_deleter_fn)
         , mod_guard_(std::forward<ModGuard>(mod_guard))
+        , rule_image_path_(std::filesystem::path("rule") / name)
     {
+        MarkdownToImage(rule, rule_image_path_);
     }
 
     GameHandle(GameHandle&&) = delete;
@@ -83,6 +88,7 @@ struct GameHandle {
     const main_stage_allocator main_stage_allocator_;
     const main_stage_deleter main_stage_deleter_;
     const ModGuard mod_guard_;
+    const std::filesystem::path rule_image_path_;
 
   private:
     std::atomic<bool> is_released_;

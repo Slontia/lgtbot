@@ -1,3 +1,6 @@
 [submodule "bot_simulator/linenoise"]
-	path = bot_simulator/linenoise
+	path = third_party/linenoise
 	url = https://github.com/antirez/linenoise
+[submodule "third_party/markdown2image"]
+	path = third_party/markdown2image
+	url = http://github.com/slontia/markdown2image
