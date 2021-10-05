@@ -69,32 +69,7 @@ GAME_TEST(5, do_nothing)
         ASSERT_TIMEOUT(CHECKOUT);
     }
     for (int i = 0; i < 5; ++i) {
-        ASSERT_TIMEOUT(CHECKOUT); // discard stage
-        for (int j = 0; j < 10; ++j) {
-            ASSERT_TIMEOUT(FAILED);
-            ASSERT_TIMEOUT(CHECKOUT);
-        }
-    }
-
-    ASSERT_SCORE(100, 100, 100, 100, 100);
-}
-
-GAME_TEST(5, do_nothing_2)
-{
-    ASSERT_PUB_MSG(OK, 0, "投标轮数 2");
-    ASSERT_PUB_MSG(OK, 0, "初始金币数 100");
-    ASSERT_PUB_MSG(OK, 0, "回合数 5");
-    START_GAME();
-
-    for (int j = 0; j < 10; ++j) {
-        ASSERT_TIMEOUT(FAILED);
-        ASSERT_TIMEOUT(CHECKOUT);
-    }
-    for (int i = 0; i < 5; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            ASSERT_PRI_MSG(OK, j, "不弃牌");
-        }
-        ASSERT_PRI_MSG(CHECKOUT, 4, "不弃牌");
+        //ASSERT_TIMEOUT(CHECKOUT); // discard stage
         for (int j = 0; j < 10; ++j) {
             ASSERT_TIMEOUT(FAILED);
             ASSERT_TIMEOUT(CHECKOUT);
@@ -147,12 +122,37 @@ GAME_TEST(5, discarder_auto_ready)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    ASSERT_PRI_MSG(CHECKOUT, 0, "梅花2"); // others need not discard
+    ASSERT_PRI_MSG(CHECKOUT, 0, "弃牌 梅花2"); // others need not discard
 
     for (int i = 1; i < 4; ++i) {
-        ASSERT_PRI_MSG(OK, i, "梅花2");
+        ASSERT_PRI_MSG(OK, i, "撤标");
     }
-    ASSERT_PRI_MSG(CHECKOUT, 5, "梅花2"); // player 0 need not bid
+    ASSERT_PRI_MSG(CHECKOUT, 4, "撤标"); // player 0 need not bid
+}
+
+GAME_TEST(5, no_coins_auto_ready)
+{
+    ASSERT_PUB_MSG(OK, 0, "种子 ABC");
+    ASSERT_PUB_MSG(OK, 0, "投标轮数 1");
+    ASSERT_PUB_MSG(OK, 0, "初始金币数 100");
+    ASSERT_PUB_MSG(OK, 0, "回合数 1");
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "50");
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    ASSERT_PRI_MSG(OK, 1, "100");
+    for (int i = 1; i < 10; ++i) {
+        ASSERT_TIMEOUT(CHECKOUT);
+    }
+
+    ASSERT_PRI_MSG(OK, 0, "弃牌 梅花2");
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    for (int i = 2; i < 4; ++i) {
+        ASSERT_PRI_MSG(OK, i, "撤标");
+    }
+    ASSERT_PRI_MSG(CHECKOUT, 4, "撤标"); // player 0 and 1 need not bid
 }
 
 GAME_TEST(5, discard_1)
@@ -195,10 +195,8 @@ GAME_TEST(5, discard_2)
     }
 
     // round 1
-    ASSERT_PRI_MSG(OK, 0, "弃牌 梅花2");
-    ASSERT_PRI_MSG(OK, 0, "弃牌 红桃2 方板3 红桃6");
     ASSERT_PRI_MSG(FAILED, 0, "弃牌 黑桃A");
-    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_PRI_MSG(CHECKOUT, 0, "弃牌 红桃2 方板3 红桃6");
 
     ASSERT_PRI_MSG(FAILED, 0, "1"); // cannot bid own item
     ASSERT_PRI_MSG(FAILED, 0, "撤标"); // cannot cancel own item

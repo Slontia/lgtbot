@@ -37,7 +37,7 @@ class Masker
         if (old_value == false) {
             ++count_;
         }
-        return count_ == bitset_.size();
+        return IsAllSet();
     }
 
     void Unset(const size_t index)
@@ -51,6 +51,8 @@ class Masker
 
     void Clear() { bitset_.clear(); }
 
+    bool IsAllSet() const { return count_ == bitset_.size(); }
+
   private:
     std::vector<bool> bitset_;
     size_t count_;
@@ -59,7 +61,7 @@ class Masker
 template <typename RetType>
 using GameCommand = Command<RetType(const uint64_t, const bool, MsgSenderBase&)>;
 
-enum class CheckoutReason { BY_REQUEST, BY_TIMEOUT, BY_LEAVE };
+enum class CheckoutReason { BY_REQUEST, BY_TIMEOUT, BY_LEAVE, SKIP };
 
 template <typename SubStage, typename RetType>
 class SubStageCheckoutHelper
@@ -82,8 +84,6 @@ class StageBaseWrapper : virtual public StageBase
 
     virtual ~StageBaseWrapper() {}
 
-    virtual void Init() override {}
-
     virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
                                        MsgSenderBase& reply) override
     {
@@ -103,6 +103,7 @@ class StageBaseWrapper : virtual public StageBase
 
     MatchBase& match() { return match_; }
 
+    virtual void HandleStageBegin() override = 0;
     virtual StageErrCode HandleTimeout() = 0;
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const = 0;
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
@@ -194,11 +195,17 @@ class GameStage<GameOption, MainStage, SubStages...>
 
     virtual VariantSubStage OnStageBegin() = 0;
 
-    virtual void Init()
+    virtual void HandleStageBegin()
     {
-        Base::Init();
         sub_stage_ = OnStageBegin();
-        std::visit([](auto&& sub_stage) { sub_stage->Init(); }, sub_stage_);
+        std::visit(
+                [this](auto&& sub_stage)
+                {
+                    sub_stage->HandleStageBegin();
+                    if (sub_stage->IsOver()) {
+                        this->CheckoutSubStage(CheckoutReason::SKIP);
+                    }
+                }, sub_stage_);
     }
 
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
@@ -216,9 +223,7 @@ class GameStage<GameOption, MainStage, SubStages...>
 
     virtual StageErrCode HandleTimeout() override
     {
-        return PassToSubStage_(
-                [](auto&& sub_stage) { return sub_stage->HandleTimeout(); },
-                CheckoutReason::BY_TIMEOUT);
+        return PassToSubStage_([](auto&& sub_stage) { return sub_stage->HandleTimeout(); }, CheckoutReason::BY_TIMEOUT);
     }
 
     virtual StageErrCode HandleLeave(const PlayerID pid) override
@@ -275,7 +280,7 @@ class GameStage<GameOption, MainStage, SubStages...>
                         Over();
                         // no more substages
                     } else {
-                        sub_stage->Init();
+                        sub_stage->HandleStageBegin();
                     }
                 },
                 sub_stage_);
@@ -319,10 +324,13 @@ class GameStage<GameOption, MainStage>
 
     virtual ~GameStage() { Base::match_.StopTimer(); }
     virtual void OnStageBegin() {}
-    virtual void Init()
+    virtual void HandleStageBegin()
     {
-        Base::Init();
         OnStageBegin();
+        if (masker_.IsAllSet() && StageErrCode::CHECKOUT == OnAllPlayerReady()) {
+            // stage is skipped
+            Over();
+        }
     }
 
     virtual StageErrCode HandleTimeout() override final

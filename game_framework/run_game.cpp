@@ -25,7 +25,7 @@ int Run()
         std::cerr << "Start Game Failed!" << std::endl;
         return -1;
     }
-    main_stage->Init();
+    main_stage->HandleStageBegin();
 
     while (!main_stage->IsOver()) {
         const auto rc = main_stage->HandleComputerAct(0, FLAGS_player);

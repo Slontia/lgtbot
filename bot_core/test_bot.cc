@@ -774,7 +774,7 @@ TEST_F(TestBot, set_computer_but_player_enough)
 {
   AddGame("测试游戏", 5);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
-  ASSERT_PRI_MSG(EC_OK, 1, "#替补至 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#替补至 2");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "电脑行动次数 0");

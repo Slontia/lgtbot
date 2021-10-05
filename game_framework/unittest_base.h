@@ -29,7 +29,7 @@ class TestGame : public MockMatch, public testing::Test
         MockMsgSender sender;
         main_stage_.reset(MakeMainStage(sender, option_, *this));
         if (main_stage_) {
-            main_stage_->Init();
+            main_stage_->HandleStageBegin();
         }
         return main_stage_ != nullptr;
     }

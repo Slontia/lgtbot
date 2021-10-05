@@ -111,9 +111,14 @@ class BidStage : public SubGameStage<>
         sender << "\n拍卖人：";
         if (discarder_.has_value()) {
             sender << At(*discarder_);
-            SetReady(*discarder_);
+            SetReady(*discarder_); // discarder need not bid
         } else {
             sender << "（无）";
+        }
+        for (const auto& player : main_stage().players()) {
+            if (player.coins_ == 0) {
+                SetReady(player.pid_); // players have no coins need not bid
+            }
         }
         sender << "\n投标开始，请私信裁判进行投标";
         StartTimer(option().GET_VALUE(投标时间));

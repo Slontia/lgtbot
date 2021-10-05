@@ -54,7 +54,7 @@ class StageBase
   public:
     StageBase() : is_over_(false) {}
     virtual ~StageBase() {}
-    virtual void Init() = 0;
+    virtual void HandleStageBegin() = 0;
     virtual StageErrCode HandleTimeout() = 0;
     virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const = 0;
     virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
