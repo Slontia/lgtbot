@@ -13,9 +13,9 @@
 static void BoardcastMatchCanJoin(Match& match)
 {
     if (match.gid().has_value()) {
-        match.Boardcast() << "现在玩家可以在群里通过\"#加入游戏\"报名比赛";
+        match.Boardcast() << "现在玩家可以在群里通过\"#加入\"报名比赛";
     } else {
-        match.Boardcast() << "现在玩家可以通过私信我\"#加入游戏 " << match.mid() << "\"报名比赛";
+        match.Boardcast() << "现在玩家可以通过私信我\"#加入 " << match.mid() << "\"报名比赛";
     }
 }
 
@@ -422,7 +422,7 @@ void Match::Help_(MsgSenderBase& reply)
         sender << "\n\n";
     }
     sender << "[当前可使用游戏命令]";
-    sender << "\n[1] " << help_cmd_.Info();
+    sender << "\n[1] " << help_cmd_.Info(false, false);
     if (main_stage_) {
         main_stage_->CommandInfo(1, sender);
     } else {

@@ -32,10 +32,8 @@ class RoundStage : public SubGameStage<>
     RoundStage(MainStage& main_stage, const uint64_t round, const uint32_t max_round_sec)
             : GameStage(main_stage, "第" + std::to_string(round) + "回合",
                                 MakeStageCommand("出拳", &RoundStage::Act_,
-                                        AlterChecker<Choise>(std::map<std::string, Choise>{{"剪刀", SCISSORS_CHOISE},
-                                                                                           {"石头", ROCK_CHOISE},
-                                                                                           {"布", PAPER_CHOISE}},
-                                                             "选择"))
+                                        AlterChecker<Choise>(std::map<std::string, Choise>{
+                                            {"剪刀", SCISSORS_CHOISE}, {"石头", ROCK_CHOISE}, {"布", PAPER_CHOISE}}))
                         ),
               max_round_sec_(max_round_sec),
               cur_choise_{NONE_CHOISE, NONE_CHOISE}

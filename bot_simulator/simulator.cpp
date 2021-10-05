@@ -86,7 +86,6 @@ void MessagerPostUser(void* p, uint64_t uid, bool is_at)
 
 void MessagerPostImage(void* p, const char* path)
 {
-    std::cout << "sdfsdf";
     Messager* const messager = static_cast<Messager*>(p);
     messager->ss_ << "[image=" << std::string_view(path) << "]";
 }

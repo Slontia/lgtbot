@@ -123,7 +123,7 @@ class StageBaseWrapper : virtual public StageBase
     template <typename Command>
     static uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender, const Command& cmd)
     {
-        sender << "\n[" << (++i) << "] " << cmd.Info();
+        sender << "\n[" << (++i) << "] " << cmd.Info(false, false);
         return i;
     }
 
