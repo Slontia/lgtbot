@@ -27,6 +27,7 @@ foreach (GAME_DIR ${GAME_DIRS})
       ${GAME_DIR}/mygame.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/game_main.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource_loader.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cpp
     )
 
     set(RULE_BINARY ${CMAKE_CURRENT_BINARY_DIR}/${GAME}_rule.o)

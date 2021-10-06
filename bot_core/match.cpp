@@ -153,7 +153,6 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
     }
     state_ = State::IS_STARTED;
     Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
-    main_stage_->HandleStageBegin();
     for (auto& [uid, user_info] : users_) {
         for (int i = 0; i < player_num_each_user_; ++i) {
             user_info.pids_.emplace_back(players_.size());
@@ -166,6 +165,7 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
     }
     std::visit([this](auto& sender) { sender.SetMatch(this); }, boardcast_sender_);
     start_time_ = std::chrono::system_clock::now();
+    main_stage_->HandleStageBegin();
     Routine_(); // computer act first
     return EC_OK;
 }
