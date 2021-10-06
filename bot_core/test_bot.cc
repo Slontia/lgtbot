@@ -219,6 +219,7 @@ class GameOption : public GameOptionBase
   public:
     GameOption() : GameOptionBase(0) {}
     virtual const char* Info(const uint64_t index) const { return "这是配置介绍"; };
+    virtual const char* ColoredInfo(const uint64_t index) const { return "这是配置介绍"; };
     virtual const char* Status() const { return "这是配置状态"; };
     virtual bool SetOption(const char* const msg) { return true; };
 };

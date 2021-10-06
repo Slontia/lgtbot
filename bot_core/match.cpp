@@ -43,7 +43,7 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
           )
         , bench_to_player_num_(0)
         , multiple_(1)
-        , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助")))
+        , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")))
 {
     users_.emplace(host_uid, ParticipantUser(host_uid));
     BoardcastMatchCanJoin(*this);
@@ -413,23 +413,30 @@ void Match::OnGameOver_()
     Terminate_();
 }
 
-void Match::Help_(MsgSenderBase& reply)
+void Match::Help_(MsgSenderBase& reply, const bool text_mode)
 {
-    auto sender = reply();
+    std::string outstr;
     if (main_stage_) {
-        sender << "[当前阶段]\n";
-        main_stage_->StageInfo(sender);
-        sender << "\n\n";
+        outstr += "## 阶段信息\n\n";
+        outstr += main_stage_->StageInfoC();
+        outstr += "\n\n";
     }
-    sender << "[当前可使用游戏命令]";
-    sender << "\n[1] " << help_cmd_.Info(false, false);
+    outstr += "## 当前可使用的游戏命令";
+    outstr += "\n\n### 查看信息";
+    outstr += "\n1. " + help_cmd_.Info(true /* with_example */, !text_mode /* with_html_color */);
     if (main_stage_) {
-        main_stage_->CommandInfo(1, sender);
+        outstr += main_stage_->CommandInfoC(text_mode);
     } else {
+        outstr += "\n\n ### 配置选项";
         const auto option_size = options_->Size();
         for (uint64_t i = 0; i < option_size; ++i) {
-            sender << "\n[" << (i + 1) << "] " << options_->Info(i);
+            outstr += "\n" + std::to_string(i + 1) + ". " + (text_mode ? options_->Info(i) : options_->ColoredInfo(i));
         }
+    }
+    if (text_mode) {
+        reply() << outstr;
+    } else {
+        reply() << Markdown(outstr);
     }
 }
 

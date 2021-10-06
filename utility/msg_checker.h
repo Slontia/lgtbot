@@ -303,8 +303,8 @@ class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg
     template <typename ...Args>
     RepeatableChecker(Args&&... args)
             : checker_(std::forward<Args>(args)...)
-            , format_info_("[" + checker_.FormatInfo() + "...]")
-            , escaped_format_info_("[" + checker_.EscapedFormatInfo() + "...]")
+            , format_info_("[" + checker_.FormatInfo() + " " + checker_.FormatInfo() + "...]")
+            , escaped_format_info_("[" + checker_.EscapedFormatInfo() + " " + checker_.EscapedFormatInfo() + "...]")
             , colored_format_info_(HTML_COLOR_FONT_HEADER(blue) + escaped_format_info_ + HTML_FONT_TAIL)
     {}
     virtual std::string FormatInfo() const override { return format_info_; }
@@ -312,7 +312,7 @@ class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg
     virtual std::string ColoredFormatInfo() const override { return colored_format_info_; }
     virtual std::string ExampleInfo() const override
     {
-        return checker_.ExampleInfo() + " " + checker_.ExampleInfo();
+        return checker_.ExampleInfo();
     }
     virtual std::optional<std::vector<typename Checker::arg_type>> Check(MsgReader& reader) const override
     {

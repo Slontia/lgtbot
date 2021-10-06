@@ -41,7 +41,7 @@ class MockMsgSender : public MsgSenderBase
         }
     }
 
-    virtual void SaveImage(const std::filesystem::path& path)
+    virtual void SaveImage(const char* const path)
     {
         ss_ << "[image=" << path << "]";
     }

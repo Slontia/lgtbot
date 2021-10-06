@@ -41,6 +41,7 @@ class GameOptionBase
     const uint64_t PlayerNum() const { return player_num_; }
     const uint64_t Size() const { return size_; }
     virtual const char* Info(const uint64_t index) const = 0;
+    virtual const char* ColoredInfo(const uint64_t index) const = 0;
     virtual const char* Status() const = 0;
     virtual bool SetOption(const char* const msg) = 0;
 
@@ -54,14 +55,14 @@ class StageBase
   public:
     StageBase() : is_over_(false) {}
     virtual ~StageBase() {}
+    virtual const char* StageInfoC() const = 0;
+    virtual const char* CommandInfoC(const bool text_mode) const = 0;
     virtual void HandleStageBegin() = 0;
     virtual StageErrCode HandleTimeout() = 0;
-    virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const = 0;
     virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
                                        MsgSenderBase& reply) = 0;
     virtual StageErrCode HandleLeave(const PlayerID pid) = 0;
     virtual StageErrCode HandleComputerAct(const uint64_t begin_pid, const uint64_t end_pid) = 0;
-    virtual void StageInfo(MsgSenderBase::MsgSenderGuard& sender) const = 0;
     bool IsOver() const { return is_over_; }
     virtual void Over() { is_over_ = true; }
   private:

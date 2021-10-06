@@ -30,13 +30,11 @@ class GameOption : public GameOptionBase
 #undef GAME_OPTION
 	 }, infos_
 	 {
-#define GAME_OPTION(description, name, _0, _1)                                      \
-    [this] {                                                                        \
-        std::stringstream ss;                                                       \
-        ss << description << std::endl;                                             \
-        ss << "格式：" << #name << " " << CHECKER_(name).FormatInfo() << std::endl; \
-        ss << "例如：" << #name << " " << CHECKER_(name).ExampleInfo();             \
-        return ss.str();                                                            \
+#define GAME_OPTION(description, name, _0, _1)                                                                \
+    [this]() -> std::pair<std::string, std::string> {                                                         \
+        const auto head = description "\n    - 格式：" #name " ";                                                   \
+        const auto tail = "\n    - 例如：" #name " " + CHECKER_(name).ExampleInfo();                                \
+        return {head + CHECKER_(name).FormatInfo() + tail, head + CHECKER_(name).ColoredFormatInfo() + tail}; \
     }(),
 #include "options.h"
 #undef GAME_OPTION
@@ -67,7 +65,8 @@ class GameOption : public GameOptionBase
         return false;
     }
 
-    virtual const char* Info(const uint64_t index) const override { return infos_[index].c_str(); }
+    virtual const char* Info(const uint64_t index) const override { return infos_[index].first.c_str(); }
+    virtual const char* ColoredInfo(const uint64_t index) const override { return infos_[index].second.c_str(); }
 
     virtual const char* Status() const override
     {
@@ -85,7 +84,7 @@ class GameOption : public GameOptionBase
 #include "options.h"
 #undef GAME_OPTION
     }) options_;
-    std::array<std::string, Option::MAX_OPTION> infos_;
+    std::array<std::pair<std::string, std::string>, Option::MAX_OPTION> infos_;
 };
 
 #undef OPTION_

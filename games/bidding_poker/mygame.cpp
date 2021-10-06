@@ -47,7 +47,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
 {
   public:
     MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match, "主阶段", MakeStageCommand("场况", &MainStage::Status_, VoidChecker("场况")))
+        : GameStage(option, match, "主阶段", MakeStageCommand("查看各玩家手牌及金币情况", &MainStage::Status_, VoidChecker("场况")))
         , round_(0)
     {
         for (PlayerID pid = 0; pid < option.PlayerNum(); ++pid) {
@@ -271,8 +271,8 @@ class DiscardStage : public SubGameStage<>
   public:
     DiscardStage(MainStage& main_stage)
         : GameStage(main_stage, "弃牌阶段",
-                MakeStageCommand("弃牌", &DiscardStage::Discard_, VoidChecker("弃牌"), RepeatableChecker<AnyArg>("弃牌列表", "红桃A")),
-                MakeStageCommand("不弃牌", &DiscardStage::Cancel_, VoidChecker("不弃牌")))
+                MakeStageCommand("决定本回合**所有的**弃牌", &DiscardStage::Discard_, VoidChecker("弃牌"), RepeatableChecker<AnyArg>("扑克", "红桃A")),
+                MakeStageCommand("决定本回合不弃牌", &DiscardStage::Cancel_, VoidChecker("不弃牌")))
     {}
 
     void OnStageBegin()
@@ -317,7 +317,7 @@ class DiscardStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
         if (poker_strs.empty()) {
-            reply() << "弃牌失败：弃牌为空";
+            reply() << "弃牌失败：弃牌为空，若您不考虑弃牌，请使用「不弃牌」指令";
             return StageErrCode::FAILED;
         }
         std::set<poker::Poker> pokers_to_discard;

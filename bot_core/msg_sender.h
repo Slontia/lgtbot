@@ -5,8 +5,10 @@
 #include <vector>
 #include <functional>
 #include <filesystem>
+#include <thread>
 
 #include "bot_core/id.h"
+#include "bot_core/image.h"
 
 std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path);
 
@@ -23,7 +25,8 @@ class Match;
 
 template <typename IdType> struct At { IdType id_; };
 template <typename IdType> struct Name { IdType id_; };
-struct Image { std::string path_; };
+struct Image { std::filesystem::path path_; };
+struct Markdown { std::string_view data_; };
 
 template <typename T> concept CanToString = requires(T&& t) { std::to_string(std::forward<T>(t)); };
 
@@ -52,11 +55,13 @@ class MsgSenderBase
             return (*this) << std::to_string(arg);
         }
 
+        // It is safe to use STL because MsgSenderGuard will not be passed between libraries
         inline MsgSenderGuard& operator<<(const At<UserID>&);
         inline MsgSenderGuard& operator<<(const At<PlayerID>&);
         inline MsgSenderGuard& operator<<(const Name<UserID>&);
         inline MsgSenderGuard& operator<<(const Name<PlayerID>&);
         inline MsgSenderGuard& operator<<(const Image&);
+        inline MsgSenderGuard& operator<<(const Markdown&);
 
       private:
         MsgSenderBase* sender_;
@@ -72,7 +77,15 @@ class MsgSenderBase
     virtual void SaveText(const char* const data, const uint64_t len) = 0;
     virtual void SaveUser(const UserID& id, const bool is_at) = 0;
     virtual void SavePlayer(const PlayerID& id, const bool is_at) = 0;
-    virtual void SaveImage(const std::filesystem::path& path) = 0;
+    virtual void SaveImage(const char* const path) = 0;
+    virtual void SaveMarkdown(const char* const markdown)
+    {
+        std::stringstream ss;
+        ss << std::this_thread::get_id();
+        const std::string tmp_image_name = ss.str();
+        MarkdownToImage(markdown, tmp_image_name);
+        SaveImage(tmp_image_name.c_str());
+    }
     virtual void Flush() = 0;
 };
 
@@ -89,7 +102,7 @@ class EmptyMsgSender : public MsgSenderBase
     virtual void SaveText(const char* const data, const uint64_t len) override {}
     virtual void SaveUser(const UserID& uid, const bool is_at) override {}
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override {}
-    virtual void SaveImage(const std::filesystem::path& path) override {};
+    virtual void SaveImage(const char* const path) override {};
     virtual void Flush() override {}
 
   private:
@@ -116,7 +129,7 @@ class MsgSender : public MsgSenderBase
     virtual void SaveText(const char* const data, const uint64_t len) override { MessagerPostText(sender_, data, len); }
     virtual void SaveUser(const UserID& uid, const bool is_at) override { MessagerPostUser(sender_, uid, is_at); }
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override;
-    virtual void SaveImage(const std::filesystem::path& path) override { MessagerPostImage(sender_, ImageAbsPath(path).c_str()); }
+    virtual void SaveImage(const char* const path) override { MessagerPostImage(sender_, ImageAbsPath(path).c_str()); }
     virtual void Flush() override { MessagerFlush(sender_); }
     void SaveText_(const std::string_view& sv) { SaveText(sv.data(), sv.size()); }
     friend class MsgSenderBatch;
@@ -161,7 +174,13 @@ MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const N
 
 MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const Image& image_msg)
 {
-    sender_->SaveImage(image_msg.path_);
+    sender_->SaveImage(image_msg.path_.c_str());
+    return *this;
+}
+
+MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const Markdown& markdown_msg)
+{
+    sender_->SaveMarkdown(markdown_msg.data_.data());
     return *this;
 }
 
@@ -192,7 +211,7 @@ class MsgSenderBatch : public MsgSenderBase
         fn_([&](MsgSender& sender) { sender.SavePlayer(pid, is_at); });
     }
 
-    virtual void SaveImage(const std::filesystem::path& path) override
+    virtual void SaveImage(const char* const path) override
     {
         fn_([&](MsgSender& sender) { sender.SaveImage(path); });
     }

@@ -100,7 +100,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     }
     std::vector<ScoreInfo> CalScores_(const std::vector<int64_t>& scores) const;
     void OnGameOver_();
-    void Help_(MsgSenderBase& reply);
+    void Help_(MsgSenderBase& reply, const bool text_mode);
     void Routine_();
     std::string OptionInfo_() const;
     void KickForConfigChange_();

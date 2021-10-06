@@ -85,10 +85,22 @@ class StageBaseWrapper : virtual public StageBase
     virtual ~StageBaseWrapper() {}
 
     virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
-                                       MsgSenderBase& reply) override
+                                       MsgSenderBase& reply) override final
     {
         MsgReader reader(msg);
         return HandleRequest(reader, player_id, is_public, reply);
+    }
+    virtual const char* StageInfoC() const override final
+    {
+        thread_local static std::string info_;
+        info_ = StageInfo();
+        return info_.c_str();
+    }
+    virtual const char* CommandInfoC(const bool text_mode) const override final
+    {
+        thread_local static std::string info_;
+        info_ = CommandInfo(text_mode);
+        return info_.c_str();
     }
 
     decltype(auto) BoardcastMsgSender() const { return match_.BoardcastMsgSender(); }
@@ -105,12 +117,23 @@ class StageBaseWrapper : virtual public StageBase
 
     virtual void HandleStageBegin() override = 0;
     virtual StageErrCode HandleTimeout() = 0;
-    virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const = 0;
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
                                        MsgSenderBase& reply) = 0;
     virtual StageErrCode HandleLeave(const PlayerID pid) = 0;
     virtual StageErrCode HandleComputerAct(const uint64_t begin_pid, const uint64_t end_pid) = 0;
-    virtual void StageInfo(MsgSenderBase::MsgSenderGuard& sender) const = 0;
+    virtual std::string StageInfo() const = 0;
+    virtual std::string CommandInfo(const bool text_mode) const
+    {
+        if (commands_.empty()) {
+            return "";
+        }
+        std::string outstr = "\n\n### 游戏命令-" + name();
+        uint64_t i = 1;
+        for (const auto& cmd : commands_) {
+             outstr += "\n" + std::to_string(i++) + ". " + cmd.Info(true /* with_example */, !text_mode /* with_html_color */);
+        }
+        return outstr;
+    }
 
   protected:
     template <typename Stage, typename RetType, typename... Args, typename... Checkers>
@@ -119,13 +142,6 @@ class StageBaseWrapper : virtual public StageBase
     {
         return GameCommand<RetType>(description, std::bind_front(cb, static_cast<Stage*>(this)),
                 std::forward<Checkers>(checkers)...);
-    }
-
-    template <typename Command>
-    static uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender, const Command& cmd)
-    {
-        sender << "\n[" << (++i) << "] " << cmd.Info(false, false);
-        return i;
     }
 
     const std::string name_;
@@ -248,18 +264,14 @@ class GameStage<GameOption, MainStage, SubStages...>
                 CheckoutReason::BY_REQUEST); // game logic not care abort computer
     }
 
-    virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const override
+    virtual std::string CommandInfo(const bool text_mode) const override
     {
-        for (const auto& cmd : Base::commands_) {
-            i = Base::CommandInfo(i, sender, cmd);
-        }
-        return std::visit([&i, &sender](auto&& sub_stage) { return sub_stage->CommandInfo(i, sender); }, sub_stage_);
+        return std::visit([&](auto&& sub_stage) { return Base::CommandInfo(text_mode) + sub_stage->CommandInfo(text_mode); }, sub_stage_);
     }
 
-    virtual void StageInfo(MsgSenderBase::MsgSenderGuard& sender) const override
+    virtual std::string StageInfo() const override
     {
-        sender << Base::name_ << " - ";
-        std::visit([&sender](auto&& sub_stage) { sub_stage->StageInfo(sender); }, sub_stage_);
+        return std::visit([this](auto&& sub_stage) { return Base::name_ + " - " + sub_stage->StageInfo(); }, sub_stage_);
     }
 
     void CheckoutSubStage(const CheckoutReason reason)
@@ -377,23 +389,16 @@ class GameStage<GameOption, MainStage>
                 });
     }
 
-    virtual uint64_t CommandInfo(uint64_t i, MsgSenderBase::MsgSenderGuard& sender) const override
+    virtual std::string StageInfo() const override
     {
-        for (const auto& cmd : Base::commands_) {
-            i = Base::CommandInfo(i, sender, cmd);
-        }
-        return i;
-    }
-
-    virtual void StageInfo(MsgSenderBase::MsgSenderGuard& sender) const override
-    {
-        sender << Base::name_;
+        std::string outstr = Base::name_;
         if (finish_time_.has_value()) {
-            sender << " 剩余时间："
-                   << std::chrono::duration_cast<std::chrono::seconds>(*finish_time_ - std::chrono::steady_clock::now())
-                              .count()
-                   << "秒";
+            outstr += "（剩余时间：";
+            outstr += std::to_string(
+                    std::chrono::duration_cast<std::chrono::seconds>(*finish_time_ - std::chrono::steady_clock::now()).count());
+            outstr += "秒）";
         }
+        return outstr;
     }
 
     const GameOption& option() const { return static_cast<const GameOption&>(Base::option_); }

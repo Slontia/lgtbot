@@ -45,21 +45,19 @@ struct ShowCommandOption
 extern const std::vector<MetaCommandGroup> meta_cmds;
 extern const std::vector<MetaCommandGroup> admin_cmds;
 
-static ErrCode help_internal(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
-                    const std::vector<MetaCommandGroup>& cmd_groups, const ShowCommandOption& option,
-                    const std::string& type_name)
+static ErrCode help_internal(BotCtx& bot, MsgSenderBase& reply, const std::vector<MetaCommandGroup>& cmd_groups,
+        const ShowCommandOption& option, const std::string& type_name)
 {
-    std::string outstr = "# 可使用的" + type_name + "指令";
+    std::string outstr = "## 可使用的" + type_name + "指令";
     for (const MetaCommandGroup& cmd_group : cmd_groups) {
         int i = 0;
-        outstr += "\n\n## " + cmd_group.group_name_;
+        outstr += "\n\n### " + cmd_group.group_name_;
         for (const MetaCommand& cmd : cmd_group.desc_) {
             outstr += "\n" + std::to_string(++i) + ". " + cmd.Info(option.with_example_, option.with_html_color_);
         }
     }
     if (option.with_html_color_) {
-        MarkdownToImage(outstr, "meta_help");
-        reply() << Image("meta_help");
+        reply() << Markdown(outstr);
     } else {
         reply() << outstr;
     }
@@ -70,7 +68,7 @@ template <bool IS_ADMIN = false>
 static ErrCode help(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply, const bool show_text) {
     
     return help_internal(
-            bot, uid, gid, reply, IS_ADMIN ? admin_cmds : meta_cmds,
+            bot, reply, IS_ADMIN ? admin_cmds : meta_cmds,
             ShowCommandOption{.only_common_ = show_text, .with_html_color_ = !show_text, .with_example_ = !show_text},
             IS_ADMIN ? "管理" : "元");
 }
