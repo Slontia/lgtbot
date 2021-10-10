@@ -98,7 +98,8 @@ class SubStage : public SubGameStage<>
     SubStage(MainStage& main_stage)
         : GameStage(main_stage, "子阶段"
                 , MakeStageCommand("结束", &SubStage::Over_, VoidChecker("结束子阶段"))
-                , MakeStageCommand("准备重新计时", &SubStage::ToResetTimer_, VoidChecker("准备重新计时"))
+                , MakeStageCommand("时间到时重新计时", &SubStage::ToResetTimer_, VoidChecker("重新计时"))
+                , MakeStageCommand("所有人准备好时重置准备情况", &SubStage::ToResetReady_, VoidChecker("重新准备"))
                 , MakeStageCommand("阻塞", &SubStage::Block_, VoidChecker("阻塞"))
                 , MakeStageCommand("阻塞并结束", &SubStage::BlockAndOver_, VoidChecker("阻塞并结束"))
                 , MakeStageCommand("准备", &SubStage::Ready_, VoidChecker("准备"))
@@ -106,6 +107,7 @@ class SubStage : public SubGameStage<>
           )
         , computer_act_count_(0)
         , to_reset_timer_(false)
+        , to_reset_ready_(false)
     {}
 
     virtual void OnStageBegin() override
@@ -132,6 +134,14 @@ class SubStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
+    virtual void OnAllPlayerReady()
+    {
+        if (to_reset_ready_) {
+            to_reset_ready_ = false;
+            ClearReady();
+        }
+    }
+
   private:
     AtomReqErrCode Ready_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
@@ -146,6 +156,12 @@ class SubStage : public SubGameStage<>
     AtomReqErrCode ToResetTimer_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         to_reset_timer_ = true;
+        return StageErrCode::OK;
+    }
+
+    AtomReqErrCode ToResetReady_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        to_reset_ready_ = true;
         return StageErrCode::OK;
     }
 
@@ -176,6 +192,7 @@ class SubStage : public SubGameStage<>
 
     uint64_t computer_act_count_;
     bool to_reset_timer_;
+    bool to_reset_ready_;
 };
 
 class MainStage : public MainGameStage<SubStage>
@@ -595,6 +612,93 @@ TEST_F(TestBot, switch_host)
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#开始");
 }
 
+// Exit During Game
+
+TEST_F(TestBot, force_exit)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+}
+
+TEST_F(TestBot, force_exit_when_other_ready)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 2, "准备");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+}
+
+TEST_F(TestBot, force_exit_auto_ready)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 2, "准备切换");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_CHECKOUT, 1, 2, "准备");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_CHECKOUT, 1, 2, "准备");
+}
+
+TEST_F(TestBot, force_exit_computer)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#替补至 2");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+}
+
+TEST_F(TestBot, all_force_exit_checkout)
+{
+  AddGame("测试游戏", 5);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
+  ASSERT_PUB_MSG(EC_OK, 1, 3, "#加入");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "准备切换");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 3, "#退出 强制");
+  // game should auto run and over
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, all_force_exit_timeout)
+{
+  AddGame("测试游戏", 5);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
+  ASSERT_PUB_MSG(EC_OK, 1, 3, "#加入");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "重新计时");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 3, "#退出 强制");
+  // game should auto run and over
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, all_force_exit_all_ready)
+{
+  AddGame("测试游戏", 5);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
+  ASSERT_PUB_MSG(EC_OK, 1, 3, "#加入");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "重新准备");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 3, "#退出 强制");
+  // game should auto run and over
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+}
+
 // Config Game
 
 TEST_F(TestBot, config_game)
@@ -851,7 +955,7 @@ TEST_F(TestBot, substage_reset_timer)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");
-  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备重新计时");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "重新计时");
   SkipTimer();
   WaitTimerThreadFinish();
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");

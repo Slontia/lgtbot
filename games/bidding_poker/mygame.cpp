@@ -134,7 +134,7 @@ class BidStage : public SubGameStage<>
     }
 
     TimeoutErrCode OnTimeout() { return TimeoutErrCode::Condition(BidOver_(), StageErrCode::CHECKOUT, StageErrCode::FAILED); }
-    AllReadyErrCode OnAllPlayerReady() { return AllReadyErrCode::Condition(BidOver_(), StageErrCode::CHECKOUT, StageErrCode::OK); }
+    void OnAllPlayerReady() { BidOver_(); }
 
   private:
     bool BidOver_()
@@ -166,7 +166,6 @@ class BidStage : public SubGameStage<>
             }
             return true;
         } else {
-            auto sender = Boardcast();
             sender << "\n最大金额投标者有多名玩家，分别是：";
             for (const auto& winner : ret.second) {
                 sender << At(winner);

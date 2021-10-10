@@ -90,7 +90,7 @@ class RoundStage : public SubGameStage<>
     }
 
     // The other player win. Game Over.
-    virtual AtomReqErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CHECKOUT; }
+    virtual LeaveErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CHECKOUT; }
 
     const uint32_t max_round_sec_;
     std::array<Choise, 2> cur_choise_;

@@ -56,7 +56,7 @@ class NumberStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CHECKOUT; }
+    virtual LeaveErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CHECKOUT; }
 
     const PlayerID questioner_;
     const uint32_t max_number_;
@@ -98,7 +98,7 @@ class LieStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
+    virtual LeaveErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
 
     const uint64_t questioner_;
     const uint32_t max_number_;
@@ -139,7 +139,7 @@ class GuessStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
+    virtual LeaveErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
 
     const uint64_t guesser_;
     bool doubt_;
@@ -202,22 +202,24 @@ class RoundStage : public SubGameStage<NumberStage, LieStage, GuessStage>
         const bool suc = doubt ^ (num_ == lie_num_);
         loser_ = suc ? questioner_ : PlayerID{1 - questioner_};
         ++player_nums_[loser_][num_ - 1];
-        auto boardcast = Boardcast();
-        boardcast << "实际数字为" << num_ << "，" << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
-                  << "玩家" << At(loser_) << "获得数字" << num_ << "\n数字获得情况：\n"
-                  << At(PlayerID(0)) << "：" << At(PlayerID(1));
         Table table(option().GET_VALUE(数字种类) + 1, 3);
-        table.Get(0, 0).content_ = "玩家A";
-        table.Get(0, 1).content_ = "数字";
-        table.Get(0, 2).content_ = "玩家B";
-        for (int num = 1; num <= option().GET_VALUE(数字种类); ++num) {
-            boardcast << "\n" << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
-            table.Get(num, 0).content_ = std::to_string(player_nums_[0][num - 1]);
-            table.Get(num, 1).content_ = "[" + std::to_string(num) + "]";
-            table.Get(num, 2).content_ = std::to_string(player_nums_[1][num - 1]);
-            table.Get(num, 1).color_ = "Aquamarine";
+        {
+            auto boardcast = Boardcast();
+            boardcast << "实际数字为" << num_ << "，" << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
+                    << "玩家" << At(loser_) << "获得数字" << num_ << "\n数字获得情况：\n"
+                    << At(PlayerID(0)) << "：" << At(PlayerID(1));
+            table.Get(0, 0).content_ = "玩家A";
+            table.Get(0, 1).content_ = "数字";
+            table.Get(0, 2).content_ = "玩家B";
+            for (int num = 1; num <= option().GET_VALUE(数字种类); ++num) {
+                boardcast << "\n" << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
+                table.Get(num, 0).content_ = std::to_string(player_nums_[0][num - 1]);
+                table.Get(num, 1).content_ = "[" + std::to_string(num) + "]";
+                table.Get(num, 2).content_ = std::to_string(player_nums_[1][num - 1]);
+                table.Get(num, 1).color_ = "Aquamarine";
+            }
+            table.Get(num_, loser_ * 2).color_ = "AntiqueWhite";
         }
-        table.Get(num_, loser_ * 2).color_ = "AntiqueWhite";
         Boardcast() << Markdown(table.ToString());
         return {};
     }

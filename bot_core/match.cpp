@@ -36,7 +36,9 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
                               : std::variant<MsgSender, MsgSenderBatch>(MsgSenderBatch([this](const std::function<void(MsgSender&)>& fn)
                                         {
                                             for (auto& [_, user_info] : users_) {
-                                                fn(user_info.sender_);
+                                                if (!user_info.is_left_during_game_) {
+                                                    fn(user_info.sender_);
+                                                }
                                             }
                                         })
                                 )
@@ -199,10 +201,10 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
     ErrCode rc = EC_OK;
     std::lock_guard<std::mutex> l(mutex_);
     assert(Has(uid));
-    users_.erase(uid);
     match_manager().UnbindMatch(uid);
     if (state_ != State::IS_STARTED) {
         Boardcast() << "玩家 " << At(uid) << " 退出了游戏";
+        users_.erase(uid);
         if (users_.empty()) {
             Boardcast() << "所有玩家都退出了游戏，游戏解散";
             Unbind_();
@@ -215,13 +217,11 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
         const auto it = users_.find(uid);
         assert(it != users_.end());
         assert(main_stage_);
+        assert(!it->second.is_left_during_game_);
+        it->second.is_left_during_game_ = true;
         for (const auto pid : it->second.pids_) {
-            rc = ConverErrCode(main_stage_->HandleLeave(pid));
+            main_stage_->HandleLeave(pid);
             Routine_();
-        }
-        if (users_.empty()) {
-            Boardcast() << "所有玩家都退出了游戏，游戏作废，游戏结果不会被记录";
-            Unbind_();
         }
     } else {
         reply() << "[错误] 退出失败：游戏已经开始，若仍要退出游戏，请使用<#强制退出游戏>命令";
@@ -240,7 +240,7 @@ MsgSenderBase& Match::TellMsgSender(const PlayerID pid)
     const auto& id = ConvertPid(pid);
     if (const auto pval = std::get_if<UserID>(&id); !pval) {
         return EmptyMsgSender::Get(); // is computer
-    } else if (const auto it = users_.find(*pval); it != users_.end()) {
+    } else if (const auto it = users_.find(*pval); it != users_.end() && !it->second.is_left_during_game_) {
         return it->second.sender_;
     } else {
         return EmptyMsgSender::Get(); // player exit
@@ -447,10 +447,11 @@ void Match::Routine_()
         return;
     }
     const uint64_t user_controlled_num = users_.size() * player_num_each_user_;
-    while (!main_stage_->IsOver()) {
-        const auto rc = main_stage_->HandleComputerAct(user_controlled_num, players_.size());
-        if (rc == StageErrCode::OK) {
-            break;
+    const uint64_t computer_num = players_.size() - user_controlled_num;
+    uint64_t ok_count = 0;
+    for (uint64_t i = 0; !main_stage_->IsOver() && ok_count < computer_num; i = (i + 1) % computer_num) {
+        if (StageErrCode::OK == main_stage_->HandleComputerAct(user_controlled_num + i)) {
+            ++ok_count;
         }
     }
     if (main_stage_->IsOver()) {

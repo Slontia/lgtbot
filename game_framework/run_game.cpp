@@ -27,10 +27,10 @@ int Run()
     }
     main_stage->HandleStageBegin();
 
-    while (!main_stage->IsOver()) {
-        const auto rc = main_stage->HandleComputerAct(0, FLAGS_player);
-        if (rc == StageErrCode::OK) {
-            break;
+    uint64_t ok_count = 0;
+    for (uint64_t i = 0; !main_stage->IsOver() && ok_count < FLAGS_player; i = (i + i) % FLAGS_player) {
+        if (StageErrCode::OK == main_stage->HandleComputerAct(i)) {
+            ++ok_count;
         }
     }
 

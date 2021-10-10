@@ -224,7 +224,7 @@ class RoundStage : public SubGameStage<>
         return AtomReqErrCode::Condition(CanOver_(), StageErrCode::CHECKOUT, StageErrCode::OK);
     }
 
-    virtual AtomReqErrCode OnPlayerLeave(const PlayerID pid) override
+    virtual LeaveErrCode OnPlayerLeave(const PlayerID pid) override
     {
         players_[pid].Leave();
         return AtomReqErrCode::Condition(CanOver_(), StageErrCode::CHECKOUT, StageErrCode::OK);
