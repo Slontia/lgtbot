@@ -5,6 +5,7 @@
 #include <optional>
 #include <variant>
 #include <concepts>
+#include <chrono>
 
 #include "bot_core/match_base.h"
 #include "utility/msg_checker.h"
@@ -304,6 +305,9 @@ class GameStage<GameOption, MainStage, SubStages...>
                     return std::move(new_sub_stage);
                 },
                 sub_stage_);
+#ifndef TEST_BOT
+        std::this_thread::sleep_for(std::chrono::seconds(1)); // avoid banned by chatting service
+#endif
         Base::masker().Clear();
         std::visit(
                 [this](auto&& sub_stage)
