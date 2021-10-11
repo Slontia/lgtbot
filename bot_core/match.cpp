@@ -452,6 +452,8 @@ void Match::Routine_()
     for (uint64_t i = 0; !main_stage_->IsOver() && ok_count < computer_num; i = (i + 1) % computer_num) {
         if (StageErrCode::OK == main_stage_->HandleComputerAct(user_controlled_num + i)) {
             ++ok_count;
+        } else {
+            ok_count = 0;
         }
     }
     if (main_stage_->IsOver()) {

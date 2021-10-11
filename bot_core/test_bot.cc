@@ -104,6 +104,8 @@ class SubStage : public SubGameStage<>
                 , MakeStageCommand("阻塞并结束", &SubStage::BlockAndOver_, VoidChecker("阻塞并结束"))
                 , MakeStageCommand("准备", &SubStage::Ready_, VoidChecker("准备"))
                 , MakeStageCommand("断言并清除电脑行动次数", &SubStage::CheckComputerActCount_, VoidChecker("电脑行动次数"), ArithChecker<uint64_t>(0, UINT64_MAX))
+                , MakeStageCommand("电脑失败次数", &SubStage::ToComputerFailed_, VoidChecker("电脑失败"),
+                    BasicChecker<PlayerID>(), ArithChecker<uint64_t>(0, UINT64_MAX))
           )
         , computer_act_count_(0)
         , to_reset_timer_(false)
@@ -131,6 +133,10 @@ class SubStage : public SubGameStage<>
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
     {
         ++computer_act_count_;
+        if (to_computer_failed_[pid] > 0) {
+            reply() << "电脑行动失败，剩余次数" << (--to_computer_failed_[pid]);
+            return StageErrCode::FAILED;
+        }
         return StageErrCode::READY;
     }
 
@@ -165,6 +171,13 @@ class SubStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
+    AtomReqErrCode ToComputerFailed_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+            const PlayerID failed_pid, const uint32_t count)
+    {
+        to_computer_failed_[failed_pid] += count;
+        return StageErrCode::OK;
+    }
+
     AtomReqErrCode Block_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         std::unique_lock<std::mutex> l(substage_blocked_mutex_);
@@ -193,14 +206,16 @@ class SubStage : public SubGameStage<>
     uint64_t computer_act_count_;
     bool to_reset_timer_;
     bool to_reset_ready_;
+    std::map<PlayerID, uint32_t> to_computer_failed_;
 };
 
 class MainStage : public MainGameStage<SubStage>
 {
   public:
     MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match, "主阶段", MakeStageCommand("准备切换", &MainStage::ToCheckout_, VoidChecker("准备切换")))
-        , to_checkout_(false)
+        : GameStage(option, match, "主阶段",
+                MakeStageCommand("准备切换", &MainStage::ToCheckout_, VoidChecker("准备切换"), ArithChecker(0, 10)))
+        , to_checkout_(0)
     {}
 
     virtual VariantSubStage OnStageBegin() override
@@ -212,7 +227,7 @@ class MainStage : public MainGameStage<SubStage>
     {
         if (to_checkout_) {
             Boardcast() << "回合结束，切换子阶段";
-            to_checkout_ = false;
+            --to_checkout_;
             return std::make_unique<SubStage>(*this);
         }
         Boardcast() << "回合结束，游戏结束";
@@ -222,13 +237,13 @@ class MainStage : public MainGameStage<SubStage>
     virtual int64_t PlayerScore(const PlayerID pid) const override { return 1; };
 
   private:
-    CompReqErrCode ToCheckout_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode ToCheckout_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t count)
     {
-        to_checkout_ = true;
+        to_checkout_ += count;
         return StageErrCode::OK;
     }
 
-    bool to_checkout_;
+    uint32_t to_checkout_;
 };
 
 class GameOption : public GameOptionBase
@@ -621,6 +636,7 @@ TEST_F(TestBot, force_exit)
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_MATCH_ALREADY_BEGIN, 1, 1, "#新游戏 测试游戏");
 }
 
 TEST_F(TestBot, force_exit_when_other_ready)
@@ -631,6 +647,7 @@ TEST_F(TestBot, force_exit_when_other_ready)
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
   ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 2, "准备");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
 }
 
 TEST_F(TestBot, force_exit_auto_ready)
@@ -639,10 +656,11 @@ TEST_F(TestBot, force_exit_auto_ready)
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
-  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 2, "准备切换");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 2, "准备切换 1");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
   ASSERT_PUB_MSG(EC_GAME_REQUEST_CHECKOUT, 1, 2, "准备");
   ASSERT_PUB_MSG(EC_GAME_REQUEST_CHECKOUT, 1, 2, "准备");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
 }
 
 TEST_F(TestBot, force_exit_computer)
@@ -651,7 +669,32 @@ TEST_F(TestBot, force_exit_computer)
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#替补至 2");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "准备切换 5");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, force_exit_computer_multi)
+{
+  AddGame("测试游戏", 5);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#替补至 5");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "准备切换 5");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, force_exit_computer_multi_failed)
+{
+  AddGame("测试游戏", 5);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#替补至 5");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "准备切换 5");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "电脑失败 1 5");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
 }
 
 TEST_F(TestBot, all_force_exit_checkout)
@@ -661,7 +704,7 @@ TEST_F(TestBot, all_force_exit_checkout)
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
   ASSERT_PUB_MSG(EC_OK, 1, 3, "#加入");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
-  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "准备切换");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "准备切换 1");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#退出 强制");
   ASSERT_PUB_MSG(EC_OK, 1, 3, "#退出 强制");
@@ -931,7 +974,7 @@ TEST_F(TestBot, checkout_substage_by_request)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");
-  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备切换");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备切换 1");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "结束子阶段");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "结束子阶段");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
@@ -943,7 +986,7 @@ TEST_F(TestBot, checkout_substage_by_timeout)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");
-  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备切换");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备切换 1");
   SkipTimer();
   WaitTimerThreadFinish();
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
