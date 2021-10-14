@@ -99,7 +99,7 @@ class SubStage : public SubGameStage<>
         : GameStage(main_stage, "子阶段"
                 , MakeStageCommand("结束", &SubStage::Over_, VoidChecker("结束子阶段"))
                 , MakeStageCommand("时间到时重新计时", &SubStage::ToResetTimer_, VoidChecker("重新计时"))
-                , MakeStageCommand("所有人准备好时重置准备情况", &SubStage::ToResetReady_, VoidChecker("重新准备"))
+                , MakeStageCommand("所有人准备好时重置准备情况", &SubStage::ToResetReady_, VoidChecker("重新准备"), ArithChecker(0, 10))
                 , MakeStageCommand("阻塞", &SubStage::Block_, VoidChecker("阻塞"))
                 , MakeStageCommand("阻塞并结束", &SubStage::BlockAndOver_, VoidChecker("阻塞并结束"))
                 , MakeStageCommand("准备", &SubStage::Ready_, VoidChecker("准备"))
@@ -109,7 +109,7 @@ class SubStage : public SubGameStage<>
           )
         , computer_act_count_(0)
         , to_reset_timer_(false)
-        , to_reset_ready_(false)
+        , to_reset_ready_(0)
     {}
 
     virtual void OnStageBegin() override
@@ -118,7 +118,7 @@ class SubStage : public SubGameStage<>
         StartTimer(1);
     }
 
-    virtual TimeoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnTimeout() override
     {
         if (to_reset_timer_) {
             to_reset_timer_ = false;
@@ -142,8 +142,8 @@ class SubStage : public SubGameStage<>
 
     virtual void OnAllPlayerReady()
     {
-        if (to_reset_ready_) {
-            to_reset_ready_ = false;
+        if (to_reset_ready_ > 0) {
+            --to_reset_ready_;
             ClearReady();
         }
     }
@@ -165,9 +165,9 @@ class SubStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode ToResetReady_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode ToResetReady_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t count)
     {
-        to_reset_ready_ = true;
+        to_reset_ready_ = count;
         return StageErrCode::OK;
     }
 
@@ -205,7 +205,7 @@ class SubStage : public SubGameStage<>
 
     uint64_t computer_act_count_;
     bool to_reset_timer_;
-    bool to_reset_ready_;
+    uint32_t to_reset_ready_;
     std::map<PlayerID, uint32_t> to_computer_failed_;
 };
 
@@ -239,7 +239,7 @@ class MainStage : public MainGameStage<SubStage>
   private:
     CompReqErrCode ToCheckout_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t count)
     {
-        to_checkout_ += count;
+        to_checkout_ = count;
         return StageErrCode::OK;
     }
 
@@ -697,6 +697,18 @@ TEST_F(TestBot, force_exit_computer_multi_failed)
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
 }
 
+TEST_F(TestBot, force_exit_computer_multi_all_ready_continue)
+{
+  AddGame("测试游戏", 5);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#替补至 5");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "准备切换 5");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "重新准备 10");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+}
+
 TEST_F(TestBot, all_force_exit_checkout)
 {
   AddGame("测试游戏", 5);
@@ -734,7 +746,7 @@ TEST_F(TestBot, all_force_exit_all_ready)
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
   ASSERT_PUB_MSG(EC_OK, 1, 3, "#加入");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
-  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "重新准备");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, 1, 1, "重新准备 1");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#退出 强制");
   ASSERT_PUB_MSG(EC_OK, 1, 3, "#退出 强制");

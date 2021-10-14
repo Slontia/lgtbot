@@ -2,6 +2,7 @@
 #include <deque>
 #include <string>
 #include <optional>
+#include <chrono>
 
 template <typename Chip>
 class BiddingManager
@@ -40,28 +41,37 @@ class BiddingManager
         return true;
     }
 
-    template <typename Sender>
-    std::pair<std::optional<Chip>, std::vector<PlayerID>> BidOver(Sender&& sender, const bool show_detail = true)
+    std::pair<std::optional<Chip>, std::vector<PlayerID>> BidOver(MsgSenderBase& sender)
     {
-        std::pair<std::optional<Chip>, std::vector<PlayerID>> ret(std::max_element(players_.begin(), players_.end())->cur_chip_, {});
-        sender << "投标结束：";
-        bool has_bid = false;
+        sender() << "投标结束，下面公布结果：";
+        std::map<Chip, std::vector<PlayerID>> chips;
         for (auto& player : players_) {
             player.chip_ = player.cur_chip_;
-            if (show_detail && player.is_allow_ && player.chip_.has_value()) {
-                sender << "\n" << At(player.pid_) << "出价：" << *player.chip_;
-                has_bid = true;
-            }
-            if (player.chip_ < ret.first) {
-                player.is_allow_ = false;
+            if (player.is_allow_ && player.chip_.has_value()) {
+                chips[*player.chip_].emplace_back(player.pid_);
             } else {
-                ret.second.emplace_back(player.pid_);
+                player.is_allow_ = false;
             }
         }
-        if (!has_bid) {
-            sender << "\n无人投标！";
+#ifndef TEST_BOT
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+#endif
+        for (auto it = chips.begin(); it != chips.end(); ++it) {
+            for (auto& pid : it->second) {
+                auto& player = players_[pid];
+                sender() << At(pid) << "出价：" << *player.chip_;
+#ifndef TEST_BOT
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+#endif
+                if (std::next(it) != chips.end()) {
+                    player.is_allow_ = false;
+                } else {
+                    return {it->first, std::move(it->second)};
+                }
+            }
         }
-        return ret;
+        sender() << "无人投标！";
+        return {};
     }
 
     const auto& TotalChip(const PlayerID pid)

@@ -56,7 +56,7 @@ class NumberStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual LeaveErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CHECKOUT; }
+    virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CHECKOUT; }
 
     const PlayerID questioner_;
     const uint32_t max_number_;
@@ -98,7 +98,7 @@ class LieStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual LeaveErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
+    virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
 
     const uint64_t questioner_;
     const uint32_t max_number_;
@@ -139,7 +139,7 @@ class GuessStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual LeaveErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
+    virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
 
     const uint64_t guesser_;
     bool doubt_;

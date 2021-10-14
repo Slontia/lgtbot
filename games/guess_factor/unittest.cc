@@ -127,7 +127,7 @@ GAME_TEST(2, achieve_max_round_by_both_leave)
   ASSERT_PRI_MSG(OK, 0, "淘汰回合 1");
   ASSERT_PRI_MSG(OK, 0, "最大回合 3");
   START_GAME();
-  ASSERT_LEAVE(OK, 0);
+  ASSERT_LEAVE(CONTINUE, 0);
   ASSERT_LEAVE(CHECKOUT, 1);
   ASSERT_SCORE(0, 0);
 }
@@ -150,7 +150,7 @@ GAME_TEST(2, leave_but_win)
   ASSERT_PRI_MSG(OK, 0, "8");
   ASSERT_PRI_MSG(CHECKOUT, 1, "pass"); // sum = 65
   // round 4
-  ASSERT_LEAVE(OK, 0);
+  ASSERT_LEAVE(CONTINUE, 0);
   ASSERT_PRI_MSG(CHECKOUT, 1, "53"); // sum = 118 - 2 = 116
   // round 5
   ASSERT_PRI_MSG(CHECKOUT, 1, "pass"); // sum = 116 - 4 = 112

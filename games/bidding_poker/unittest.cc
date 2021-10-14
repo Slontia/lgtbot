@@ -46,7 +46,7 @@ GAME_TEST(5, bid_2)
     ASSERT_PUB_MSG(FAILED, 2, "撤标"); // must be private
     ASSERT_PRI_MSG(OK, 2, "撤标"); // cancel
     ASSERT_PRI_MSG(OK, 3, "10"); // modify
-    ASSERT_PRI_MSG(OK, 4, "10"); // player 1 3 4 win
+    ASSERT_PRI_MSG(CONTINUE, 4, "10"); // player 1 3 4 win
     ASSERT_PRI_MSG(FAILED, 0, "30"); // lose in term 1
     ASSERT_PRI_MSG(FAILED, 2, "30"); // lose in term 1
     ASSERT_PRI_MSG(FAILED, 1, "9"); // should greater than 10
@@ -65,13 +65,13 @@ GAME_TEST(5, do_nothing)
     START_GAME();
 
     for (int j = 0; j < 10; ++j) {
-        ASSERT_TIMEOUT(FAILED);
+        ASSERT_TIMEOUT(CONTINUE);
         ASSERT_TIMEOUT(CHECKOUT);
     }
     for (int i = 0; i < 5; ++i) {
         //ASSERT_TIMEOUT(CHECKOUT); // discard stage
         for (int j = 0; j < 10; ++j) {
-            ASSERT_TIMEOUT(FAILED);
+            ASSERT_TIMEOUT(CONTINUE);
             ASSERT_TIMEOUT(CHECKOUT);
         }
     }

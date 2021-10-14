@@ -17,14 +17,9 @@ using AtomReqErrCode = StageErrCode::SubSet<StageErrCode::OK,        // act succ
                                               StageErrCode::READY,     // act successfully and ready to checkout
                                               StageErrCode::CHECKOUT>; // to checkout
 
-using CompReqErrCode = StageErrCode::SubSet<StageErrCode::OK,
-                                              StageErrCode::FAILED>;
+using CompReqErrCode = StageErrCode::SubSet<StageErrCode::OK, StageErrCode::FAILED>;
 
-using TimeoutErrCode = StageErrCode::SubSet<StageErrCode::FAILED,
-                                             StageErrCode::CHECKOUT>;
-
-using LeaveErrCode = StageErrCode::SubSet<StageErrCode::OK,
-                                             StageErrCode::CHECKOUT>;
+using CheckoutErrCode = StageErrCode::SubSet<StageErrCode::CONTINUE, StageErrCode::CHECKOUT>;
 
 class Masker
 {
@@ -412,8 +407,8 @@ class GameStage<GameOption, MainStage>
     const GameOption& option() const { return static_cast<const GameOption&>(Base::option_); }
 
   protected:
-    virtual LeaveErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::READY; }
-    virtual TimeoutErrCode OnTimeout() { return StageErrCode::CHECKOUT; }
+    virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CONTINUE; }
+    virtual CheckoutErrCode OnTimeout() { return StageErrCode::CHECKOUT; }
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::READY; }
     // User can use ClearReady to unset masker. In this case, stage will not checkout.
     virtual void OnAllPlayerReady() {}
@@ -440,9 +435,7 @@ class GameStage<GameOption, MainStage>
         if (Base::masker().IsReady()) {
             // We do not check IsReady only when rc is READY to handle all player force exit.
             OnAllPlayerReady();
-            if (Base::masker().IsReady()) {
-                rc = StageErrCode::CHECKOUT;
-            }
+            rc = StageErrCode::Condition(Base::masker().IsReady(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
         }
         if (rc == StageErrCode::CHECKOUT) {
             Over();

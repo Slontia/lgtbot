@@ -133,14 +133,13 @@ class BidStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    TimeoutErrCode OnTimeout() { return TimeoutErrCode::Condition(BidOver_(), StageErrCode::CHECKOUT, StageErrCode::FAILED); }
+    CheckoutErrCode OnTimeout() { return CheckoutErrCode::Condition(BidOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE); }
     void OnAllPlayerReady() { BidOver_(); }
 
   private:
     bool BidOver_()
     {
-        auto sender = Boardcast();
-        const auto ret = bidding_manager_.BidOver(sender);
+        const auto ret = bidding_manager_.BidOver(BoardcastMsgSender());
         if (ret.second.size() == 1) {
             assert(ret.first.has_value());
             const auto& max_chip = *ret.first;
@@ -157,18 +156,19 @@ class BidStage : public SubGameStage<>
                 discarder.coins_ += max_chip;
             }
             pokers_.clear();
-            sender << "\n恭喜" << At(ret.second[0]) << "中标，现持有卡牌：\n" << winner.hand_;
+            Boardcast() << "恭喜" << At(ret.second[0]) << "中标，现持有卡牌：\n" << winner.hand_;
             return true;
         } else if ((++bid_count_) == option().GET_VALUE(投标轮数)) {
-            sender << "\n投标轮数达到最大值，本商品流标";
+            Boardcast() << "投标轮数达到最大值，本商品流标";
             if (discarder_.has_value()) {
                 pokers_.clear();
             }
             return true;
         } else {
-            sender << "\n最大金额投标者有多名玩家，分别是：";
+            auto sender = Boardcast();
+            sender << "最大金额投标者有多名玩家，分别是：";
             for (const auto& winner : ret.second) {
-                sender << At(winner);
+                sender << "\n" << At(winner);
                 ClearReady(winner);
             }
             sender << "\n开始新的一轮投标，这些玩家可在此轮中重新投标（投标额不得少于上一轮）";
@@ -362,7 +362,7 @@ class DiscardStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    TimeoutErrCode OnTimeout()
+    CheckoutErrCode OnTimeout()
     {
         return StageErrCode::CHECKOUT;
     }
