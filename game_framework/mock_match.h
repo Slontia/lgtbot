@@ -77,7 +77,14 @@ class MockMatch : public MatchBase
         return tell_senders_.try_emplace(pid, MockMsgSender(pid, false)).first->second;
     }
 
-    virtual void StartTimer(const uint64_t) override {}
+    virtual const char* PlayerName(const PlayerID& pid)
+    {
+        thread_local static std::string str;
+        str = "PLAYER_" + std::to_string(pid);
+        return str.c_str();
+    }
+
+    virtual void StartTimer(const uint64_t, void* p, void(*cb)(void*, uint64_t)) override {}
 
     virtual void StopTimer() override {}
 

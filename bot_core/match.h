@@ -52,9 +52,22 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     ErrCode LeaveMidway(const UserID uid, const bool is_public);
     virtual MsgSenderBase& BoardcastMsgSender() override;
     virtual MsgSenderBase& TellMsgSender(const PlayerID pid) override;
+    virtual const char* PlayerName(const PlayerID& pid)
+    {
+        thread_local static std::string str;
+        const auto& id = ConvertPid(pid);
+        if (const auto pval = std::get_if<ComputerID>(&id)) {
+            return (str = "机器人" + std::to_string(*pval) + "号").c_str();
+        }
+        if (!gid().has_value()) {
+            return GetUserName(std::get<UserID>(id), nullptr);
+        }
+        const uint64_t gid_value = *gid();
+        return GetUserName(std::get<UserID>(id), &gid_value);
+    }
     MsgSenderBase::MsgSenderGuard Boardcast() { return BoardcastMsgSender()(); }
     MsgSenderBase::MsgSenderGuard Tell(const PlayerID pid) { return TellMsgSender(pid)(); }
-    virtual void StartTimer(const uint64_t sec) override;
+    virtual void StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t)) override;
     virtual void StopTimer() override;
     void ShowInfo(const std::optional<GroupID>&, MsgSenderBase& reply) const;
 

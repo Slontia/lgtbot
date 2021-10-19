@@ -107,6 +107,17 @@ void CloseMessager(void* p)
     delete messager;
 }
 
+const char* GetUserName(const uint64_t uid, const uint64_t* const group_id)
+{
+    thread_local static std::string str;
+    if (group_id == nullptr) {
+        str = std::to_string(uid);
+    } else {
+        str = std::to_string(uid) + "(gid=" + std::to_string(*group_id) + ")";
+    }
+    return str.c_str();
+}
+
 auto init_bot(int argc, char** argv) { const char* errmsg = nullptr; }
 
 std::pair<std::string_view, std::string_view> cut(const std::string_view line)

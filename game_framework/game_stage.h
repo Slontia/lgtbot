@@ -23,10 +23,9 @@ using CheckoutErrCode = StageErrCode::SubSet<StageErrCode::CONTINUE, StageErrCod
 
 class Masker
 {
-  private:
+  public:
     enum class State { SET, UNSET, PINNED };
 
-  public:
     Masker(const size_t size) : recorder_(size, State::UNSET), unset_count_(size) {}
 
     bool Set(const size_t index) { return Record_(index, State::SET); }
@@ -34,6 +33,8 @@ class Masker
     void Unset(const size_t index) { Record_(index, State::UNSET); }
 
     bool Pin(const size_t index) { return Record_(index, State::PINNED); }
+
+    State Get(const size_t index) { return recorder_[index]; }
 
     void Clear()
     {
@@ -115,6 +116,8 @@ class StageBaseWrapper : virtual public StageBase
     decltype(auto) Boardcast() const { return BoardcastMsgSender()(); }
 
     decltype(auto) Tell(const PlayerID pid) const { return TellMsgSender(pid)(); }
+
+    std::string PlayerName(const PlayerID pid) const { return match_.PlayerName(pid); }
 
     const std::string& name() const { return name_; }
 
@@ -286,7 +289,7 @@ class GameStage<GameOption, MainStage, SubStages...>
 
     virtual std::string StageInfo() const override
     {
-        return std::visit([this](auto&& sub_stage) { return Base::name_ + " - " + sub_stage->StageInfo(); }, sub_stage_);
+        return std::visit([this](auto&& sub_stage) { return Base::name_ + " >> " + sub_stage->StageInfo(); }, sub_stage_);
     }
 
     void CheckoutSubStage(const CheckoutReason reason)
@@ -360,6 +363,7 @@ class GameStage<GameOption, MainStage>
     virtual void OnStageBegin() {}
     virtual void HandleStageBegin()
     {
+        Base::Boardcast() << "【当前阶段】\n" << Base::main_stage().StageInfo();
         OnStageBegin();
         Handle_(StageErrCode::OK);
     }
@@ -413,10 +417,21 @@ class GameStage<GameOption, MainStage>
     // User can use ClearReady to unset masker. In this case, stage will not checkout.
     virtual void OnAllPlayerReady() {}
 
+    static void TimerCallback(void* const p, const uint64_t alert_sec)
+    {
+        auto& stage = *static_cast<GameStage*>(p);
+        stage.Boardcast() << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) << "秒";
+        for (PlayerID pid = 0; pid < stage.option().PlayerNum(); ++pid) {
+            if (stage.masker().Get(pid) == Masker::State::UNSET) {
+                stage.Tell(pid) << "您还未选择，要抓紧了，机会不等人";
+            }
+        }
+    }
+
     void StartTimer(const uint64_t sec)
     {
         finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
-        Base::match_.StartTimer(sec);
+        Base::match_.StartTimer(sec, this, TimerCallback);
     }
 
     void StopTimer()

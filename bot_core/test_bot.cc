@@ -84,6 +84,17 @@ void CloseMessager(void* p)
     delete messager;
 }
 
+const char* GetUserName(const uint64_t uid, const uint64_t* const group_id)
+{
+    thread_local static std::string str;
+    if (group_id == nullptr) {
+        str = std::to_string(uid);
+    } else {
+        str = std::to_string(uid) + "(gid=" + std::to_string(*group_id) + ")";
+    }
+    return str.c_str();
+}
+
 class TestBot;
 
 static std::mutex substage_blocked_mutex_;

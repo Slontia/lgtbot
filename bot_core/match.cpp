@@ -292,7 +292,7 @@ bool Match::SwitchHost()
 }
 
 // REQUIRE: should be protected by mutex_
-void Match::StartTimer(const uint64_t sec)
+void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
 {
     static const uint64_t kMinAlertSec = 10;
     if (sec == 0) {
@@ -322,9 +322,7 @@ void Match::StartTimer(const uint64_t sec)
         tasks.emplace_front(kMinAlertSec, timeout_handler);
         uint64_t sum_alert_sec = kMinAlertSec;
         for (uint64_t alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2) {
-            tasks.emplace_front(alert_sec, [this, alert_sec] {
-                Boardcast() << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) << "秒";
-            });
+            tasks.emplace_front(alert_sec, std::bind(cb, p, alert_sec));
         }
         tasks.emplace_front(sec - sum_alert_sec, [] {});
     }
@@ -392,24 +390,26 @@ void Match::OnGameOver_()
         scores[pid] = main_stage_->PlayerScore(pid);
     }
     end_time_ = std::chrono::system_clock::now();
-    auto sender = Boardcast();
-    sender << "游戏结束，公布分数：\n";
-    for (PlayerID pid = 0; pid < PlayerNum(); ++pid) {
-        sender << At(pid) << " " << scores[pid] << "\n";
-    }
-    sender << "感谢诸位参与！";
+    {
+        auto sender = Boardcast();
+        sender << "游戏结束，公布分数：\n";
+        for (PlayerID pid = 0; pid < PlayerNum(); ++pid) {
+            sender << At(pid) << " " << scores[pid] << "\n";
+        }
+        sender << "感谢诸位参与！";
 #ifdef WITH_MYSQL
-    const std::vector<Match::ScoreInfo> score_info = CalScores_(scores);
-    if (auto& db_manager = DBManager::GetDBManager(); !db_manager) {
-        sender << "\n[警告] 未连接数据库，游戏结果不会被记录";
-    } else if (std::optional<uint64_t> game_id = game_handle_.game_id_.load(); !game_id.has_value()) {
-        sender << "\n[警告] 该游戏未发布，游戏结果不会被记录";
-    } else if (!db_manager->RecordMatch(*game_id, gid_, host_uid_, multiple_, score_info)) {
-        sender << "\n[错误] 游戏结果写入数据库失败，请联系管理员";
-    } else {
-        sender << "\n游戏结果写入数据库成功！";
-    }
+        const std::vector<Match::ScoreInfo> score_info = CalScores_(scores);
+        if (auto& db_manager = DBManager::GetDBManager(); !db_manager) {
+            sender << "\n[警告] 未连接数据库，游戏结果不会被记录";
+        } else if (std::optional<uint64_t> game_id = game_handle_.game_id_.load(); !game_id.has_value()) {
+            sender << "\n[警告] 该游戏未发布，游戏结果不会被记录";
+        } else if (!db_manager->RecordMatch(*game_id, gid_, host_uid_, multiple_, score_info)) {
+            sender << "\n[错误] 游戏结果写入数据库失败，请联系管理员";
+        } else {
+            sender << "\n游戏结果写入数据库成功！";
+        }
 #endif
+    }
     Terminate_();
 }
 

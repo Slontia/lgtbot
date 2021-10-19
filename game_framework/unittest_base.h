@@ -36,7 +36,7 @@ class TestGame : public MockMatch, public testing::Test
 
     auto& expected_scores() const { return expected_scores_; }
 
-    virtual void StartTimer(const uint64_t /*sec*/) override { timer_started_ = true; }
+    virtual void StartTimer(const uint64_t /*sec*/, void* p, void(*cb)(void*, uint64_t)) override { timer_started_ = true; }
 
     virtual void StopTimer() override { timer_started_ = false; }
 

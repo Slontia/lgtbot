@@ -18,6 +18,7 @@ void MessagerPostUser(void* p, uint64_t uid, bool is_at);
 void MessagerPostImage(void* p, const char* path);
 void MessagerFlush(void* p);
 void CloseMessager(void* p);
+const char* GetUserName(uint64_t uid, const uint64_t* group_id);
 class PlayerID;
 class UserID;
 class GroupID;

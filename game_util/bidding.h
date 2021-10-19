@@ -65,9 +65,10 @@ class BiddingManager
 #endif
                 if (std::next(it) != chips.end()) {
                     player.is_allow_ = false;
-                } else {
-                    return {it->first, std::move(it->second)};
                 }
+            }
+            if (std::next(it) == chips.end()) {
+                return {it->first, std::move(it->second)};
             }
         }
         sender() << "无人投标！";

@@ -12,6 +12,7 @@ class MatchBase
     virtual ~MatchBase() {}
     virtual MsgSenderBase& BoardcastMsgSender() = 0;
     virtual MsgSenderBase& TellMsgSender(const PlayerID pid) = 0;
-    virtual void StartTimer(const uint64_t sec) = 0;
+    virtual const char* PlayerName(const PlayerID& pid) = 0;
+    virtual void StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t)) = 0;
     virtual void StopTimer() = 0;
 };
