@@ -110,7 +110,6 @@ class RoundStage : public SubGameStage<>
     RoundStage(MainStage& main_stage, const uint64_t round, const comb::AreaCard& card)
             : GameStage(main_stage, "第" + std::to_string(round) + "回合",
                 MakeStageCommand("设置数字", &RoundStage::Set_, ArithChecker<uint32_t>(0, 19, "数字")),
-                MakeStageCommand("跳过本回合数字设置（不推荐）", &RoundStage::Pass_, VoidChecker("pass")),
                 MakeStageCommand("查看本回合开始时蜂巢情况，可用于图片重发", &RoundStage::Info_, VoidChecker("赛况")))
             , card_(card)
             , comb_html_(CombHtml_(round, main_stage))
@@ -124,11 +123,22 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
+    CheckoutErrCode OnTimeout()
+    {
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            if (!IsReady(pid)) {
+                Boardcast() << At(pid) << "因为超时未做选择，被淘汰";
+                Eliminate(pid);
+            }
+        }
+        return StageErrCode::CHECKOUT;
+    }
+
     AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t idx)
     {
         auto& player = main_stage().players_[pid];
         if (IsReady(pid)) {
-            reply() << "您已经设置过，无法重复设置"; // TODO: support change selection
+            reply() << "您已经设置过，无法重复设置";
             return StageErrCode::FAILED;
         }
         if (player.comb_->IsFilled(idx)) {
@@ -142,12 +152,6 @@ class RoundStage : public SubGameStage<>
             sender << "，本次操作收获" << point << "点积分";
         }
         player.score_ += point;
-        return StageErrCode::READY;
-    }
-
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
-    {
-        reply() << "跳过成功";
         return StageErrCode::READY;
     }
 
@@ -167,7 +171,7 @@ class RoundStage : public SubGameStage<>
     {
         std::string str = "## 第" + std::to_string(round) + "回合";
         for (PlayerID pid = 0; pid < main_stage.players_.size(); ++pid) {
-            str += "\n### ";
+            str += "\n\n### ";
             str += main_stage.PlayerName(pid);
             str += "（当前积分：";
             str += std::to_string(main_stage.players_[pid].score_);

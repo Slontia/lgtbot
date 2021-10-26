@@ -31,6 +31,22 @@ class DiscussMatch;
 class MatchManager;
 class GameHandle;
 
+struct ParticipantUser
+{
+    enum class State { ACTIVE, LEFT };
+    ParticipantUser(const UserID uid)
+        : uid_(uid)
+        , sender_(uid)
+        , state_(State::ACTIVE)
+        , leave_when_config_changed_(true)
+    {}
+    const UserID uid_;
+    std::vector<PlayerID> pids_;
+    MsgSender sender_;
+    State state_;
+    bool leave_when_config_changed_;
+};
+
 class Match : public MatchBase, public std::enable_shared_from_this<Match>
 {
   public:
@@ -69,6 +85,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     MsgSenderBase::MsgSenderGuard Tell(const PlayerID pid) { return TellMsgSender(pid)(); }
     virtual void StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t)) override;
     virtual void StopTimer() override;
+    virtual void Eliminate(const PlayerID pid) override;
     void ShowInfo(const std::optional<GroupID>&, MsgSenderBase& reply) const;
 
     bool SwitchHost();
@@ -143,20 +160,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     GameHandle::main_stage_ptr main_stage_;
 
     // player info
-    struct ParticipantUser
-    {
-        ParticipantUser(const UserID uid)
-            : uid_(uid)
-            , sender_(uid)
-            , is_left_during_game_(false)
-            , leave_when_config_changed_(true)
-        {}
-        const UserID uid_;
-        std::vector<PlayerID> pids_;
-        MsgSender sender_;
-        bool leave_when_config_changed_;
-        bool is_left_during_game_;
-    };
     std::map<UserID, ParticipantUser> users_;
     std::variant<MsgSender, MsgSenderBatch> boardcast_sender_;
 
@@ -166,7 +169,13 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     uint16_t multiple_;
 
     // player info (fill when game ready to start)
-    std::vector<VariantID> players_; // all players, include computers
+    struct Player
+    {
+        Player(const VariantID& id) : id_(id), is_eliminated_(false) {}
+        VariantID id_;
+        bool is_eliminated_;
+    };
+    std::vector<Player> players_; // all players, include computers
 
     const Command<void(MsgSenderBase&)> help_cmd_;
 };

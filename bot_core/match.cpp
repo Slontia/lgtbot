@@ -38,7 +38,7 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
                               : std::variant<MsgSender, MsgSenderBatch>(MsgSenderBatch([this](const std::function<void(MsgSender&)>& fn)
                                         {
                                             for (auto& [_, user_info] : users_) {
-                                                if (!user_info.is_left_during_game_) {
+                                                if (user_info.state_ != ParticipantUser::State::LEFT) {
                                                     fn(user_info.sender_);
                                                 }
                                             }
@@ -62,7 +62,7 @@ Match::VariantID Match::ConvertPid(const PlayerID pid) const
     if (!pid.IsValid()) {
         return host_uid_; // TODO: UINT64_MAX for host
     }
-    return players_[pid];
+    return players_[pid].id_;
 }
 
 ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_to_player_num)
@@ -114,6 +114,10 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         assert(it != users_.end());
         const auto pid = it->second.pids_[0];
         assert(state_ == State::IS_STARTED);
+        if (players_[pid].is_eliminated_) {
+            reply() << "[错误] 您已经被淘汰，无法执行游戏请求";
+            return EC_MATCH_ELIMINATED;
+        }
         const auto stage_rc = main_stage_->HandleRequest(msg.c_str(), pid, gid.has_value(), reply);
         if (stage_rc == StageErrCode::NOT_FOUND) {
             reply() << "[错误] 未预料的游戏指令，您可以通过\"帮助\"（不带#号）查看所有支持的游戏指令\n"
@@ -223,14 +227,14 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
         const auto it = users_.find(uid);
         assert(it != users_.end());
         assert(main_stage_);
-        assert(!it->second.is_left_during_game_);
-        it->second.is_left_during_game_ = true;
+        assert(it->second.state_ != ParticipantUser::State::LEFT);
+        it->second.state_ = ParticipantUser::State::LEFT;
         for (const auto pid : it->second.pids_) {
             main_stage_->HandleLeave(pid);
             Routine_();
         }
     } else {
-        reply() << "[错误] 退出失败：游戏已经开始，若仍要退出游戏，请使用<#强制退出游戏>命令";
+        reply() << "[错误] 退出失败：游戏已经开始，若仍要退出游戏，请使用<#退出 强制>命令";
         rc = EC_MATCH_ALREADY_BEGIN;
     }
     return rc;
@@ -246,7 +250,7 @@ MsgSenderBase& Match::TellMsgSender(const PlayerID pid)
     const auto& id = ConvertPid(pid);
     if (const auto pval = std::get_if<UserID>(&id); !pval) {
         return EmptyMsgSender::Get(); // is computer
-    } else if (const auto it = users_.find(*pval); it != users_.end() && !it->second.is_left_during_game_) {
+    } else if (const auto it = users_.find(*pval); it != users_.end() && it->second.state_ != ParticipantUser::State::LEFT) {
         return it->second.sender_;
     } else {
         return EmptyMsgSender::Get(); // player exit
@@ -274,7 +278,7 @@ std::vector<Match::ScoreInfo> Match::CalScores_(const std::vector<int64_t>& scor
         return 1.0 / score_offset_sum;
     }();
     for (PlayerID pid = 0; pid < player_num; ++pid) {
-        if (const auto pval = std::get_if<UserID>(&players_[pid])) {
+        if (const auto pval = std::get_if<UserID>(&players_[pid].id_)) {
             Match::ScoreInfo& score_info = ret[pid];
             score_info.uid_ = *pval;
             score_info.game_score_ = scores[pid];
@@ -343,6 +347,12 @@ void Match::StopTimer()
         *timer_is_over_ = true;
     }
     timer_ = nullptr; // stop timer
+}
+
+void Match::Eliminate(const PlayerID pid)
+{
+    players_[pid].is_eliminated_ = true;
+    Tell(pid) << "很遗憾，您被淘汰了，可以通过「#退出」以退出游戏";
 }
 
 void Match::ShowInfo(const std::optional<GroupID>& gid, MsgSenderBase& reply) const

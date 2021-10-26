@@ -15,4 +15,5 @@ class MatchBase
     virtual const char* PlayerName(const PlayerID& pid) = 0;
     virtual void StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t)) = 0;
     virtual void StopTimer() = 0;
+    virtual void Eliminate(const PlayerID pid) = 0;
 };

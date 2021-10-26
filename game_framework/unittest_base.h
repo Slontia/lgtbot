@@ -15,7 +15,7 @@ class TestGame : public MockMatch, public testing::Test
    public:
     using ScoreArray = std::array<int64_t, k_player_num>;
 
-    TestGame() : timer_started_(false) {}
+    TestGame() : MockMatch(k_player_num), timer_started_(false) {}
 
     virtual ~TestGame() {}
 

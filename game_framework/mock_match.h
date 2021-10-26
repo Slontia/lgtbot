@@ -68,6 +68,8 @@ class MockMsgSender : public MsgSenderBase
 class MockMatch : public MatchBase
 {
   public:
+    MockMatch(const uint64_t player_num) : is_eliminated_(player_num, false) {}
+
     virtual ~MockMatch() {}
 
     virtual MsgSenderBase& BoardcastMsgSender() override { return boardcast_sender_; }
@@ -88,8 +90,13 @@ class MockMatch : public MatchBase
 
     virtual void StopTimer() override {}
 
+    virtual void Eliminate(const PlayerID pid) override { is_eliminated_[pid] = true; }
+
+    bool IsEliminated(const PlayerID pid) const { return is_eliminated_[pid]; }
+
   private:
     MockMsgSender boardcast_sender_;
     std::map<uint64_t, MockMsgSender> tell_senders_;
+    std::vector<bool> is_eliminated_;
 };
 

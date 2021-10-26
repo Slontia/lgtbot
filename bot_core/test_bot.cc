@@ -117,6 +117,7 @@ class SubStage : public SubGameStage<>
                 , MakeStageCommand("断言并清除电脑行动次数", &SubStage::CheckComputerActCount_, VoidChecker("电脑行动次数"), ArithChecker<uint64_t>(0, UINT64_MAX))
                 , MakeStageCommand("电脑失败次数", &SubStage::ToComputerFailed_, VoidChecker("电脑失败"),
                     BasicChecker<PlayerID>(), ArithChecker<uint64_t>(0, UINT64_MAX))
+                , MakeStageCommand("淘汰", &SubStage::Eliminate_, VoidChecker("淘汰"))
           )
         , computer_act_count_(0)
         , to_reset_timer_(false)
@@ -212,6 +213,12 @@ class SubStage : public SubGameStage<>
         EXPECT_EQ(expected, computer_act_count_);
         computer_act_count_ = 0;
         return StageErrCode::READY;
+    }
+
+    AtomReqErrCode Eliminate_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        Eliminate(pid);
+        return StageErrCode::OK;
     }
 
     uint64_t computer_act_count_;
@@ -1062,6 +1069,40 @@ TEST_F(TestBot, timeout_during_handle_rquest)
   NotifySubStage();
   fut_1.wait();
   fut_2.wait();
+
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+}
+
+// Eliminate
+
+TEST_F(TestBot, eliminate_first)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备切换 1");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "淘汰");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 2, "准备");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 2, "准备");
+
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, eliminate_last)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备切换 1");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 2, "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "淘汰");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 2, "准备");
 
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }

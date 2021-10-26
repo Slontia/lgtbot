@@ -81,9 +81,10 @@ class StageBaseWrapper : virtual public StageBase
 {
   public:
     template <typename String, typename ...Commands>
-    StageBaseWrapper(const GameOptionBase& option, MatchBase& match, String&& name, Commands&& ...commands)
+    StageBaseWrapper(const GameOptionBase& option, MatchBase& match, Masker& masker, String&& name, Commands&& ...commands)
         : option_(option)
         , match_(match)
+        , masker_(masker)
         , name_(std::forward<String>(name))
         , commands_{std::forward<Commands>(commands)...}
     {}
@@ -119,9 +120,18 @@ class StageBaseWrapper : virtual public StageBase
 
     std::string PlayerName(const PlayerID pid) const { return match_.PlayerName(pid); }
 
+    void Eliminate(const PlayerID pid) const
+    {
+        masker_.Pin(pid);
+        match_.Eliminate(pid);
+    }
+
     const std::string& name() const { return name_; }
 
     MatchBase& match() { return match_; }
+
+    Masker& masker() { return masker_; }
+    const Masker& masker() const { return masker_; }
 
     virtual void HandleStageBegin() override = 0;
     virtual StageErrCode HandleTimeout() = 0;
@@ -155,6 +165,7 @@ class StageBaseWrapper : virtual public StageBase
     const std::string name_;
     const GameOptionBase& option_;
     MatchBase& match_;
+    Masker& masker_;
 
     std::vector<GameCommand<std::conditional_t<IS_ATOM, AtomReqErrCode, CompReqErrCode>>> commands_;
 };
@@ -165,15 +176,12 @@ class SubStageBaseWrapper : public StageBaseWrapper<IS_ATOM>
   public:
     template <typename String, typename ...Commands>
     SubStageBaseWrapper(MainStage& main_stage, String&& name, Commands&& ...commands)
-        : StageBaseWrapper<IS_ATOM>(main_stage.option(), main_stage.match(), std::forward<String>(name), std::forward<Commands>(commands)...)
+        : StageBaseWrapper<IS_ATOM>(main_stage.option(), main_stage.match(), main_stage.masker(), std::forward<String>(name), std::forward<Commands>(commands)...)
         , main_stage_(main_stage)
     {}
 
     MainStage& main_stage() { return main_stage_; }
     const MainStage& main_stage() const { return main_stage_; }
-
-    Masker& masker() { return main_stage_.masker(); }
-    const Masker& masker() const { return main_stage_.masker(); }
 
   private:
     MainStage& main_stage_;
@@ -185,14 +193,11 @@ class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_AT
   public:
     template <typename ...Commands>
     MainStageBaseWrapper(const GameOptionBase& option, MatchBase& match, Commands&& ...commands)
-        : StageBaseWrapper<IS_ATOM>(option, match, "主阶段", std::forward<Commands>(commands)...)
+        : StageBaseWrapper<IS_ATOM>(option, match, masker_, "主阶段", std::forward<Commands>(commands)...)
         , masker_(option.PlayerNum())
     {}
 
     virtual int64_t PlayerScore(const PlayerID pid) const = 0;
-
-    Masker& masker() { return masker_; }
-    const Masker& masker() const { return masker_; }
 
   private:
     Masker masker_;
