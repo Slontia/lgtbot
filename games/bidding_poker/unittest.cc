@@ -9,7 +9,7 @@ GAME_TEST(5, bid_1)
 {
     ASSERT_PUB_MSG(OK, 0, "初始金币数 100");
     START_GAME();
-    ASSERT_PUB_MSG(OK, 0, "场况");
+    ASSERT_PUB_MSG(OK, 0, "赛况");
 
     // item 1
     ASSERT_PUB_MSG(FAILED, 0, "10");
@@ -226,7 +226,7 @@ GAME_TEST(5, discard_2)
     ASSERT_PRI_MSG(OK, 4, "不弃牌");
     ASSERT_PRI_MSG(CHECKOUT, 2, "弃牌 黑桃A");
 
-    ASSERT_PRI_MSG(OK, 0, "场况");
+    ASSERT_PRI_MSG(OK, 0, "赛况");
 
     for (int i = 0; i < 8; ++i) {
         ASSERT_TIMEOUT(CHECKOUT);

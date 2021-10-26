@@ -23,11 +23,14 @@ class BotCtx
 
     bool HasAdmin(const UserID uid) const { return admins_.find(uid) != admins_.end(); }
 
+    const std::string& game_path() const { return game_path_; }
+
   private:
     void LoadGameModules_(const char* const games_path);
     void LoadAdmins_(const uint64_t* const admins);
 
     const UserID this_uid_;
+    const std::string game_path_;
     std::mutex mutex_;
     GameHandleMap game_handles_;
     std::set<UserID> admins_;

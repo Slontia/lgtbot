@@ -85,7 +85,7 @@ class MsgSenderBase
         ss << std::this_thread::get_id();
         const std::string tmp_image_name = ss.str();
         MarkdownToImage(markdown, tmp_image_name);
-        SaveImage(tmp_image_name.c_str());
+        SaveImage(ImageAbsPath(tmp_image_name).c_str());
     }
     virtual void Flush() = 0;
 };
@@ -130,7 +130,7 @@ class MsgSender : public MsgSenderBase
     virtual void SaveText(const char* const data, const uint64_t len) override { MessagerPostText(sender_, data, len); }
     virtual void SaveUser(const UserID& uid, const bool is_at) override { MessagerPostUser(sender_, uid, is_at); }
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override;
-    virtual void SaveImage(const char* const path) override { MessagerPostImage(sender_, ImageAbsPath(path).c_str()); }
+    virtual void SaveImage(const char* const path) override { MessagerPostImage(sender_, path); }
     virtual void Flush() override { MessagerFlush(sender_); }
     void SaveText_(const std::string_view& sv) { SaveText(sv.data(), sv.size()); }
     friend class MsgSenderBatch;

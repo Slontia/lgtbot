@@ -12,13 +12,18 @@ extern MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& opti
 
 extern "C" {
 
-const char* GameInfo(uint64_t* max_player, const char** rule)
+const char* GameInfo(uint64_t* max_player, const char** rule, const char** module_name)
 {
     if (!max_player || !rule) {
         return nullptr;
     }
     *max_player = k_max_player;
     *rule = Rule();
+#ifndef GAME_MODULE_NAME
+    *module_name = "[unset_module_name]";
+#else
+    *module_name = GAME_MODULE_NAME;
+#endif
     return k_game_name.c_str();
 }
 

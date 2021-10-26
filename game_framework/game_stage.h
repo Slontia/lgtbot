@@ -163,12 +163,6 @@ template <bool IS_ATOM, typename MainStage>
 class SubStageBaseWrapper : public StageBaseWrapper<IS_ATOM>
 {
   public:
-    template <typename ...Commands>
-    SubStageBaseWrapper(MainStage& main_stage, Commands&& ...commands)
-        : StageBaseWrapper<IS_ATOM>(main_stage.option(), main_stage.match(), "（匿名子阶段）", std::forward<Commands>(commands)...)
-        , main_stage_(main_stage)
-    {}
-
     template <typename String, typename ...Commands>
     SubStageBaseWrapper(MainStage& main_stage, String&& name, Commands&& ...commands)
         : StageBaseWrapper<IS_ATOM>(main_stage.option(), main_stage.match(), std::forward<String>(name), std::forward<Commands>(commands)...)
@@ -191,13 +185,7 @@ class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_AT
   public:
     template <typename ...Commands>
     MainStageBaseWrapper(const GameOptionBase& option, MatchBase& match, Commands&& ...commands)
-        : StageBaseWrapper<IS_ATOM>(option, match, "（匿名主阶段）", std::forward<Commands>(commands)...)
-        , masker_(option.PlayerNum())
-    {}
-
-    template <typename String, typename ...Commands>
-    MainStageBaseWrapper(const GameOptionBase& option, MatchBase& match, String&& name, Commands&& ...commands)
-        : StageBaseWrapper<IS_ATOM>(option, match, std::forward<String>(name), std::forward<Commands>(commands)...)
+        : StageBaseWrapper<IS_ATOM>(option, match, "主阶段", std::forward<Commands>(commands)...)
         , masker_(option.PlayerNum())
     {}
 
@@ -443,6 +431,7 @@ class GameStage<GameOption, MainStage>
     void ClearReady() { Base::masker().Clear(); }
     void ClearReady(const PlayerID pid) { Base::masker().Unset(pid); }
     void SetReady(const PlayerID pid) { Base::masker().Set(pid); }
+    bool IsReady(const PlayerID pid) { return Base::masker().Get(pid) != Masker::State::UNSET; }
 
    private:
     StageErrCode Handle_(StageErrCode rc)

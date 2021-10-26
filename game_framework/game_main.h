@@ -37,10 +37,12 @@ class MatchBase;
 class GameOptionBase
 {
   public:
-    GameOptionBase(const uint64_t size) : size_(size) {}
+    GameOptionBase(const uint64_t size) : size_(size), player_num_(0), resource_dir_(nullptr) {}
     void SetPlayerNum(const uint64_t player_num) { player_num_ = player_num; }
     const uint64_t PlayerNum() const { return player_num_; }
     const uint64_t Size() const { return size_; }
+    virtual void SetResourceDir(const char* const resource_dir) = 0;
+    virtual const char* ResourceDir() const = 0;
     virtual const char* Info(const uint64_t index) const = 0;
     virtual const char* ColoredInfo(const uint64_t index) const = 0;
     virtual const char* Status() const = 0;
@@ -49,6 +51,7 @@ class GameOptionBase
   private:
     const uint64_t size_;
     uint64_t player_num_;
+    const char* resource_dir_;
 };
 
 class StageBase

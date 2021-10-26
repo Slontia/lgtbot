@@ -266,7 +266,7 @@ static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<Grou
         return EC_REQUEST_UNKNOWN_GAME;
     };
     if (!show_text) {
-        reply() << Image(it->second->rule_image_path_);
+        reply() << Markdown(it->second->rule_);
         return EC_OK;
     }
     auto sender = reply();

@@ -23,8 +23,8 @@ struct GameHandle {
     using main_stage_deleter = void(*)(const MainStageBase*);
     using main_stage_ptr = std::unique_ptr<MainStageBase, main_stage_deleter>;
 
-    GameHandle(const std::optional<uint64_t> game_id, const std::string& name, const uint64_t max_player,
-               const std::string& rule,
+    GameHandle(const std::optional<uint64_t> game_id, const std::string& name, const std::string& module_name,
+               const uint64_t max_player, const std::string& rule,
                const game_options_allocator& game_options_allocator_fn,
                const game_options_deleter& game_options_deleter_fn,
                const main_stage_allocator& main_stage_allocator_fn,
@@ -33,6 +33,7 @@ struct GameHandle {
         : is_released_(game_id.has_value())
         , game_id_(game_id.has_value() ? *game_id : 0)
         , name_(name)
+        , module_name_(module_name)
         , max_player_(max_player)
         , rule_(rule)
         , game_options_allocator_(game_options_allocator_fn)
@@ -40,10 +41,7 @@ struct GameHandle {
         , main_stage_allocator_(main_stage_allocator_fn)
         , main_stage_deleter_(main_stage_deleter_fn)
         , mod_guard_(std::forward<ModGuard>(mod_guard))
-        , rule_image_path_(std::filesystem::path("rule") / name)
-    {
-        MarkdownToImage(rule, rule_image_path_);
-    }
+    {}
 
     GameHandle(GameHandle&&) = delete;
 
@@ -81,6 +79,7 @@ struct GameHandle {
     }
 
     const std::string name_;
+    const std::string module_name_;
     const uint64_t max_player_;
     const std::string rule_;
     const game_options_allocator game_options_allocator_;
@@ -88,7 +87,6 @@ struct GameHandle {
     const main_stage_allocator main_stage_allocator_;
     const main_stage_deleter main_stage_deleter_;
     const ModGuard mod_guard_;
-    const std::filesystem::path rule_image_path_;
 
   private:
     std::atomic<bool> is_released_;

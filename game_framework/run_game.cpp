@@ -28,9 +28,11 @@ int Run()
     main_stage->HandleStageBegin();
 
     uint64_t ok_count = 0;
-    for (uint64_t i = 0; !main_stage->IsOver() && ok_count < FLAGS_player; i = (i + i) % FLAGS_player) {
+    for (uint64_t i = 0; !main_stage->IsOver() && ok_count < FLAGS_player; i = (i + 1) % FLAGS_player) {
         if (StageErrCode::OK == main_stage->HandleComputerAct(i)) {
             ++ok_count;
+        } else {
+            ok_count = 0;
         }
     }
 

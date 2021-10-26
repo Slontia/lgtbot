@@ -65,6 +65,8 @@ class GameOption : public GameOptionBase
         return false;
     }
 
+    virtual void SetResourceDir(const char* const resource_dir) { resource_dir_ = resource_dir; }
+    virtual const char* ResourceDir() const { return resource_dir_.c_str(); }
     virtual const char* Info(const uint64_t index) const override { return infos_[index].first.c_str(); }
     virtual const char* ColoredInfo(const uint64_t index) const override { return infos_[index].second.c_str(); }
 
@@ -85,6 +87,7 @@ class GameOption : public GameOptionBase
 #undef GAME_OPTION
     }) options_;
     std::array<std::pair<std::string, std::string>, Option::MAX_OPTION> infos_;
+    std::string resource_dir_;
 };
 
 #undef OPTION_

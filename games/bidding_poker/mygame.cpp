@@ -47,7 +47,8 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
 {
   public:
     MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match, "主阶段", MakeStageCommand("查看各玩家手牌及金币情况", &MainStage::Status_, VoidChecker("场况")))
+        : GameStage(option, match,
+                MakeStageCommand("查看各玩家手牌及金币情况", &MainStage::Status_, VoidChecker("赛况")))
         , round_(0)
     {
         for (PlayerID pid = 0; pid < option.PlayerNum(); ++pid) {

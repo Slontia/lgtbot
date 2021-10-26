@@ -186,17 +186,17 @@ class RoundStage : public SubGameStage<NumberStage, GuessStage>
                       << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
                       << "玩家" << At(loser_) << "获得数字" << actual_number_ << "\n数字获得情况：\n"
                       << At(PlayerID(0)) << "：" << At(PlayerID(1));
-            table.Get(0, 0).content_ = PlayerName(PlayerID(0));
-            table.Get(0, 1).content_ = "数字";
-            table.Get(0, 2).content_ = PlayerName(PlayerID(1));
+            table.Get(0, 0).SetContent(PlayerName(PlayerID(0)));
+            table.Get(0, 1).SetContent("数字");
+            table.Get(0, 2).SetContent(PlayerName(PlayerID(1)));
             for (int num = 1; num <= option().GET_VALUE(数字种类); ++num) {
                 boardcast << "\n" << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
-                table.Get(num, 0).content_ = std::to_string(player_nums_[0][num - 1]);
-                table.Get(num, 1).content_ = "[" + std::to_string(num) + "]";
-                table.Get(num, 2).content_ = std::to_string(player_nums_[1][num - 1]);
-                table.Get(num, 1).color_ = "Aquamarine";
+                table.Get(num, 0).SetContent(std::to_string(player_nums_[0][num - 1]));
+                table.Get(num, 1).SetContent("[" + std::to_string(num) + "]");
+                table.Get(num, 2).SetContent(std::to_string(player_nums_[1][num - 1]));
+                table.Get(num, 1).SetColor("Aquamarine");
             }
-            table.Get(actual_number_, loser_ * 2).color_ = "AntiqueWhite";
+            table.Get(actual_number_, loser_ * 2).SetColor("AntiqueWhite");
         }
         Boardcast() << Markdown(table.ToString());
         return {};

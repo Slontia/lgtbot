@@ -23,6 +23,10 @@ foreach (GAME_DIR ${GAME_DIRS})
 
     message("Found game ${GAME} in ${GAME_DIR}")
 
+    add_custom_target(resource_dir_${GAME} ALL
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${GAME_DIR}/resource ${LIBRARY_OUTPUT_PATH}/${GAME})
+
     set(SOURCE_FILES
       ${GAME_DIR}/mygame.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/game_main.cpp
@@ -31,7 +35,7 @@ foreach (GAME_DIR ${GAME_DIRS})
     )
 
     set(RULE_BINARY ${CMAKE_CURRENT_BINARY_DIR}/${GAME}_rule.o)
-    set(RULE_IMAGE ${LIBRARY_OUTPUT_PATH}/${GAME}_rule.png)
+    #   set(RULE_IMAGE ${LIBRARY_OUTPUT_PATH}/${GAME}_rule.png)
 
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
       add_custom_target(${GAME}_rule_binary ALL
@@ -41,16 +45,17 @@ foreach (GAME_DIR ${GAME_DIRS})
       )
     endif()
 
-    if (WITH_IMAGE)
-      add_custom_target(${GAME}_rule_image ALL
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMAND cd ${GAME_DIR} && ${CMAKE_BINARY_DIR}/markdown2image --input rule.md --output ${RULE_IMAGE} --width 700
-        COMMENT "Build rule image"
-      )
-    endif()
+    #    if (WITH_IMAGE)
+    #      add_custom_target(${GAME}_rule_image ALL
+    #        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    #        COMMAND cd ${GAME_DIR} && ${CMAKE_BINARY_DIR}/markdown2image --input rule.md --output ${RULE_IMAGE} --width 700
+    #        COMMENT "Build rule image"
+    #      )
+    #    endif()
 
     add_library(${GAME} SHARED ${SOURCE_FILES})
 
+    target_compile_definitions(${GAME} PUBLIC GAME_MODULE_NAME="${GAME}")
     target_include_directories(${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
 
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")

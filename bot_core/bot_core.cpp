@@ -1,6 +1,7 @@
 #include "bot_core.h"
 
 #include <fstream>
+#include <filesystem>
 
 #include "utility/msg_checker.h"
 #include "game_framework/game_main.h"
@@ -15,7 +16,10 @@ extern void LoadGameModules();
 
 const int32_t LGT_AC = -1;
 
-BotCtx::BotCtx(const BotOption& option) : this_uid_(option.this_uid_), match_manager_(*this)
+BotCtx::BotCtx(const BotOption& option)
+    : this_uid_(option.this_uid_)
+    , game_path_(std::filesystem::absolute(option.game_path_).string())
+    , match_manager_(*this)
 {
     LoadGameModules_(option.game_path_);
     LoadAdmins_(option.admins_);

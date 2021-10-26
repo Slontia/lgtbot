@@ -224,7 +224,7 @@ class MainStage : public MainGameStage<SubStage>
 {
   public:
     MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match, "主阶段",
+        : GameStage(option, match,
                 MakeStageCommand("准备切换", &MainStage::ToCheckout_, VoidChecker("准备切换"), ArithChecker(0, 10)))
         , to_checkout_(0)
     {}
@@ -261,10 +261,14 @@ class GameOption : public GameOptionBase
 {
   public:
     GameOption() : GameOptionBase(0) {}
+    virtual void SetResourceDir(const char* const resource_dir) { resource_dir_ = resource_dir; }
+    virtual const char* ResourceDir() const { return resource_dir_.c_str(); }
     virtual const char* Info(const uint64_t index) const { return "这是配置介绍"; };
     virtual const char* ColoredInfo(const uint64_t index) const { return "这是配置介绍"; };
     virtual const char* Status() const { return "这是配置状态"; };
     virtual bool SetOption(const char* const msg) { return true; };
+  private:
+    std::string resource_dir_;
 };
 
 class TestBot : public testing::Test
@@ -276,7 +280,7 @@ class TestBot : public testing::Test
         const uint64_t admins[2] = { k_admin_qq, 0 };
         const BotOption option {
             .this_uid_ = k_this_qq,
-            .game_path_ = nullptr,
+            .game_path_ = "/game_path/",
             .image_path_ = "/image_path/",
             .admins_ = admins,
         };
@@ -293,7 +297,7 @@ class TestBot : public testing::Test
     void AddGame(const char* const name, const uint64_t max_player)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
-                    std::nullopt, name, max_player, "这是规则介绍",
+                    std::nullopt, name, name, max_player, "这是规则介绍",
                     []() -> GameOptionBase* { return new GameOption(); },
                     [](const GameOptionBase* const options) { delete options; },
                     [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
@@ -639,6 +643,17 @@ TEST_F(TestBot, switch_host)
 }
 
 // Exit During Game
+
+TEST_F(TestBot, exit_non_force_during_game)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_MATCH_ALREADY_BEGIN, 1, 1, "#退出");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_MATCH_ALREADY_BEGIN, 1, 1, "#新游戏 测试游戏");
+}
 
 TEST_F(TestBot, force_exit)
 {

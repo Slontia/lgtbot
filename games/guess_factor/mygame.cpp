@@ -243,7 +243,9 @@ class RoundStage : public SubGameStage<>
 class MainStage : public MainGameStage<RoundStage>
 {
    public:
-    MainStage(const GameOption& option, MatchBase& match) : GameStage(option, match), round_(1)
+    MainStage(const GameOption& option, MatchBase& match)
+        : GameStage(option, match)
+        , round_(1)
     {
         for (PlayerID pid = 0; pid < option.PlayerNum(); ++pid) {
             players_.emplace_back(pid);

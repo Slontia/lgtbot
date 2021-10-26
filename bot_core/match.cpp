@@ -2,6 +2,8 @@
 
 #include <cassert>
 
+#include <filesystem>
+
 #include "utility/msg_checker.h"
 #include "game_framework/game_main.h"
 
@@ -146,9 +148,12 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         return EC_MATCH_NOT_HOST;
     }
     const uint64_t player_num = std::max(user_controlled_player_num(), bench_to_player_num_);
+    const std::filesystem::path resource_dir = std::filesystem::path(bot_.game_path()) / game_handle_.module_name_ / "";
+    std::cout << resource_dir << std::endl;
     assert(main_stage_ == nullptr);
     assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
     options_->SetPlayerNum(player_num);
+    options_->SetResourceDir(resource_dir.c_str());
     if (!(main_stage_ = game_handle_.make_main_stage(reply, *options_, *this))) {
         reply() << "[错误] 开始失败：不符合游戏参数的预期";
         return EC_MATCH_UNEXPECTED_CONFIG;
@@ -201,8 +206,8 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
     ErrCode rc = EC_OK;
     std::lock_guard<std::mutex> l(mutex_);
     assert(Has(uid));
-    match_manager().UnbindMatch(uid);
     if (state_ != State::IS_STARTED) {
+        match_manager().UnbindMatch(uid);
         Boardcast() << "玩家 " << At(uid) << " 退出了游戏";
         users_.erase(uid);
         if (users_.empty()) {
@@ -213,6 +218,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
             Boardcast() << At(host_uid_) << "被选为新房主";
         }
     } else if (force) {
+        match_manager().UnbindMatch(uid);
         Boardcast() << "玩家 " << At(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
         const auto it = users_.find(uid);
         assert(it != users_.end());

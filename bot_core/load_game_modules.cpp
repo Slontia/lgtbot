@@ -30,7 +30,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
         return;
     }
 
-    typedef char*(*GameInfo)(uint64_t*, const char**);
+    typedef char*(*GameInfo)(uint64_t*, const char**, const char**);
 
     const auto load_proc = [&mod](const char* const name)
     {
@@ -53,8 +53,9 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
     }
 
     const char* rule = nullptr;
+    const char* module_name = nullptr;
     uint64_t max_player = 0;
-    char* name = game_info_fn(&max_player, &rule);
+    char* name = game_info_fn(&max_player, &rule, &module_name);
     if (!name) {
         ErrorLog() << "Load failed: Cannot get game game";
         return;
@@ -65,7 +66,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
         game_id = db_manager->GetGameIDWithName(name);
     }
 #endif
-    game_handles.emplace(name, std::make_unique<GameHandle>(game_id, name, max_player, rule,
+    game_handles.emplace(name, std::make_unique<GameHandle>(game_id, name, module_name, max_player, rule,
                                                             game_options_allocator_fn, game_options_deleter_fn,
                                                             main_stage_allocator_fn, main_stage_deleter_fn,
                                                             [mod] { FreeLibrary(mod); }));
@@ -84,7 +85,8 @@ void BotCtx::LoadGameModules_(const char* const games_path)
         return;
     }
     do {
-        const auto dll_path = std::string(games_path) + "\\" + std::string(file_data.cFileName);
+        const std::string_view module_name(file_data.cFileName);
+        const auto dll_path = std::string(games_path) + "\\" + module_name;
         LoadGame(LoadLibrary(dll_path.c_str()), game_handles_);
     } while (FindNextFile(file_handle, &file_data));
     FindClose(file_handle);
