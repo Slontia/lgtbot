@@ -60,7 +60,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
         ErrorLog() << "Load failed: Cannot get game game";
         return;
     }
-    std::optional<uint64_t> game_id;
+    uint64_t game_id = 0;
 #ifdef WITH_MYSQL
     if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager != nullptr) {
         game_id = db_manager->GetGameIDWithName(name);

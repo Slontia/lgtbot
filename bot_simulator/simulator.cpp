@@ -17,7 +17,7 @@ DEFINE_string(game_path, "plugins", "The path of game modules");
 DEFINE_string(history_filename, ".simulator_history.txt", "The file saving history commands");
 DEFINE_bool(color, true, "Enable color");
 DEFINE_uint64(bot_uid, 114514, "The UserID of bot");
-DEFINE_uint64(admin_uid, 0, "The UserID of administor");
+DEFINE_uint64(admin_uid, 1, "The UserID of administor");
 
 #ifdef WITH_MYSQL
 DEFINE_string(db_addr, "", "Address of database <ip>:<port>");
@@ -195,7 +195,7 @@ static void ConnectDatabase(void* const bot)
 
 int main(int argc, char** argv)
 {
-    std::locale::global(std::locale(""));
+    //std::locale::global(std::locale("")); // this line can make number with comma
     gflags::ParseCommandLineFlags(&argc, &argv, true);
     const uint64_t admins[2] = { FLAGS_admin_uid, 0 };
     const BotOption option {

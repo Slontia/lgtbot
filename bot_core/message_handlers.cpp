@@ -122,7 +122,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
     sender << "游戏列表：";
     for (const auto& [name, info] : bot.game_handles()) {
         sender << "\n" << (++i) << ". " << name;
-        if (!info->game_id().has_value()) {
+        if (info->game_id() == 0) {
             sender << "（试玩）";
         }
     }
@@ -353,9 +353,9 @@ static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<G
         reply() << "[错误] 发布失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
-    std::optional<uint64_t> game_id = it->second->game_id();
-    if (game_id.has_value()) {
-        reply() << "[错误] 发布失败：游戏已发布，ID为" << *game_id;
+    auto game_id = it->second->game_id();
+    if (game_id != 0) {
+        reply() << "[错误] 发布失败：游戏已发布，ID为" << game_id;
         return EC_GAME_ALREADY_RELEASE;
     }
     const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager();
@@ -363,12 +363,12 @@ static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<G
         reply() << "[错误] 发布失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
-    if (!(game_id = db_manager->ReleaseGame(gamename)).has_value()) {
+    if ((game_id = db_manager->ReleaseGame(gamename)) == 0) {
         reply() << "[错误] 发布失败：发布失败，请查看错误日志";
         return EC_DB_RELEASE_GAME_FAILED;
     }
     it->second->set_game_id(game_id);
-    reply() << "发布成功，游戏\'" << gamename << "\'的ID为" << *game_id;
+    reply() << "发布成功，游戏\'" << gamename << "\'的ID为" << game_id;
     return EC_OK;
 }
 #endif

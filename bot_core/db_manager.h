@@ -117,7 +117,7 @@ class DBManager
         });
     }
 
-    void GetUserProfit(const UserID uid, const replier_t reply)
+    void GetUserProfit(const UserID uid, MsgSenderBase& reply)
     {
         Transaction::ExecuteTransaction(*connection_, [&](Transaction& trans) {
             auto ret = trans.ExecuteQueryLessThanOneRow("SELECT * FROM user_info WHERE user_id = ", uid);
@@ -145,32 +145,34 @@ class DBManager
         });
     }
 
-    std::optional<uint64_t> GetGameIDWithName(const std::string_view game_name)
+    uint64_t GetGameIDWithName(const std::string_view game_name)
     {
-        std::optional<uint64_t> game_id;
+        uint64_t game_id = 0;
         Transaction::ExecuteTransaction(*connection_, [&](Transaction& trans) {
             auto ret =
                     trans.ExecuteQueryLessThanOneRow("SELECT game_id FROM game_info WHERE name = \'", game_name, "\'");
             if (ret) {
                 game_id = ret->getUInt64("game_id");
-            };
+                InfoLog() << "GetGameIDWithName succeed game_name=" << game_name << ", game_id=" << game_id;
+            } else {
+                ErrorLog() << "GetGameIDWithName failed game_name=" << game_name;
+            }
             return true;
         });
         return game_id;
     }
 
-    std::optional<uint64_t> ReleaseGame(const std::string_view game_name)
+    uint64_t ReleaseGame(const std::string_view game_name)
     {
-        uint64_t game_id;
-        return Transaction::ExecuteTransaction(*connection_,
-                                               [&](Transaction& trans) {
-                                                   trans.ExecuteOneRow<trans.STMT_UPDATE>(
-                                                           "INSERT INTO game_info (name) VALUES (\'", game_name, "\')");
-                                                   game_id = trans.GetLastInsertID()->getUInt64(1);
-                                                   return true;
-                                               })
-                       ? std::optional(game_id)
-                       : std::optional<uint64_t>();
+        uint64_t game_id = 0;
+        Transaction::ExecuteTransaction(*connection_,
+                                        [&](Transaction& trans) {
+                                            trans.ExecuteOneRow<trans.STMT_UPDATE>(
+                                                    "INSERT INTO game_info (name) VALUES (\'", game_name, "\')");
+                                            game_id = trans.GetLastInsertID()->getUInt64(1);
+                                            return true;
+                                        });
+        return game_id;
     }
 
    private:

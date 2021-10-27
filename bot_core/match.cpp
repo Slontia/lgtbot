@@ -417,9 +417,9 @@ void Match::OnGameOver_()
         const std::vector<Match::ScoreInfo> score_info = CalScores_(scores);
         if (auto& db_manager = DBManager::GetDBManager(); !db_manager) {
             sender << "\n[警告] 未连接数据库，游戏结果不会被记录";
-        } else if (std::optional<uint64_t> game_id = game_handle_.game_id_.load(); !game_id.has_value()) {
+        } else if (const uint64_t game_id = game_handle_.game_id(); game_id == 0) {
             sender << "\n[警告] 该游戏未发布，游戏结果不会被记录";
-        } else if (!db_manager->RecordMatch(*game_id, gid_, host_uid_, multiple_, score_info)) {
+        } else if (!db_manager->RecordMatch(game_id, gid_, host_uid_, multiple_, score_info)) {
             sender << "\n[错误] 游戏结果写入数据库失败，请联系管理员";
         } else {
             sender << "\n游戏结果写入数据库成功！";
