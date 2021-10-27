@@ -205,3 +205,6 @@ FakesAssemblies/
 # Cmake
 CMakeFiles/
 CMakeCache.txt
+
+# cscope
+cscope.*

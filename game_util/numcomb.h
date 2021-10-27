@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <numeric>
 #include <iostream>
+#include <map>
 
 #include "../utility/html.h"
 
@@ -24,22 +25,17 @@ struct Coordinate
         y_ += c.y_;
         return *this;
     }
+
     friend Coordinate operator+(const Coordinate& _1, const Coordinate& _2)
     {
         Coordinate tmp(_1);
         return tmp += _2;
     }
-    Coordinate& operator-=(const Coordinate& c)
-    {
-        x_ -= c.x_;
-        y_ -= c.y_;
-        return *this;
-    }
-    friend Coordinate operator-(const Coordinate& _1, const Coordinate& _2)
-    {
-        Coordinate tmp(_1);
-        return tmp -= _2;
-    }
+
+    Coordinate operator-() const { return Coordinate{-x_, -y_}; }
+
+    auto operator<=>(const Coordinate&) const = default;
+
     int32_t x_;
     int32_t y_;
 };
@@ -98,6 +94,30 @@ class AreaCard
     std::optional<std::array<int32_t, k_direct_max>> points_;
 };
 
+class Wall
+{
+  public:
+    friend class Comb;
+
+    Wall(Box& box) : box_(box), has_line_{false, false, false} {}
+
+    template <Direct direct>
+    void SetLine() { has_line_.at(static_cast<uint32_t>(direct)) = true; }
+
+    std::string ImageName() const
+    {
+        std::string str = "wall_";
+        for (const bool has_line : has_line_) {
+            str += std::to_string(has_line);
+        }
+        return str;
+    }
+
+  private:
+    Box& box_;
+    std::array<bool, k_direct_max> has_line_;
+};
+
 class Area
 {
   public:
@@ -114,7 +134,7 @@ class Area
 class Comb
 {
   public:
-    Comb(std::string image_path) : image_path_(std::move(image_path)), table_(k_size * 4 + 2, k_size * 2 + 1)
+    Comb(std::string image_path) : image_path_(std::move(image_path)), table_(k_max_row, k_max_column)
     {
         table_.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
 
@@ -123,8 +143,9 @@ class Comb
         static constexpr int32_t k_mid_row = k_size * 2;
         static constexpr int32_t k_mid_col = k_size;
 
+        static const Coordinate zero_coor{k_zero_col - k_mid_col, k_zero_row - k_mid_row};
         Box& zero_box = table_.Get(k_zero_row, k_zero_col);
-        areas_.emplace_back(zero_box, Coordinate{k_zero_col - k_mid_col, k_zero_row - k_mid_row});
+        areas_.emplace_back(zero_box, zero_coor);
 
         for (int32_t col = 0; col < table_.Column(); ++col) {
             for (int32_t row = 0; row < table_.Row(); ++row) {
@@ -138,13 +159,17 @@ class Comb
                     box.SetContent(Image_("num_" + std::to_string(areas_.size())));
                     areas_.emplace_back(box, coor);
                 } else if (is_full_box) {
-                    box.SetContent(Image_("blank"));
+                    const auto [it, succ] = walls_.emplace(coor, Wall(box));
+                    assert(succ);
+                    box.SetContent(Image_(it->second.ImageName()));
                 } else if (box.IsVisable()) {
-                    box.SetContent(Image_("blank_half"));
+                    box.SetContent(Image_("wall_half"));
                 }
             }
         }
 
+        const auto num = walls_.erase(zero_coor);
+        assert(num == 1);
         zero_box.SetContent(Image_("num_0"));
     }
 
@@ -197,6 +222,8 @@ class Comb
 
   private:
     static constexpr uint32_t k_size = 3;
+    static constexpr uint32_t k_max_row = k_size * 4 + 2;
+    static constexpr uint32_t k_max_column = k_size * 2 + 1;
 
     std::string Image_(std::string name) { return "![](file://" + image_path_ + std::move(name) + ".png)"; }
 
@@ -206,33 +233,42 @@ class Comb
         assert(Get_(coordinate).card_.has_value());
         auto point = Get_(coordinate).card_->Point<direct>();
         uint32_t count = 1;
-        const auto check = [&](const Coordinate coor)
+        const auto check = [&](Coordinate& coor, const Coordinate& step)
             {
-                const auto& area = Get_(coor);
-                if (!area.card_.has_value()) { // happens when the area is empty
-                    return false;
+                for (; IsValid_(coor); coor += step) {
+                    ++count;
+                    const auto& area = Get_(coor);
+                    if (!area.card_.has_value()) { // happens when the area is empty
+                        return false;
+                    }
+                    if (!point.has_value()) { // happens when previous card are wild
+                        point = area.card_->Point<direct>();
+                        continue;
+                    }
+                    if (!area.card_->IsMatch<direct>(*point)) {
+                        return false;
+                    }
                 }
-                if (!point.has_value()) { // happens when previous card are wild
-                    point = area.card_->Point<direct>();
-                    return true;
-                }
-                return area.card_->IsMatch<direct>(*point);
+                return true;
             };
 
-        for (auto coor = coordinate + k_direct_step<direct>; IsValid_(coor); coor += k_direct_step<direct>) {
-            if (!check(coor)) {
-                return 0;
-            } else {
-                ++count;
-            }
+        const auto wall_line = [&](Coordinate& coor, const Coordinate& step)
+            {
+                for (auto it = walls_.find(coor); it != walls_.end(); it = walls_.find(coor += step)) {
+                    Wall& wall = it->second;
+                    wall.SetLine<direct>();
+                    wall.box_.SetContent(Image_(wall.ImageName()));
+                }
+            };
+
+        auto head_coor = coordinate + k_direct_step<direct>;
+        auto tail_coor = coordinate + -k_direct_step<direct>;
+        if (!check(head_coor, k_direct_step<direct>) || !check(tail_coor, -k_direct_step<direct>)) {
+            return 0;
         }
-        for (auto coor = coordinate - k_direct_step<direct>; IsValid_(coor); coor -= k_direct_step<direct>) {
-            if (!check(coor)) {
-                return 0;
-            } else {
-                ++count;
-            }
-        }
+
+        wall_line(head_coor, k_direct_step<direct>);
+        wall_line(tail_coor, -k_direct_step<direct>);
 
         // TODO: set around success line
         if (point.has_value()) {
@@ -258,6 +294,7 @@ class Comb
 
     const std::string image_path_;
     std::vector<Area> areas_;
+    std::map<Coordinate, Wall> walls_;
     Table table_;
 };
 

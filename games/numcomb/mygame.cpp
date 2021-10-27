@@ -31,7 +31,8 @@ struct Player
 
 const std::string GameOption::StatusInfo() const
 {
-    std::string str = "每回合" + std::to_string(GET_VALUE(局时)) + "秒，";
+    std::string str = "每回合" + std::to_string(GET_VALUE(局时)) + "秒，共" +
+        std::to_string(GET_VALUE(回合数)) + "回合，跳过起始非癞子数量" + std::to_string(GET_VALUE(跳过非癞子)) + "，";
     if (GET_VALUE(种子).empty()) {
         str += "未指定种子";
     } else {
@@ -94,6 +95,20 @@ class MainStage : public MainGameStage<RoundStage>
         return players_[pid].score_;
     }
 
+    std::string CombHtml(std::string str)
+    {
+        for (PlayerID pid = 0; pid < players_.size(); ++pid) {
+            str += "\n\n### ";
+            str += PlayerName(pid);
+            str += "（当前积分：";
+            str += std::to_string(players_[pid].score_);
+            str += "）\n\n";
+            str += players_[pid].comb_->ToHtml();
+        }
+        return str;
+    }
+
+
     std::vector<Player> players_;
 
   private:
@@ -112,7 +127,7 @@ class RoundStage : public SubGameStage<>
                 MakeStageCommand("设置数字", &RoundStage::Set_, ArithChecker<uint32_t>(0, 19, "数字")),
                 MakeStageCommand("查看本回合开始时蜂巢情况，可用于图片重发", &RoundStage::Info_, VoidChecker("赛况")))
             , card_(card)
-            , comb_html_(CombHtml_(round, main_stage))
+            , comb_html_(main_stage.CombHtml("## 第" + std::to_string(round) + "回合"))
     {}
 
     virtual void OnStageBegin() override
@@ -167,20 +182,6 @@ class RoundStage : public SubGameStage<>
         sender() << Image(std::string(option().ResourceDir() + card_.ImageName()) + ".png");
     }
 
-    static std::string CombHtml_(const uint64_t round, MainStage& main_stage)
-    {
-        std::string str = "## 第" + std::to_string(round) + "回合";
-        for (PlayerID pid = 0; pid < main_stage.players_.size(); ++pid) {
-            str += "\n\n### ";
-            str += main_stage.PlayerName(pid);
-            str += "（当前积分：";
-            str += std::to_string(main_stage.players_[pid].score_);
-            str += "）\n\n";
-            str += main_stage.players_[pid].comb_->ToHtml();
-        }
-        return str;
-    }
-
     const comb::AreaCard card_;
     const std::string comb_html_;
 };
@@ -200,6 +201,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
 {
     if (round_ == option().GET_VALUE(回合数)) {
+        Boardcast() << Markdown(CombHtml("## 终局"));
         return {};
     }
     return NewStage_();
