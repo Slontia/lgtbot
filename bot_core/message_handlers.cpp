@@ -303,7 +303,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
         reply() << "[错误] 查看失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
-    db_manager->GetUserProfit(uid, reply);  // TODO: pass sender
+    const auto profit = db_manager->GetUserProfit(uid);  // TODO: pass sender
     return EC_OK;
 }
 #endif

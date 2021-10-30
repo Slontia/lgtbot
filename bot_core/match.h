@@ -31,6 +31,14 @@ class DiscussMatch;
 class MatchManager;
 class GameHandle;
 
+template <typename ...Ts>
+class Overload : public Ts...
+{
+  public:
+    Overload(Ts&& ...ts) : Ts(std::forward<Ts>(ts))... {}
+    using Ts::operator()...;
+};
+
 struct ParticipantUser
 {
     enum class State { ACTIVE, LEFT };
@@ -111,9 +119,9 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     struct ScoreInfo {
         UserID uid_;
-        int64_t game_score_;
-        double zero_sum_match_score_;
-        uint64_t poss_match_score_;
+        int64_t game_score_ = 0;
+        int64_t zero_sum_score_ = 0;
+        int64_t top_score_ = 0;
     };
 
    private:
@@ -128,7 +136,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
             return "已结束";
         }
     }
-    std::vector<ScoreInfo> CalScores_(const std::vector<int64_t>& scores) const;
+    static std::vector<ScoreInfo> CalScores_(const std::vector<std::pair<UserID, int64_t>>& scores);
     void OnGameOver_();
     void Help_(MsgSenderBase& reply, const bool text_mode);
     void Routine_();
@@ -152,8 +160,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     // time info
     std::shared_ptr<bool> timer_is_over_; // must before match because atom stage will call StopTimer
     std::unique_ptr<Timer> timer_;
-    std::chrono::time_point<std::chrono::system_clock> start_time_;
-    std::chrono::time_point<std::chrono::system_clock> end_time_;
+    //std::chrono::time_point<std::chrono::system_clock> start_time_;
+    //std::chrono::time_point<std::chrono::system_clock> end_time_;
 
     // game
     GameHandle::game_options_ptr options_;

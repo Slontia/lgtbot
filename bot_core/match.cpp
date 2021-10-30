@@ -3,6 +3,7 @@
 #include <cassert>
 
 #include <filesystem>
+#include <numeric>
 
 #include "utility/msg_checker.h"
 #include "game_framework/game_main.h"
@@ -175,7 +176,7 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         players_.emplace_back(cid);
     }
     std::visit([this](auto& sender) { sender.SetMatch(this); }, boardcast_sender_);
-    start_time_ = std::chrono::system_clock::now();
+    //start_time_ = std::chrono::system_clock::now();
     main_stage_->HandleStageBegin();
     Routine_(); // computer act first
     return EC_OK;
@@ -257,34 +258,54 @@ MsgSenderBase& Match::TellMsgSender(const PlayerID pid)
     }
 }
 
-std::vector<Match::ScoreInfo> Match::CalScores_(const std::vector<int64_t>& scores) const
+std::vector<Match::ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int64_t>>& scores)
 {
-    const auto player_num = PlayerNum();
-    assert(scores.size() == player_num);
-    std::vector<Match::ScoreInfo> ret(player_num);
-    const double avg_score = [scores, player_num] {
-        double score_sum = 0;
-        for (uint64_t pid = 0; pid < player_num; ++pid) {
-            score_sum += scores[pid];
-        }
-        return score_sum / player_num;
-    }();
-    const double delta = [avg_score, scores, player_num] {
-        double score_offset_sum = 0;
-        for (uint64_t pid = 0; pid < player_num; ++pid) {
-            double offset = scores[pid] - avg_score;
-            score_offset_sum += offset > 0 ? offset : -offset;
-        }
-        return 1.0 / score_offset_sum;
-    }();
-    for (PlayerID pid = 0; pid < player_num; ++pid) {
-        if (const auto pval = std::get_if<UserID>(&players_[pid].id_)) {
-            Match::ScoreInfo& score_info = ret[pid];
-            score_info.uid_ = *pval;
-            score_info.game_score_ = scores[pid];
-            score_info.zero_sum_match_score_ = delta * (scores[pid] - avg_score);
-            score_info.poss_match_score_ = 0;
-        }
+    const auto user_num = scores.size();
+
+    // calculate zero sum score
+    static constexpr auto k_zero_sum_multi = 1000;
+    static const auto accum_score = [&](const auto& fn)
+        {
+            return std::accumulate(scores.begin(), scores.end(), 0,
+                    [&](const uint64_t sum, const auto& pair) { return fn(pair.second * k_zero_sum_multi) + sum; });
+        };
+    const auto avg_score = accum_score([](const int64_t score) { return score; }) / user_num;
+    const auto abs_sum_score = accum_score([avg_score](const int64_t score) { return score - avg_score; });
+
+    // calculate top score
+    struct ScoreRecorder
+    {
+        int64_t score_ = 0;
+        uint64_t count_ = 0;
+    };
+    ScoreRecorder min_recorder;
+    ScoreRecorder max_recorder;
+    const auto record_fn = [&](const int64_t score, ScoreRecorder& recorder, const auto& op)
+        {
+            if (recorder.count_ == 0 || op(score, recorder.score_)) {
+                recorder.score_ = score;
+                ++recorder.count_;
+            }
+        };
+    const auto top_score_fn = [&](const int64_t score, const ScoreRecorder& recorder)
+        {
+            return score == recorder.score_ ? user_num * 10 / recorder.count_ : 0;
+        };
+    for (const auto& [_, score] : scores) {
+        record_fn(score, min_recorder, std::less_equal());
+        record_fn(score, max_recorder, std::greater_equal());
+    }
+
+    // save to map
+    std::vector<Match::ScoreInfo> ret;
+    for (const auto& [uid, score] : scores) {
+        ret.emplace_back();
+        ret.back().uid_ = uid;
+        ret.back().game_score_ = score;
+        ret.back().zero_sum_score_ =
+            abs_sum_score == 0 ? 0 : (score * k_zero_sum_multi - avg_score) * user_num / abs_sum_score;
+        ret.back().top_score_ += top_score_fn(score, max_recorder);
+        ret.back().top_score_ -= top_score_fn(score, min_recorder);
     }
     return ret;
 }
@@ -357,6 +378,7 @@ void Match::Eliminate(const PlayerID pid)
 
 void Match::ShowInfo(const std::optional<GroupID>& gid, MsgSenderBase& reply) const
 {
+    reply.SetMatch(this);
     std::lock_guard<std::mutex> l(mutex_);
     auto sender = reply();
     sender << "游戏名称：" << game_handle().name_ << "\n";
@@ -401,28 +423,48 @@ std::string Match::OptionInfo_() const
 void Match::OnGameOver_()
 {
     state_ = State::IS_OVER; // is necessary because other thread may own a match reference
-    std::vector<int64_t> scores(PlayerNum());
-    for (uint64_t pid = 0; pid < PlayerNum(); ++pid) {
-        scores[pid] = main_stage_->PlayerScore(pid);
-    }
-    end_time_ = std::chrono::system_clock::now();
+    //end_time_ = std::chrono::system_clock::now();
     {
+        std::vector<std::pair<UserID, int64_t>> user_scores;
+
         auto sender = Boardcast();
         sender << "游戏结束，公布分数：\n";
         for (PlayerID pid = 0; pid < PlayerNum(); ++pid) {
-            sender << At(pid) << " " << scores[pid] << "\n";
+            const auto score = main_stage_->PlayerScore(pid);
+            sender << At(pid) << " " << score << "\n";
+            const auto id = ConvertPid(pid);
+            if (const auto pval = std::get_if<UserID>(&id); pval) {
+                user_scores.emplace_back(*pval, score);
+            }
         }
         sender << "感谢诸位参与！";
+
+        assert(user_scores.size() == users_.size());
+        std::sort(user_scores.begin(), user_scores.end(),
+                [](const auto& _1, const auto& _2) { return _1.second > _2.second; });
+
 #ifdef WITH_MYSQL
-        const std::vector<Match::ScoreInfo> score_info = CalScores_(scores);
-        if (auto& db_manager = DBManager::GetDBManager(); !db_manager) {
-            sender << "\n[警告] 未连接数据库，游戏结果不会被记录";
+        static const auto show_score = [](const char* const name, const int64_t score)
+            {
+                return std::string("[") + name + (score > 0 ? "+" : "") + std::to_string(score);
+            };
+        if (user_scores.size() <= 1) {
+            sender << "\n\n游戏结果不记录：因为玩家数小于2";
+        } else if (auto& db_manager = DBManager::GetDBManager(); !db_manager) {
+            sender << "\n\n游戏结果不记录：因为未连接数据库";
         } else if (const uint64_t game_id = game_handle_.game_id(); game_id == 0) {
-            sender << "\n[警告] 该游戏未发布，游戏结果不会被记录";
-        } else if (!db_manager->RecordMatch(game_id, gid_, host_uid_, multiple_, score_info)) {
-            sender << "\n[错误] 游戏结果写入数据库失败，请联系管理员";
+            sender << "\n\n游戏结果不记录：因为该游戏未发布";
+        } else if (const auto score_info = CalScores_(user_scores);
+                !db_manager->RecordMatch(game_id, gid_, host_uid_, multiple_, score_info)) {
+            sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
         } else {
-            sender << "\n游戏结果写入数据库成功！";
+            assert(score_info.size() == users_.size());
+            sender << "\n\n游戏结果写入数据库成功：";
+            for (const auto& info : score_info) {
+                sender << At(info.uid_) << "：" << show_score("零和分", info.zero_sum_score_)
+                                                << show_score("TOP分", info.top_score_);
+
+            }
         }
 #endif
     }

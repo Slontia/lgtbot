@@ -59,10 +59,13 @@ class MockMsgSender : public MsgSenderBase
         ss_.str("");
     }
 
+    virtual void SetMatch(const Match* const) override {}
+
   private:
     const std::optional<PlayerID> pid_;
     const bool is_public_;
     std::stringstream ss_;
+    const Match* match_;
 };
 
 class MockMatch : public MatchBase

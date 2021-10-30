@@ -71,6 +71,7 @@ class MsgSenderBase
   public:
     virtual ~MsgSenderBase() {}
     virtual MsgSenderGuard operator()() { return MsgSenderGuard(*this); }
+    virtual void SetMatch(const Match* const match) = 0;
 
     friend class MsgSenderGuard;
 
@@ -105,6 +106,7 @@ class EmptyMsgSender : public MsgSenderBase
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override {}
     virtual void SaveImage(const char* const path) override {};
     virtual void Flush() override {}
+    virtual void SetMatch(const Match* const match) override {}
 
   private:
     EmptyMsgSender() : MsgSenderBase() {}
@@ -123,7 +125,7 @@ class MsgSender : public MsgSenderBase
         o.match_ = nullptr;
     }
     ~MsgSender() { CloseMessager(sender_); }
-    void SetMatch(Match* const match) { match_ = match; }
+    virtual void SetMatch(const Match* const match) override { match_ = match; }
     virtual MsgSenderGuard operator()() override { return MsgSenderGuard(*this); }
 
   protected:
@@ -139,7 +141,7 @@ class MsgSender : public MsgSenderBase
     static void* Open_(const UserID& uid) { return OpenMessager(uid, true); }
     static void* Open_(const GroupID& gid) { return OpenMessager(gid, false); }
     void* sender_;
-    Match* match_;
+    const Match* match_;
 };
 
 MsgSenderBase::MsgSenderGuard::~MsgSenderGuard()
@@ -222,7 +224,7 @@ class MsgSenderBatch : public MsgSenderBase
         fn_([&](MsgSender& sender) { sender.Flush(); });
     }
 
-    void SetMatch(Match* const match)
+    virtual void SetMatch(const Match* const match) override
     {
         fn_([&](MsgSender& sender) { sender.SetMatch(match); });
     }

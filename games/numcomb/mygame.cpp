@@ -66,8 +66,9 @@ class MainStage : public MainGameStage<RoundStage>
                 }
             }
         }
-        cards_.emplace_back();
-        cards_.emplace_back();
+        for (uint32_t i = 0; i < option.GET_VALUE(癞子); ++i) {
+            cards_.emplace_back();
+        }
         const std::string& seed_str = option.GET_VALUE(种子);
         if (seed_str.empty()) {
             std::random_device rd;
