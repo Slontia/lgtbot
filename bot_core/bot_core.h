@@ -99,6 +99,9 @@ struct BotOption
     const char* game_path_ = nullptr;
     const char* image_path_ = nullptr;
     const uint64_t* admins_ = nullptr;
+#ifdef WITH_SQLITE
+    const char* db_path_ = nullptr;
+#endif
 };
 
 class BOT_API
@@ -108,10 +111,6 @@ class BOT_API
     static DLLEXPORT(void) Release(void* bot);
     static DLLEXPORT(ErrCode) HandlePrivateRequest(void* bot, const uint64_t uid, const char* const msg);
     static DLLEXPORT(ErrCode) HandlePublicRequest(void* bot, const uint64_t gid, const uint64_t uid, const char* const msg);
-#ifdef WITH_MYSQL
-    static DLLEXPORT(ErrCode) ConnectDatabase(void* bot, const char* const addr, const char* const user,
-                                              const char* const passwd, const char* const db_name, const char** errmsg);
-#endif
 };
 
 #undef DLLEXPORT

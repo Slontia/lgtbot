@@ -14,6 +14,7 @@
 #include "bot_core/timer.h"
 #include "bot_core/game_handle.h"
 #include "bot_core/bot_ctx.h"
+#include "bot_core/db_manager.h"
 
 #define INVALID_LOBBY (QQ)0
 
@@ -116,13 +117,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     const uint64_t user_controlled_player_num() const { return users_.size() * player_num_each_user_; }
     const uint64_t com_num() const { return std::max(0L, static_cast<int64_t>(bench_to_player_num_ - user_controlled_player_num())); }
-
-    struct ScoreInfo {
-        UserID uid_;
-        int64_t game_score_ = 0;
-        int64_t zero_sum_score_ = 0;
-        int64_t top_score_ = 0;
-    };
 
    private:
     std::string State2String()

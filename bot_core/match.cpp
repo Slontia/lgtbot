@@ -258,7 +258,7 @@ MsgSenderBase& Match::TellMsgSender(const PlayerID pid)
     }
 }
 
-std::vector<Match::ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int64_t>>& scores)
+std::vector<ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int64_t>>& scores)
 {
     const auto user_num = scores.size();
 
@@ -297,7 +297,7 @@ std::vector<Match::ScoreInfo> Match::CalScores_(const std::vector<std::pair<User
     }
 
     // save to map
-    std::vector<Match::ScoreInfo> ret;
+    std::vector<ScoreInfo> ret;
     for (const auto& [uid, score] : scores) {
         ret.emplace_back();
         ret.back().uid_ = uid;
@@ -443,19 +443,19 @@ void Match::OnGameOver_()
         std::sort(user_scores.begin(), user_scores.end(),
                 [](const auto& _1, const auto& _2) { return _1.second > _2.second; });
 
-#ifdef WITH_MYSQL
+#ifdef WITH_SQLITE
         static const auto show_score = [](const char* const name, const int64_t score)
             {
                 return std::string("[") + name + (score > 0 ? "+" : "") + std::to_string(score);
             };
         if (user_scores.size() <= 1) {
             sender << "\n\n游戏结果不记录：因为玩家数小于2";
-        } else if (auto& db_manager = DBManager::GetDBManager(); !db_manager) {
+        } else if (!bot_.db_manager().has_value()) {
             sender << "\n\n游戏结果不记录：因为未连接数据库";
         } else if (const uint64_t game_id = game_handle_.game_id(); game_id == 0) {
             sender << "\n\n游戏结果不记录：因为该游戏未发布";
         } else if (const auto score_info = CalScores_(user_scores);
-                !db_manager->RecordMatch(game_id, gid_, host_uid_, multiple_, score_info)) {
+                !bot_.db_manager()->RecordMatch(game_id, gid_, host_uid_, multiple_, score_info)) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
         } else {
             assert(score_info.size() == users_.size());

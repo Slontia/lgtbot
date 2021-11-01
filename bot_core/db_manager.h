@@ -1,17 +1,13 @@
 #pragma once
 
-#ifdef WITH_MYSQL
-
-#include <jdbc/cppconn/prepared_statement.h>
-#include <jdbc/cppconn/statement.h>
-#include <jdbc/mysql_connection.h>
-#include <jdbc/mysql_driver.h>
+#ifdef WITH_SQLITE
 
 #include <sstream>
 #include <type_traits>
+#include <optional>
 
-#include "log.h"
-#include "match.h"
+#include "bot_core/log.h"
+#include "bot_core/id.h"
 
 #define FAIL_THROW(sql_func, ...)                                                    \
     do {                                                                             \
@@ -24,56 +20,48 @@
 struct MatchProfit
 {
     std::string game_name_;
-    int64_t user_count_;
-    int64_t game_score_;
-    int64_t zero_sum_score_;
-    int64_t top_score_;
+    int64_t user_count_ = 0;
+    int64_t game_score_ = 0;
+    int64_t zero_sum_score_ = 0;
+    int64_t top_score_ = 0;
 };
 
 struct UserProfit
 {
     UserID uid_;
-    int64_t total_zero_sum_score_;
-    int64_t total_top_score_;
-    int64_t match_count_;
+    int64_t total_zero_sum_score_ = 0;
+    int64_t total_top_score_ = 0;
+    int64_t match_count_ = 0;
     std::vector<MatchProfit> recent_matches_;
 };
 
-class DBManagerBase
-{
-
+struct ScoreInfo {
+    UserID uid_;
+    int64_t game_score_ = 0;
+    int64_t zero_sum_score_ = 0;
+    int64_t top_score_ = 0;
 };
 
 class DBManager
 {
    public:
-    DBManager(std::unique_ptr<sql::Connection>&& connection);
+    static bool UseDB(const std::string& sv, std::optional<DBManager>& db_manager);
+
     ~DBManager();
 
-    static std::pair<ErrCode, const char*> ConnectDB(const std::string& addr, const std::string& user,
-            const std::string& passwd, const std::string& db_name);
-
-    static bool DisconnectDB();
-
-    static const std::unique_ptr<DBManager>& GetDBManager();
-
     bool RecordMatch(const uint64_t game_id, const std::optional<GroupID> gid, const UserID host_uid,
-            const uint64_t multiple, const std::vector<Match::ScoreInfo>& score_infos);
+            const uint64_t multiple, const std::vector<ScoreInfo>& score_infos);
 
     std::optional<UserProfit> GetUserProfit(const UserID uid);
 
-    uint64_t GetGameIDWithName(const std::string_view game_name);
+    uint64_t GetGameIDWithName(const std::string& game_name);
 
-    uint64_t ReleaseGame(const std::string_view game_name);
+    void ReleaseGame(const std::string& game_name);
 
    private:
-    static std::tuple<ErrCode, const char*, std::unique_ptr<sql::Connection>> BuildConnection(const std::string& addr,
-            const std::string& user, const std::string& passwd);
+    DBManager(const std::string& db_name);
 
-    static std::pair<ErrCode, const char*> UseDB(sql::Connection& connection, const std::string& db_name);
-
-    static std::unique_ptr<DBManager> g_db_manager_;
-    std::unique_ptr<sql::Connection> connection_;
+    std::string db_name_;
 };
 
 #endif

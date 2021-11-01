@@ -19,11 +19,8 @@ DEFINE_bool(color, true, "Enable color");
 DEFINE_uint64(bot_uid, 114514, "The UserID of bot");
 DEFINE_uint64(admin_uid, 1, "The UserID of administor");
 
-#ifdef WITH_MYSQL
-DEFINE_string(db_addr, "", "Address of database <ip>:<port>");
-DEFINE_string(db_user, "root", "User of database");
-DEFINE_string(db_name, "lgtbot_simulator", "Name of database");
-DEFINE_string(db_passwd, "", "Password of database");
+#ifdef WITH_SQLITE
+DEFINE_string(db_path, "simulator.db", "Name of database");
 #endif
 
 const char* Red() { return FLAGS_color ? "\033[31m" : ""; }
@@ -169,30 +166,6 @@ bool handle_request(void* bot, const std::string_view line)
     return true;
 }
 
-#ifdef WITH_MYSQL
-static void ConnectDatabase(void* const bot)
-{
-    if (!FLAGS_db_addr.empty()) {
-        const char* errmsg = nullptr;
-        if (FLAGS_db_passwd.empty()) {
-            char passwd[128] = {0};
-            std::cout << "Password: ";
-            std::cin >> passwd;
-            BOT_API::ConnectDatabase(bot, FLAGS_db_addr.c_str(), FLAGS_db_user.c_str(), passwd, FLAGS_db_name.c_str(),
-                                     &errmsg);
-        } else {
-            BOT_API::ConnectDatabase(bot, FLAGS_db_addr.c_str(), FLAGS_db_user.c_str(), FLAGS_db_passwd.c_str(),
-                                     FLAGS_db_name.c_str(), &errmsg);
-        }
-        if (errmsg) {
-            Error() << "Connect database failed errmsg:" << *errmsg << std::endl;
-        } else {
-            Log() << "Connect database success" << std::endl;
-        }
-    }
-}
-#endif
-
 int main(int argc, char** argv)
 {
     //std::locale::global(std::locale("")); // this line can make number with comma
@@ -203,11 +176,11 @@ int main(int argc, char** argv)
         .game_path_ = FLAGS_game_path.c_str(),
         .image_path_ = "/image_path/",
         .admins_ = admins,
+#ifdef WITH_SQLITE
+        .db_path_ = FLAGS_db_path.c_str(),
+#endif
     };
     auto bot = BOT_API::Init(&option);
-#ifdef WITH_MYSQL
-    ConnectDatabase(bot);
-#endif
 
 #if __linux__
     linenoiseHistoryLoad(FLAGS_history_filename.c_str());

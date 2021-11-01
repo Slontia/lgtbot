@@ -19,7 +19,7 @@ static_assert(false, "Not support OS");
 #include "bot_core/match.h"
 #include "bot_core/msg_sender.h"
 
-static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
+void BotCtx::LoadGame_(HINSTANCE mod)
 {
     if (!mod) {
 #ifdef __linux__
@@ -61,15 +61,15 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
         return;
     }
     uint64_t game_id = 0;
-#ifdef WITH_MYSQL
-    if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager(); db_manager != nullptr) {
-        game_id = db_manager->GetGameIDWithName(name);
+#ifdef WITH_SQLITE
+    if (db_manager_.has_value()) {
+        game_id = db_manager_->GetGameIDWithName(name);
     }
 #endif
-    game_handles.emplace(name, std::make_unique<GameHandle>(game_id, name, module_name, max_player, rule,
-                                                            game_options_allocator_fn, game_options_deleter_fn,
-                                                            main_stage_allocator_fn, main_stage_deleter_fn,
-                                                            [mod] { FreeLibrary(mod); }));
+    game_handles_.emplace(name, std::make_unique<GameHandle>(game_id, name, module_name, max_player, rule,
+                                                             game_options_allocator_fn, game_options_deleter_fn,
+                                                             main_stage_allocator_fn, main_stage_deleter_fn,
+                                                             [mod] { FreeLibrary(mod); }));
     InfoLog() << "Loaded successfully!";
 }
 
@@ -87,7 +87,7 @@ void BotCtx::LoadGameModules_(const char* const games_path)
     do {
         const std::string_view module_name(file_data.cFileName);
         const auto dll_path = std::string(games_path) + "\\" + module_name;
-        LoadGame(LoadLibrary(dll_path.c_str()), game_handles_);
+        LoadGame_(LoadLibrary(dll_path.c_str()));
     } while (FindNextFile(file_handle, &file_data));
     FindClose(file_handle);
     InfoLog() << "Load module count: " << game_handles_.size();
@@ -107,7 +107,7 @@ void BotCtx::LoadGameModules_(const char* const games_path)
             continue;
         }
         InfoLog() << "Loading library " << name;
-        LoadGame(dlopen((std::string(games_path) + "/" + name).c_str(), RTLD_LAZY), game_handles_);
+        LoadGame_(dlopen((std::string(games_path) + "/" + name).c_str(), RTLD_LAZY));
     }
     InfoLog() << "Loading finished.";
     closedir(d);

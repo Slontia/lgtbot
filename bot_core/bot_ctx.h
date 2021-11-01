@@ -3,9 +3,13 @@
 #include <mutex>
 #include <map>
 #include <set>
+#include <optional>
 
 #include "bot_core/match_manager.h"
 #include "bot_core/id.h"
+#include "bot_core/db_manager.h"
+
+#include <dirent.h>
 
 using GameHandleMap = std::map<std::string, std::unique_ptr<GameHandle>>;
 
@@ -13,6 +17,8 @@ class BotCtx
 {
   public:
     BotCtx(const BotOption& option);
+    BotCtx(const BotCtx&) = delete;
+    BotCtx(BotCtx&&) = delete;
     MatchManager& match_manager() { return match_manager_; }
 
 #ifdef TEST_BOT
@@ -25,9 +31,12 @@ class BotCtx
 
     const std::string& game_path() const { return game_path_; }
 
+    std::optional<DBManager> db_manager() const { return db_manager_; }
+
   private:
     void LoadGameModules_(const char* const games_path);
     void LoadAdmins_(const uint64_t* const admins);
+    void LoadGame_(void* mod);
 
     const UserID this_uid_;
     const std::string game_path_;
@@ -35,4 +44,7 @@ class BotCtx
     GameHandleMap game_handles_;
     std::set<UserID> admins_;
     MatchManager match_manager_;
+#ifdef WITH_SQLITE
+    std::optional<DBManager> db_manager_;
+#endif
 };

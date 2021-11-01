@@ -12,6 +12,8 @@
 #include "bot_core/message_handlers.h"
 #include "bot_core/msg_sender.h"
 
+#include "sqlite_modern_cpp.h"
+
 extern void LoadGameModules();
 
 const int32_t LGT_AC = -1;
@@ -21,6 +23,7 @@ BotCtx::BotCtx(const BotOption& option)
     , game_path_(std::filesystem::absolute(option.game_path_).string())
     , match_manager_(*this)
 {
+    DBManager::UseDB(option.db_path_, db_manager_);
     LoadGameModules_(option.game_path_);
     LoadAdmins_(option.admins_);
 }
@@ -117,17 +120,3 @@ ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const uint64
     return HandleRequest(bot, gid, uid, msg, sender);
 }
 
-#ifdef WITH_MYSQL
-ErrCode /*__cdecl*/ BOT_API::ConnectDatabase(void* const bot_p, const char* const addr, const char* const user,
-                                             const char* const passwd, const char* const db_name, const char** errmsg)
-{
-    ErrCode code;
-    std::tie(code, *errmsg) = DBManager::ConnectDB(addr, user, passwd, db_name);
-    if (const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager()) {
-        for (auto& [name, info] : static_cast<BotCtx*>(bot_p)->game_handles()) {
-            info->set_game_id(db_manager->GetGameIDWithName(name));
-        }
-    }
-    return code;
-}
-#endif

@@ -294,16 +294,15 @@ static ErrCode about(BotCtx& bot, const UserID uid, const std::optional<GroupID>
     return EC_OK;
 }
 
-#ifdef WITH_MYSQL
+#ifdef WITH_SQLITE
 static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
                             MsgSenderBase& reply)
 {
-    const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager();
-    if (db_manager == nullptr) {
+    if (!bot.db_manager().has_value()) {
         reply() << "[错误] 查看失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
-    const auto profit = db_manager->GetUserProfit(uid);  // TODO: pass sender
+    const auto profit = bot.db_manager()->GetUserProfit(uid);  // TODO: pass sender
     return EC_OK;
 }
 #endif
@@ -313,7 +312,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
         "信息查看", { // GAME INFO: can be executed at any time
             make_command("查看帮助", help<false>, VoidChecker("#帮助"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
-#ifdef WITH_MYSQL
+#ifdef WITH_SQLITE
             make_command("查看个人信息", show_profile, VoidChecker("#个人信息")),
 #endif
             make_command("查看游戏列表", show_gamelist, VoidChecker("#游戏列表")),
@@ -344,7 +343,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
     }
 };
 
-#ifdef WITH_MYSQL
+#ifdef WITH_SQLITE
 static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
                             MsgSenderBase& reply, const std::string& gamename)
 {
@@ -358,12 +357,12 @@ static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<G
         reply() << "[错误] 发布失败：游戏已发布，ID为" << game_id;
         return EC_GAME_ALREADY_RELEASE;
     }
-    const std::unique_ptr<DBManager>& db_manager = DBManager::GetDBManager();
-    if (db_manager == nullptr) {
+    if (!bot.db_manager().has_value()) {
         reply() << "[错误] 发布失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
-    if ((game_id = db_manager->ReleaseGame(gamename)) == 0) {
+    bot.db_manager()->ReleaseGame(gamename);
+    if ((game_id = bot.db_manager()->GetGameIDWithName(gamename)) == 0) {
         reply() << "[错误] 发布失败：发布失败，请查看错误日志";
         return EC_DB_RELEASE_GAME_FAILED;
     }
@@ -401,7 +400,7 @@ const std::vector<MetaCommandGroup> admin_cmds = {
     },
     {
         "管理操作", {
-#ifdef WITH_MYSQL
+#ifdef WITH_SQLITE
             make_command("发布游戏，写入游戏信息到数据库", release_game, VoidChecker("%发布游戏"),
                         AnyArg("游戏名称", "某游戏名")),
 #endif

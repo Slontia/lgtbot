@@ -4,3 +4,6 @@
 [submodule "third_party/markdown2image"]
 	path = third_party/markdown2image
 	url = http://github.com/slontia/markdown2image
+[submodule "third_party/sqlite_modern_cpp"]
+	path = third_party/sqlite_modern_cpp
+	url = https://github.com/SqliteModernCpp/sqlite_modern_cpp

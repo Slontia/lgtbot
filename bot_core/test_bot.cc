@@ -290,6 +290,7 @@ class TestBot : public testing::Test
             .game_path_ = "/game_path/",
             .image_path_ = "/image_path/",
             .admins_ = admins,
+            .db_path_ = ":memory:",
         };
         bot_ = BOT_API::Init(&option);
         ASSERT_NE(bot_, nullptr) << "init bot failed";
