@@ -99,9 +99,7 @@ struct BotOption
     const char* game_path_ = nullptr;
     const char* image_path_ = nullptr;
     const uint64_t* admins_ = nullptr;
-#ifdef WITH_SQLITE
     const char* db_path_ = nullptr;
-#endif
 };
 
 class BOT_API

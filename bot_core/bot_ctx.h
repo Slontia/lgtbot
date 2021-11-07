@@ -16,7 +16,7 @@ using GameHandleMap = std::map<std::string, std::unique_ptr<GameHandle>>;
 class BotCtx
 {
   public:
-    BotCtx(const BotOption& option);
+    BotCtx(const BotOption& option, std::unique_ptr<DBManagerBase> db_manager);
     BotCtx(const BotCtx&) = delete;
     BotCtx(BotCtx&&) = delete;
     MatchManager& match_manager() { return match_manager_; }
@@ -31,7 +31,7 @@ class BotCtx
 
     const std::string& game_path() const { return game_path_; }
 
-    std::optional<DBManager> db_manager() const { return db_manager_; }
+    DBManagerBase* db_manager() const { return db_manager_.get(); }
 
   private:
     void LoadGameModules_(const char* const games_path);
@@ -45,6 +45,6 @@ class BotCtx
     std::set<UserID> admins_;
     MatchManager match_manager_;
 #ifdef WITH_SQLITE
-    std::optional<DBManager> db_manager_;
+    std::unique_ptr<DBManagerBase> db_manager_;
 #endif
 };

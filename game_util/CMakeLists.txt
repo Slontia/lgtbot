@@ -33,3 +33,7 @@ add_test(NAME test_poker COMMAND test_poker)
 add_executable(test_numcomb test_numcomb.cc ../utility/html.cpp)
 target_link_libraries(test_numcomb ${THIRD_PARTIES})
 add_test(NAME test_numcomb COMMAND test_numcomb)
+
+add_executable(test_alchemist test_alchemist.cc ../utility/html.cpp)
+target_link_libraries(test_alchemist ${THIRD_PARTIES})
+add_test(NAME test_alchemist COMMAND test_alchemist)

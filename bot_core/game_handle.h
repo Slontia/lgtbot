@@ -23,7 +23,7 @@ struct GameHandle {
     using main_stage_deleter = void(*)(const MainStageBase*);
     using main_stage_ptr = std::unique_ptr<MainStageBase, main_stage_deleter>;
 
-    GameHandle(const uint64_t game_id, const std::string& name, const std::string& module_name,
+    GameHandle(const std::string& name, const std::string& module_name,
                const uint64_t max_player, const std::string& rule,
                const game_options_allocator& game_options_allocator_fn,
                const game_options_deleter& game_options_deleter_fn,
@@ -39,27 +39,10 @@ struct GameHandle {
         , main_stage_allocator_(main_stage_allocator_fn)
         , main_stage_deleter_(main_stage_deleter_fn)
         , mod_guard_(std::forward<ModGuard>(mod_guard))
-        , game_id_(game_id)
+        , is_formal_(false)
     {}
 
     GameHandle(GameHandle&&) = delete;
-
-    uint64_t game_id() const
-    {
-        return game_id_.load();
-    }
-
-    void set_game_id(const uint64_t game_id)
-    {
-        assert(game_id_ == 0);
-	    game_id_.store(game_id);
-    }
-
-    void clear_game_id()
-    {
-        assert(game_id_ != 0);
-	    game_id_.store(0);
-    }
 
     game_options_ptr make_game_options() const
     {
@@ -80,8 +63,6 @@ struct GameHandle {
     const main_stage_allocator main_stage_allocator_;
     const main_stage_deleter main_stage_deleter_;
     const ModGuard mod_guard_;
-
-  private:
-    std::atomic<uint64_t> game_id_;
+    bool is_formal_;
 };
 

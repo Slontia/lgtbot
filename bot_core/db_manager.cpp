@@ -24,9 +24,7 @@ template <typename Fn>
 static bool ExecuteTransaction(const std::string& db_name, const Fn& fn)
 {
     try {
-        sqlite::sqlite_config config;
-        config.flags = sqlite::OpenFlags::SHAREDCACHE | sqlite::OpenFlags::READWRITE;
-        sqlite::database db(db_name, config);
+        sqlite::database db(db_name);
         db << "BEGIN;";
         if (fn(db)) {
             db << "COMMIT;";
@@ -52,28 +50,29 @@ static bool ExecuteTransaction(const std::string& db_name, const Fn& fn)
         }                                                                            \
     } while (0)
 
-DBManager::DBManager(const std::string& db_name) : db_name_(db_name)
+SQLiteDBManager::SQLiteDBManager(const std::string& db_name) : db_name_(db_name)
 {
 }
 
-DBManager::~DBManager() {}
+SQLiteDBManager::~SQLiteDBManager() {}
 
-bool DBManager::RecordMatch(const uint64_t game_id, const std::optional<GroupID> gid, const UserID host_uid,
+bool SQLiteDBManager::RecordMatch(const std::string& game_name, const std::optional<GroupID> gid, const UserID host_uid,
                     const uint64_t multiple, const std::vector<ScoreInfo>& score_infos)
 {
-    assert(score_infos.size() >= 2);
     return ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            db << "INSERT INTO match (game_id, group_id, host_user_id, user_count, multiple) VALUES (?,?,?,?,?);"
-               << game_id
-               << (gid.has_value() ? std::to_string(*gid) : "NULL")
+            db << "INSERT INTO match (game_name, group_id, host_user_id, user_count, multiple) VALUES (?,?,?,?,?);"
+               << game_name
+               << gid
                << host_uid.Get()
                << score_infos.size()
                << multiple;
             const uint64_t match_id  = db.last_insert_rowid();
             for (const ScoreInfo& score_info : score_infos) {
-                db << "INSERT INTO user (user_id) VALUES (?);" << score_info.uid_.Get();
-                db << "INSERT INTO match_player (match_id, user_id, game_score, zero_sum_match_score, top_score) VALUES (?,?,?,?,?);"
+                db << "INSERT INTO user (user_id) SELECT ? WHERE NOT EXISTS "
+                      "(SELECT user_id FROM user WHERE user_id = ?);"
+                   << score_info.uid_.Get() << score_info.uid_.Get();
+                db << "INSERT INTO user_with_match (match_id, user_id, game_score, zero_sum_score, top_score) VALUES (?,?,?,?,?);"
                    << match_id
                    << score_info.uid_.Get()
                    << score_info.game_score_
@@ -84,80 +83,48 @@ bool DBManager::RecordMatch(const uint64_t game_id, const std::optional<GroupID>
         });
 }
 
-std::optional<UserProfit> DBManager::GetUserProfit(const UserID uid)
+UserProfile SQLiteDBManager::GetUserProfile(const UserID uid)
 {
-    std::optional<UserProfit> profit;
+    UserProfile profit;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
             db << "SELECT COUNT(*), SUM(zero_sum_score), SUM(top_score) FROM user_with_match WHERE user_id = ?;"
                << uid.Get()
                >> [&](const uint64_t match_count, const int64_t total_zero_sum_score, const int64_t total_top_score)
                       {
-                          profit.emplace();
-                          profit->uid_ = uid;
-                          profit->match_count_ = match_count;
-                          profit->total_zero_sum_score_ = total_zero_sum_score;
-                          profit->total_top_score_ = total_top_score;
+                          profit.uid_ = uid;
+                          profit.match_count_ = match_count;
+                          profit.total_zero_sum_score_ = total_zero_sum_score;
+                          profit.total_top_score_ = total_top_score;
                       };
-            if (!profit.has_value()) { // if user not exists
-                return true;
-            }
-            db << "SELECT game.name, match.user_count, user_with_match.game_score, user_with_match.zero_sum_score, "
+            db << "SELECT match.game_name, match.user_count, user_with_match.game_score, user_with_match.zero_sum_score, "
                         "user_with_match.top_score "
-                  "FROM user_with_match, match, game "
-                  "WHERE user_id = ? AND user_with_match.match_id = match.match_id AND match.game_id = game.game_id "
+                  "FROM user_with_match, match "
+                  "WHERE user_with_match.user_id = ? AND user_with_match.match_id = match.match_id "
                   "ORDER BY match.match_id DESC LIMIT 10"
                << uid.Get()
                >> [&](const std::string& game_name, const uint64_t user_count, const int64_t game_score,
                           const int64_t zero_sum_score, const int64_t top_score)
                       {
-                          profit->recent_matches_.emplace_back();
-                          profit->recent_matches_.back().game_name_ = game_name;
-                          profit->recent_matches_.back().user_count_ = user_count;
-                          profit->recent_matches_.back().game_score_ = game_score;
-                          profit->recent_matches_.back().zero_sum_score_ = zero_sum_score;
-                          profit->recent_matches_.back().top_score_ = top_score;
+                          profit.recent_matches_.emplace_back();
+                          profit.recent_matches_.back().game_name_ = game_name;
+                          profit.recent_matches_.back().user_count_ = user_count;
+                          profit.recent_matches_.back().game_score_ = game_score;
+                          profit.recent_matches_.back().zero_sum_score_ = zero_sum_score;
+                          profit.recent_matches_.back().top_score_ = top_score;
                       };
             return true;
         });
     return profit;
 }
 
-uint64_t DBManager::GetGameIDWithName(const std::string& game_name)
-{
-    uint64_t game_id = 0;
-    ExecuteTransaction(db_name_, [&](sqlite::database& db)
-        {
-            db << "SELECT game_id FROM game WHERE name = ?;" << game_name.c_str()
-               >> [&](const uint64_t get_game_id) { game_id = get_game_id; };
-            if (game_id == 0) {
-                WarnLog() << "GetGameIDWithName failed game_name=" << game_name;
-            } else {
-                InfoLog() << "GetGameIDWithName succeed game_name=" << game_name << ", game_id=" << game_id;
-            }
-            return true;
-        });
-    return game_id;
-}
-
-void DBManager::ReleaseGame(const std::string& game_name)
-{
-    ExecuteTransaction(db_name_, [&](sqlite::database& db)
-        {
-            db << "INSERT INTO game (name) VALUES (?);" << game_name.c_str();
-            return true;
-        });
-}
-
-bool DBManager::UseDB(const std::string& db_name, std::optional<DBManager>& db_manager)
+std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::string& db_name)
 {
     try {
-        sqlite::sqlite_config config;
-        config.flags = sqlite::OpenFlags::SHAREDCACHE | sqlite::OpenFlags::READWRITE;
-        sqlite::database db(db_name, config);
+        sqlite::database db(db_name);
         db << "CREATE TABLE IF NOT EXISTS match("
-                "match_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, "
-                "game_id BIGINT UNSIGNED NOT NULL, "
+                "match_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "game_name VARCHAR(100) NOT NULL, "
                 "finish_time DATETIME DEFAULT CURRENT_TIMESTAMP, "
                 "group_id BIGINT UNSIGNED, "
                 "host_user_id BIGINT UNSIGNED NOT NULL, "
@@ -171,10 +138,6 @@ bool DBManager::UseDB(const std::string& db_name, std::optional<DBManager>& db_m
                 "top_score BIGINT NOT NULL, "
                 "PRIMARY KEY (user_id, match_id));";
         db << "CREATE INDEX IF NOT EXISTS user_id_index ON user_with_match(user_id);";
-        db << "CREATE TABLE IF NOT EXISTS game("
-                "game_id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                "name VARCHAR(100) NOT NULL UNIQUE, "
-                "release_time DATETIME DEFAULT CURRENT_TIMESTAMP);";
         db << "CREATE TABLE IF NOT EXISTS user("
                 "user_id BIGINT UNSIGNED PRIMARY KEY, "
                 "register_time DATETIME DEFAULT CURRENT_TIMESTAMP, "
@@ -186,14 +149,13 @@ bool DBManager::UseDB(const std::string& db_name, std::optional<DBManager>& db_m
         db << "CREATE TABLE IF NOT EXISTS user_with_achievement("
                 "user_id BIGINT UNSIGNED NOT NULL, "
                 "achi_id BIGINT UNSIGNED NOT NULL);";
-        db_manager.emplace(DBManager(db_name));
-        return true;
+        return std::unique_ptr<DBManagerBase>(new SQLiteDBManager(db_name));
     } catch (const sqlite::sqlite_exception& e) {
         HandleError(e);
     } catch (const std::exception& e) {
         HandleError(e);
     }
-    return false;
+    return nullptr;
 }
 
 #endif

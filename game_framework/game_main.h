@@ -38,6 +38,7 @@ class GameOptionBase
 {
   public:
     GameOptionBase(const uint64_t size) : size_(size), player_num_(0), resource_dir_(nullptr) {}
+    virtual ~GameOptionBase() {}
     void SetPlayerNum(const uint64_t player_num) { player_num_ = player_num; }
     const uint64_t PlayerNum() const { return player_num_; }
     const uint64_t Size() const { return size_; }

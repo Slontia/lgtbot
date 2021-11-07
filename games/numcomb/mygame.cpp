@@ -23,7 +23,7 @@ static const std::array<std::vector<int32_t>, comb::k_direct_max> k_points{
 
 struct Player
 {
-    Player(std::string resource_path) : score_(0), comb_(new comb::Comb(std::move(resource_path))) {} // TODO: fill image path
+    Player(std::string resource_path) : score_(0), comb_(new comb::Comb(std::move(resource_path))) {}
     Player(Player&&) = default;
     int32_t score_;
     std::unique_ptr<comb::Comb> comb_;
@@ -43,8 +43,6 @@ const std::string GameOption::StatusInfo() const
 
 class RoundStage;
 
-static constexpr uint32_t k_max_round = 19;
-
 class MainStage : public MainGameStage<RoundStage>
 {
   public:
@@ -53,7 +51,6 @@ class MainStage : public MainGameStage<RoundStage>
         , round_(0)
     {
         for (uint64_t i = 0; i < option.PlayerNum(); ++i) {
-            std::cout << "path: " << option.ResourceDir() << std::endl;
             players_.emplace_back(option.ResourceDir());
         }
 

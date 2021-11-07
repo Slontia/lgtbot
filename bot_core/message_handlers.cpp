@@ -7,6 +7,7 @@
 #include "bot_core/log.h"
 #include "bot_core/match.h"
 #include "bot_core/image.h"
+#include "utility/html.h"
 
 // para func can appear only once
 #define RETURN_IF_FAILED(func)                                 \
@@ -122,7 +123,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
     sender << "游戏列表：";
     for (const auto& [name, info] : bot.game_handles()) {
         sender << "\n" << (++i) << ". " << name;
-        if (info->game_id() == 0) {
+        if (!info->is_formal_) {
             sender << "（试玩）";
         }
     }
@@ -294,27 +295,50 @@ static ErrCode about(BotCtx& bot, const UserID uid, const std::optional<GroupID>
     return EC_OK;
 }
 
-#ifdef WITH_SQLITE
 static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
                             MsgSenderBase& reply)
 {
-    if (!bot.db_manager().has_value()) {
+    if (!bot.db_manager()) {
         reply() << "[错误] 查看失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
-    const auto profit = bot.db_manager()->GetUserProfit(uid);  // TODO: pass sender
+    const auto profit = bot.db_manager()->GetUserProfile(uid);  // TODO: pass sender
+
+    std::string html = std::string("## ") + GetUserName(uid, nullptr) + " (" + std::to_string(uid.Get()) + ")\n";
+    html += "\n- 游戏局数：" + std::to_string(profit.match_count_);
+    html += "\n- 零和总分：" + std::to_string(profit.total_zero_sum_score_);
+    html += "\n- 头名总分：" + std::to_string(profit.total_top_score_);
+
+    Table recent_matches_table(1, 5);
+    recent_matches_table.Get(0, 0).SetContent("游戏名称");
+    recent_matches_table.Get(0, 1).SetContent("参与人数");
+    recent_matches_table.Get(0, 2).SetContent("游戏得分");
+    recent_matches_table.Get(0, 3).SetContent("零和得分");
+    recent_matches_table.Get(0, 4).SetContent("头名得分");
+
+    for (uint32_t i = 0; i < profit.recent_matches_.size(); ++i) {
+        recent_matches_table.AppendRow();
+        const auto match_profile = profit.recent_matches_[i];
+        recent_matches_table.Get(i + 1, 0).SetContent(match_profile.game_name_);
+        recent_matches_table.Get(i + 1, 1).SetContent(std::to_string(match_profile.user_count_));
+        recent_matches_table.Get(i + 1, 2).SetContent(std::to_string(match_profile.game_score_));
+        recent_matches_table.Get(i + 1, 3).SetContent(std::to_string(match_profile.zero_sum_score_));
+        recent_matches_table.Get(i + 1, 4).SetContent(std::to_string(match_profile.top_score_));
+    }
+
+    html += "\n\n" + recent_matches_table.ToString();
+
+    reply() << Markdown(html);
+
     return EC_OK;
 }
-#endif
 
 const std::vector<MetaCommandGroup> meta_cmds = {
     {
         "信息查看", { // GAME INFO: can be executed at any time
             make_command("查看帮助", help<false>, VoidChecker("#帮助"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
-#ifdef WITH_SQLITE
-            make_command("查看个人信息", show_profile, VoidChecker("#个人信息")),
-#endif
+            make_command("查看战绩", show_profile, VoidChecker("#战绩")),
             make_command("查看游戏列表", show_gamelist, VoidChecker("#游戏列表")),
             make_command("查看游戏规则（游戏名称可以通过\"#游戏列表\"查看）", show_rule, VoidChecker("#规则"),
                         AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
@@ -343,35 +367,6 @@ const std::vector<MetaCommandGroup> meta_cmds = {
     }
 };
 
-#ifdef WITH_SQLITE
-static ErrCode release_game(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                            MsgSenderBase& reply, const std::string& gamename)
-{
-    const auto it = bot.game_handles().find(gamename);
-    if (it == bot.game_handles().end()) {
-        reply() << "[错误] 发布失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
-        return EC_REQUEST_UNKNOWN_GAME;
-    }
-    auto game_id = it->second->game_id();
-    if (game_id != 0) {
-        reply() << "[错误] 发布失败：游戏已发布，ID为" << game_id;
-        return EC_GAME_ALREADY_RELEASE;
-    }
-    if (!bot.db_manager().has_value()) {
-        reply() << "[错误] 发布失败：未连接数据库";
-        return EC_DB_NOT_CONNECTED;
-    }
-    bot.db_manager()->ReleaseGame(gamename);
-    if ((game_id = bot.db_manager()->GetGameIDWithName(gamename)) == 0) {
-        reply() << "[错误] 发布失败：发布失败，请查看错误日志";
-        return EC_DB_RELEASE_GAME_FAILED;
-    }
-    it->second->set_game_id(game_id);
-    reply() << "发布成功，游戏\'" << gamename << "\'的ID为" << game_id;
-    return EC_OK;
-}
-#endif
-
 static ErrCode interrupt_game(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
                                  MsgSenderBase& reply, const std::optional<MatchID> mid)
 {
@@ -391,6 +386,19 @@ static ErrCode interrupt_game(BotCtx& bot, const UserID uid, const std::optional
     return EC_OK;
 }
 
+static ErrCode set_game_default(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+                                 MsgSenderBase& reply, const std::string& gamename, const bool is_formal)
+{
+    const auto it = bot.game_handles().find(gamename);
+    if (it == bot.game_handles().end()) {
+        reply() << "[错误] 查看失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
+        return EC_REQUEST_UNKNOWN_GAME;
+    };
+    it->second->is_formal_ = is_formal;
+    reply() << "设置成功，游戏默认为" << (is_formal ? "正式" : "试玩") << "游戏";
+    return EC_OK;
+}
+
 const std::vector<MetaCommandGroup> admin_cmds = {
     {
         "信息查看", {
@@ -400,12 +408,10 @@ const std::vector<MetaCommandGroup> admin_cmds = {
     },
     {
         "管理操作", {
-#ifdef WITH_SQLITE
-            make_command("发布游戏，写入游戏信息到数据库", release_game, VoidChecker("%发布游戏"),
-                        AnyArg("游戏名称", "某游戏名")),
-#endif
-            make_command("强制中断比赛", interrupt_game, VoidChecker("%中断游戏"),
+            make_command("强制中断比赛", interrupt_game, VoidChecker("%中断"),
                         OptionalChecker<BasicChecker<MatchID>>("私密比赛编号")),
+            make_command("设置游戏默认属性", set_game_default, VoidChecker("%默认"),
+                        AnyArg("游戏名称", "猜拳游戏"), BoolChecker("正式", "试玩")),
         }
     },
 };

@@ -10,6 +10,7 @@
 #include "bot_core/timer.h"
 #include "bot_core/bot_ctx.h"
 #include "bot_core/game_handle.h"
+#include "bot_core/db_manager.h"
 
 static_assert(TEST_BOT);
 
@@ -29,6 +30,23 @@ static char** g_argv = nullptr;
 typedef bool(*InitBotFunc)(const UserID, int argc, char** argv);
 typedef ErrCode(*HandlePrivateRequestFunc)(const UserID uid, const char* const msg);
 typedef ErrCode(*HandlePublicRequestFunc)(const UserID uid, const GroupID gid, const char* const msg);
+
+class MockDBManager : public DBManagerBase
+{
+  public:
+    virtual bool RecordMatch(const std::string& game_name, const std::optional<GroupID> gid, const UserID host_uid,
+            const uint64_t multiple, const std::vector<ScoreInfo>& score_infos)
+    {
+        for (const auto& info : score_infos) {
+            match_profiles_.emplace_back(game_name, score_infos.size(), info.game_score_, info.zero_sum_score_, info.top_score_);
+        }
+        return true;
+    }
+
+    virtual UserProfile GetUserProfile(const UserID uid) { return {}; }
+
+    std::vector<MatchProfile> match_profiles_;
+};
 
 struct Messager
 {
@@ -100,6 +118,21 @@ class TestBot;
 static std::mutex substage_blocked_mutex_;
 static std::condition_variable substage_block_request_cv_;
 static std::atomic<bool> substage_blocked_;
+
+class GameOption : public GameOptionBase
+{
+  public:
+    GameOption() : GameOptionBase(0) {}
+    virtual ~GameOption() {}
+    virtual void SetResourceDir(const char* const resource_dir) { resource_dir_ = resource_dir; }
+    virtual const char* ResourceDir() const { return resource_dir_.c_str(); }
+    virtual const char* Info(const uint64_t index) const { return "这是配置介绍"; };
+    virtual const char* ColoredInfo(const uint64_t index) const { return "这是配置介绍"; };
+    virtual const char* Status() const { return "这是配置状态"; };
+    virtual bool SetOption(const char* const msg) { return true; };
+  private:
+    std::string resource_dir_;
+};
 
 class MainStage;
 
@@ -232,8 +265,10 @@ class MainStage : public MainGameStage<SubStage>
   public:
     MainStage(const GameOption& option, MatchBase& match)
         : GameStage(option, match,
-                MakeStageCommand("准备切换", &MainStage::ToCheckout_, VoidChecker("准备切换"), ArithChecker(0, 10)))
+                MakeStageCommand("准备切换", &MainStage::ToCheckout_, VoidChecker("准备切换"), ArithChecker(0, 10)),
+                MakeStageCommand("设置玩家分数", &MainStage::Score_, VoidChecker("分数"), ArithChecker<int64_t>(-10, 10)))
         , to_checkout_(0)
+        , scores_(option.PlayerNum(), 0)
     {}
 
     virtual VariantSubStage OnStageBegin() override
@@ -252,7 +287,7 @@ class MainStage : public MainGameStage<SubStage>
         return {};
     }
 
-    virtual int64_t PlayerScore(const PlayerID pid) const override { return 1; };
+    virtual int64_t PlayerScore(const PlayerID pid) const override { return scores_[pid]; };
 
   private:
     CompReqErrCode ToCheckout_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t count)
@@ -261,21 +296,14 @@ class MainStage : public MainGameStage<SubStage>
         return StageErrCode::OK;
     }
 
-    uint32_t to_checkout_;
-};
+    CompReqErrCode Score_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t score)
+    {
+        scores_[pid] = score;
+        return StageErrCode::OK;
+    }
 
-class GameOption : public GameOptionBase
-{
-  public:
-    GameOption() : GameOptionBase(0) {}
-    virtual void SetResourceDir(const char* const resource_dir) { resource_dir_ = resource_dir; }
-    virtual const char* ResourceDir() const { return resource_dir_.c_str(); }
-    virtual const char* Info(const uint64_t index) const { return "这是配置介绍"; };
-    virtual const char* ColoredInfo(const uint64_t index) const { return "这是配置介绍"; };
-    virtual const char* Status() const { return "这是配置状态"; };
-    virtual bool SetOption(const char* const msg) { return true; };
-  private:
-    std::string resource_dir_;
+    uint32_t to_checkout_;
+    std::vector<int64_t> scores_;
 };
 
 class TestBot : public testing::Test
@@ -292,7 +320,7 @@ class TestBot : public testing::Test
             .admins_ = admins,
             .db_path_ = ":memory:",
         };
-        bot_ = BOT_API::Init(&option);
+        bot_ = new BotCtx(option, std::unique_ptr<DBManagerBase>(new MockDBManager()));
         ASSERT_NE(bot_, nullptr) << "init bot failed";
     }
 
@@ -301,11 +329,13 @@ class TestBot : public testing::Test
         BOT_API::Release(bot_);
     }
 
+    MockDBManager& db_manager() { return static_cast<MockDBManager&>(*static_cast<BotCtx*>(bot_)->db_manager()); }
+
   protected:
     void AddGame(const char* const name, const uint64_t max_player)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
-                    0, name, name, max_player, "这是规则介绍",
+                    name, name, max_player, "这是规则介绍",
                     []() -> GameOptionBase* { return new GameOption(); },
                     [](const GameOptionBase* const options) { delete options; },
                     [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
@@ -831,20 +861,20 @@ TEST_F(TestBot, exceed_max_player)
 TEST_F(TestBot, interrupt_private_without_mid)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_MATCH_NEED_REQUEST_PUBLIC, k_admin_qq, "%中断游戏");
+  ASSERT_PRI_MSG(EC_MATCH_NEED_REQUEST_PUBLIC, k_admin_qq, "%中断");
 }
 
 TEST_F(TestBot, interrupt_public_not_game)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PUB_MSG(EC_MATCH_GROUP_NOT_IN_MATCH, 1, k_admin_qq, "%中断游戏");
+  ASSERT_PUB_MSG(EC_MATCH_GROUP_NOT_IN_MATCH, 1, k_admin_qq, "%中断");
 }
 
 TEST_F(TestBot, interrupt_public)
 {
   AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
-  ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
 }
 
@@ -853,7 +883,7 @@ TEST_F(TestBot, interrupt_public_wait)
   AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
-  ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
 }
@@ -864,7 +894,7 @@ TEST_F(TestBot, interrupt_public_start)
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
-  ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, k_admin_qq, "%中断");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
 }
@@ -873,7 +903,7 @@ TEST_F(TestBot, interrupt_private_wait)
 {
   AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断游戏 1");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
 
@@ -882,7 +912,7 @@ TEST_F(TestBot, interrupt_private)
   AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断游戏 1");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 2");
 }
@@ -893,7 +923,7 @@ TEST_F(TestBot, interrupt_private_start)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断游戏 1");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%中断 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 2");
 }
@@ -902,7 +932,7 @@ TEST_F(TestBot, interrupt_private_wait_in_public)
 {
   AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
-  ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断游戏 1");
+  ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
 
@@ -911,7 +941,7 @@ TEST_F(TestBot, interrupt_private_in_public)
   AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
-  ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断游戏 1");
+  ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 2");
 }
@@ -922,7 +952,7 @@ TEST_F(TestBot, interrupt_private_start_in_public)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");
-  ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断游戏 1");
+  ASSERT_PUB_MSG(EC_OK, 999, k_admin_qq, "%中断 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
 
@@ -1106,6 +1136,59 @@ TEST_F(TestBot, eliminate_last)
   ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 2, "准备");
 
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+}
+
+// Record Score
+
+TEST_F(TestBot, record_score)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认 测试游戏 正式");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "分数 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 2, "分数 2");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 2, "准备");
+  ASSERT_EQ(2, db_manager().match_profiles_.size());
+}
+
+TEST_F(TestBot, not_released_game_not_record)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "分数 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 2, "分数 2");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 2, "准备");
+  ASSERT_EQ(0, db_manager().match_profiles_.size());
+}
+
+TEST_F(TestBot, one_player_game_not_record)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认 测试游戏 正式");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 1, "#替补至 2");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "分数 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "准备");
+  ASSERT_EQ(0, db_manager().match_profiles_.size());
+}
+
+TEST_F(TestBot, all_player_leave_not_record)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认 测试游戏 正式");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#退出 强制");
+  ASSERT_EQ(0, db_manager().match_profiles_.size());
 }
 
 int main(int argc, char** argv)

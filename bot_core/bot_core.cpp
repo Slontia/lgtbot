@@ -18,12 +18,12 @@ extern void LoadGameModules();
 
 const int32_t LGT_AC = -1;
 
-BotCtx::BotCtx(const BotOption& option)
+BotCtx::BotCtx(const BotOption& option, std::unique_ptr<DBManagerBase> db_manager)
     : this_uid_(option.this_uid_)
     , game_path_(std::filesystem::absolute(option.game_path_).string())
     , match_manager_(*this)
+    , db_manager_(std::move(db_manager))
 {
-    DBManager::UseDB(option.db_path_, db_manager_);
     LoadGameModules_(option.game_path_);
     LoadAdmins_(option.admins_);
 }
@@ -80,7 +80,7 @@ void* /*__cdecl*/ BOT_API::Init(const BotOption* option)
     if (option == nullptr) {
         return nullptr;
     }
-    return new BotCtx(*option);
+    return new BotCtx(*option, SQLiteDBManager::UseDB(option->db_path_));
 }
 
 void /*__cdelcl*/ BOT_API::Release(void* const bot) { delete static_cast<BotCtx*>(bot); }

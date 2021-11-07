@@ -230,9 +230,15 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
         assert(main_stage_);
         assert(it->second.state_ != ParticipantUser::State::LEFT);
         it->second.state_ = ParticipantUser::State::LEFT;
-        for (const auto pid : it->second.pids_) {
-            main_stage_->HandleLeave(pid);
-            Routine_();
+        if (std::all_of(users_.begin(), users_.end(),
+                    [](const auto& user) { return user.second.state_ == ParticipantUser::State::LEFT; })) {
+            Boardcast() << "所有玩家都强制退出了游戏，那还玩啥玩，游戏解散，结果不会被记录";
+            Terminate_();
+        } else {
+            for (const auto pid : it->second.pids_) {
+                main_stage_->HandleLeave(pid);
+                Routine_();
+            }
         }
     } else {
         reply() << "[错误] 退出失败：游戏已经开始，若仍要退出游戏，请使用<#退出 强制>命令";
@@ -260,17 +266,18 @@ MsgSenderBase& Match::TellMsgSender(const PlayerID pid)
 
 std::vector<ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int64_t>>& scores)
 {
-    const auto user_num = scores.size();
+    const int64_t user_num = scores.size();
 
     // calculate zero sum score
     static constexpr auto k_zero_sum_multi = 1000;
-    static const auto accum_score = [&](const auto& fn)
+    const auto accum_score = [&](const auto& fn)
         {
             return std::accumulate(scores.begin(), scores.end(), 0,
-                    [&](const uint64_t sum, const auto& pair) { return fn(pair.second * k_zero_sum_multi) + sum; });
+                    [&](const int64_t sum, const auto& pair) { return fn(pair.second) + sum; });
         };
-    const auto avg_score = accum_score([](const int64_t score) { return score; }) / user_num;
-    const auto abs_sum_score = accum_score([avg_score](const int64_t score) { return score - avg_score; });
+    const int64_t sum_score = accum_score([](const int64_t score) { return score; });
+    const int64_t abs_sum_score =
+        accum_score([&](const int64_t score) { return std::abs(score * user_num - sum_score); });
 
     // calculate top score
     struct ScoreRecorder
@@ -284,6 +291,8 @@ std::vector<ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int
         {
             if (recorder.count_ == 0 || op(score, recorder.score_)) {
                 recorder.score_ = score;
+                recorder.count_ = 1;
+            } else if (score == recorder.score_) {
                 ++recorder.count_;
             }
         };
@@ -292,8 +301,8 @@ std::vector<ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int
             return score == recorder.score_ ? user_num * 10 / recorder.count_ : 0;
         };
     for (const auto& [_, score] : scores) {
-        record_fn(score, min_recorder, std::less_equal());
-        record_fn(score, max_recorder, std::greater_equal());
+        record_fn(score, min_recorder, std::less());
+        record_fn(score, max_recorder, std::greater());
     }
 
     // save to map
@@ -303,7 +312,7 @@ std::vector<ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int
         ret.back().uid_ = uid;
         ret.back().game_score_ = score;
         ret.back().zero_sum_score_ =
-            abs_sum_score == 0 ? 0 : (score * k_zero_sum_multi - avg_score) * user_num / abs_sum_score;
+            abs_sum_score == 0 ? 0 : (score * user_num - sum_score) * user_num * 1000 / abs_sum_score;
         ret.back().top_score_ += top_score_fn(score, max_recorder);
         ret.back().top_score_ -= top_score_fn(score, min_recorder);
     }
@@ -443,30 +452,28 @@ void Match::OnGameOver_()
         std::sort(user_scores.begin(), user_scores.end(),
                 [](const auto& _1, const auto& _2) { return _1.second > _2.second; });
 
-#ifdef WITH_SQLITE
         static const auto show_score = [](const char* const name, const int64_t score)
             {
-                return std::string("[") + name + (score > 0 ? "+" : "") + std::to_string(score);
+                return std::string("[") + name + (score > 0 ? "+" : "") + std::to_string(score) + "] ";
             };
         if (user_scores.size() <= 1) {
             sender << "\n\n游戏结果不记录：因为玩家数小于2";
-        } else if (!bot_.db_manager().has_value()) {
+        } else if (!bot_.db_manager()) {
             sender << "\n\n游戏结果不记录：因为未连接数据库";
-        } else if (const uint64_t game_id = game_handle_.game_id(); game_id == 0) {
-            sender << "\n\n游戏结果不记录：因为该游戏未发布";
+        } else if (!game_handle_.is_formal_) {
+            sender << "\n\n游戏结果不记录：因为该游戏为试玩游戏";
         } else if (const auto score_info = CalScores_(user_scores);
-                !bot_.db_manager()->RecordMatch(game_id, gid_, host_uid_, multiple_, score_info)) {
+                !bot_.db_manager()->RecordMatch(game_handle_.name_, gid_, host_uid_, multiple_, score_info)) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
         } else {
             assert(score_info.size() == users_.size());
             sender << "\n\n游戏结果写入数据库成功：";
             for (const auto& info : score_info) {
-                sender << At(info.uid_) << "：" << show_score("零和分", info.zero_sum_score_)
-                                                << show_score("TOP分", info.top_score_);
+                sender << "\n" << At(info.uid_) << "：" << show_score("零和分", info.zero_sum_score_)
+                                                        << show_score("TOP分", info.top_score_);
 
             }
         }
-#endif
     }
     Terminate_();
 }
