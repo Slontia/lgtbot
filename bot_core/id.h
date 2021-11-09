@@ -25,7 +25,7 @@ struct idname \
   template <typename Inputter> \
   friend auto& operator>>(Inputter& inputter, idname& id) { return inputter >> id.id_; } \
   bool IsValid() const { return UINT64_MAX != id_; } \
-  uint64_t Get() const { return id_; } \
+  const uint64_t& Get() const { return id_; } \
 \
  private: \
   uint64_t id_; \

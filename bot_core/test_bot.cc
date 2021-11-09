@@ -35,7 +35,7 @@ class MockDBManager : public DBManagerBase
 {
   public:
     virtual bool RecordMatch(const std::string& game_name, const std::optional<GroupID> gid, const UserID host_uid,
-            const uint64_t multiple, const std::vector<ScoreInfo>& score_infos)
+            const uint64_t multiple, const std::vector<ScoreInfo>& score_infos) override
     {
         for (const auto& info : score_infos) {
             match_profiles_.emplace_back(game_name, score_infos.size(), info.game_score_, info.zero_sum_score_, info.top_score_);
@@ -43,7 +43,8 @@ class MockDBManager : public DBManagerBase
         return true;
     }
 
-    virtual UserProfile GetUserProfile(const UserID uid) { return {}; }
+    virtual UserProfile GetUserProfile(const UserID uid) override { return {}; }
+    virtual bool Suicide(const UserID uid) override { return true; }
 
     std::vector<MatchProfile> match_profiles_;
 };
@@ -1157,6 +1158,7 @@ TEST_F(TestBot, record_score)
 TEST_F(TestBot, not_released_game_not_record)
 {
   AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认 测试游戏 试玩");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");

@@ -304,26 +304,44 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
     }
     const auto profit = bot.db_manager()->GetUserProfile(uid);  // TODO: pass sender
 
-    std::string html = std::string("## ") + GetUserName(uid, nullptr) + " (" + std::to_string(uid.Get()) + ")\n";
-    html += "\n- 游戏局数：" + std::to_string(profit.match_count_);
-    html += "\n- 零和总分：" + std::to_string(profit.total_zero_sum_score_);
-    html += "\n- 头名总分：" + std::to_string(profit.total_top_score_);
+    const auto colored_text = [](const auto score, std::string text)
+        {
+            std::string s;
+            if (score < 0) {
+                s = HTML_COLOR_FONT_HEADER(red);
+            } else if (score > 0) {
+                s = HTML_COLOR_FONT_HEADER(green);
+            }
+            s += std::move(text);
+            if (score != 0) {
+                s += HTML_FONT_TAIL;
+            }
+            return s;
+        };
 
-    Table recent_matches_table(1, 5);
-    recent_matches_table.Get(0, 0).SetContent("游戏名称");
-    recent_matches_table.Get(0, 1).SetContent("参与人数");
-    recent_matches_table.Get(0, 2).SetContent("游戏得分");
-    recent_matches_table.Get(0, 3).SetContent("零和得分");
-    recent_matches_table.Get(0, 4).SetContent("头名得分");
+    std::string html = std::string("## ") + GetUserName(uid, gid.has_value() ? &(gid->Get()) : nullptr) + "\n";
+    html += "\n- **游戏局数**：" + std::to_string(profit.match_count_);
+    html += "\n- **零和总分**：" + colored_text(profit.total_zero_sum_score_, std::to_string(profit.total_zero_sum_score_));
+    html += "\n- **头名总分**：" + colored_text(profit.total_top_score_, std::to_string(profit.total_top_score_));
+    html += "\n- **近十场游戏记录**：\n\n";
+
+    Table recent_matches_table(1, 6);
+    recent_matches_table.Get(0, 0).SetContent("**序号**");
+    recent_matches_table.Get(0, 1).SetContent("**游戏名称**");
+    recent_matches_table.Get(0, 2).SetContent("**参与人数**");
+    recent_matches_table.Get(0, 3).SetContent("**游戏得分**");
+    recent_matches_table.Get(0, 4).SetContent("**零和得分**");
+    recent_matches_table.Get(0, 5).SetContent("**头名得分**");
 
     for (uint32_t i = 0; i < profit.recent_matches_.size(); ++i) {
         recent_matches_table.AppendRow();
         const auto match_profile = profit.recent_matches_[i];
-        recent_matches_table.Get(i + 1, 0).SetContent(match_profile.game_name_);
-        recent_matches_table.Get(i + 1, 1).SetContent(std::to_string(match_profile.user_count_));
-        recent_matches_table.Get(i + 1, 2).SetContent(std::to_string(match_profile.game_score_));
-        recent_matches_table.Get(i + 1, 3).SetContent(std::to_string(match_profile.zero_sum_score_));
-        recent_matches_table.Get(i + 1, 4).SetContent(std::to_string(match_profile.top_score_));
+        recent_matches_table.Get(i + 1, 0).SetContent(colored_text(match_profile.top_score_, std::to_string(i + 1)));
+        recent_matches_table.Get(i + 1, 1).SetContent(colored_text(match_profile.top_score_, match_profile.game_name_));
+        recent_matches_table.Get(i + 1, 2).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.user_count_)));
+        recent_matches_table.Get(i + 1, 3).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.game_score_)));
+        recent_matches_table.Get(i + 1, 4).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.zero_sum_score_)));
+        recent_matches_table.Get(i + 1, 5).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.top_score_)));
     }
 
     html += "\n\n" + recent_matches_table.ToString();
@@ -333,18 +351,38 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
     return EC_OK;
 }
 
+static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+                            MsgSenderBase& reply)
+{
+    if (!bot.db_manager()) {
+        reply() << "[错误] 重来失败：未连接数据库";
+        return EC_DB_NOT_CONNECTED;
+    }
+    if (!bot.db_manager()->Suicide(uid)) {
+        reply() << "[错误] 重来失败：您尚未参与游戏，人至少应该试一试";
+        return EC_USER_IS_EMPTY;
+    }
+    reply() << GetUserName(uid, gid.has_value() ? &(gid->Get()) : nullptr) << "，凋零！";
+    return EC_OK;
+}
+
 const std::vector<MetaCommandGroup> meta_cmds = {
     {
         "信息查看", { // GAME INFO: can be executed at any time
             make_command("查看帮助", help<false>, VoidChecker("#帮助"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
-            make_command("查看战绩", show_profile, VoidChecker("#战绩")),
             make_command("查看游戏列表", show_gamelist, VoidChecker("#游戏列表")),
             make_command("查看游戏规则（游戏名称可以通过\"#游戏列表\"查看）", show_rule, VoidChecker("#规则"),
                         AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("查看已加入，或该房间正在进行的比赛信息", show_match_info, VoidChecker("#游戏信息")),
             make_command("查看当前所有未开始的私密比赛", show_private_matches, VoidChecker("#私密游戏列表")),
             make_command("关于机器人", about, VoidChecker("#关于")),
+        }
+    },
+    {
+        "战绩情况", { // SCORE INFO: can be executed at any time
+            make_command("查看个人战绩", show_profile, VoidChecker("#战绩")),
+            make_command("清除个人战绩", clear_profile, VoidChecker("#人生重来算了")),
         }
     },
     {

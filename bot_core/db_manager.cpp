@@ -69,12 +69,14 @@ bool SQLiteDBManager::RecordMatch(const std::string& game_name, const std::optio
                << multiple;
             const uint64_t match_id  = db.last_insert_rowid();
             for (const ScoreInfo& score_info : score_infos) {
-                db << "INSERT INTO user (user_id) SELECT ? WHERE NOT EXISTS "
-                      "(SELECT user_id FROM user WHERE user_id = ?);"
+                uint32_t birth_count = -1;
+                db << "INSERT INTO user (user_id) SELECT ? WHERE NOT EXISTS (SELECT user_id FROM user WHERE user_id = ?);"
                    << score_info.uid_.Get() << score_info.uid_.Get();
-                db << "INSERT INTO user_with_match (match_id, user_id, game_score, zero_sum_score, top_score) VALUES (?,?,?,?,?);"
+                db << "SELECT birth_count FROM user WHERE user_id = ?;" << score_info.uid_.Get() >> birth_count;
+                db << "INSERT INTO user_with_match (match_id, user_id, birth_count, game_score, zero_sum_score, top_score) VALUES (?,?,?,?,?,?);"
                    << match_id
                    << score_info.uid_.Get()
+                   << birth_count
                    << score_info.game_score_
                    << score_info.zero_sum_score_
                    << score_info.top_score_;
@@ -88,7 +90,10 @@ UserProfile SQLiteDBManager::GetUserProfile(const UserID uid)
     UserProfile profit;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            db << "SELECT COUNT(*), SUM(zero_sum_score), SUM(top_score) FROM user_with_match WHERE user_id = ?;"
+            db << "SELECT COUNT(*), SUM(zero_sum_score), SUM(top_score) FROM user_with_match, user "
+                  "WHERE user_with_match.user_id = ? AND "
+                      "user_with_match.user_id = user.user_id AND "
+                      "user_with_match.birth_count = user.birth_count;"
                << uid.Get()
                >> [&](const uint64_t match_count, const int64_t total_zero_sum_score, const int64_t total_top_score)
                       {
@@ -97,10 +102,13 @@ UserProfile SQLiteDBManager::GetUserProfile(const UserID uid)
                           profit.total_zero_sum_score_ = total_zero_sum_score;
                           profit.total_top_score_ = total_top_score;
                       };
-            db << "SELECT match.game_name, match.user_count, user_with_match.game_score, user_with_match.zero_sum_score, "
-                        "user_with_match.top_score "
-                  "FROM user_with_match, match "
-                  "WHERE user_with_match.user_id = ? AND user_with_match.match_id = match.match_id "
+            db << "SELECT match.game_name, match.user_count, user_with_match.game_score, "
+                        "user_with_match.zero_sum_score, user_with_match.top_score "
+                  "FROM user_with_match, match, user "
+                  "WHERE user_with_match.user_id = ? AND "
+                        "user_with_match.user_id = user.user_id AND "
+                        "user_with_match.birth_count = user.birth_count AND "
+                        "user_with_match.match_id = match.match_id "
                   "ORDER BY match.match_id DESC LIMIT 10"
                << uid.Get()
                >> [&](const std::string& game_name, const uint64_t user_count, const int64_t game_score,
@@ -118,6 +126,25 @@ UserProfile SQLiteDBManager::GetUserProfile(const UserID uid)
     return profit;
 }
 
+bool SQLiteDBManager::Suicide(const UserID uid)
+{
+    uint32_t has = 0;
+    ExecuteTransaction(db_name_, [&](sqlite::database& db)
+        {
+            db << "SELECT COUNT(*) FROM user_with_match "
+                  "WHERE user_id = ? AND birth_count = (SELECT birth_count FROM user WHERE user_id = ?);"
+               << uid.Get() << uid.Get()
+               >> has;
+            if (has) {
+                db << "UPDATE user SET birth_time = datetime(CURRENT_TIMESTAMP, \'localtime\'), birth_count = birth_count + 1 "
+                      "WHERE user_id = ?;"
+                   << uid.Get();
+            }
+            return true;
+        });
+    return has;
+}
+
 std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::string& db_name)
 {
     try {
@@ -132,6 +159,7 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::string& db_name
                 "multiple INT UNSIGNED NOT NULL);";
         db << "CREATE TABLE IF NOT EXISTS user_with_match("
                 "user_id BIGINT UNSIGNED NOT NULL, "
+                "birth_count INT UNSIGNED NOT NULL, "
                 "match_id BIGINT UNSIGNED NOT NULL, "
                 "game_score BIGINT NOT NULL, "
                 "zero_sum_score BIGINT NOT NULL, "
@@ -140,7 +168,8 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::string& db_name
         db << "CREATE INDEX IF NOT EXISTS user_id_index ON user_with_match(user_id);";
         db << "CREATE TABLE IF NOT EXISTS user("
                 "user_id BIGINT UNSIGNED PRIMARY KEY, "
-                "register_time DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                "birth_time DATETIME, "
+                "birth_count INT UNSIGNED DEFAULT 0, "
                 "passwd VARCHAR(100));";
         db << "CREATE TABLE IF NOT EXISTS achievement("
                 "achi_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, "

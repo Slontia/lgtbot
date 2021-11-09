@@ -39,7 +39,7 @@ struct GameHandle {
         , main_stage_allocator_(main_stage_allocator_fn)
         , main_stage_deleter_(main_stage_deleter_fn)
         , mod_guard_(std::forward<ModGuard>(mod_guard))
-        , is_formal_(false)
+        , is_formal_(true)
     {}
 
     GameHandle(GameHandle&&) = delete;

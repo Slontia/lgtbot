@@ -469,8 +469,8 @@ void Match::OnGameOver_()
             assert(score_info.size() == users_.size());
             sender << "\n\n游戏结果写入数据库成功：";
             for (const auto& info : score_info) {
-                sender << "\n" << At(info.uid_) << "：" << show_score("零和分", info.zero_sum_score_)
-                                                        << show_score("TOP分", info.top_score_);
+                sender << "\n" << At(info.uid_) << "：" << show_score("零和", info.zero_sum_score_)
+                                                        << show_score("头名", info.top_score_);
 
             }
         }
