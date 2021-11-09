@@ -13,7 +13,7 @@ namespace alchemist {
 
 enum class Color : char { RED = 'r', ORANGE = 'o', YELLOW = 'y', BLUE = 'b', GREY = 'g', PURPLE = 'p', };
 
-enum class Point : char { ONE = '1', TWO = '2', THREE = '3', FOUR = '4', FIVE = '5', };
+enum class Point : char { ONE = '1', TWO = '2', THREE = '3', FOUR = '4', FIVE = '5', SIX = '6' };
 
 class Card
 {

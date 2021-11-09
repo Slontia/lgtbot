@@ -24,12 +24,13 @@ const std::array<alchemist::Color, 6> k_colors {
     alchemist::Color::PURPLE
 };
 
-const std::array<alchemist::Point, 5> k_points {
+const std::array<alchemist::Point, 6> k_points {
     alchemist::Point::ONE,
     alchemist::Point::TWO,
     alchemist::Point::THREE,
     alchemist::Point::FOUR,
-    alchemist::Point::FIVE
+    alchemist::Point::FIVE,
+    alchemist::Point::SIX,
 };
 
 struct Player
