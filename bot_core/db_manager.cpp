@@ -145,6 +145,27 @@ bool SQLiteDBManager::Suicide(const UserID uid)
     return has;
 }
 
+RankInfo SQLiteDBManager::GetRank()
+{
+    RankInfo info;
+    const auto save_rank = [](sqlite::database& db, auto& vec, const char* const col_name)
+        {
+            const std::string sql =
+                  "SELECT user.user_id, SUM(user_with_match." + std::string(col_name) + ") AS sum_score "
+                  "FROM user_with_match, user "
+                  "WHERE user_with_match.user_id = user.user_id AND user_with_match.birth_count = user.birth_count "
+                  "GROUP BY user.user_id ORDER BY sum_score DESC LIMIT 10;";
+            db << sql >> [&](const uint64_t uid, const int64_t score_sum) { vec.emplace_back(uid, score_sum); };
+        };
+    ExecuteTransaction(db_name_, [&](sqlite::database& db)
+        {
+            save_rank(db, info.zero_sum_score_rank_, "zero_sum_score");
+            save_rank(db, info.top_score_rank_, "top_score");
+            return true;
+        });
+    return info;
+}
+
 std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::string& db_name)
 {
     try {

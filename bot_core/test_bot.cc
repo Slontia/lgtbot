@@ -45,6 +45,7 @@ class MockDBManager : public DBManagerBase
 
     virtual UserProfile GetUserProfile(const UserID uid) override { return {}; }
     virtual bool Suicide(const UserID uid) override { return true; }
+    virtual RankInfo GetRank() override { return {}; }
 
     std::vector<MatchProfile> match_profiles_;
 };

@@ -126,6 +126,11 @@ TEST_F(TestDB, reopen_db)
     ASSERT_MATCH_PROFILE(profile_3.recent_matches_[0], "mygame", 2, 10, 10, 10);
 }
 
+TEST_F(TestDB, get_rank)
+{
+
+}
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

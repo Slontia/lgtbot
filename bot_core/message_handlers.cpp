@@ -351,18 +351,39 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
     return EC_OK;
 }
 
-static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                            MsgSenderBase& reply)
+static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 重来失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
     if (!bot.db_manager()->Suicide(uid)) {
-        reply() << "[错误] 重来失败：您尚未参与游戏，人至少应该试一试";
+        reply() << "[错误] 重来失败：您尚未参与游戏，人至少，应该试一试";
         return EC_USER_IS_EMPTY;
     }
     reply() << GetUserName(uid, gid.has_value() ? &(gid->Get()) : nullptr) << "，凋零！";
+    return EC_OK;
+}
+
+static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
+{
+    if (!bot.db_manager()) {
+        reply() << "[错误] 重来失败：未连接数据库";
+        return EC_DB_NOT_CONNECTED;
+    }
+    const auto info = bot.db_manager()->GetRank();
+    const auto print_score = [&](const auto& vec)
+        {
+            std::string s;
+            for (uint64_t i = 0; i < vec.size(); ++i) {
+                s += "\n" + std::to_string(i + 1) + "位：" +
+                     GetUserName(vec[i].first, gid.has_value() ? &(gid->Get()) : nullptr) +
+                     "【" + std::to_string(vec[i].second) + "分】";
+            }
+            return s;
+        };
+    reply() << "## 零和得分排行：\n" << print_score(info.zero_sum_score_rank_);
+    reply() << "## 头名得分排行：\n" << print_score(info.top_score_rank_);
     return EC_OK;
 }
 
@@ -383,6 +404,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
         "战绩情况", { // SCORE INFO: can be executed at any time
             make_command("查看个人战绩", show_profile, VoidChecker("#战绩")),
             make_command("清除个人战绩", clear_profile, VoidChecker("#人生重来算了")),
+            make_command("查看排行榜", show_rank, VoidChecker("#排行")),
         }
     },
     {

@@ -26,11 +26,18 @@ struct UserProfile
     std::vector<MatchProfile> recent_matches_;
 };
 
-struct ScoreInfo {
+struct ScoreInfo
+{
     UserID uid_;
     int64_t game_score_ = 0;
     int64_t zero_sum_score_ = 0;
     int64_t top_score_ = 0;
+};
+
+struct RankInfo
+{
+    std::vector<std::pair<UserID, int64_t>> zero_sum_score_rank_;
+    std::vector<std::pair<UserID, int64_t>> top_score_rank_;
 };
 
 class DBManagerBase
@@ -41,6 +48,7 @@ class DBManagerBase
             const uint64_t multiple, const std::vector<ScoreInfo>& score_infos) = 0;
     virtual UserProfile GetUserProfile(const UserID uid) = 0;
     virtual bool Suicide(const UserID uid) = 0;
+    virtual RankInfo GetRank() = 0;
 };
 
 #ifdef WITH_SQLITE
@@ -62,6 +70,7 @@ class SQLiteDBManager : public DBManagerBase
             const uint64_t multiple, const std::vector<ScoreInfo>& score_infos) override;
     virtual UserProfile GetUserProfile(const UserID uid) override;
     virtual bool Suicide(const UserID uid) override;
+    virtual RankInfo GetRank() override;
 
    private:
     SQLiteDBManager(const std::string& db_name);

@@ -139,7 +139,7 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "本回合卡片如下，请公屏或私信裁判设置数字：";
+        Boardcast() << "本回合卡片如下，请公屏或私信裁判设置坐标：";
         SendInfo(BoardcastMsgSender());
         StartTimer(option().GET_VALUE(局时));
     }
