@@ -47,7 +47,7 @@ class DBManagerBase
     virtual bool RecordMatch(const std::string& game_name, const std::optional<GroupID> gid, const UserID host_uid,
             const uint64_t multiple, const std::vector<ScoreInfo>& score_infos) = 0;
     virtual UserProfile GetUserProfile(const UserID uid) = 0;
-    virtual bool Suicide(const UserID uid) = 0;
+    virtual bool Suicide(const UserID uid, const uint32_t required_match_num) = 0;
     virtual RankInfo GetRank() = 0;
 };
 
@@ -69,7 +69,7 @@ class SQLiteDBManager : public DBManagerBase
     virtual bool RecordMatch(const std::string& game_name, const std::optional<GroupID> gid, const UserID host_uid,
             const uint64_t multiple, const std::vector<ScoreInfo>& score_infos) override;
     virtual UserProfile GetUserProfile(const UserID uid) override;
-    virtual bool Suicide(const UserID uid) override;
+    virtual bool Suicide(const UserID uid, const uint32_t required_match_num) override;
     virtual RankInfo GetRank() override;
 
    private:

@@ -91,22 +91,31 @@ TEST_F(TestDB, get_user_profile_more_than_ten_matches)
 TEST_F(TestDB, cannot_suicide_at_first)
 {
     ASSERT_TRUE(UseDB_());
-    ASSERT_FALSE(db_manager_->Suicide(UserID(1)));
+    ASSERT_FALSE(db_manager_->Suicide(UserID(1), 1));
+}
+
+TEST_F(TestDB, suicide_only_achieve_required_match_num)
+{
+    ASSERT_TRUE(UseDB_());
+    db_manager_->RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
+    ASSERT_FALSE(db_manager_->Suicide(UserID(1), 2));
+    db_manager_->RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
+    ASSERT_TRUE(db_manager_->Suicide(UserID(1), 2));
 }
 
 TEST_F(TestDB, cannot_suicide_repeatedly)
 {
     ASSERT_TRUE(UseDB_());
     db_manager_->RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
-    ASSERT_TRUE(db_manager_->Suicide(UserID(1)));
-    ASSERT_FALSE(db_manager_->Suicide(UserID(1)));
+    ASSERT_TRUE(db_manager_->Suicide(UserID(1), 1));
+    ASSERT_FALSE(db_manager_->Suicide(UserID(1), 1));
 }
 
 TEST_F(TestDB, check_suicide)
 {
     ASSERT_TRUE(UseDB_());
     db_manager_->RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 99, 99, 99)});
-    ASSERT_TRUE(db_manager_->Suicide(UserID(1)));
+    ASSERT_TRUE(db_manager_->Suicide(UserID(1), 1));
     ASSERT_USER_PROFILE(UserID(1), 0, 0, 0, 0);
 }
 

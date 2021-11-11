@@ -353,12 +353,13 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
 
 static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
+    static constexpr const uint32_t k_required_match_num = 3;
     if (!bot.db_manager()) {
         reply() << "[错误] 重来失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
-    if (!bot.db_manager()->Suicide(uid)) {
-        reply() << "[错误] 重来失败：您尚未参与游戏，人至少，应该试一试";
+    if (!bot.db_manager()->Suicide(uid, k_required_match_num)) {
+        reply() << "[错误] 重来失败：至少完成三局比赛后，方可清除战绩";
         return EC_USER_IS_EMPTY;
     }
     reply() << GetUserName(uid, gid.has_value() ? &(gid->Get()) : nullptr) << "，凋零！";

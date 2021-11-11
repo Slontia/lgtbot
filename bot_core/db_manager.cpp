@@ -126,23 +126,23 @@ UserProfile SQLiteDBManager::GetUserProfile(const UserID uid)
     return profit;
 }
 
-bool SQLiteDBManager::Suicide(const UserID uid)
+bool SQLiteDBManager::Suicide(const UserID uid, const uint32_t required_match_num)
 {
-    uint32_t has = 0;
+    uint32_t count = 0;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
             db << "SELECT COUNT(*) FROM user_with_match "
                   "WHERE user_id = ? AND birth_count = (SELECT birth_count FROM user WHERE user_id = ?);"
                << uid.Get() << uid.Get()
-               >> has;
-            if (has) {
+               >> count;
+            if (count >= required_match_num) {
                 db << "UPDATE user SET birth_time = datetime(CURRENT_TIMESTAMP, \'localtime\'), birth_count = birth_count + 1 "
                       "WHERE user_id = ?;"
                    << uid.Get();
             }
             return true;
         });
-    return has;
+    return count >= required_match_num;
 }
 
 RankInfo SQLiteDBManager::GetRank()
