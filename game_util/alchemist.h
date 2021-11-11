@@ -54,8 +54,12 @@ class Board
                 table_.Get(i + 1, j + 1).SetContent(Image_("empty"));
             }
         }
-        areas_[k_size / 2][k_size / 2] = Stone();
-        table_.Get(k_size / 2 + 1, k_size / 2 + 1).SetContent(Image_("stone"));
+    }
+
+    void SetStone(const uint32_t row, const uint32_t col)
+    {
+        areas_[row][col] = Stone();
+        table_.Get(row + 1, col + 1).SetContent(Image_("stone"));
     }
 
     // If return -1, means the position is invalid

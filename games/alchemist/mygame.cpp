@@ -82,14 +82,27 @@ class MainStage : public MainGameStage<RoundStage>
             cards_.emplace_back(std::nullopt);
         }
         const std::string& seed_str = option.GET_VALUE(种子);
-        if (seed_str.empty()) {
-            std::random_device rd;
-            std::mt19937 g(rd());
-            std::shuffle(cards_.begin(), cards_.end(), g);
-        } else {
-            std::seed_seq seed(seed_str.begin(), seed_str.end());
-            std::mt19937 g(seed);
-            std::shuffle(cards_.begin(), cards_.end(), g);
+        std::variant<std::random_device, std::seed_seq> rd;
+        std::mt19937 g([&]
+            {
+                if (seed_str.empty()) {
+                    auto& real_rd = rd.emplace<std::random_device>();
+                    return std::mt19937(real_rd());
+                } else {
+                    auto& real_rd = rd.emplace<std::seed_seq>(seed_str.begin(), seed_str.end());
+                    return std::mt19937(real_rd);
+                }
+            }());
+        std::shuffle(cards_.begin(), cards_.end(), g);
+
+        std::uniform_int_distribution<uint32_t> distrib(0, alchemist::Board::k_size - 1);
+        static constexpr const uint32_t k_stone_num = 2;
+        for (int i = 0; i < k_stone_num; ++i) {
+            const auto row = distrib(g);
+            const auto col = distrib(g);
+            for (auto& player : players_) {
+                player.board_->SetStone(row, col);
+            }
         }
     }
 
