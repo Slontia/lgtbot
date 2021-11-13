@@ -14,12 +14,14 @@ static_assert(Board::k_size == 5, "board k_size mismatch");
 TEST_F(TestAlchemist, already_set)
 {
     Board board("");
+    board.SetStone(2, 2);
     ASSERT_EQ(FAIL_ALREADY_SET, board.SetOrClearLine(2, 2, Card{Color::RED, Point::FIVE}));
 }
 
 TEST_F(TestAlchemist, make_one_row)
 {
     Board board("");
+    board.SetStone(2, 2);
     ASSERT_EQ(0, board.SetOrClearLine(2, 3, Card{Color::RED, Point::FIVE}));
     ASSERT_EQ(0, board.SetOrClearLine(2, 4, Card{Color::RED, Point::FIVE}));
     ASSERT_EQ(0, board.SetOrClearLine(2, 1, Card{Color::RED, Point::FIVE}));
@@ -33,6 +35,7 @@ TEST_F(TestAlchemist, make_one_row)
 TEST_F(TestAlchemist, make_one_col)
 {
     Board board("");
+    board.SetStone(2, 2);
     ASSERT_EQ(0, board.SetOrClearLine(3, 2, Card{Color::RED, Point::FIVE}));
     ASSERT_EQ(0, board.SetOrClearLine(4, 2, Card{Color::RED, Point::FIVE}));
     ASSERT_EQ(0, board.SetOrClearLine(1, 2, Card{Color::RED, Point::FIVE}));
@@ -46,6 +49,7 @@ TEST_F(TestAlchemist, make_one_col)
 TEST_F(TestAlchemist, make_one_left_slash)
 {
     Board board("");
+    board.SetStone(2, 2);
     board.areas_[0][0] = Card{Color::RED, Point::FIVE};
     board.areas_[1][1] = Card{Color::RED, Point::FIVE};
     board.areas_[3][3] = Card{Color::RED, Point::FIVE};
@@ -61,6 +65,7 @@ TEST_F(TestAlchemist, make_one_left_slash)
 TEST_F(TestAlchemist, make_one_right_slash)
 {
     Board board("");
+    board.SetStone(2, 2);
     board.areas_[0][4] = Card{Color::RED, Point::FIVE};
     board.areas_[1][3] = Card{Color::RED, Point::FIVE};
     board.areas_[3][1] = Card{Color::RED, Point::FIVE};
@@ -76,6 +81,7 @@ TEST_F(TestAlchemist, make_one_right_slash)
 TEST_F(TestAlchemist, make_four_lines)
 {
     Board board("");
+    board.SetStone(2, 2);
     for (uint32_t i = 0; i < 5; ++i) {
         board.areas_[2][i] = Card{Color::RED, Point::FIVE};
         board.areas_[i][2] = Card{Color::RED, Point::FIVE};
@@ -96,6 +102,7 @@ TEST_F(TestAlchemist, make_four_lines)
 TEST_F(TestAlchemist, fail_non_adj)
 {
     Board board("");
+    board.SetStone(2, 2);
     for (uint32_t i = 0; i < 5; ++i) {
         for (uint32_t j = 0; j < 5; ++j) {
             if (i == 2 && j == 1 || i == 2 && j == 3 || i == 1 && j == 2 || i == 3 && j == 2 || i == 2 && j == 2) {
@@ -109,6 +116,7 @@ TEST_F(TestAlchemist, fail_non_adj)
 TEST_F(TestAlchemist, adj_mismatch)
 {
     Board board("");
+    board.SetStone(2, 2);
     board.areas_[2][4] = Card{Color::RED, Point::FIVE};
     ASSERT_EQ(FAIL_ADJ_CARDS_MISMATCH, board.SetOrClearLine(2, 3, Card{Color::BLUE, Point::FOUR}));
 }
@@ -116,6 +124,7 @@ TEST_F(TestAlchemist, adj_mismatch)
 TEST_F(TestAlchemist, adj_mismatch_2)
 {
     Board board("");
+    board.SetStone(2, 2);
     board.areas_[2][4] = Card{Color::RED, Point::FIVE};
     board.areas_[3][3] = Card{Color::BLUE, Point::FIVE};
     ASSERT_EQ(FAIL_ADJ_CARDS_MISMATCH, board.SetOrClearLine(2, 3, Card{Color::BLUE, Point::FOUR}));
@@ -124,6 +133,7 @@ TEST_F(TestAlchemist, adj_mismatch_2)
 TEST_F(TestAlchemist, test_clear)
 {
     Board board("");
+    board.SetStone(2, 2);
     board.areas_[2][4] = Card{Color::RED, Point::FIVE};
     ASSERT_TRUE(board.Unset(2, 4));
     ASSERT_TRUE(board.Unset(2, 2));

@@ -20,10 +20,10 @@ GAME_TEST(1, check_coor)
     ASSERT_PUB_MSG(FAILED, 0, "a");
     ASSERT_PUB_MSG(FAILED, 0, "f3");
     ASSERT_PUB_MSG(FAILED, 0, "A6");
-    ASSERT_PUB_MSG(CHECKOUT, 0, "C2");
-    ASSERT_PUB_MSG(CHECKOUT, 0, "c4");
-    ASSERT_PUB_MSG(CHECKOUT, 0, "b3");
-    ASSERT_PUB_MSG(CHECKOUT, 0, "D3");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "C4");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "a4");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "b5");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "B3");
 }
 
 GAME_TEST(2, one_finish)
@@ -41,63 +41,63 @@ GAME_TEST(2, do_nothing)
 {
     ASSERT_PUB_MSG(OK, 0, "回合数 10");
     ASSERT_TRUE(StartGame());
-    for (uint32_t i = 0; i < 10; ++i) {
-        ASSERT_TIMEOUT(CHECKOUT);
-    }
+    ASSERT_TIMEOUT(CHECKOUT); // hook all players
     ASSERT_SCORE(0, 0);
 }
 
 GAME_TEST(2, one_do_nothing)
 {
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
-    ASSERT_PUB_MSG(OK, 0, "副数 2");
+    ASSERT_PUB_MSG(OK, 0, "副数 5");
     ASSERT_PUB_MSG(OK, 0, "回合数 10");
     ASSERT_TRUE(StartGame());
-    ASSERT_PUB_MSG(OK, 0, "C2"); // y5
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PUB_MSG(OK, 0, "C4"); // p4
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PUB_MSG(OK, 0, "C5"); // p1
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PUB_MSG(OK, 0, "B3"); // g2
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PUB_MSG(OK, 0, "D3"); // b1
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PUB_MSG(OK, 0, "C1"); // y3
-    ASSERT_TIMEOUT(CHECKOUT);
-    for (uint32_t i = 0; i < 4; ++i) {
-        ASSERT_TIMEOUT(CHECKOUT);
-    }
+    ASSERT_PUB_MSG(OK, 0, "C4");
+    ASSERT_TIMEOUT(CHECKOUT); // hook player_1
+    ASSERT_PUB_MSG(CHECKOUT, 0, "D4");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "A4");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "A3");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "A2");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "A1");
+    ASSERT_TIMEOUT(CHECKOUT); // hook player_0
     ASSERT_SCORE(2, 0);
+}
+
+GAME_TEST(2, restore_hook)
+{
+    ASSERT_PUB_MSG(OK, 0, "种子 ABC");
+    ASSERT_PUB_MSG(OK, 0, "副数 5");
+    ASSERT_PUB_MSG(OK, 0, "回合数 10");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PUB_MSG(OK, 0, "C4");
+    ASSERT_TIMEOUT(CHECKOUT); // hook player_1
+    ASSERT_PUB_MSG(OK, 1, "A4"); // restore hook player_1
+    ASSERT_PUB_MSG(CHECKOUT, 0, "D4");
 }
 
 // y5 p4 p1 g2 b1 y3 b1 g1 p4 o5
 GAME_TEST(2, achieve_score)
 {
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
-    ASSERT_PUB_MSG(OK, 0, "副数 2");
+    ASSERT_PUB_MSG(OK, 0, "副数 5");
     ASSERT_PUB_MSG(OK, 0, "胜利分数 2");
     ASSERT_TRUE(StartGame());
-    ASSERT_PUB_MSG(OK, 0, "C2"); // y5
+    ASSERT_PUB_MSG(OK, 0, "C4");
     ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PUB_MSG(OK, 0, "C4"); // p4
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PUB_MSG(OK, 0, "C5"); // p1
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PUB_MSG(OK, 0, "B3"); // g2
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PUB_MSG(OK, 0, "D3"); // b1
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PUB_MSG(OK, 0, "C1"); // y3
-    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_PUB_MSG(CHECKOUT, 0, "D4");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "A4");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "A3");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "A2");
+    ASSERT_PUB_MSG(CHECKOUT, 0, "A1");
     ASSERT_SCORE(2, 0);
 }
 
 GAME_TEST(2, repeat_selection)
 {
+    ASSERT_PUB_MSG(OK, 0, "种子 ABC");
+    ASSERT_PUB_MSG(OK, 0, "副数 5");
     ASSERT_TRUE(StartGame());
-    ASSERT_PUB_MSG(OK, 0, "C2");
-    ASSERT_PUB_MSG(FAILED, 0, "C4");
+    ASSERT_PUB_MSG(OK, 0, "C4");
+    ASSERT_PUB_MSG(FAILED, 0, "B3");
 }
 
 int main(int argc, char** argv)

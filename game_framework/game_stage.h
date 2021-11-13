@@ -34,6 +34,17 @@ class Masker
 
     bool Pin(const size_t index) { return Record_(index, State::PINNED); }
 
+    bool Unpin(const size_t index)
+    {
+        auto& state = recorder_[index];
+        if (state == State::PINNED) {
+            state = State::UNSET;
+            ++unset_count_;
+            return true;
+        }
+        return false;
+    }
+
     State Get(const size_t index) { return recorder_[index]; }
 
     void Clear()
@@ -91,11 +102,14 @@ class StageBaseWrapper : virtual public StageBase
 
     virtual ~StageBaseWrapper() {}
 
-    virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
+    virtual StageErrCode HandleRequest(const char* const msg, const uint64_t pid, const bool is_public,
                                        MsgSenderBase& reply) override final
     {
         MsgReader reader(msg);
-        return HandleRequest(reader, player_id, is_public, reply);
+        if (masker().Unpin(pid)) {
+            Tell(pid) << "挂机状态已取消";
+        }
+        return HandleRequest(reader, pid, is_public, reply);
     }
     virtual const char* StageInfoC() const override final
     {
@@ -124,6 +138,12 @@ class StageBaseWrapper : virtual public StageBase
     {
         masker_.Pin(pid);
         match_.Eliminate(pid);
+    }
+
+    void Hook(const PlayerID pid) const
+    {
+        masker_.Pin(pid);
+        Tell(pid) << "您已经进入挂机状态，裁判将不再等待您的行动，执行任意游戏请求可恢复至原状态";
     }
 
     const std::string& name() const { return name_; }

@@ -158,6 +158,16 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
+    CheckoutErrCode OnTimeout()
+    {
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            if (!IsReady(pid)) {
+                Hook(pid);
+            }
+        }
+        return StageErrCode::CHECKOUT;
+    }
+
     std::optional<std::pair<uint32_t, uint32_t>> ToCoor(MsgSenderBase& reply, const std::string& coor_str)
     {
         if (coor_str.size() != 2) {
