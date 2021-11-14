@@ -12,7 +12,7 @@
 const std::string k_game_name = "因数游戏";
 const uint64_t k_max_player = 0;
 
-const std::string GameOption::StatusInfo() const
+std::string GameOption::StatusInfo() const
 {
     std::stringstream ss;
     ss << "每回合" << GET_VALUE(局时)
@@ -36,6 +36,24 @@ const std::string GameOption::StatusInfo() const
        << GET_VALUE(最大数字) << "。";
     return ss.str();
 }
+
+bool GameOption::IsValid(MsgSenderBase& reply) const
+{
+    if (PlayerNum() < 2) {
+        reply() << "该游戏至少 2 人参加";
+        return false;
+    }
+    if (GET_VALUE(最大回合) <= GET_VALUE(淘汰回合)) {
+        reply() << "游戏最大回合数必须大于开始淘汰的回合数，当前设置的最大回合数" << GET_VALUE(最大回合)
+                << "，当前设置的开始淘汰的回合数为" << GET_VALUE(淘汰回合);
+        return false;
+    }
+    return true;
+}
+
+uint64_t GameOption::BestPlayerNum() const { return 3; }
+
+// ========== GAME STAGES ==========
 
 class Player
 {
@@ -405,13 +423,7 @@ RoundStage::RoundStage(MainStage& main_stage, const uint64_t round, std::vector<
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
 {
-    if (options.PlayerNum() < 2) {
-        reply() << "该游戏至少两人参加";
-        return nullptr;
-    }
-    if (options.GET_VALUE(最大回合) <= options.GET_VALUE(淘汰回合)) {
-        reply() << "游戏最大回合数必须大于开始淘汰的回合数，当前设置的最大回合数" << options.GET_VALUE(最大回合)
-                << "，当前设置的开始淘汰的回合数为" << options.GET_VALUE(淘汰回合);
+    if (!options.IsValid(reply)) {
         return nullptr;
     }
     return new MainStage(options, match);

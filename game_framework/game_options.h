@@ -77,7 +77,9 @@ class GameOption : public GameOptionBase
         return info.c_str();
     }
 
-    const std::string StatusInfo() const;
+    std::string StatusInfo() const;
+    virtual bool IsValid(MsgSenderBase& reply) const;
+    virtual uint64_t BestPlayerNum() const;
 
    private:
     decltype(std::tuple{

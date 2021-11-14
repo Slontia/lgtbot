@@ -5,17 +5,17 @@
 #include "bot_core/msg_sender.h"
 #include "bot_core/match.h"
 
-ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
+std::pair<ErrCode, std::shared_ptr<Match>> MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
                                MsgSenderBase& reply)
 {
     std::lock_guard<std::mutex> l(mutex_);
     if (GetMatch_(uid)) {
         reply() << "[错误] 建立失败：您已加入游戏";
-        return EC_MATCH_USER_ALREADY_IN_MATCH;
+        return {EC_MATCH_USER_ALREADY_IN_MATCH, nullptr};
     }
     if (gid.has_value() && GetMatch_(*gid)) {
         reply() << "[错误] 建立失败：该房间已经开始游戏";
-        return EC_MATCH_ALREADY_BEGIN;
+        return {EC_MATCH_ALREADY_BEGIN, nullptr};
     }
     const MatchID mid = NewMatchID_();
     const auto new_match = std::make_shared<Match>(bot_, mid, game_handle, uid, gid);
@@ -24,7 +24,7 @@ ErrCode MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, 
     if (gid.has_value()) {
         BindMatch_(*gid, new_match);
     }
-    return EC_OK;
+    return {EC_OK, new_match};
 }
 
 std::vector<std::shared_ptr<Match>> MatchManager::Matches() const

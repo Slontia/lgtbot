@@ -13,15 +13,6 @@
 #include "bot_core/match.h"
 #include "bot_core/match_manager.h"
 
-static void BoardcastMatchCanJoin(Match& match)
-{
-    if (match.gid().has_value()) {
-        match.Boardcast() << "现在玩家可以在群里通过\"#加入\"报名比赛";
-    } else {
-        match.Boardcast() << "现在玩家可以通过私信我\"#加入 " << match.mid() << "\"报名比赛";
-    }
-}
-
 Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, const UserID host_uid,
              const std::optional<GroupID> gid)
         : bot_(bot)
@@ -51,7 +42,14 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
         , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")))
 {
     users_.emplace(host_uid, ParticipantUser(host_uid));
-    BoardcastMatchCanJoin(*this);
+    auto sender = Boardcast();
+    if (this->gid().has_value()) {
+        sender << "现在玩家可以在群里通过\"#加入\"报名比赛";
+    } else {
+        sender << "现在玩家可以通过私信我\"#加入 " << this->mid() << "\"报名比赛";
+    }
+    sender << "\n- 当前用户数：" << user_controlled_player_num()
+           << "\n- 当前电脑数：" << com_num();
 }
 
 Match::~Match() {}
@@ -66,23 +64,29 @@ Match::VariantID Match::ConvertPid(const PlayerID pid) const
     return players_[pid].id_;
 }
 
-ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_to_player_num)
+ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, std::optional<uint64_t> bench_to_player_num)
 {
+    if (!bench_to_player_num.has_value()) {
+        bench_to_player_num.emplace(options_->BestPlayerNum());
+    }
     std::lock_guard<std::mutex> l(mutex_);
     if (uid != host_uid_) {
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限";
         return EC_MATCH_NOT_HOST;
     }
     auto sender = reply();
-    if (bench_to_player_num <= user_controlled_player_num()) {
-        sender << "[警告] 当前玩家数" << user_controlled_player_num() << "已满足条件";
-    } else if (game_handle_.max_player_ != 0 && bench_to_player_num > game_handle_.max_player_) {
+    if (*bench_to_player_num <= user_controlled_player_num()) {
+        sender << "[警告] 当前玩家数 " << user_controlled_player_num() << " 已满足条件";
+        return EC_OK;
+    } else if (game_handle_.max_player_ != 0 && *bench_to_player_num > game_handle_.max_player_) {
         sender << "[错误] 设置失败：比赛人数将超过上限" << game_handle_.max_player_ << "人";
         return EC_MATCH_ACHIEVE_MAX_PLAYER;
     }
-    bench_to_player_num_ = bench_to_player_num;
-    sender << "设置成功：当前电脑玩家数为" << com_num();
+    bench_to_player_num_ = *bench_to_player_num;
     KickForConfigChange_();
+    sender << "设置成功！"
+           << "\n- 当前用户数：" << user_controlled_player_num()
+           << "\n- 当前电脑数：" << com_num();
     return EC_OK;
 }
 
@@ -136,8 +140,10 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
                     "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
         return EC_GAME_REQUEST_NOT_FOUND;
     }
-    reply() << "设置成功！目前配置：" << OptionInfo_();
     KickForConfigChange_();
+    reply() << "设置成功！目前配置：" << OptionInfo_()
+            << "\n- 当前用户数：" << user_controlled_player_num()
+            << "\n- 当前电脑数：" << com_num();
     return EC_GAME_REQUEST_OK;
 }
 
@@ -202,7 +208,9 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
     }
     users_.emplace(uid, ParticipantUser(uid));
-    Boardcast() << "玩家 " << At(uid) << " 加入了游戏";
+    Boardcast() << "玩家 " << At(uid) << " 加入了游戏"
+                << "\n- 当前用户数：" << user_controlled_player_num()
+                << "\n- 当前电脑数：" << com_num();
     return EC_OK;
 }
 
@@ -213,7 +221,9 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
     assert(Has(uid));
     if (state_ != State::IS_STARTED) {
         match_manager().UnbindMatch(uid);
-        Boardcast() << "玩家 " << At(uid) << " 退出了游戏";
+        Boardcast() << "玩家 " << At(uid) << " 退出了游戏"
+                    << "\n- 当前用户数：" << user_controlled_player_num()
+                    << "\n- 当前电脑数：" << com_num();
         users_.erase(uid);
         if (users_.empty()) {
             Boardcast() << "所有玩家都退出了游戏，游戏解散";

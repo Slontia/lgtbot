@@ -131,14 +131,22 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
 }
 
 static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
-                        const std::string& gamename)
+                        const std::string& gamename, const bool is_single)
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
         reply() << "[错误] 创建失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
-    return bot.match_manager().NewMatch(*it->second, uid, gid, reply);
+    const auto& [ret, match] = bot.match_manager().NewMatch(*it->second, uid, gid, reply);
+    if (ret != EC_OK) {
+        return ret;
+    }
+    if (is_single) {
+        RETURN_IF_FAILED(match->SetBenchTo(uid, EmptyMsgSender::Get(), std::nullopt));
+        RETURN_IF_FAILED(match->GameStart(uid, gid.has_value(), reply));
+    }
+    return EC_OK;
 }
 
 static ErrCode set_bench_to(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
@@ -410,8 +418,9 @@ const std::vector<MetaCommandGroup> meta_cmds = {
     },
     {
         "新建游戏", { // NEW GAME: can only be executed by host
-            make_command("在当前房间建立公开游戏，或私信bot以建立私密游戏（游戏名称可以通过\"#游戏列表\"查看）",
-                        new_game, VoidChecker("#新游戏"), AnyArg("游戏名称", "猜拳游戏")),
+            make_command("在当前房间建立公开游戏，或私信 bot 以建立私密游戏（游戏名称可以通过\"#游戏列表\"查看）",
+                        new_game, VoidChecker("#新游戏"), AnyArg("游戏名称", "猜拳游戏"),
+                        OptionalDefaultChecker<BoolChecker>(false, "单机", "多人")),
             make_command("房主设置参与游戏的AI数量，使得玩家不低于一定数量（属于配置变更，会使得全部玩家退出游戏）",
                         set_bench_to, VoidChecker("#替补至"), ArithChecker<uint32_t>(2, 12, "数量")),
             make_command("房主开始游戏", start_game, VoidChecker("#开始")),

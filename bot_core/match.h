@@ -67,7 +67,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
           const std::optional<GroupID> gid);
     ~Match();
 
-    ErrCode SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t com_num);
+    ErrCode SetBenchTo(const UserID uid, MsgSenderBase& reply, const std::optional<uint64_t> com_num);
 
     ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply);
     ErrCode GameConfigOver(MsgSenderBase& reply);

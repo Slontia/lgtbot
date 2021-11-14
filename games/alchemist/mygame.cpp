@@ -15,6 +15,36 @@
 const std::string k_game_name = "炼金术士";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
 
+std::string GameOption::StatusInfo() const
+{
+    std::string str = "\n每回合" + std::to_string(GET_VALUE(局时)) + "秒\n当有玩家达到" +
+        std::to_string(GET_VALUE(胜利分数)) + "分，或游戏已经进行了" +
+        std::to_string(GET_VALUE(回合数)) + "回合时，游戏结束\n卡片包含" +
+        std::to_string(GET_VALUE(颜色)) + "种颜色和" +
+        std::to_string(GET_VALUE(点数)) + "种点数，每种相同卡片共有" +
+        std::to_string(GET_VALUE(副数)) + "张\n";
+    if (GET_VALUE(种子).empty()) {
+        str += "未指定种子";
+    } else {
+        str += "种子：" + GET_VALUE(种子);
+    }
+    return str;
+}
+
+bool GameOption::IsValid(MsgSenderBase& reply) const
+{
+    const auto card_num = GET_VALUE(颜色) * GET_VALUE(点数) * GET_VALUE(副数);
+    if (GET_VALUE(回合数) > card_num) {
+        reply() << "回合数" << GET_VALUE(回合数) << "不能大于卡片总数量" << card_num;
+        return false;
+    }
+    return true;
+}
+
+uint64_t GameOption::BestPlayerNum() const { return 1; }
+
+// ========== GAME STAGES ==========
+
 const std::array<alchemist::Color, 6> k_colors {
     alchemist::Color::RED,
     alchemist::Color::BLUE,
@@ -40,22 +70,6 @@ struct Player
     int32_t score_;
     std::unique_ptr<alchemist::Board> board_;
 };
-
-const std::string GameOption::StatusInfo() const
-{
-    std::string str = "\n每回合" + std::to_string(GET_VALUE(局时)) + "秒\n当有玩家达到" +
-        std::to_string(GET_VALUE(胜利分数)) + "分，或游戏已经进行了" +
-        std::to_string(GET_VALUE(回合数)) + "回合时，游戏结束\n卡片包含" +
-        std::to_string(GET_VALUE(颜色)) + "种颜色和" +
-        std::to_string(GET_VALUE(点数)) + "种点数，每种相同卡片共有" +
-        std::to_string(GET_VALUE(副数)) + "张\n";
-    if (GET_VALUE(种子).empty()) {
-        str += "未指定种子";
-    } else {
-        str += "种子：" + GET_VALUE(种子);
-    }
-    return str;
-}
 
 class RoundStage;
 
@@ -289,9 +303,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
 {
-    const auto card_num = options.GET_VALUE(颜色) * options.GET_VALUE(点数) * options.GET_VALUE(副数);
-    if (options.GET_VALUE(回合数) > card_num) {
-        reply() << "回合数" << options.GET_VALUE(回合数) << "不能大于卡片总数量" << card_num;
+    if (!options.IsValid(reply)) {
         return nullptr;
     }
     return new MainStage(options, match);

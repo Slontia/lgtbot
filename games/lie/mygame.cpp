@@ -10,12 +10,25 @@
 const std::string k_game_name = "LIE";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
 
-const std::string GameOption::StatusInfo() const
+std::string GameOption::StatusInfo() const
 {
     std::stringstream ss;
     ss << "集齐全部" << GET_VALUE(数字种类) << "种数字，或持有单个数字数量达到" << GET_VALUE(失败数量) << "时玩家失败";
     return ss.str();
 }
+
+bool GameOption::IsValid(MsgSenderBase& reply) const
+{
+    if (PlayerNum() != 2) {
+        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << PlayerNum();
+        return false;
+    }
+    return true;
+}
+
+uint64_t GameOption::BestPlayerNum() const { return 2; }
+
+// ========== GAME STAGES ==========
 
 class RoundStage;
 
@@ -258,8 +271,7 @@ void MainStage::OnPlayerLeave(const PlayerID pid) { leaver_ = pid; }
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
 {
-    if (options.PlayerNum() != 2) {
-        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << options.PlayerNum();
+    if (!options.IsValid(reply)) {
         return nullptr;
     }
     return new MainStage(options, match);

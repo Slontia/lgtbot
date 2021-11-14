@@ -13,7 +13,23 @@
 const std::string k_game_name = "二择猜拳";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
 
-// TODO: timeout choose first
+std::string GameOption::StatusInfo() const
+{
+    return "";
+}
+
+bool GameOption::IsValid(MsgSenderBase& reply) const
+{
+    if (PlayerNum() != 2) {
+        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << PlayerNum();
+        return false;
+    }
+    return true;
+}
+
+uint64_t GameOption::BestPlayerNum() const { return 2; }
+
+// ========== GAME STAGES ==========
 
 namespace rps {
 
@@ -76,11 +92,6 @@ struct Player
     int win_count_;
     int score_;
 };
-
-const std::string GameOption::StatusInfo() const
-{
-    return "";
-}
 
 template <bool INCLUDE_CHOOSED>
 std::string AvailableCards(const std::map<std::string_view, std::pair<Card, CardState>>& cards)
@@ -468,9 +479,9 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
 {
-    if (options.PlayerNum() != 2) {
-        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << options.PlayerNum();
+    if (!options.IsValid(reply)) {
         return nullptr;
     }
     return new MainStage(options, match);
 }
+

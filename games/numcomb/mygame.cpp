@@ -15,6 +15,24 @@
 const std::string k_game_name = "数字蜂巢";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
 
+std::string GameOption::StatusInfo() const
+{
+    std::string str = "每回合" + std::to_string(GET_VALUE(局时)) + "秒，共" +
+        std::to_string(GET_VALUE(回合数)) + "回合，跳过起始非癞子数量" + std::to_string(GET_VALUE(跳过非癞子)) + "，";
+    if (GET_VALUE(种子).empty()) {
+        str += "未指定种子";
+    } else {
+        str += "种子：" + GET_VALUE(种子);
+    }
+    return str;
+}
+
+bool GameOption::IsValid(MsgSenderBase& reply) const { return true; }
+
+uint64_t GameOption::BestPlayerNum() const { return 1; }
+
+// ========== GAME STAGES ==========
+
 static const std::array<std::vector<int32_t>, comb::k_direct_max> k_points{
     std::vector<int32_t>{3, 4, 8},
     std::vector<int32_t>{1, 5, 9},
@@ -28,18 +46,6 @@ struct Player
     int32_t score_;
     std::unique_ptr<comb::Comb> comb_;
 };
-
-const std::string GameOption::StatusInfo() const
-{
-    std::string str = "每回合" + std::to_string(GET_VALUE(局时)) + "秒，共" +
-        std::to_string(GET_VALUE(回合数)) + "回合，跳过起始非癞子数量" + std::to_string(GET_VALUE(跳过非癞子)) + "，";
-    if (GET_VALUE(种子).empty()) {
-        str += "未指定种子";
-    } else {
-        str += "种子：" + GET_VALUE(种子);
-    }
-    return str;
-}
 
 class RoundStage;
 
@@ -207,5 +213,8 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
 {
+    if (!options.IsValid(reply)) {
+        return nullptr;
+    }
     return new MainStage(options, match);
 }

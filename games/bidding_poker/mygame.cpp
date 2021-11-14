@@ -15,7 +15,7 @@
 const std::string k_game_name = "投标扑克";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
 
-const std::string GameOption::StatusInfo() const
+std::string GameOption::StatusInfo() const
 {
     std::stringstream ss;
     ss << "每名玩家初始金币" << GET_VALUE(初始金币数) << "枚，"
@@ -30,6 +30,19 @@ const std::string GameOption::StatusInfo() const
     }
     return ss.str();
 }
+
+bool GameOption::IsValid(MsgSenderBase& reply) const
+{
+    if (PlayerNum() < 5) {
+        reply() << "该游戏至少 5 人参加，当前玩家数为" << PlayerNum();
+        return false;
+    }
+    return true;
+}
+
+uint64_t GameOption::BestPlayerNum() const { return 10; }
+
+// ========== GAME STAGES ==========
 
 struct Player
 {
@@ -495,8 +508,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
 {
-    if (options.PlayerNum() < 2) {
-        reply() << "该游戏至少2人参加，当前玩家数为" << options.PlayerNum();
+    if (!options.IsValid(reply)) {
         return nullptr;
     }
     return new MainStage(options, match);
