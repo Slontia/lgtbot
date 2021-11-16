@@ -16,6 +16,8 @@ file(GLOB GAME_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/*)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
 
+make_directory(${LIBRARY_OUTPUT_PATH})
+
 foreach (GAME_DIR ${GAME_DIRS})
   if (IS_DIRECTORY ${GAME_DIR})
 
