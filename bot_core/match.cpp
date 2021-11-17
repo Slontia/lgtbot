@@ -42,14 +42,6 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
         , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")))
 {
     users_.emplace(host_uid, ParticipantUser(host_uid));
-    auto sender = Boardcast();
-    if (this->gid().has_value()) {
-        sender << "现在玩家可以在群里通过\"#加入\"报名比赛";
-    } else {
-        sender << "现在玩家可以通过私信我\"#加入 " << this->mid() << "\"报名比赛";
-    }
-    sender << "\n- 当前用户数：" << user_controlled_player_num()
-           << "\n- 当前电脑数：" << com_num();
 }
 
 Match::~Match() {}
@@ -221,10 +213,10 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
     assert(Has(uid));
     if (state_ != State::IS_STARTED) {
         match_manager().UnbindMatch(uid);
+        users_.erase(uid);
         Boardcast() << "玩家 " << At(uid) << " 退出了游戏"
                     << "\n- 当前用户数：" << user_controlled_player_num()
                     << "\n- 当前电脑数：" << com_num();
-        users_.erase(uid);
         if (users_.empty()) {
             Boardcast() << "所有玩家都退出了游戏，游戏解散";
             Unbind_();

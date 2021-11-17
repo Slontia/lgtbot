@@ -45,3 +45,7 @@ MatchID MatchManager::NewMatchID_()
     return next_mid_;
 }
 
+bool MatchManager::HasMatch() const
+{
+    return std::apply([&](const auto& ...id2match) { return (!id2match.empty() || ...); }, id2match_);
+}

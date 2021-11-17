@@ -145,6 +145,15 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
     if (is_single) {
         RETURN_IF_FAILED(match->SetBenchTo(uid, EmptyMsgSender::Get(), std::nullopt));
         RETURN_IF_FAILED(match->GameStart(uid, gid.has_value(), reply));
+    } else {
+        auto sender = match->Boardcast();
+        if (match->gid().has_value()) {
+            sender << "现在玩家可以在群里通过「#加入」报名比赛";
+        } else {
+            sender << "现在玩家可以通过私信我「#加入 " << match->mid() << "」报名比赛";
+        }
+        sender << "\n- 当前用户数：" << match->user_controlled_player_num()
+               << "\n- 当前电脑数：" << match->com_num();
     }
     return EC_OK;
 }

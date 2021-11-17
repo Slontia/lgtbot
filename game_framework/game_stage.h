@@ -226,6 +226,7 @@ class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_AT
 template <typename GameOption, typename MainStage, typename... SubStages>
 class GameStage;
 
+// Is Comp Stage
 template <typename GameOption, typename MainStage, typename... SubStages> requires (sizeof...(SubStages) > 0)
 class GameStage<GameOption, MainStage, SubStages...>
     : public std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<false>, SubStageBaseWrapper<false, MainStage>>
@@ -362,6 +363,7 @@ class GameStage<GameOption, MainStage, SubStages...>
     VariantSubStage sub_stage_;
 };
 
+// Is Atom Stage
 template <typename GameOption, typename MainStage>
 class GameStage<GameOption, MainStage>
     : public std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<true>, SubStageBaseWrapper<true, MainStage>>
@@ -376,7 +378,9 @@ class GameStage<GameOption, MainStage>
     virtual void OnStageBegin() {}
     virtual void HandleStageBegin()
     {
-        Base::Boardcast() << "【当前阶段】\n" << Base::main_stage().StageInfo();
+        if constexpr (!std::is_void_v<MainStage>) {
+            Base::Boardcast() << "【当前阶段】\n" << Base::main_stage().StageInfo();
+        }
         OnStageBegin();
         Handle_(StageErrCode::OK);
     }

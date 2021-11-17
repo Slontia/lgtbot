@@ -25,6 +25,12 @@ class Box
         content_ = std::forward<String>(str);
     }
 
+    std::string& Content()
+    {
+        assert(merge_num_ > 0);
+        return content_;
+    }
+
     template <typename String>
     void SetColor(String&& str)
     {

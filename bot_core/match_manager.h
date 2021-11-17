@@ -45,6 +45,8 @@ class MatchManager
         UnbindMatch_(id);
     }
 
+    bool HasMatch() const;
+
    private:
     void DeleteMatch_(const MatchID id);
 

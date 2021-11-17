@@ -72,8 +72,6 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
     }
 }
 
-
-
 void* /*__cdecl*/ BOT_API::Init(const BotOption* option)
 {
     std::srand(std::chrono::steady_clock::now().time_since_epoch().count());
