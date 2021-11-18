@@ -460,9 +460,11 @@ class Hand
         for (const auto number : PokerNumber::Members()) {
             const uint64_t count = std::count(pokers_[static_cast<uint32_t>(number)].begin(),
                                               pokers_[static_cast<uint32_t>(number)].end(), true);
-            same_number_poker_counts_accurate[count - 1].emplace_back(number);
-            for (uint64_t i = 0; i < count; ++i) {
-                same_number_poker_counts[i].emplace_back(number);
+            if (count > 0) {
+                same_number_poker_counts_accurate[count - 1].emplace_back(number);
+                for (uint64_t i = 0; i < count; ++i) {
+                    same_number_poker_counts[i].emplace_back(number);
+                }
             }
         }
         std::set<PokerNumber> already_used_numbers;
