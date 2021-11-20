@@ -26,15 +26,16 @@ uint32_t Coor::Get<false>() const { return y_; }
 
 static constexpr const uint32_t k_edge_num = 16;
 
+static const std::array<Coor, k_edge_num> k_edge_coors = {
+    Coor{0, 0}, Coor{0, 1}, Coor{0, 2}, Coor{0, 3},
+    Coor{0, 4}, Coor{1, 4}, Coor{2, 4}, Coor{3, 4},
+    Coor{4, 4}, Coor{4, 3}, Coor{4, 2}, Coor{4, 1},
+    Coor{4, 0}, Coor{3, 0}, Coor{2, 0}, Coor{1, 0},
+};
+
 static Coor idx2coor(const uint32_t idx)
 {
     assert(k_edge_num > idx);
-    static const std::array<Coor, k_edge_num> k_edge_coors = {
-        Coor{0, 0}, Coor{0, 1}, Coor{0, 2}, Coor{0, 3},
-        Coor{0, 4}, Coor{1, 4}, Coor{2, 4}, Coor{3, 4},
-        Coor{4, 4}, Coor{4, 3}, Coor{4, 2}, Coor{4, 1},
-        Coor{4, 0}, Coor{3, 0}, Coor{2, 0}, Coor{1, 0},
-    };
     return k_edge_coors[idx];
 }
 
@@ -43,7 +44,8 @@ static uint32_t coor2idx(const Coor& coor)
     return coor.x_ <= coor.y_ ? coor.x_ + coor.y_ : k_edge_num - coor.x_ - coor.y_;
 }
 
-enum class Type { O = 'o', X = 'x', _ = '_' };
+enum class Type { _ = '0', O1 = '1', O2 = '2', X1 = '3', X2 = '4' };
+enum class Symbol { O = 0, X = 1 };
 
 class Board
 {
@@ -83,7 +85,7 @@ class Board
         if (last_move_coor_.has_value()) {
             set_box_image(last_move_coor_->x_, last_move_coor_->y_, "light_");
         }
-        ForAllSuccLine_([&](const auto& coors, const Type type)
+        ForAllSuccLine_([&](const auto& coors, const Symbol s)
                 {
                     std::ranges::for_each(coors, [&](const Coor& coor) { set_box_image(coor.x_, coor.y_, "light_"); });
                 });
@@ -109,13 +111,11 @@ class Board
         return ErrCode::OK;
     }
 
-    Type CheckWin() const
+    std::array<uint32_t, 2> LineCount() const
     {
-        bool x_win = false;
-        bool o_win = false;
-        ForAllSuccLine_([&](const auto& coors, const Type type) { (type == Type::X ? x_win : o_win) = true; });
-        return !x_win ^ o_win ? Type::_ :
-                        x_win ? Type::X : Type::O;
+        std::array<uint32_t, 2> r{0, 0};
+        ForAllSuccLine_([&](const auto& coors, const Symbol s) { ++r[static_cast<uint32_t>(s)]; });
+        return r;
     }
 
     std::vector<uint32_t> ValidDsts(const uint32_t src)
@@ -137,14 +137,25 @@ class Board
         return dsts;
     }
 
+    bool CanPush(const Type type) const
+    {
+        return std::ranges::any_of(k_edge_coors, [&](const Coor coor)
+                {
+                    return areas_[coor.x_][coor.y_] == type || areas_[coor.x_][coor.y_] == Type::_;
+                });
+    }
+
   private:
     template <typename Fn>
     void ForAllSuccLine_(const Fn& fn) const
     {
-        const auto check_all_same = [&](const auto& coors, const Type type)
+        const auto check_all_same = [&](const auto& coors, const Type type1, const Type type2, const Symbol s)
             {
-                if (std::ranges::all_of(coors, [&](const Coor& coor) { return areas_[coor.x_][coor.y_] == type; })) {
-                    fn(coors, type);
+                if (std::ranges::all_of(coors, [&](const Coor& coor)
+                            {
+                                return areas_[coor.x_][coor.y_] == type1 || areas_[coor.x_][coor.y_] == type2;
+                            })) {
+                    fn(coors, s);
                     return true;
                 }
                 return false;
@@ -152,7 +163,8 @@ class Board
         const auto check_line = [&](const auto& transform)
             {
                 const auto coors = std::views::iota(0) | std::views::take(5) | std::views::transform(transform);
-                check_all_same(coors, Type::X) || check_all_same(coors, Type::O);
+                check_all_same(coors, Type::X1, Type::X2, Symbol::X) ||
+                    check_all_same(coors, Type::O1, Type::O2, Symbol::O);
             };
         for (uint32_t i = 0; i < 5; ++i) {
             check_line([&](const uint32_t x) { return Coor{x, i}; });

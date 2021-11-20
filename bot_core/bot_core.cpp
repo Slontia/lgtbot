@@ -42,6 +42,10 @@ void BotCtx::LoadAdmins_(const uint64_t* admins)
 static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, const UserID uid, const std::string& msg,
                              MsgSender& reply)
 {
+    if (uid == bot.this_uid()) {
+        LOG(ERROR) << "receive self request: " << msg;
+        return EC_UNEXPECTED_ERROR;
+    }
     if (std::string first_arg; !(std::stringstream(msg) >> first_arg) || first_arg.empty()) {
         reply() << "[错误] 我不理解，所以你是想表达什么？";
         return EC_REQUEST_EMPTY;

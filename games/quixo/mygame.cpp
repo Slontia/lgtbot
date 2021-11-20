@@ -42,33 +42,33 @@ class MainStage : public MainGameStage<>
                 MakeStageCommand("查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
                 MakeStageCommand("移动棋子", &MainStage::Set_,
                     ArithChecker<uint32_t>(0, 15, "移动前位置"), ArithChecker<uint32_t>(0, 15, "移动后位置")))
+        , first_turn_(rand() % 2)
         , board_(option.ResourceDir())
         , round_(0)
-        , turn_(rand() % 2)
     {
     }
 
     virtual void OnStageBegin()
     {
-        SetReady(1 - turn_);
+        SetReady(1 - cur_pid());
         StartTimer(option().GET_VALUE(局时));
-        Boardcast() << Markdown(ShowInfo_(false));
-        Boardcast() << "请" << At(turn_) << "行动，" << option().GET_VALUE(局时)
+        Boardcast() << Markdown(ShowInfo_());
+        Boardcast() << "请" << At(cur_pid()) << "行动，" << option().GET_VALUE(局时)
                     << "秒未行动自动判负\n格式：移动前位置 移动后位置";
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
     {
-        if (pid != turn_) {
+        if (pid != cur_pid()) {
             return StageErrCode::OK;
         }
         while (true) {
             const uint32_t src = rand() % 16;
             const auto valid_dsts = board_.ValidDsts(src);
             const uint32_t dst = valid_dsts[rand() % valid_dsts.size()];
-            const auto ret = board_.Push(src, dst, pid2type_(pid));
+            const auto ret = board_.Push(src, dst, cur_type());
             if (ret == quixo::ErrCode::OK) {
-                Boardcast() << At(pid) << "将 " << src << " 位置的棋子移动至 " << dst;
+                Boardcast() << At(pid) << "将 " << src << " 位置的棋子取出，从 " << dst << " 位置重新推入";
                 break;
             }
         }
@@ -83,13 +83,13 @@ class MainStage : public MainGameStage<>
   private:
     AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t src, const uint32_t dst)
     {
-        if (pid != turn_) {
+        if (pid != cur_pid()) {
             reply() << "在您的对手行动完毕前，您无法行动";
             return StageErrCode::FAILED;
         }
-        const auto ret = board_.Push(src, dst, pid2type_(turn_));
+        const auto ret = board_.Push(src, dst, cur_type());
         if (ret == quixo::ErrCode::INVALID_SRC) {
-            reply() << "您无法移动该棋子，您只能移动空白或本方棋子";
+            reply() << "您无法移动该棋子，您只能移动空白或本方相同样式的棋子";
             return StageErrCode::FAILED;
         }
         if (ret == quixo::ErrCode::INVALID_DST) {
@@ -103,29 +103,26 @@ class MainStage : public MainGameStage<>
             return StageErrCode::FAILED;
         }
         reply() << "移动成功！";
-        Boardcast() << At(pid) << "将 " << src << " 位置的棋子移动至 " << dst;
-        if (const auto win_type = board_.CheckWin(); win_type != quixo::Type::_) {
-            winner_.emplace(type2pid_(win_type));
-        }
+        Boardcast() << At(pid) << "将 " << src << " 位置的棋子取出，从 " << dst << " 位置重新推入";
         return StageErrCode::READY;
     }
 
     AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        reply() << Markdown(ShowInfo_(false));
+        reply() << Markdown(ShowInfo_());
         return StageErrCode::OK;
     }
 
-    std::string ShowInfo_(const bool is_finish) const
+    std::string ShowInfo_() const
     {
-        std::string str = "## 第" + std::to_string(round_ / 2) + "回合\n\n";
+        std::string str = "## 第" + std::to_string(round_ / 2 + 1) + "回合\n\n";
         Table player_table(1, 4);
         player_table.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(0, 0 + pid * 2).SetContent(
                         std::string("![](file://") + option().ResourceDir() +
-                        (pid == turn_ || is_finish ? std::string("box_") + static_cast<char>(pid2type_(pid)) : "empty") +
+                        (pid == cur_pid() ? std::string("box_") + static_cast<char>(cur_type()) : "empty") +
                         ".png)");
                 player_table.Get(0, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
             };
@@ -139,35 +136,50 @@ class MainStage : public MainGameStage<>
 
     virtual void OnAllPlayerReady()
     {
-        if (winner_.has_value()) {
-            Boardcast() << Markdown(ShowInfo_(true));
-            Boardcast() << At(turn_) << "连成了直线，取得胜利";
-        } else if ((++round_) / 2 > option().GET_VALUE(回合数)) {
-            Boardcast() << Markdown(ShowInfo_(true));
-            Boardcast() << "达到最大回合数，游戏平局";
+        const auto ret = board_.LineCount();
+        if (ret[1 - static_cast<uint32_t>(cur_symbol())]) {
+            Boardcast() << Markdown(ShowInfo_());
+            Boardcast() << At(cur_pid()) << "帮助对手达成了直线，于是，输掉了比赛";
+            winner_.emplace(1 - cur_pid());
+        } else if (ret[static_cast<uint32_t>(cur_symbol())]) {
+            Boardcast() << Markdown(ShowInfo_());
+            Boardcast() << At(cur_pid()) << "达成了直线，于是，赢得了比赛";
+            winner_.emplace(cur_pid());
+        } else if ((++round_) / 2 >= option().GET_VALUE(回合数)) {
+            Boardcast() << Markdown(ShowInfo_());
+            Boardcast() << "后手方" << At(PlayerID(1 - first_turn_)) << "坚持到了最大回合数，于是，赢得了比赛";
+            winner_.emplace(1 - first_turn_);
+        } else if (!board_.CanPush(cur_type())) {
+            Boardcast() << Markdown(ShowInfo_());
+            Boardcast() << At(cur_pid()) << "没有可取出的棋子，于是，输掉了比赛";
+            winner_.emplace(1 - cur_pid());
         } else {
-            turn_ = 1 - turn_;
-            ClearReady(turn_);
+            Boardcast() << Markdown(ShowInfo_());
+            ClearReady(cur_pid());
             StartTimer(option().GET_VALUE(局时));
-            Boardcast() << Markdown(ShowInfo_(false));
-            Boardcast() << "请" << At(turn_) << "行动，" << option().GET_VALUE(局时)
-                        << "秒未行动自动判负\n格式：移动前位置 移动后位置";
+            Boardcast() << "请" << At(cur_pid()) << "行动，" << option().GET_VALUE(局时)
+                        << "秒未行动自动判负\n格式：取出位置 推入位置";
         }
     }
 
     CheckoutErrCode OnTimeout()
     {
-        winner_.emplace(1 - turn_);
-        Boardcast() << At(turn_) << "超时判负";
+        winner_.emplace(1 - cur_pid());
+        Boardcast() << At(cur_pid()) << "超时判负";
         return StageErrCode::CHECKOUT;
     }
 
-    PlayerID type2pid_(const quixo::Type type) const { return type == quixo::Type::X ? 1 : 0; }
-    quixo::Type pid2type_(const PlayerID pid) const { return pid == 1 ? quixo::Type::X : quixo::Type::O; }
+    PlayerID cur_pid() const { return round_ % 2 ? PlayerID(1 - first_turn_) : first_turn_; }
+    quixo::Type cur_type() const
+    {
+        static const std::array<quixo::Type, 4> types{quixo::Type::O1, quixo::Type::X1, quixo::Type::O2, quixo::Type::X2};
+        return types[round_ % (option().GET_VALUE(模式) ? 2 : 4)];
+    }
+    quixo::Symbol cur_symbol() const { return round_ % 2 ? quixo::Symbol::X : quixo::Symbol::O; }
 
+    const PlayerID first_turn_;
     quixo::Board board_;
     uint32_t round_;
-    PlayerID turn_;
     std::optional<PlayerID> winner_;
 };
 

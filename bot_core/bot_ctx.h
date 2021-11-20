@@ -33,6 +33,8 @@ class BotCtx
 
     DBManagerBase* db_manager() const { return db_manager_.get(); }
 
+    const UserID this_uid() const { return this_uid_; }
+
   private:
     void LoadGameModules_(const char* const games_path);
     void LoadAdmins_(const uint64_t* const admins);
