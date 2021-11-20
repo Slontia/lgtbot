@@ -50,14 +50,6 @@ foreach (GAME_DIR ${GAME_DIRS})
       )
     endif()
 
-    #    if (WITH_IMAGE)
-    #      add_custom_target(${GAME}_rule_image ALL
-    #        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    #        COMMAND cd ${GAME_DIR} && ${CMAKE_BINARY_DIR}/markdown2image --input rule.md --output ${RULE_IMAGE} --width 700
-    #        COMMENT "Build rule image"
-    #      )
-    #    endif()
-
     add_library(${GAME} SHARED ${SOURCE_FILES})
 
     target_compile_definitions(${GAME} PUBLIC GAME_MODULE_NAME="${GAME}")
@@ -82,6 +74,7 @@ foreach (GAME_DIR ${GAME_DIRS})
       target_include_directories(run_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
       target_compile_definitions(run_game_${GAME} PUBLIC TEST_BOT)
       target_link_libraries(run_game_${GAME} gflags)
+      add_test(NAME run_game_${GAME} COMMAND run_game_${GAME} --repeat=100)
 
       if (CMAKE_SYSTEM_NAME MATCHES "Linux")
         add_dependencies(test_game_${GAME} ${GAME}_rule_binary)

@@ -7,8 +7,8 @@
 #include "game_framework/game_main.h"
 #include "game_framework/mock_match.h"
 
-DEFINE_uint64(player, 2, "Player number"); // TODO: if set to 0, random player for each run
-DEFINE_uint64(repeat, 1, "Repeat times"); // TODO: if set to 0, run unlimitedly
+DEFINE_uint64(player, 0, "Player number: if set to 0, best player num will be set");
+DEFINE_uint64(repeat, 1, "Repeat times: if set to 0, will run unlimitedly");
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match);
 
@@ -55,6 +55,10 @@ int main(int argc, char** argv)
 
     std::locale::global(std::locale(""));
     gflags::ParseCommandLineFlags(&argc, &argv, true);
+
+    if (FLAGS_player == 0) {
+        FLAGS_player = GameOption().BestPlayerNum();
+    }
 
     for (uint64_t i = 0; i < FLAGS_repeat; ++i) {
         Run();
