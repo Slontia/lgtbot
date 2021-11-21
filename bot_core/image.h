@@ -8,6 +8,12 @@
 
 #include "log.h"
 
+#ifdef TEST_BOT
+inline bool enable_markdown_to_image = false;
+#else
+inline bool enable_markdown_to_image = true;
+#endif
+
 inline const std::filesystem::path k_markdown2image_path = std::filesystem::current_path() / "markdown2image"; // TODO: config
 
 inline std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path)
@@ -17,7 +23,9 @@ inline std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path)
 
 inline int MarkdownToImage(const std::string& markdown, const std::filesystem::path& rel_path)
 {
-#ifndef TEST_BOT
+    if (!enable_markdown_to_image) {
+        return false;
+    }
     const auto abs_path = ImageAbsPath(rel_path);
     if (std::filesystem::exists(abs_path)) {
         // TODO: print debug msg
@@ -33,7 +41,6 @@ inline int MarkdownToImage(const std::string& markdown, const std::filesystem::p
     DebugLog() << "popen markdown2image cmd=\'" << cmd;
     fputs(markdown.c_str(), fp);
     pclose(fp);
-#endif
     return 0;
 }
 

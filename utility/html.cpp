@@ -23,10 +23,8 @@ std::string Table::ToString() const
                 outstr += " bgcolor=\"" + box.color_ + "\"";
             }
             if (box.merge_num_ > 1) {
-                if (box.merge_direct_ == Box::MergeDirect::TO_BOTTOM) {
-                    outstr += (box.merge_direct_ == Box::MergeDirect::TO_BOTTOM ? " rowspan=\"" : " colspan=\"");
-                    outstr += std::to_string(box.merge_num_) + "\"";
-                }
+                outstr += (box.merge_direct_ == Box::MergeDirect::TO_BOTTOM ? " rowspan=\"" : " colspan=\"");
+                outstr += std::to_string(box.merge_num_) + "\"";
             }
             outstr += ">\n\n";
             outstr += box.content_;
@@ -46,5 +44,16 @@ void Table::MergeDown(const uint32_t row, const uint32_t column, const uint32_t 
     for (uint32_t i = 1; i < num; ++i) {
         assert(Get(row + i, column).merge_num_ == 1);
         Get(row + i, column).merge_num_ = 0;
+    }
+}
+
+void Table::MergeRight(const uint32_t row, const uint32_t column, const uint32_t num)
+{
+    assert(num > 1);
+    Get(row, column).merge_num_ = num;
+    Get(row, column).merge_direct_ = Box::MergeDirect::TO_RIGHT;
+    for (uint32_t i = 1; i < num; ++i) {
+        assert(Get(row, column + i).merge_num_ == 1);
+        Get(row, column + i).merge_num_ = 0;
     }
 }

@@ -43,7 +43,7 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
                              MsgSender& reply)
 {
     if (uid == bot.this_uid()) {
-        LOG(ERROR) << "receive self request: " << msg;
+        ErrorLog() << "receive self request: " << msg;
         return EC_UNEXPECTED_ERROR;
     }
     if (std::string first_arg; !(std::stringstream(msg) >> first_arg) || first_arg.empty()) {

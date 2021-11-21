@@ -152,7 +152,6 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
     }
     const uint64_t player_num = std::max(user_controlled_player_num(), bench_to_player_num_);
     const std::filesystem::path resource_dir = std::filesystem::path(bot_.game_path()) / game_handle_.module_name_ / "";
-    std::cout << resource_dir << std::endl;
     assert(main_stage_ == nullptr);
     assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
     options_->SetPlayerNum(player_num);

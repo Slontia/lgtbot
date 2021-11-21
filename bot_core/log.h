@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef WITH_GLOG
+#if WITH_GLOG && !TEST_BOT
 
 #include <glog/logging.h>
 

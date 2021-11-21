@@ -30,6 +30,113 @@ uint64_t GameOption::BestPlayerNum() const { return 2; }
 
 // ========== GAME STAGES ==========
 
+class MyTable
+{
+  public:
+    struct Result
+    {
+        PlayerID loser_;
+        PlayerID questioner_;
+        int actual_number_;
+        bool is_lie_;
+    };
+
+    MyTable(const GameOption& option)
+        : option_(option)
+        , table_(option.GET_VALUE(失败数量) * 2 + 3, option.GET_VALUE(数字种类))
+        , player_nums_{std::vector<int>(option.GET_VALUE(数字种类), 0),
+                        std::vector<int>(option.GET_VALUE(数字种类), 0)}
+    {
+        table_.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
+        table_.MergeRight(0, 0, option.GET_VALUE(数字种类));
+        table_.MergeRight(table_.Row() - 1, 0, option.GET_VALUE(数字种类));
+        const auto mid_row = option.GET_VALUE(失败数量) + 1;
+        for (uint32_t col = 0; col < option.GET_VALUE(数字种类); ++col) {
+            for (uint32_t i = 1; i <= option.GET_VALUE(失败数量); ++i) {
+                table_.Get(mid_row + i, col).SetContent(Image_("blank"));
+                table_.Get(mid_row - i, col).SetContent(Image_("blank"));
+            }
+        }
+    }
+
+    void SetName(std::string p1_name, std::string p2_name)
+    {
+        table_.Get(0, 0).SetContent(HTML_COLOR_FONT_HEADER(#00a2e8) " **" + p1_name + "** " HTML_FONT_TAIL);
+        table_.Get(table_.Row() - 1, 0).SetContent(HTML_COLOR_FONT_HEADER(#ed1c24) " **" + p2_name + "** " HTML_FONT_TAIL);
+    }
+
+    void Lose(const Result result)
+    {
+        if (last_result_.has_value()) {
+            DrawLose_(false);
+        }
+        last_result_.emplace(result);
+        ++player_nums_[result.loser_][result.actual_number_ - 1];
+        DrawLose_(true);
+    }
+
+    bool CheckOver(const PlayerID questioner)
+    {
+        bool has_all_num = true;
+        for (uint32_t num_idx = 0; num_idx < option_.GET_VALUE(数字种类); ++ num_idx) {
+            const int count = player_nums_[static_cast<uint64_t>(questioner)][num_idx];
+            if (count >= option_.GET_VALUE(失败数量)) {
+                for (int i = 0; i < count; ++i) {
+                    table_.Get(option_.GET_VALUE(失败数量) + 1 + (questioner == 1 ? 1 : -1) * (i + 1), num_idx)
+                          .SetContent(Image_("death"));
+                }
+                return true;
+            } else if (count == 0) {
+                has_all_num = false;
+            }
+        }
+        if (has_all_num) {
+            for (uint32_t num_idx = 0; num_idx < option_.GET_VALUE(数字种类); ++ num_idx) {
+                table_.Get(option_.GET_VALUE(失败数量) + 1 + (questioner == 1 ? 1 : -1), num_idx)
+                      .SetContent(Image_("death"));
+            }
+        }
+        return has_all_num;
+    }
+
+    std::string ToHtml(const PlayerID pid)
+    {
+        if (pid == 0) {
+            table_.Get(0, 0).SetColor("#99d9ea"); // light blue
+            table_.Get(table_.Row() - 1, 0).SetColor("white");
+        } else {
+            table_.Get(0, 0).SetColor("white");
+            table_.Get(table_.Row() - 1, 0).SetColor("#ffaec9"); // light red
+        }
+        return table_.ToString();
+    }
+
+  private:
+    std::string Image_(std::string name) const
+    {
+        return std::string("![](file://") + option_.ResourceDir() + "/" + std::move(name) + ".png)";
+    }
+
+    void DrawLose_(const bool with_light)
+    {
+        const int32_t direct = last_result_->loser_ == 1 ? 1 : -1;
+        const int32_t offset = player_nums_[last_result_->loser_][last_result_->actual_number_ - 1];
+        const char color = last_result_->questioner_ == 1 ? 'r' : 'b';
+        const char* const lie = last_result_->is_lie_ ? "lie_" : "truth_";
+        table_.Get(option_.GET_VALUE(失败数量) + 1 + direct * offset, last_result_->actual_number_ - 1)
+              .SetContent(Image_(std::string(with_light ? "light_" : "") + lie + color));
+        for (uint32_t col = 0; col < option_.GET_VALUE(数字种类); ++col) {
+            table_.Get(option_.GET_VALUE(失败数量) + 1, col)
+                  .SetContent(Image_("point_" + std::to_string(col + 1) + (last_result_->loser_ == 1 ? "_r" : "_b")));
+        }
+    }
+
+    const GameOption& option_;
+    Table table_;
+    std::array<std::vector<int>, 2> player_nums_;
+    std::optional<Result> last_result_;
+};
+
 class RoundStage;
 
 class MainStage : public MainGameStage<RoundStage>
@@ -39,11 +146,17 @@ class MainStage : public MainGameStage<RoundStage>
     virtual VariantSubStage OnStageBegin() override;
     virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
     int64_t PlayerScore(const PlayerID pid) const;
+    MyTable& table() { return table_; }
 
    private:
     bool JudgeOver();
     virtual void OnPlayerLeave(const PlayerID pid) override;
+    void Info_()
+    {
+        Boardcast() << Markdown("## 第" + std::to_string(round_) + "回合\n\n" + table_.ToHtml(questioner_));
+    }
 
+    MyTable table_;
     PlayerID questioner_;
     uint64_t round_;
     std::array<std::vector<int>, 2> player_nums_;
@@ -153,12 +266,11 @@ class GuessStage : public SubGameStage<>
 class RoundStage : public SubGameStage<NumberStage, GuessStage>
 {
    public:
-    RoundStage(MainStage& main_stage, const uint64_t round, const uint64_t questioner, std::array<std::vector<int>, 2>& player_nums)
+    RoundStage(MainStage& main_stage, const uint64_t round, const uint64_t questioner)
             : GameStage(main_stage, "第" + std::to_string(round) + "回合"),
               questioner_(questioner),
               actual_number_(1),
               lie_number_(1),
-              player_nums_(player_nums),
               loser_(0)
     {}
 
@@ -191,27 +303,13 @@ class RoundStage : public SubGameStage<NumberStage, GuessStage>
         }
         const bool suc = doubt ^ (actual_number_ == lie_number_);
         loser_ = suc ? questioner_ : PlayerID{1 - questioner_};
-        ++player_nums_[loser_][actual_number_ - 1];
-        Table table(option().GET_VALUE(数字种类) + 1, 3);
-        {
-            auto boardcast = Boardcast();
-            boardcast << "实际数字为" << actual_number_ << "，"
-                      << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
-                      << "玩家" << At(loser_) << "获得数字" << actual_number_ << "\n数字获得情况：\n"
-                      << At(PlayerID(0)) << "：" << At(PlayerID(1));
-            table.Get(0, 0).SetContent(PlayerName(PlayerID(0)));
-            table.Get(0, 1).SetContent("数字");
-            table.Get(0, 2).SetContent(PlayerName(PlayerID(1)));
-            for (int num = 1; num <= option().GET_VALUE(数字种类); ++num) {
-                boardcast << "\n" << player_nums_[0][num - 1] << " [" << num << "] " << player_nums_[1][num - 1];
-                table.Get(num, 0).SetContent(std::to_string(player_nums_[0][num - 1]));
-                table.Get(num, 1).SetContent("[" + std::to_string(num) + "]");
-                table.Get(num, 2).SetContent(std::to_string(player_nums_[1][num - 1]));
-                table.Get(num, 1).SetColor("Aquamarine");
-            }
-            table.Get(actual_number_, loser_ * 2).SetColor("AntiqueWhite");
-        }
-        Boardcast() << Markdown(table.ToString());
+        // add(loser_, questioner_, actual_number_, is_lie)
+        main_stage().table().Lose(MyTable::Result{loser_, questioner_, actual_number_, actual_number_ != lie_number_});
+        auto boardcast = Boardcast();
+        boardcast << "实际数字为" << actual_number_ << "，"
+                  << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
+                  << "玩家" << At(loser_) << "获得数字" << actual_number_ << "\n数字获得情况：\n"
+                  << At(PlayerID(0)) << "：" << At(PlayerID(1));
         return {};
     }
 
@@ -219,21 +317,21 @@ class RoundStage : public SubGameStage<NumberStage, GuessStage>
     const PlayerID questioner_;
     int actual_number_;
     int lie_number_;
-    std::array<std::vector<int>, 2>& player_nums_;
     PlayerID loser_;
 };
 
 MainStage::MainStage(const GameOption& option, MatchBase& match)
         : GameStage(option, match)
+        , table_(option)
         , questioner_(0)
         , round_(1)
-        , player_nums_{std::vector<int>(option.GET_VALUE(数字种类), 0),
-                        std::vector<int>(option.GET_VALUE(数字种类), 0)}
-{}
+{
+}
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
-    return std::make_unique<RoundStage>(*this, 1, std::rand() % 2, player_nums_);
+    table_.SetName(PlayerName(0), PlayerName(1));
+    return std::make_unique<RoundStage>(*this, 1, std::rand() % 2);
 }
 
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
@@ -242,7 +340,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     if (JudgeOver()) {
         return {};
     }
-    return std::make_unique<RoundStage>(*this, ++round_, questioner_, player_nums_);
+    return std::make_unique<RoundStage>(*this, ++round_, questioner_);
 }
 
 int64_t MainStage::PlayerScore(const PlayerID pid) const
@@ -256,15 +354,9 @@ bool MainStage::JudgeOver()
     if (leaver_.has_value()) {
         return true;
     }
-    bool has_all_num = true;
-    for (const int count : player_nums_[questioner_]) {
-        if (count >= option().GET_VALUE(失败数量)) {
-            return true;
-        } else if (count == 0) {
-            has_all_num = false;
-        }
-    }
-    return has_all_num;
+    const bool is_over = table_.CheckOver(questioner_);
+    Info_();
+    return is_over;
 }
 
 void MainStage::OnPlayerLeave(const PlayerID pid) { leaver_ = pid; }
