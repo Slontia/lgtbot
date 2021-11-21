@@ -161,7 +161,7 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
     state_ = State::IS_STARTED;
-    Boardcast() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
+    BoardcastAtAll() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
     for (auto& [uid, user_info] : users_) {
         for (int i = 0; i < player_num_each_user_; ++i) {
             user_info.pids_.emplace_back(players_.size());
@@ -213,6 +213,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
     if (state_ != State::IS_STARTED) {
         match_manager().UnbindMatch(uid);
         users_.erase(uid);
+        reply() << "退出成功";
         Boardcast() << "玩家 " << At(uid) << " 退出了游戏"
                     << "\n- 当前用户数：" << user_controlled_player_num()
                     << "\n- 当前电脑数：" << com_num();
@@ -225,6 +226,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
         }
     } else if (force) {
         match_manager().UnbindMatch(uid);
+        reply() << "退出成功";
         Boardcast() << "玩家 " << At(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
         const auto it = users_.find(uid);
         assert(it != users_.end());
@@ -262,6 +264,22 @@ MsgSenderBase& Match::TellMsgSender(const PlayerID pid)
         return it->second.sender_;
     } else {
         return EmptyMsgSender::Get(); // player exit
+    }
+}
+
+MsgSenderBase::MsgSenderGuard Match::BoardcastAtAll()
+{
+    if (gid().has_value()) {
+        auto sender = Boardcast();
+        for (auto& [uid, user_info] : users_) {
+            if (user_info.state_ != ParticipantUser::State::LEFT) {
+                sender << At(uid);
+            }
+        }
+        sender << "\n";
+        return sender;
+    } else {
+        return BoardcastMsgSender()();
     }
 }
 
@@ -527,10 +545,16 @@ void Match::Routine_()
     }
 }
 
-void Match::Terminate()
+ErrCode Match::Terminate(const bool is_force)
 {
     const std::lock_guard<std::mutex> l(mutex_);
-    Terminate_();
+    if (is_force || state_ == State::NOT_STARTED) {
+        BoardcastAtAll() << "游戏已解散，谢谢大家参与";
+        Terminate_();
+        return EC_OK;
+    } else {
+        return EC_MATCH_ALREADY_BEGIN;
+    }
 }
 
 void Match::Terminate_()

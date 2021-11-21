@@ -14,6 +14,8 @@ std::pair<ErrCode, std::shared_ptr<Match>> MatchManager::NewMatch(const GameHand
         return {EC_MATCH_USER_ALREADY_IN_MATCH, nullptr};
     }
     if (gid.has_value() && GetMatch_(*gid)) {
+        // We has tried terminating the game outside this funciton.
+        // This case may happen when another user creates a new match after terminating.
         reply() << "[错误] 建立失败：该房间已经开始游戏";
         return {EC_MATCH_ALREADY_BEGIN, nullptr};
     }

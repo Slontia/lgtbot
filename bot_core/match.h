@@ -91,6 +91,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         return GetUserName(std::get<UserID>(id), &gid_value);
     }
     MsgSenderBase::MsgSenderGuard Boardcast() { return BoardcastMsgSender()(); }
+    MsgSenderBase::MsgSenderGuard BoardcastAtAll();
     MsgSenderBase::MsgSenderGuard Tell(const PlayerID pid) { return TellMsgSender(pid)(); }
     virtual void StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t)) override;
     virtual void StopTimer() override;
@@ -105,7 +106,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     VariantID ConvertPid(const PlayerID pid) const;
 
-    void Terminate();
+    ErrCode Terminate(const bool is_force);
 
     const GameHandle& game_handle() const { return game_handle_; }
     MatchID mid() const { return mid_; }

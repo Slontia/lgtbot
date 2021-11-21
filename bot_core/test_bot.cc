@@ -428,7 +428,7 @@ TEST_F(TestBot, pub_repeat_new_game)
 {
   AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
-  ASSERT_PUB_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏"); // the old match is terminated
 }
 
 TEST_F(TestBot, pub_repeat_new_game_other_group)
@@ -457,6 +457,24 @@ TEST_F(TestBot, pri_repeat_new_pub_game)
   AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, 1, 1, "#新游戏 测试游戏");
+}
+
+// New game when group already has game
+
+TEST_F(TestBot, terminate_not_begin_match_when_new_game)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 2, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#加入");
+}
+
+TEST_F(TestBot, cannot_terminate_gaming_match_when_new_game)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
+  ASSERT_PUB_MSG(EC_MATCH_ALREADY_BEGIN, 1, 2, "#新游戏 测试游戏");
 }
 
 // Join Self Game

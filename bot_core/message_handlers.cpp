@@ -138,6 +138,14 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
         reply() << "[错误] 创建失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
+    if (gid.has_value()) {
+        const auto running_match = bot.match_manager().GetMatch(*gid);
+        ErrCode rc = EC_OK;
+        if (running_match && (rc = running_match->Terminate(false /*is_force*/)) != EC_OK) {
+            reply() << "[错误] 创建失败：该房间已经开始游戏";
+            return rc;
+        }
+    }
     const auto& [ret, match] = bot.match_manager().NewMatch(*it->second, uid, gid, reply);
     if (ret != EC_OK) {
         return ret;
@@ -460,7 +468,7 @@ static ErrCode interrupt_game(BotCtx& bot, const UserID uid, const std::optional
         reply() << "[错误] 中断失败：需要在房间中使用该指令，或指定比赛ID";
         return EC_MATCH_NEED_REQUEST_PUBLIC;
     }
-    match->Terminate();
+    match->Terminate(true /*is_force*/);
     reply() << "中断成功";
     return EC_OK;
 }
