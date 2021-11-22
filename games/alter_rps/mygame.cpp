@@ -31,9 +31,9 @@ uint64_t GameOption::BestPlayerNum() const { return 2; }
 
 // ========== GAME STAGES ==========
 
-namespace rps {
+enum class Type : int { ROCK = 0, PAPER = 1, SCISSOR = 2 };
 
-enum class Type { ROCK = 0, PAPER = 1, SCISSOR = 2 };
+char type2char[] = "rps";
 
 inline int Compare(const Type _1, const Type _2)
 {
@@ -46,18 +46,16 @@ inline int Compare(const Type _1, const Type _2)
     }
 }
 
-}
-
 struct Card
 {
-    rps::Type type_;
+    Type type_;
     int point_;
 };
 
 inline int Compare(const Card& _1, const Card& _2)
 {
     if (_1.type_ != _2.type_) {
-        return rps::Compare(_1.type_, _2.type_);
+        return Compare(_1.type_, _2.type_);
     } else {
         return _1.point_ - _2.point_;
     }
@@ -71,15 +69,15 @@ struct Player
 {
     Player()
         : cards_{
-            { "石头1" , { Card{rps::Type::ROCK,    1}, CardState::UNUSED} },
-            { "石头2" , { Card{rps::Type::ROCK,    2}, CardState::UNUSED} },
-            { "石头4" , { Card{rps::Type::ROCK,    4}, CardState::UNUSED} },
-            { "布1" ,   { Card{rps::Type::PAPER,   1}, CardState::UNUSED} },
-            { "布2" ,   { Card{rps::Type::PAPER,   2}, CardState::UNUSED} },
-            { "布4" ,   { Card{rps::Type::PAPER,   4}, CardState::UNUSED} },
-            { "剪刀1" , { Card{rps::Type::SCISSOR, 1}, CardState::UNUSED} },
-            { "剪刀2" , { Card{rps::Type::SCISSOR, 2}, CardState::UNUSED} },
-            { "剪刀4" , { Card{rps::Type::SCISSOR, 4}, CardState::UNUSED} },
+            { "石头1" , { Card{Type::ROCK,    1}, CardState::UNUSED} },
+            { "石头2" , { Card{Type::ROCK,    2}, CardState::UNUSED} },
+            { "石头4" , { Card{Type::ROCK,    4}, CardState::UNUSED} },
+            { "布1" ,   { Card{Type::PAPER,   1}, CardState::UNUSED} },
+            { "布2" ,   { Card{Type::PAPER,   2}, CardState::UNUSED} },
+            { "布4" ,   { Card{Type::PAPER,   4}, CardState::UNUSED} },
+            { "剪刀1" , { Card{Type::SCISSOR, 1}, CardState::UNUSED} },
+            { "剪刀2" , { Card{Type::SCISSOR, 2}, CardState::UNUSED} },
+            { "剪刀4" , { Card{Type::SCISSOR, 4}, CardState::UNUSED} },
           }
         , win_count_(0)
         , score_(0)
@@ -108,6 +106,98 @@ std::string AvailableCards(const std::map<std::string_view, std::pair<Card, Card
     return str;
 }
 
+class ThreeRoundTable
+{
+  public:
+    ThreeRoundTable(std::string image_path) : image_path_(std::move(image_path)), table_(9, 6) {}
+
+    void Init(std::string p1_name, std::string p2_name, const uint32_t base_round)
+    {
+        table_.SetTableStyle(" align=\"center\" cellspacing=\"3\" cellpadding=\"0\" ");
+        // 0: p1 name
+        table_.MergeRight(0, 0, 6);
+        table_.Get(0, 0).SetContent(" **" + p1_name + "** ");
+        table_.Get(0, 0).SetColor("#7092BE");
+        for (uint32_t i = 0; i < 3; ++i) {
+            // 1: p1 choose card
+            table_.Get(1, i * 2).SetContent(Image_("empty"));
+            table_.Get(1, i * 2 + 1).SetContent(Image_("empty"));
+            // 2: p1 choose point
+            table_.Get(2, i * 2).SetColor("#C3C3C3");
+            table_.Get(2, i * 2 + 1).SetColor("#C3C3C3");
+            // 3: p1 score
+            table_.MergeRight(3, i * 2, 2);
+            // 4: round
+            table_.MergeRight(4, i * 2, 2);
+            table_.Get(4, i * 2).SetContent(" **第 " + std::to_string(base_round + i) + " 回合** ");
+            table_.Get(4, i * 2).SetColor("#7092BE");
+            // 5: p2 score
+            table_.MergeRight(5, i * 2, 2);
+            // 6: p2 choose card
+            table_.Get(6, i * 2).SetContent(Image_("empty"));
+            table_.Get(6, i * 2 + 1).SetContent(Image_("empty"));
+            // 7: p2 choose point
+            table_.Get(7, i * 2).SetColor("#C3C3C3");
+            table_.Get(7, i * 2 + 1).SetColor("#C3C3C3");
+        }
+        // 8: p2 name
+        table_.MergeRight(8, 0, 6);
+        table_.Get(8, 0).SetContent(" **" + p2_name + "** ");
+        table_.Get(8, 0).SetColor("#7092BE");
+    }
+
+    void SetCard(const PlayerID pid, const uint32_t round_idx, const bool choose_idx, const Card& card,
+            const bool with_color)
+    {
+        const uint32_t row = 1 + pid * 5;
+        const uint32_t col = round_idx * 2 + choose_idx;
+        table_.Get(row, col).SetContent(Image_(type2char[static_cast<int>(card.type_)] + std::to_string(with_color)));
+#define SET_POINT_COLOR(text_color, bg_color) \
+do { \
+    table_.Get(row + 1, col) \
+          .SetContent(HTML_COLOR_FONT_HEADER(text_color) " **+ " + std::to_string(card.point_) + "** " HTML_FONT_TAIL); \
+    table_.Get(row + 1, col).SetColor(#bg_color); \
+} while (0)
+        if (!with_color) {
+            SET_POINT_COLOR(#7f7f7f, #c3c3c3);
+        } else if (card.type_ == Type::PAPER) {
+            SET_POINT_COLOR(#22b14c, #b5e61d);
+        } else if (card.type_ == Type::SCISSOR) {
+            SET_POINT_COLOR(#00a2e8, #caedf5);
+        } else if (card.type_ == Type::ROCK) {
+            SET_POINT_COLOR(#ed1c24, #ffd6e5);
+        }
+#undef SET_POINT_COLOR
+    }
+
+    void SetScore(const PlayerID pid, const uint32_t round_idx, const uint32_t old_score, const uint32_t point)
+    {
+        const uint32_t row = 3 + pid * 2;
+        const uint32_t col = round_idx * 2;
+        table_.Get(row, col)
+              .SetContent(std::to_string(old_score) + " →" HTML_COLOR_FONT_HEADER(green) " **" +
+                          std::to_string(old_score + point) + "** " + HTML_FONT_TAIL);
+    }
+
+    void SetScore(const PlayerID pid, const uint32_t round_idx, const uint32_t score)
+    {
+        const uint32_t row = 3 + pid * 2;
+        const uint32_t col = round_idx * 2;
+        table_.Get(row, col).SetContent(" **" + std::to_string(score) + "** ");
+    }
+
+    std::string ToHtml() const { return table_.ToString(); }
+
+  private:
+    std::string Image_(std::string name) const
+    {
+        return std::string("![](file://") + image_path_ + "/" + std::move(name) + ".png)";
+    }
+
+    const std::string image_path_;
+    Table table_;
+};
+
 class RoundStage;
 
 class MainStage : public MainGameStage<RoundStage>
@@ -117,7 +207,9 @@ class MainStage : public MainGameStage<RoundStage>
         : GameStage(option, match,
                 MakeStageCommand("查看比赛情况", &MainStage::Info_, VoidChecker("赛况")))
         , round_(1)
-        , table_(2, 6)
+        , tables_{ThreeRoundTable(option.ResourceDir()),
+                  ThreeRoundTable(option.ResourceDir()),
+                  ThreeRoundTable(option.ResourceDir())}
     {}
 
     virtual VariantSubStage OnStageBegin() override;
@@ -142,41 +234,40 @@ class MainStage : public MainGameStage<RoundStage>
                 sender << "平局！";
                 players_[0].win_count_ = 0;
                 players_[1].win_count_ = 0;
-                ColorTable_(0, false);
-                ColorTable_(1, false);
+                tables_[(round_ - 1) / 3].SetScore(0, (round_ - 1) % 3, players_[0].score_);
+                tables_[(round_ - 1) / 3].SetScore(1, (round_ - 1) % 3, players_[1].score_);
             } else {
                 const PlayerID winner = ret > 0 ? 0 : 1;
+                const int point = players_[1 - winner].alter_->second.first.point_;
+                tables_[(round_ - 1) / 3].SetScore(1 - winner, (round_ - 1) % 3, players_[1 - winner].score_);
+                tables_[(round_ - 1) / 3].SetScore(winner, (round_ - 1) % 3, players_[winner].score_, point);
                 ++(players_[winner].win_count_);
                 players_[1 - winner].win_count_ = 0;
-                const int point = players_[1 - winner].alter_->second.first.point_;
                 players_[winner].score_ += point;
                 sender << Name(winner) << "胜利，获得" << point << "分";
-                ColorTable_(winner, true);
-                ColorTable_(1 - winner, false);
             }
             sender << "\n\n当前分数：\n"
                 << At(PlayerID(0)) << "：" << players_[0].score_ << "\n"
                 << At(PlayerID(1)) << "：" << players_[1].score_;
         }
-        Boardcast() << Markdown(table_.ToString());
+        ShowInfo();
     }
+
+    uint64_t round() const { return round_; }
 
     std::array<Player, 2> players_;
-    Table table_;
+    std::array<ThreeRoundTable, 3> tables_;
 
-   private:
-    void ColorTable_(const PlayerID pid, const bool is_winner)
+    void ShowInfo()
     {
-        const char* const color_name = is_winner ? "AntiqueWhite" : "LightGrey";
-        const auto& player = players_[pid];
-        // For last battle, the alter will be set to left. So we cannot compare alter with right
-        const int offset = player.alter_ == player.left_ ? 0 : 1;
-        table_.GetLastRow(pid * 3 + offset).SetColor(color_name);
-        table_.GetLastRow(pid * 3 + 2).SetContent(
-            is_winner ? HTML_COLOR_FONT_HEADER(Red) + std::to_string(players_[pid].score_) + HTML_FONT_TAIL
-                      : std::to_string(players_[pid].score_));
+        std::string str;
+        for (uint32_t i = 0; i < (round_ - 1) / 3 + 1; ++i) {
+            str += "\n\n## 第 " + std::to_string(i * 3 + 1) + "~" + std::to_string(i * 3 + 3) + " 回合\n\n" + tables_[i].ToHtml();
+        }
+        Boardcast() << Markdown(str);
     }
 
+   private:
     CompReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         auto sender = reply();
@@ -289,7 +380,8 @@ class ChooseStage : public SubGameStage<>
         auto& player = main_stage().players_[pid];
         (IS_LEFT ? player.left_ : player.right_) = it;
 
-        main_stage().table_.GetLastRow(pid * 3 + (IS_LEFT ? 0 : 1)).SetContent(it->first);
+        const auto round = main_stage().round();
+        main_stage().tables_[(round - 1) / 3].SetCard(pid, (round - 1) % 3, !IS_LEFT, it->second.first, true);
     }
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
@@ -315,7 +407,7 @@ class AlterStage : public SubGameStage<>
             return StageErrCode::OK;
         }
         auto& player = main_stage().players_[pid];
-        player.alter_ = rand() % 2 ? player.left_ : player.right_;
+        SetAlter_(pid, rand() % 2 ? player.left_ : player.right_);
         return StageErrCode::READY;
     }
 
@@ -350,10 +442,19 @@ class AlterStage : public SubGameStage<>
                     << player.left_->first << "、" << player.right_->first;
             return StageErrCode::FAILED;
         } else {
-            player.alter_ = it;
+            SetAlter_(pid, it);
             reply() << "选择成功";
             return StageErrCode::READY;
         }
+    }
+
+    void SetAlter_(const PlayerID pid, const CardMap::iterator it)
+    {
+        auto& player = main_stage().players_[pid];
+        player.alter_ = it;
+        const bool choose_left = player.alter_ == player.left_;
+        main_stage().tables_[(main_stage().round() - 1) / 3].SetCard(pid, (main_stage().round() - 1) % 3,
+                choose_left, choose_left ? player.right_->second.first : player.left_->second.first, false);
     }
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
@@ -364,11 +465,14 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
    public:
     RoundStage(MainStage& main_stage, const uint64_t round)
             : GameStage(main_stage, "第" + std::to_string(round) + "回合")
-    {}
+    {
+        if ((round - 1) % 3 == 0) {
+            main_stage.tables_[(round - 1) / 3].Init(PlayerName(0), PlayerName(1), round);
+        }
+    }
 
     virtual VariantSubStage OnStageBegin() override
     {
-        main_stage().table_.AppendRow();
         return std::make_unique<ChooseStage<true>>(main_stage());
     }
 
@@ -377,15 +481,18 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
         if (reason == CheckoutReason::BY_LEAVE) {
             return {};
         }
-        auto sender = Boardcast();
-        const auto show_choose = [&](const PlayerID pid)
-            {
-                sender << At(pid) << "\n左拳：" << main_stage().players_[pid].left_->first
-                                  << "\n右拳：";
-            };
-        show_choose(0);
-        sender << "\n\n";
-        show_choose(1);
+        {
+            auto sender = Boardcast();
+            const auto show_choose = [&](const PlayerID pid)
+                {
+                    sender << At(pid) << "\n左拳：" << main_stage().players_[pid].left_->first
+                                    << "\n右拳：";
+                };
+            show_choose(0);
+            sender << "\n\n";
+            show_choose(1);
+        }
+        main_stage().ShowInfo();
         return std::make_unique<ChooseStage<false>>(main_stage());
     }
 
@@ -403,6 +510,7 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
         show_choose(0);
         sender << "\n\n";
         show_choose(1);
+        main_stage().ShowInfo();
         return std::make_unique<AlterStage>(main_stage());
     }
 
@@ -416,21 +524,7 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
     }
 };
 
-MainStage::VariantSubStage MainStage::OnStageBegin()
-{
-    for (int i = 0; i < 6; ++i) {
-        table_.Get(1, i).SetColor("Aqua");
-    }
-    table_.Get(0, 1).SetContent(PlayerName(0));
-    table_.Get(0, 4).SetContent(PlayerName(1));
-    table_.Get(1, 0).SetContent("左拳");
-    table_.Get(1, 3).SetContent("左拳");
-    table_.Get(1, 1).SetContent("右拳");
-    table_.Get(1, 4).SetContent("右拳");
-    table_.Get(1, 2).SetContent("积分");
-    table_.Get(1, 5).SetContent("积分");
-    return std::make_unique<RoundStage>(*this, 1);
-}
+MainStage::VariantSubStage MainStage::OnStageBegin() { return std::make_unique<RoundStage>(*this, 1); }
 
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
 {
@@ -458,17 +552,16 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
         players_[pid].right_->second.second = CardState::UNUSED;
         players_[pid].alter_->second.second = CardState::USED;
     }
-    if (round_ < 8) {
-        return std::make_unique<RoundStage>(*this, ++round_);
+    if (++round_ <= 8) {
+        return std::make_unique<RoundStage>(*this, round_);
     }
 
     // choose the last card
-    table_.AppendRow();
     for (PlayerID pid = 0; pid < uint64_t(2); ++pid) {
         auto& player = players_[pid];
         player.alter_ = player.left_->second.second == CardState::UNUSED ? player.left_ : player.right_;
         player.left_ = player.alter_;
-        table_.GetLastRow(pid * 3).SetContent(player.alter_->first);
+        tables_[2].SetCard(pid, 2, 0, player.alter_->second.first, true);
     }
     Boardcast() << "8回合全部结束，自动结算最后一张手牌";
     Battle();

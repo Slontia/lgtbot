@@ -92,6 +92,7 @@ class TestGame : public MockMatch, public testing::Test
     StageErrCode Request_(const PlayerID pid, const char* const msg, const bool is_public)
     {
         MockMsgSender sender(pid, is_public);
+        assert(!main_stage_->IsOver());
         const auto rc =
             main_stage_  ? main_stage_->HandleRequest(msg, pid, is_public, sender)
                          : StageErrCode::Condition(option_.SetOption(msg), StageErrCode::OK , StageErrCode::FAILED); // for easy test
