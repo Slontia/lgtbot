@@ -127,12 +127,14 @@ class ThreeRoundTable
             table_.Get(2, i * 2 + 1).SetColor("#C3C3C3");
             // 3: p1 score
             table_.MergeRight(3, i * 2, 2);
+            table_.Get(3, i * 2).SetContent("?");
             // 4: round
             table_.MergeRight(4, i * 2, 2);
             table_.Get(4, i * 2).SetContent(" **第 " + std::to_string(base_round + i) + " 回合** ");
             table_.Get(4, i * 2).SetColor("#7092BE");
             // 5: p2 score
             table_.MergeRight(5, i * 2, 2);
+            table_.Get(5, i * 2).SetContent("?");
             // 6: p2 choose card
             table_.Get(6, i * 2).SetContent(Image_("empty"));
             table_.Get(6, i * 2 + 1).SetContent(Image_("empty"));
@@ -501,15 +503,17 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
         if (reason == CheckoutReason::BY_LEAVE) {
             return {};
         }
-        auto sender = Boardcast();
-        const auto show_choose = [&](const PlayerID pid)
-            {
-                sender << At(pid) << "\n左拳：" << main_stage().players_[pid].left_->first
-                                  << "\n右拳：" << main_stage().players_[pid].right_->first;
-            };
-        show_choose(0);
-        sender << "\n\n";
-        show_choose(1);
+        {
+            auto sender = Boardcast();
+            const auto show_choose = [&](const PlayerID pid)
+                {
+                    sender << At(pid) << "\n左拳：" << main_stage().players_[pid].left_->first
+                                    << "\n右拳：" << main_stage().players_[pid].right_->first;
+                };
+            show_choose(0);
+            sender << "\n\n";
+            show_choose(1);
+        }
         main_stage().ShowInfo();
         return std::make_unique<AlterStage>(main_stage());
     }

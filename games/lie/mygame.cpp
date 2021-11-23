@@ -61,8 +61,8 @@ class MyTable
 
     void SetName(std::string p1_name, std::string p2_name)
     {
-        table_.Get(0, 0).SetContent(HTML_COLOR_FONT_HEADER(#00a2e8) " **" + p1_name + "** " HTML_FONT_TAIL);
-        table_.Get(table_.Row() - 1, 0).SetContent(HTML_COLOR_FONT_HEADER(#ed1c24) " **" + p2_name + "** " HTML_FONT_TAIL);
+        table_.Get(0, 0).SetContent(HTML_COLOR_FONT_HEADER(#345a88) " **" + p1_name + "** " HTML_FONT_TAIL);
+        table_.Get(table_.Row() - 1, 0).SetContent(HTML_COLOR_FONT_HEADER(#880015) " **" + p2_name + "** " HTML_FONT_TAIL);
     }
 
     void Lose(const Result result)
@@ -102,11 +102,11 @@ class MyTable
     std::string ToHtml(const PlayerID pid)
     {
         if (pid == 0) {
-            table_.Get(0, 0).SetColor("#99d9ea"); // light blue
+            table_.Get(0, 0).SetColor("#7092be"); // light blue
             table_.Get(table_.Row() - 1, 0).SetColor("white");
         } else {
             table_.Get(0, 0).SetColor("white");
-            table_.Get(table_.Row() - 1, 0).SetColor("#ffaec9"); // light red
+            table_.Get(table_.Row() - 1, 0).SetColor("#b97a57"); // light red
         }
         return table_.ToString();
     }
