@@ -69,5 +69,6 @@ if (WITH_TEST)
 endif()
 
 if (WITH_GAMES)
+  add_subdirectory(third_party/mahjong)
   add_subdirectory(games)
 endif()
