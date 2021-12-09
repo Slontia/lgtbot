@@ -63,12 +63,13 @@ if (WITH_SIMULATOR)
   add_subdirectory(bot_simulator)
 endif()
 
+if (WITH_GAMES)
+  add_subdirectory(third_party/mahjong)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/mahjong)
+  add_subdirectory(games)
+endif()
+
 if (WITH_TEST)
   add_subdirectory(game_util) # only build for unittest
   add_subdirectory(utility) # only build for unittest
-endif()
-
-if (WITH_GAMES)
-  add_subdirectory(third_party/mahjong)
-  add_subdirectory(games)
 endif()

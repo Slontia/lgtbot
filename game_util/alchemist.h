@@ -148,7 +148,7 @@ class Board
 
     const std::string image_path_;
     std::array<std::array<std::optional<std::variant<Card, Stone>>, k_size>, k_size> areas_;
-    Table table_;
+    html::Table table_;
 };
 
 }

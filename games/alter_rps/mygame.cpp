@@ -197,7 +197,7 @@ do { \
     }
 
     const std::string image_path_;
-    Table table_;
+    html::Table table_;
 };
 
 class RoundStage;

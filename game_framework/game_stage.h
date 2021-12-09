@@ -26,13 +26,25 @@ class Masker
   public:
     enum class State { SET, UNSET, PINNED };
 
-    Masker(const size_t size) : recorder_(size, State::UNSET), unset_count_(size) {}
+    Masker(const size_t size) : recorder_(size, State::UNSET), unset_count_(size), any_ready_(false) {}
 
-    bool Set(const size_t index) { return Record_(index, State::SET); }
+    bool Set(const size_t index)
+    {
+        any_ready_ = true;
+        return Record_(index, State::SET);
+    }
 
-    void Unset(const size_t index) { Record_(index, State::UNSET); }
+    void Unset(const size_t index)
+    {
+        // not reset any_ready to prevent players waiting a left player
+        Record_(index, State::UNSET);
+    }
 
-    bool Pin(const size_t index) { return Record_(index, State::PINNED); }
+    bool Pin(const size_t index)
+    {
+        any_ready_ = true;
+        return Record_(index, State::PINNED);
+    }
 
     bool Unpin(const size_t index)
     {
@@ -49,6 +61,7 @@ class Masker
 
     void Clear()
     {
+        any_ready_ = false;
         for (auto& state : recorder_) {
             if (state == State::SET) {
                 state = State::UNSET;
@@ -57,7 +70,7 @@ class Masker
         }
     }
 
-    bool IsReady() const { return unset_count_ == 0; }
+    bool IsReady() const { return unset_count_ == 0 && any_ready_; }
 
   private:
     bool Record_(const size_t index, const State state)
@@ -72,6 +85,7 @@ class Masker
     }
 
     std::vector<State> recorder_;
+    bool any_ready_; // if all players are pinned, IsReady() should return false to prevent substage skipped
     size_t unset_count_;
 };
 

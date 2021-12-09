@@ -116,7 +116,7 @@ class MainStage : public MainGameStage<>
     std::string ShowInfo_() const
     {
         std::string str = "## 第" + std::to_string(round_ / 2 + 1) + "回合\n\n";
-        Table player_table(1, 4);
+        html::Table player_table(1, 4);
         player_table.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
         const auto print_player = [&](const PlayerID pid)
             {

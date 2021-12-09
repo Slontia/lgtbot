@@ -132,7 +132,7 @@ class MyTable
     }
 
     const GameOption& option_;
-    Table table_;
+    html::Table table_;
     std::array<std::vector<int>, 2> player_nums_;
     std::optional<Result> last_result_;
 };

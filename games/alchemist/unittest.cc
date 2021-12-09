@@ -41,7 +41,9 @@ GAME_TEST(2, do_nothing)
 {
     ASSERT_PUB_MSG(OK, 0, "回合数 10");
     ASSERT_TRUE(StartGame());
-    ASSERT_TIMEOUT(CHECKOUT); // hook all players
+    for (uint32_t i = 0; i < 10; ++i) {
+        ASSERT_TIMEOUT(CHECKOUT); // all hook
+    }
     ASSERT_SCORE(0, 0);
 }
 
@@ -58,7 +60,9 @@ GAME_TEST(2, one_do_nothing)
     ASSERT_PUB_MSG(CHECKOUT, 0, "A3");
     ASSERT_PUB_MSG(CHECKOUT, 0, "A2");
     ASSERT_PUB_MSG(CHECKOUT, 0, "A1");
-    ASSERT_TIMEOUT(CHECKOUT); // hook player_0
+    for (uint32_t i = 6; i < 10; ++i) {
+        ASSERT_TIMEOUT(CHECKOUT); // all hook
+    }
     ASSERT_SCORE(2, 0);
 }
 

@@ -1,0 +1,6 @@
+GAME_OPTION("配牌超时时间，超时后会自动从牌山靠前位置补充手牌", 配牌时限, (ArithChecker<uint32_t>(10, 3600, "时间（秒）")), 600)
+GAME_OPTION("切牌超时时间，超时后会自动切出牌山中第一张牌", 切牌时限, (ArithChecker<uint32_t>(10, 300, "时间（秒）")), 120)
+GAME_OPTION("和牌点数要求", 起和点, (ArithChecker<uint32_t>(0, 32000, "点数")), 7700)
+GAME_OPTION("宝牌数量（四人游戏不允许有宝牌，请设置为 0）", 宝牌, (ArithChecker<uint32_t>(0, 5, "数量")), 1)
+GAME_OPTION("是否包含赤宝牌", 赤宝牌, (BoolChecker("开启", "关闭")), false)
+GAME_OPTION("随机种子", 种子, (AnyArg("种子", "我是随便输入的一个字符串")), "")

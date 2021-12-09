@@ -209,8 +209,9 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
 {
     ErrCode rc = EC_OK;
     std::lock_guard<std::mutex> l(mutex_);
-    assert(Has(uid));
-    if (state_ != State::IS_STARTED) {
+    if (state_ == State::IS_OVER) {
+        reply() << "[错误] 退出失败：游戏已经结束";
+    } else if (state_ != State::IS_STARTED) {
         match_manager().UnbindMatch(uid);
         users_.erase(uid);
         reply() << "退出成功";

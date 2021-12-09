@@ -350,7 +350,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
     html += "\n- **头名总分**：" + colored_text(profit.total_top_score_, std::to_string(profit.total_top_score_));
     html += "\n- **近十场游戏记录**：\n\n";
 
-    Table recent_matches_table(1, 6);
+    html::Table recent_matches_table(1, 6);
     recent_matches_table.Get(0, 0).SetContent("**序号**");
     recent_matches_table.Get(0, 1).SetContent("**游戏名称**");
     recent_matches_table.Get(0, 2).SetContent("**参与人数**");

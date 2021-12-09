@@ -1,11 +1,13 @@
 #include "html.h"
 
+namespace html {
+
 Table::Table(const uint32_t row, const uint32_t column)
     : boxes_(row, std::vector<Box>(column))
     , row_(row)
     , column_(column)
     , table_style_(" align=\"center\" border=\"1px solid #ccc\" cellspacing=\"0\" cellpadding=\"0\" ")
-    , row_style_("")
+    , row_style_(" align=\"center\" ")
 {
 }
 
@@ -18,7 +20,7 @@ std::string Table::ToString() const
             if (box.merge_num_ == 0) {
                 continue;
             }
-            outstr += "\n<td align=\"center\"";
+            outstr += "\n<td " + row_style_;
             if (!box.color_.empty()) {
                 outstr += " bgcolor=\"" + box.color_ + "\"";
             }
@@ -38,6 +40,9 @@ std::string Table::ToString() const
 
 void Table::MergeDown(const uint32_t row, const uint32_t column, const uint32_t num)
 {
+    if (num == 1) {
+        return;
+    }
     assert(num > 1);
     Get(row, column).merge_num_ = num;
     Get(row, column).merge_direct_ = Box::MergeDirect::TO_BOTTOM;
@@ -49,6 +54,9 @@ void Table::MergeDown(const uint32_t row, const uint32_t column, const uint32_t 
 
 void Table::MergeRight(const uint32_t row, const uint32_t column, const uint32_t num)
 {
+    if (num == 1) {
+        return;
+    }
     assert(num > 1);
     Get(row, column).merge_num_ = num;
     Get(row, column).merge_direct_ = Box::MergeDirect::TO_RIGHT;
@@ -56,4 +64,6 @@ void Table::MergeRight(const uint32_t row, const uint32_t column, const uint32_t
         assert(Get(row, column + i).merge_num_ == 1);
         Get(row, column + i).merge_num_ = 0;
     }
+}
+
 }

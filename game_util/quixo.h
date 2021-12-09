@@ -61,7 +61,7 @@ class Board
 
     std::string ToHtml() const
     {
-        Table table(7, 7);
+        html::Table table(7, 7);
         table.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
         const auto set_image = [&](const uint32_t row, const uint32_t col, std::string name)
             {

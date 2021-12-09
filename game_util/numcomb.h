@@ -99,7 +99,7 @@ class Wall
   public:
     friend class Comb;
 
-    Wall(Box& box) : box_(box), has_line_{false, false, false} {}
+    Wall(html::Box& box) : box_(box), has_line_{false, false, false} {}
 
     template <Direct direct>
     void SetLine() { has_line_.at(static_cast<uint32_t>(direct)) = true; }
@@ -114,7 +114,7 @@ class Wall
     }
 
   private:
-    Box& box_;
+    html::Box& box_;
     std::array<bool, k_direct_max> has_line_;
 };
 
@@ -123,10 +123,10 @@ class Area
   public:
     friend class Comb;
 
-    Area(Box& box, const Coordinate coordinate) : box_(box), coordinate_(coordinate) {}
+    Area(html::Box& box, const Coordinate coordinate) : box_(box), coordinate_(coordinate) {}
 
   private:
-    Box& box_;
+    html::Box& box_;
     Coordinate coordinate_;
     std::optional<AreaCard> card_;
 };
@@ -144,7 +144,7 @@ class Comb
         static constexpr int32_t k_mid_col = k_size;
 
         static const Coordinate zero_coor{k_zero_col - k_mid_col, k_zero_row - k_mid_row};
-        Box& zero_box = table_.Get(k_zero_row, k_zero_col);
+        html::Box& zero_box = table_.Get(k_zero_row, k_zero_col);
         areas_.emplace_back(zero_box, zero_coor);
 
         for (int32_t col = 0; col < table_.Column(); ++col) {
@@ -154,7 +154,7 @@ class Comb
                 if (is_full_box) {
                     table_.MergeDown(row, col, 2);
                 }
-                Box& box = table_.Get(row, col);
+                html::Box& box = table_.Get(row, col);
                 if (IsValid_(coor) && is_full_box) {
                     box.SetContent(Image_("num_" + std::to_string(areas_.size())));
                     areas_.emplace_back(box, coor);
@@ -295,7 +295,7 @@ class Comb
     const std::string image_path_;
     std::vector<Area> areas_;
     std::map<Coordinate, Wall> walls_;
-    Table table_;
+    html::Table table_;
 };
 
 

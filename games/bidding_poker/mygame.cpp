@@ -147,6 +147,7 @@ class BidStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
+    // TODO: Hook unready players
     CheckoutErrCode OnTimeout() { return CheckoutErrCode::Condition(BidOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE); }
     void OnAllPlayerReady() { BidOver_(); }
 

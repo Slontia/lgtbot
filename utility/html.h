@@ -10,6 +10,8 @@
 #define HTML_ESCAPE_LT "&lt;"
 #define HTML_ESCAPE_GT "&gt;"
 
+namespace html {
+
 class Box
 {
   public:
@@ -61,7 +63,13 @@ class Table
         boxes_.emplace_back(column_);
         ++row_;
     }
-    void AppendColumn();
+    void AppendColumn()
+    {
+        for (auto& row : boxes_) {
+            row.emplace_back();
+        }
+        ++column_;
+    }
     void InsertRow(const uint32_t idx);
     void InsertColumn(const uint32_t idx);
     void DeleteRow(const uint32_t idx);
@@ -77,7 +85,7 @@ class Table
     const Box& GetLastRow(const uint32_t column) const { return boxes_[row_ - 1][column]; }
 
     void SetTableStyle(std::string style) { table_style_ = std::move(style); }
-    void SetRowStyle(std::string style) { table_style_ = std::move(style); }
+    void SetRowStyle(std::string style) { row_style_ = std::move(style); }
 
   private:
     std::vector<std::vector<Box>> boxes_;
@@ -87,3 +95,4 @@ class Table
     std::string row_style_;
 };
 
+}

@@ -374,8 +374,8 @@ class TestBot : public testing::Test
 
     void WaitSubStageBlock()
     {
-        while (!substage_blocked_.load())
-            ;
+        // substage_blocked_ is set true in game request which means the game lock has been held
+        while (!substage_blocked_.load());
     }
 
     void* bot_;
@@ -1119,6 +1119,32 @@ TEST_F(TestBot, timeout_during_handle_rquest)
         {
             WaitTimerThreadFinish();
         });
+  NotifySubStage();
+  fut_1.wait();
+  fut_2.wait();
+
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, leave_during_handle_request)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+
+  auto fut_1 = std::async([this]
+        {
+            ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "阻塞并结束");
+        });
+  WaitSubStageBlock();
+  const auto match_use_count = static_cast<BotCtx*>(bot_)->match_manager().GetMatch(UserID(1)).use_count();
+  auto fut_2 = std::async([this]
+        {
+            ASSERT_PRI_MSG(EC_OK, 1, "#退出 强制");
+        });
+  // wait leave command get the match reference count
+  while (static_cast<BotCtx*>(bot_)->match_manager().GetMatch(UserID(1)).use_count() == match_use_count);
   NotifySubStage();
   fut_1.wait();
   fut_2.wait();
