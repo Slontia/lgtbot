@@ -59,6 +59,33 @@ GAME_TEST(2, repeat_riichi)
     ASSERT_PRI_MSG(FAILED, 0, "移除 2z");
 }
 
+GAME_TEST(3, hook_not_skip_when_others_computer)
+{
+    ASSERT_PUB_MSG(OK, 0, "种子 ABC");
+    ASSERT_TRUE(StartGame());
+    ASSERT_COMPUTER_ACT(OK, 1);
+    ASSERT_COMPUTER_ACT(OK, 2);
+    ASSERT_PRI_MSG(OK, 0, "添加 224455p1133577z");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "立直");
+    for (uint32_t i = 0; i < 16; ++i) {
+        ASSERT_COMPUTER_ACT(OK, 1);
+        ASSERT_COMPUTER_ACT(OK, 2);
+        ASSERT_TIMEOUT(CONTINUE);
+    }
+    ASSERT_COMPUTER_ACT(OK, 1);
+    ASSERT_COMPUTER_ACT(OK, 2);
+    ASSERT_TIMEOUT(CHECKOUT);
+}
+
+GAME_TEST(3, double_kiri_failed)
+{
+    ASSERT_PUB_MSG(OK, 0, "种子 ABC");
+    ASSERT_TRUE(StartGame());
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_PRI_MSG(OK, 0, "7z");
+    ASSERT_PRI_MSG(FAILED, 0, "7z");
+}
+
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);

@@ -36,7 +36,7 @@ int Run()
 
     uint64_t ok_count = 0;
     for (uint64_t i = 0; !main_stage->IsOver() && ok_count < FLAGS_player; i = (i + 1) % FLAGS_player) {
-        if (match.IsEliminated(i) || StageErrCode::OK == main_stage->HandleComputerAct(i)) {
+        if (match.IsEliminated(i) || StageErrCode::OK == main_stage->HandleComputerAct(i, true)) {
             ++ok_count;
         } else {
             ok_count = 0;

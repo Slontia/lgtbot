@@ -307,12 +307,17 @@ class Mahjong17Steps
     {
         const Player& player = players_[pid];
         std::string s = TitleHtml_() + "\n\n" + PlayerNameHtml_(pid) + "\n\n";
-        if (!players_[pid].ron_infos_.empty() && player.furutin_) {
-            s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(red) " **振&nbsp;&nbsp;听** "
-                HTML_FONT_TAIL "\n\n</font> </center>\n\n";
+        if (!players_[pid].ron_infos_.empty()) {
+            if (player.furutin_) {
+                s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(red) " **振&nbsp;&nbsp;听** "
+                    HTML_FONT_TAIL "\n\n</font> </center>\n\n";
+            } else {
+                s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(blue) " **和&nbsp;&nbsp;了** "
+                    HTML_FONT_TAIL "\n\n</font> </center>\n\n";
+            }
         }
         s += DoraHtml_(false) + "\n\n" + HandHtml_(pid, false, TileStyle::HAND) + "\n\n";
-        if (!players_[pid].ron_infos_.empty() && player.furutin_) {
+        if (!players_[pid].ron_infos_.empty()) {
             s += RonInfoHtml_(pid) + "\n\n<br />\n\n";
         } else if (player.furutin_) {
             s += "<center>\n\n" HTML_COLOR_FONT_HEADER(red) " **振听中，无法荣和** " HTML_FONT_TAIL "\n\n</center>";

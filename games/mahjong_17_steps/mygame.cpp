@@ -18,7 +18,7 @@ std::string GameOption::StatusInfo() const
 {
     return "配牌时限 " + std::to_string(GET_VALUE(配牌时限)) + " 秒，切牌时限 " + std::to_string(GET_VALUE(切牌时限)) +
         " 秒，和牌牌型最少需要 " + std::to_string(GET_VALUE(起和点)) + " 点，场上有 " + std::to_string(GET_VALUE(宝牌)) +
-        " 枚宝牌";
+        " 枚宝牌，" + (GET_VALUE(赤宝牌) ? "有" : "无") + "赤宝牌";
 }
 
 bool GameOption::IsValid(MsgSenderBase& reply) const
@@ -142,8 +142,8 @@ class PrepareStage : public SubGameStage<>
             reply() << "[错误] 添加失败：" << game_table_.ErrorStr();
             return StageErrCode::FAILED;
         }
-        reply() << "添加成功！";
         reply() << Markdown(game_table_.PrepareHtml(pid));
+        reply() << "添加成功！若您已凑齐所有 13 张手牌，请使用「立直」命令结束行动";
         return StageErrCode::OK;
     }
 
@@ -222,11 +222,15 @@ class KiriStage : public SubGameStage<>
 
     AtomReqErrCode Kiri_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str)
     {
+        if (IsReady(pid)) {
+            reply() << "[错误] 您已经切过牌了";
+            return StageErrCode::FAILED;
+        }
         if (!game_table_.Kiri(pid, str)) {
             reply() << "[错误] 切牌失败：" << game_table_.ErrorStr();
             return StageErrCode::FAILED;
         }
-        reply() << "切出 " << str << "成功";
+        reply() << "切出 " << str << " 成功";
         return StageErrCode::READY;
     }
 
@@ -245,7 +249,6 @@ class KiriStage : public SubGameStage<>
         Boardcast() << Markdown(game_table_.PublicHtml());
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             Tell(pid) << Markdown(game_table_.KiriHtml(pid));
-            Tell(pid) << "请继续切牌，时限 " << option().GET_VALUE(切牌时限) << " 秒";
         }
     }
 
@@ -265,6 +268,9 @@ class KiriStage : public SubGameStage<>
         switch (state) {
         case Mahjong17Steps::GameState::CONTINUE:
             Boardcast() << "全员安全，请继续私信裁判切牌，时限 " << option().GET_VALUE(切牌时限) << " 秒";
+            for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+                Tell(pid) << "请继续切牌，时限 " << option().GET_VALUE(切牌时限) << " 秒";
+            }
             ClearReady();
             StartTimer(option().GET_VALUE(切牌时限));
             return false;

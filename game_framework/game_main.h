@@ -73,7 +73,7 @@ class StageBase
     virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
                                        MsgSenderBase& reply) = 0;
     virtual StageErrCode HandleLeave(const PlayerID pid) = 0;
-    virtual StageErrCode HandleComputerAct(const uint64_t pid) = 0;
+    virtual StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) = 0;
     bool IsOver() const { return is_over_; }
     virtual void Over() { is_over_ = true; }
   private:

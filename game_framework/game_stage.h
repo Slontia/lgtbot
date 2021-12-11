@@ -26,11 +26,13 @@ class Masker
   public:
     enum class State { SET, UNSET, PINNED };
 
-    Masker(const size_t size) : recorder_(size, State::UNSET), unset_count_(size), any_ready_(false) {}
+    Masker(const size_t size) : recorder_(size, State::UNSET), unset_count_(size), any_user_ready_(false) {}
 
-    bool Set(const size_t index)
+    bool Set(const size_t index, const bool is_user)
     {
-        any_ready_ = true;
+        if (is_user) {
+            any_user_ready_ = true;
+        }
         return Record_(index, State::SET);
     }
 
@@ -42,7 +44,7 @@ class Masker
 
     bool Pin(const size_t index)
     {
-        any_ready_ = true;
+        any_user_ready_ = true;
         return Record_(index, State::PINNED);
     }
 
@@ -61,7 +63,7 @@ class Masker
 
     void Clear()
     {
-        any_ready_ = false;
+        any_user_ready_ = false;
         for (auto& state : recorder_) {
             if (state == State::SET) {
                 state = State::UNSET;
@@ -70,7 +72,7 @@ class Masker
         }
     }
 
-    bool IsReady() const { return unset_count_ == 0 && any_ready_; }
+    bool IsReady() const { return unset_count_ == 0 && any_user_ready_; }
 
   private:
     bool Record_(const size_t index, const State state)
@@ -85,7 +87,7 @@ class Masker
     }
 
     std::vector<State> recorder_;
-    bool any_ready_; // if all players are pinned, IsReady() should return false to prevent substage skipped
+    bool any_user_ready_; // if all players are pinned, IsReady() should return false to prevent substage skipped
     size_t unset_count_;
 };
 
@@ -157,7 +159,7 @@ class StageBaseWrapper : virtual public StageBase
     void Hook(const PlayerID pid) const
     {
         masker_.Pin(pid);
-        Tell(pid) << "您已经进入挂机状态，裁判将不再等待您的行动，执行任意游戏请求可恢复至原状态";
+        Tell(pid) << "您已经进入挂机状态，若其他玩家已经行动完成，裁判将不再继续等待您，执行任意游戏请求可恢复至原状态";
     }
 
     const std::string& name() const { return name_; }
@@ -172,7 +174,7 @@ class StageBaseWrapper : virtual public StageBase
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
                                        MsgSenderBase& reply) = 0;
     virtual StageErrCode HandleLeave(const PlayerID pid) = 0;
-    virtual StageErrCode HandleComputerAct(const uint64_t pid) = 0;
+    virtual StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) = 0;
     virtual std::string StageInfo() const = 0;
     virtual std::string CommandInfo(const bool text_mode) const
     {
@@ -298,7 +300,7 @@ class GameStage<GameOption, MainStage, SubStages...>
                 CheckoutReason::BY_LEAVE);
     }
 
-    virtual StageErrCode HandleComputerAct(const uint64_t pid) override
+    virtual StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) override
     {
         // For run_game_xxx, the tell msg will be output, so do not use EmptyMsgSender here.
         const auto rc = OnComputerAct(pid, Base::TellMsgSender(pid));
@@ -306,7 +308,7 @@ class GameStage<GameOption, MainStage, SubStages...>
             return rc;
         }
         return PassToSubStage_(
-                [pid](auto&& sub_stage) { return sub_stage->HandleComputerAct(pid); },
+                [&](auto&& sub_stage) { return sub_stage->HandleComputerAct(pid, ready_as_user); },
                 CheckoutReason::BY_REQUEST); // game logic not care abort computer
     }
 
@@ -407,7 +409,7 @@ class GameStage<GameOption, MainStage>
     virtual StageErrCode HandleLeave(const PlayerID pid) override final
     {
         Base::masker().Pin(pid);
-        return  Handle_(pid, OnPlayerLeave(pid));
+        return  Handle_(pid, true, OnPlayerLeave(pid));
     }
 
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public,
@@ -415,16 +417,16 @@ class GameStage<GameOption, MainStage>
     {
         for (const auto& cmd : Base::commands_) {
             if (const auto rc = cmd.CallIfValid(reader, pid, is_public, reply); rc.has_value()) {
-                return Handle_(pid, *rc);
+                return Handle_(pid, true, *rc);
             }
         }
         return StageErrCode::NOT_FOUND;
     }
 
-    virtual StageErrCode HandleComputerAct(const uint64_t pid) override final
+    virtual StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) override final
     {
         // For run_game_xxx, the tell msg will be output, so do not use EmptyMsgSender here.
-        return Handle_(pid, OnComputerAct(pid, Base::TellMsgSender(pid)));
+        return Handle_(pid, ready_as_user, OnComputerAct(pid, Base::TellMsgSender(pid)));
     }
 
     virtual std::string StageInfo() const override
@@ -473,7 +475,7 @@ class GameStage<GameOption, MainStage>
 
     void ClearReady() { Base::masker().Clear(); }
     void ClearReady(const PlayerID pid) { Base::masker().Unset(pid); }
-    void SetReady(const PlayerID pid) { Base::masker().Set(pid); }
+    void SetReady(const PlayerID pid) { Base::masker().Set(pid, true); }
     bool IsReady(const PlayerID pid) { return Base::masker().Get(pid) != Masker::State::UNSET; }
 
    private:
@@ -490,10 +492,10 @@ class GameStage<GameOption, MainStage>
         return rc;
     }
 
-    StageErrCode Handle_(const PlayerID pid, StageErrCode rc)
+    StageErrCode Handle_(const PlayerID pid, const bool is_user, StageErrCode rc)
     {
         if (rc == StageErrCode::READY) {
-            Base::masker().Set(pid);
+            Base::masker().Set(pid, is_user);
             rc = StageErrCode::OK;
         }
         return Handle_(rc);

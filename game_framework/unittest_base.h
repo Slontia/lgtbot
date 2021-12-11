@@ -73,6 +73,14 @@ class TestGame : public MockMatch, public testing::Test
         return rc;
     }
 
+    StageErrCode ComputerAct(const PlayerID pid)
+    {
+        std::cout << "[PLAYER_" << pid << " COMPUTER ACT]" << std::endl;
+        const auto rc = main_stage_->HandleComputerAct(pid, false);
+        HandleGameOver_();
+        return rc;
+    }
+
     GameOption option_;
     std::unique_ptr<MainStageBase> main_stage_;
     std::optional<ScoreArray> expected_scores_;
@@ -134,6 +142,9 @@ class TestGame : public MockMatch, public testing::Test
 
 #define ASSERT_LEAVE(ret, pid) __ASSERT_ERRCODE_BASE(ret, Leave(pid))
 #define CHECK_LEAVE(ret, pid) (StageErrCode::ret == Leave(pid))
+
+#define ASSERT_COMPUTER_ACT(ret, pid) __ASSERT_ERRCODE_BASE(ret, ComputerAct(pid))
+#define CHECK_COMPUTER_ACT(ret, pid) (StageErrCode::ret == ComputerAct(pid))
 
 #define GAME_TEST(player_num, test_name) \
     using TestGame_##player_num##_##test_name = TestGame<player_num>; \
