@@ -9,6 +9,7 @@
 #define HTML_FONT_TAIL "</font>"
 #define HTML_ESCAPE_LT "&lt;"
 #define HTML_ESCAPE_GT "&gt;"
+#define HTML_ESCAPE_SPACE "&nbsp;"
 
 namespace html {
 
@@ -77,6 +78,7 @@ class Table
 
     void MergeDown(const uint32_t row, const uint32_t column, const uint32_t num);
     void MergeRight(const uint32_t row, const uint32_t column, const uint32_t num);
+    void MergeRow(const uint32_t row) { MergeRight(row, 0, column_); }
 
     Box& Get(const uint32_t row, const uint32_t column) { return boxes_[row][column]; }
     const Box& Get(const uint32_t row, const uint32_t column) const { return boxes_[row][column]; }

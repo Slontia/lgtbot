@@ -7,7 +7,7 @@
 #include "game_framework/game_stage.h"
 #include "game_framework/game_options.h"
 #include "utility/msg_checker.h"
-
+#include "utility/html.h"
 #include "game_util/bidding.h"
 #include "game_util/poker.h"
 #include "game_util/util.h"
@@ -46,9 +46,10 @@ uint64_t GameOption::BestPlayerNum() const { return 10; }
 
 struct Player
 {
-    Player(const PlayerID pid, const uint32_t coins) : pid_(pid), coins_(coins) {}
-    const PlayerID pid_;
+    Player(const PlayerID pid, const uint32_t coins) : pid_(pid), coins_(coins), bonus_coins_(0) {}
+    PlayerID pid_;
     int32_t coins_;
+    int32_t bonus_coins_;
     poker::Hand hand_;
 };
 
@@ -61,7 +62,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
   public:
     MainStage(const GameOption& option, MatchBase& match)
         : GameStage(option, match,
-                MakeStageCommand("查看各玩家手牌及金币情况", &MainStage::Status_, VoidChecker("赛况")))
+                MakeStageCommand("通过文字查看各玩家手牌及金币情况", &MainStage::Status_, VoidChecker("赛况"), VoidChecker("文字")))
         , round_(0)
     {
         for (PlayerID pid = 0; pid < option.PlayerNum(); ++pid) {
@@ -75,12 +76,170 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
 
     virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
 
-    int64_t PlayerScore(const PlayerID pid) const { return players_[pid].coins_; }
+    int64_t PlayerScore(const PlayerID pid) const { return players_[pid].coins_ + players_[pid].bonus_coins_; }
 
     PokerItems& poker_items() { return poker_items_; }
     const PokerItems& poker_items() const { return poker_items_; }
     std::vector<Player>& players() { return players_; }
     const std::vector<Player>& players() const { return players_; }
+
+    void UpdatePlayerScore()
+    {
+        using DeckElement = std::pair<PlayerID, poker::Deck>;
+
+        std::vector<DeckElement> best_decks;
+        std::vector<PlayerID> no_deck_players;
+        for (const auto& player : players_) {
+            if (const auto& deck = player.hand_.BestDeck(); deck.has_value()) {
+                best_decks.emplace_back(player.pid_, *deck);
+            } else {
+                no_deck_players.emplace_back(player.pid_);
+            }
+        }
+        for (auto& player : players_) {
+            player.bonus_coins_ = 0;
+        }
+        if (best_decks.empty()) {
+            return;
+        }
+
+        std::sort(best_decks.begin(), best_decks.end(), [](const DeckElement& _1, const DeckElement& _2) { return _1.second > _2.second; });
+
+        static const auto half = [](const auto value, const uint32_t split) { return value - value / split; };
+
+        uint32_t bonus_coins = BonusCoins_();
+
+        // decrease coins
+        const auto decrese_coins = [&](const PlayerID pid)
+        {
+            const auto lost_coins = half(players_[pid].coins_, 2);
+            bonus_coins += lost_coins;
+            players_[pid].bonus_coins_ -= lost_coins;
+        };
+        if (no_deck_players.empty()) {
+            decrese_coins(best_decks.back().first);
+        } else {
+            for (const auto& loser_pid : no_deck_players) {
+                decrese_coins(loser_pid);
+            }
+        }
+
+        // increase coins
+        for (uint64_t i = 0; i < best_decks.size() - 1; ++i) {
+            const auto add_coins = half(bonus_coins, 3);
+            players_[best_decks[i].first].bonus_coins_ += add_coins;
+            bonus_coins -= add_coins;
+        }
+        players_[best_decks.back().first].bonus_coins_ += bonus_coins;
+    }
+
+    std::string NonPlayerItemInfoHtml() const
+    {
+        bool empty = true;
+        std::string s;
+        s += "### 未中标的系统商品\n";
+        for (const auto& [discarder_id, pokers] : poker_items_) {
+            if (!pokers.empty() && !discarder_id.has_value()) {
+                empty = false;
+                s += "\n- ";
+                for (const auto& poker : pokers) {
+                    s += poker.ToHtml() + HTML_ESCAPE_SPACE;
+                }
+            }
+        }
+        if (empty) {
+            s += "\n（无）";
+        }
+        return s;
+    }
+
+    static std::string PokersHtml(const std::set<poker::Poker>& pokers)
+    {
+        std::string s;
+        for (const auto& poker : pokers) {
+            s += poker.ToHtml() + HTML_ESCAPE_SPACE;
+        }
+        return s;
+    }
+
+    std::string ItemInfoHtml(uint64_t index) const
+    {
+        std::string s;
+        s += "### 当前商品\n\n";
+        {
+            const auto& [discarder_id, pokers] = poker_items_[index];
+            s += "<center><font size=\"4\"> " + std::to_string(index + 1) + " 号商品：" + PokersHtml(pokers) + " </font></center>";
+            s += "<center>" HTML_COLOR_FONT_HEADER(blue) "\n\n**拍卖人：" +
+                (discarder_id.has_value() ? PlayerName(*discarder_id) : "（无）") + "**\n\n" HTML_FONT_TAIL "</center>";
+        }
+        s += "\n\n### 剩余商品\n";
+        if (++index == poker_items_.size()) {
+            s += "\n（无）";
+        } else {
+            for (; index < poker_items_.size(); ++index) {
+                const auto& [discarder_id, pokers] = poker_items_[index];
+                s += "\n- " + std::to_string(index + 1) + " 号商品：" + PokersHtml(pokers);
+                s += "（拍卖人：";
+                if (discarder_id.has_value()) {
+                    s += PlayerName(*discarder_id);
+                } else {
+                    s += "无";
+                }
+                s += "）";
+            }
+        }
+        return s;
+    }
+
+    std::string PlayerInfoHtml() const
+    {
+        std::string s;
+        auto players = players_;
+        std::sort(players.begin(), players.end(), [](const auto& _1, const auto& _2)
+                {
+                    return _1.coins_ + _1.bonus_coins_ > _2.coins_ + _2.bonus_coins_;
+                });
+        uint32_t rank = 0;
+        for (const Player& player : players) {
+            s += "### " + std::to_string(++rank) + " 位：" + PlayerName(player.pid_) + "（预计得分：**" +
+                std::to_string(player.coins_ + player.bonus_coins_) + "**）\n\n";
+            s += "<center>\n\n**可用金币：" HTML_COLOR_FONT_HEADER(blue) + std::to_string(player.coins_) +
+                 HTML_FONT_TAIL HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE "终局奖惩：";
+            if (player.bonus_coins_ > 0) {
+                s += HTML_COLOR_FONT_HEADER(green) "+" + std::to_string(player.bonus_coins_) + HTML_FONT_TAIL;
+            } else if (player.bonus_coins_ < 0) {
+                s += HTML_COLOR_FONT_HEADER(red) + std::to_string(player.bonus_coins_) + HTML_FONT_TAIL;
+            } else {
+                s += "0";
+            }
+            s += "**\n\n</center>\n<center><font size=\"4\">\n\n";
+            if (const auto& deck = player.hand_.BestDeck(); !deck.has_value()) {
+                s += HTML_COLOR_FONT_HEADER(red) " **未组成牌型** " HTML_FONT_TAIL;
+            } else {
+                s += "**";
+                for (const auto& poker : deck->pokers_) {
+                    s += poker.ToHtml() + HTML_ESCAPE_SPACE;
+                }
+                s += HTML_COLOR_FONT_HEADER(blue) "（";
+                s += deck->TypeName();
+                s += "）" HTML_FONT_TAIL "**";
+            }
+            s += "\n\n</font></center>\n\n<center><font size=\"2\"> ";
+            if (player.hand_.Empty()) {
+                s += "（无手牌）";
+            } else {
+                s += player.hand_.ToHtml();
+            }
+            s +=" </font></center>\n\n";
+        }
+        return s;
+    }
+
+    std::string TitleHtml() const
+    {
+        return "<center>\n\n## 第 " + std::to_string(round_ + 1) +
+            " 回合\n\n</center>\n\n<center>\n\n**奖池金币数：" + std::to_string(BonusCoins_()) + "**</center>\n\n";
+    }
 
   private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
@@ -111,7 +270,7 @@ class BidStage : public SubGameStage<>
     BidStage(MainStage& main_stage, std::string&& name, const std::optional<PlayerID>& discarder, std::set<poker::Poker>& pokers)
         : GameStage(main_stage, std::move(name),
                 MakeStageCommand("投标", &BidStage::Bid_, ArithChecker<uint32_t>(0, main_stage.players().size() * main_stage.option().GET_VALUE(初始金币数), "金币数")),
-                MakeStageCommand("撤标", &BidStage::Cancel_, VoidChecker("撤标"))),
+                MakeStageCommand("跳过本轮投标", &BidStage::Cancel_, VoidChecker("pass"))),
         discarder_(discarder), pokers_(pokers), bidding_manager_(main_stage.players().size()), bid_count_(0)
     {}
 
@@ -164,19 +323,19 @@ class BidStage : public SubGameStage<>
                 winner.hand_.Add(poker);
             }
             if (discarder_.has_value()) {
-                auto& discarder = main_stage().players()[*discarder_];
-                for (const auto& poker : pokers_) {
-                    discarder.hand_.Remove(poker);
-                }
-                discarder.coins_ += max_chip;
+                main_stage().players()[*discarder_].coins_ += max_chip;
             }
             pokers_.clear();
-            Boardcast() << "恭喜" << At(ret.second[0]) << "中标，现持有卡牌：\n" << winner.hand_;
+            Boardcast() << "恭喜" << At(ret.second[0]) << "中标";
+            main_stage().UpdatePlayerScore();
             return true;
         } else if ((++bid_count_) == option().GET_VALUE(投标轮数)) {
             Boardcast() << "投标轮数达到最大值，本商品流标";
             if (discarder_.has_value()) {
                 pokers_.clear();
+                for (const auto& poker : pokers_) {
+                    main_stage().players()[*discarder_].hand_.Add(poker);
+                }
             }
             return true;
         } else {
@@ -197,12 +356,16 @@ class BidStage : public SubGameStage<>
 
     AtomReqErrCode Bid_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t chip)
     {
+        if (discarder_.has_value() && pid == *discarder_) {
+            reply() << "投标失败：您是该商品的拍卖者，不可以参与投标";
+            return StageErrCode::FAILED;
+        }
         if (is_public) {
             reply() << "投标失败：请私信裁判进行投标";
             return StageErrCode::FAILED;
         }
-        if (discarder_.has_value() && pid == *discarder_) {
-            reply() << "投标失败：您是该商品的拍卖者，不可以进行投标";
+        if (IsReady(pid)) {
+            reply() << "投标失败：您已经决定跳过，或进行过投标";
             return StageErrCode::FAILED;
         }
         if (chip == 0) {
@@ -218,12 +381,16 @@ class BidStage : public SubGameStage<>
 
     AtomReqErrCode Cancel_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        if (is_public) {
-            reply() << "撤标失败：请私信裁判撤标";
+        if (discarder_.has_value() && pid == *discarder_) {
+            reply() << "跳过失败：您是该商品的拍卖者，本来就无法参与投标，不需要跳过";
             return StageErrCode::FAILED;
         }
-        if (discarder_.has_value() && pid == *discarder_) {
-            reply() << "撤标失败：您是该商品的拍卖者，不可以撤标";
+        if (is_public) {
+            reply() << "跳过失败：请私信裁判跳过";
+            return StageErrCode::FAILED;
+        }
+        if (IsReady(pid)) {
+            reply() << "跳过失败：您已经决定跳过，或进行过投标";
             return StageErrCode::FAILED;
         }
         return AtomReqErrCode::Condition(bidding_manager_.Bid(pid, std::nullopt, reply()), StageErrCode::READY, StageErrCode::FAILED);
@@ -239,7 +406,9 @@ class MainBidStage : public SubGameStage<BidStage>
 {
   public:
     MainBidStage(MainStage& main_stage)
-        : GameStage(main_stage, "投标阶段"), index_(0)
+        : GameStage(main_stage, "投标阶段",
+                MakeStageCommand("通过图片查看各玩家手牌及金币情况", &MainBidStage::Status_, VoidChecker("赛况")))
+        , index_(0)
     {}
 
     virtual VariantSubStage OnStageBegin() override
@@ -250,13 +419,15 @@ class MainBidStage : public SubGameStage<BidStage>
         };
         assert(!main_stage().poker_items().empty());
         std::sort(main_stage().poker_items().begin(), main_stage().poker_items().end(), cmp);
-        auto sender = Boardcast();
-        sender << name_ << "开始，请私信裁判进行投标，商品列表：";
-        for (uint32_t i = 0; i < main_stage().poker_items().size(); ++i) {
-            auto& poker_item = main_stage().poker_items()[i];
-            sender << "\n" << (i + 1) << "号商品：";
-            for (const auto& poker : poker_item.second) {
-                sender << poker << " ";
+        {
+            auto sender = Boardcast();
+            sender << name_ << "开始，请私信裁判进行投标，商品列表：";
+            for (uint32_t i = 0; i < main_stage().poker_items().size(); ++i) {
+                auto& poker_item = main_stage().poker_items()[i];
+                sender << "\n" << (i + 1) << "号商品：";
+                for (const auto& poker : poker_item.second) {
+                    sender << poker << " ";
+                }
             }
         }
         return CreateBidStage();
@@ -271,8 +442,20 @@ class MainBidStage : public SubGameStage<BidStage>
     }
 
   private:
+    std::string InfoHtml_() const
+    {
+        return main_stage().TitleHtml() + "\n\n" + main_stage().ItemInfoHtml(index_) + "\n\n" + main_stage().PlayerInfoHtml();
+    }
+
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        Boardcast() << Markdown(InfoHtml_());
+        return StageErrCode::OK;
+    }
+
     VariantSubStage CreateBidStage()
     {
+        Boardcast() << Markdown(InfoHtml_());
         return std::make_unique<BidStage>(main_stage(), std::to_string(index_ + 1) + "号商品", main_stage().poker_items()[index_].first,
                 main_stage().poker_items()[index_].second);
     }
@@ -285,12 +468,14 @@ class DiscardStage : public SubGameStage<>
   public:
     DiscardStage(MainStage& main_stage)
         : GameStage(main_stage, "弃牌阶段",
-                MakeStageCommand("决定本回合**所有的**弃牌", &DiscardStage::Discard_, VoidChecker("弃牌"), RepeatableChecker<AnyArg>("扑克", "红桃A")),
-                MakeStageCommand("决定本回合不弃牌", &DiscardStage::Cancel_, VoidChecker("不弃牌")))
+                MakeStageCommand("查看各玩家手牌及金币情况", &DiscardStage::Status_, VoidChecker("赛况")),
+                MakeStageCommand("本回合不进行弃牌", &DiscardStage::Cancel_, VoidChecker("pass")),
+                MakeStageCommand("决定本回合**所有的**弃牌", &DiscardStage::Discard_, RepeatableChecker<AnyArg>("扑克", "红桃A")))
     {}
 
     void OnStageBegin()
     {
+        Boardcast() << Markdown(InfoHtml_());
         Boardcast() << "弃牌阶段开始，请私信裁判进行弃牌，当到达时间限制，或所有玩家皆选择完毕后，回合结束。"
                        "\n回合结束前您可以随意更改您的选择。";
         StartTimer(option().GET_VALUE(弃牌时间));
@@ -324,6 +509,17 @@ class DiscardStage : public SubGameStage<>
     }
 
   private:
+    std::string InfoHtml_() const
+    {
+        return main_stage().TitleHtml() + "\n\n" + main_stage().NonPlayerItemInfoHtml() + "\n\n" + main_stage().PlayerInfoHtml();
+    }
+
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        Boardcast() << Markdown(InfoHtml_());
+        return StageErrCode::OK;
+    }
+
     AtomReqErrCode Discard_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<std::string>& poker_strs)
     {
         if (is_public) {
@@ -373,7 +569,7 @@ class DiscardStage : public SubGameStage<>
                 pokers.clear();
             }
         }
-        reply() << "成功，您当前选择不弃牌";
+        reply() << "您当前选择不弃牌";
         return StageErrCode::READY;
     }
 
@@ -402,6 +598,14 @@ class RoundStage : public SubGameStage<DiscardStage, MainBidStage>
         if (main_stage().poker_items().empty()) {
             Boardcast() << "无商品，跳过投标阶段";
             return {};
+        }
+        for (const auto& [discarder_pid, pokers] : main_stage().poker_items()) {
+            if (discarder_pid.has_value()) {
+                auto& discarder = main_stage().players()[*discarder_pid];
+                for (const auto& poker : pokers) {
+                    discarder.hand_.Remove(poker);
+                }
+            }
         }
         return std::make_unique<MainBidStage>(main_stage());
     }
@@ -439,71 +643,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     if ((++round_) <= option().GET_VALUE(回合数)) {
         return std::make_unique<RoundStage>(*this, round_);
     }
-
-    auto sender = Boardcast();
-    sender << "== 游戏结束 ==\n";
-    // calculcate rank
-    using DeckElement = std::pair<PlayerID, poker::Deck>;
-    std::vector<DeckElement> best_decks;
-    std::vector<PlayerID> no_deck_players;
-    for (const auto& player : players_) {
-        if (const auto& deck = player.hand_.BestDeck(); deck.has_value()) {
-            best_decks.emplace_back(player.pid_, *deck);
-        } else {
-            no_deck_players.emplace_back(player.pid_);
-        }
-    }
-    if (best_decks.empty()) {
-        sender << "无人凑到有效牌型，故直接根据剩余金币数计算排名";
-        return {};
-    }
-    std::sort(best_decks.begin(), best_decks.end(), [](const DeckElement& _1, const DeckElement& _2) { return _1.second > _2.second; });
-    sender << "【各玩家牌型】";
-    for (const auto& [pid, deck] : best_decks) {
-        sender << "\n" << At(pid) << "：" << deck;
-    }
-    for (const auto& pid : no_deck_players) {
-        sender << "\n" << At(pid) << "未组成合法牌型";
-    }
-    static const auto half = [](auto& value, const uint32_t split)
-    {
-        const auto half_value = value - value / split;
-        value = value - half_value;
-        return half_value;
-    };
-
-    uint32_t bonus_coins = BonusCoins_();
-
-    // decrease coins
-    const auto decrese_coins = [&](const PlayerID pid)
-    {
-        sender << "\n" << At(pid) << "原持有金币" << players_[pid].coins_ << "枚，";
-        const auto lost_coins = half(players_[pid].coins_, 2);
-        bonus_coins += lost_coins;
-        sender << "扣除末位惩罚金币" << lost_coins << "枚后，剩余" << players_[pid].coins_ << "枚，"
-                << "奖池金币增加至" << bonus_coins << "枚";
-    };
-    sender << "\n\n【金币扣除情况】（扣除前，奖池金币共" << bonus_coins << "枚）";
-    if (no_deck_players.empty()) {
-        decrese_coins(best_decks.back().first);
-    } else {
-        for (const auto& loser_pid : no_deck_players) {
-            decrese_coins(loser_pid);
-        }
-    }
-
-    // increase coins
-    sender << "\n\n【金币奖励情况】";
-    const auto increase_coins = [&](const PlayerID pid, const uint32_t coins)
-    {
-        sender << "\n" << At(pid) << "原持有金币" << players_[pid].coins_ << "枚，";
-        players_[pid].coins_ += coins;
-        sender << "获得顺位奖励金币" << coins << "枚后，现持有金币" << players_[pid].coins_ << "枚";
-    };
-    for (uint64_t i = 0; i < best_decks.size() - 1; ++i) {
-        increase_coins(best_decks[i].first, half(bonus_coins, 3));
-    }
-    increase_coins(best_decks.back().first, bonus_coins);
+    Boardcast() << Markdown(TitleHtml() + "\n\n" + PlayerInfoHtml());
     return {};
 }
 

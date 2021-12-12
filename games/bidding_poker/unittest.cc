@@ -41,17 +41,15 @@ GAME_TEST(5, bid_2)
     // item 5
     ASSERT_PRI_MSG(OK, 0, "9");
     ASSERT_PRI_MSG(OK, 1, "10");
-    ASSERT_PRI_MSG(OK, 2, "11");
-    ASSERT_PRI_MSG(OK, 3, "11");
-    ASSERT_PUB_MSG(FAILED, 2, "撤标"); // must be private
-    ASSERT_PRI_MSG(OK, 2, "撤标"); // cancel
+    ASSERT_PUB_MSG(FAILED, 2, "pass"); // must be private
+    ASSERT_PRI_MSG(OK, 2, "pass"); // cancel
     ASSERT_PRI_MSG(OK, 3, "10"); // modify
     ASSERT_PRI_MSG(CONTINUE, 4, "10"); // player 1 3 4 win
     ASSERT_PRI_MSG(FAILED, 0, "30"); // lose in term 1
     ASSERT_PRI_MSG(FAILED, 2, "30"); // lose in term 1
     ASSERT_PRI_MSG(FAILED, 1, "9"); // should greater than 10
     ASSERT_PRI_MSG(OK, 1, "100");
-    ASSERT_PRI_MSG(FAILED, 1, "撤标"); // cannot cancel in term 2
+    ASSERT_PRI_MSG(FAILED, 1, "pass"); // cannot cancel in term 2
     ASSERT_PRI_MSG(FAILED, 2, "11"); // lose in term 1
     ASSERT_PRI_MSG(OK, 3, "10");
     ASSERT_PRI_MSG(CHECKOUT, 4, "11");
@@ -122,12 +120,12 @@ GAME_TEST(5, discarder_auto_ready)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    ASSERT_PRI_MSG(CHECKOUT, 0, "弃牌 梅花2"); // others need not discard
+    ASSERT_PRI_MSG(CHECKOUT, 0, "梅花2"); // others need not discard
 
     for (int i = 1; i < 4; ++i) {
-        ASSERT_PRI_MSG(OK, i, "撤标");
+        ASSERT_PRI_MSG(OK, i, "pass");
     }
-    ASSERT_PRI_MSG(CHECKOUT, 4, "撤标"); // player 0 need not bid
+    ASSERT_PRI_MSG(CHECKOUT, 4, "pass"); // player 0 need not bid
 }
 
 GAME_TEST(5, no_coins_auto_ready)
@@ -146,13 +144,13 @@ GAME_TEST(5, no_coins_auto_ready)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    ASSERT_PRI_MSG(OK, 0, "弃牌 梅花2");
+    ASSERT_PRI_MSG(OK, 0, "梅花2");
     ASSERT_TIMEOUT(CHECKOUT);
 
     for (int i = 2; i < 4; ++i) {
-        ASSERT_PRI_MSG(OK, i, "撤标");
+        ASSERT_PRI_MSG(OK, i, "pass");
     }
-    ASSERT_PRI_MSG(CHECKOUT, 4, "撤标"); // player 0 and 1 need not bid
+    ASSERT_PRI_MSG(CHECKOUT, 4, "pass"); // player 0 and 1 need not bid
 }
 
 GAME_TEST(5, discard_1)
@@ -195,11 +193,11 @@ GAME_TEST(5, discard_2)
     }
 
     // round 1
-    ASSERT_PRI_MSG(FAILED, 0, "弃牌 黑桃A");
-    ASSERT_PRI_MSG(CHECKOUT, 0, "弃牌 红桃2 方板3 红桃6");
+    ASSERT_PRI_MSG(FAILED, 0, "黑桃A");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "红桃2 方板3 红桃6");
 
     ASSERT_PRI_MSG(FAILED, 0, "1"); // cannot bid own item
-    ASSERT_PRI_MSG(FAILED, 0, "撤标"); // cannot cancel own item
+    ASSERT_PRI_MSG(FAILED, 0, "pass"); // cannot cancel own item
     ASSERT_PRI_MSG(OK, 1, "50");
     ASSERT_TIMEOUT(CHECKOUT);
     ASSERT_PRI_MSG(OK, 0, "101"); // pool coins 1 + 101 = 102
@@ -212,19 +210,19 @@ GAME_TEST(5, discard_2)
 
     // round 2
     ASSERT_PRI_MSG(FAILED, 1, "弃牌"); // empty discard
-    ASSERT_PRI_MSG(FAILED, 1, "弃牌 今天天气真好啊");
-    ASSERT_PRI_MSG(FAILED, 1, "弃牌 红桃0");
-    ASSERT_PRI_MSG(FAILED, 1, "弃牌 红桃14");
-    ASSERT_PRI_MSG(FAILED, 1, "弃牌 条子3");
-    ASSERT_PRI_MSG(OK, 1, "弃牌 红桃2 方块3 红心6");
-    ASSERT_PRI_MSG(FAILED, 1, "弃牌 梅花2");
-    ASSERT_PRI_MSG(FAILED, 1, "弃牌 梅花4");
-    ASSERT_PUB_MSG(FAILED, 1, "不弃牌");
-    ASSERT_PRI_MSG(OK, 0, "不弃牌");
-    ASSERT_PRI_MSG(OK, 1, "不弃牌");
-    ASSERT_PRI_MSG(OK, 3, "不弃牌");
-    ASSERT_PRI_MSG(OK, 4, "不弃牌");
-    ASSERT_PRI_MSG(CHECKOUT, 2, "弃牌 黑桃A");
+    ASSERT_PRI_MSG(FAILED, 1, "今天天气真好啊");
+    ASSERT_PRI_MSG(FAILED, 1, "红桃0");
+    ASSERT_PRI_MSG(FAILED, 1, "红桃14");
+    ASSERT_PRI_MSG(FAILED, 1, "条子3");
+    ASSERT_PRI_MSG(OK, 1, "红桃2 方块3 红心6");
+    ASSERT_PRI_MSG(FAILED, 1, "梅花2");
+    ASSERT_PRI_MSG(FAILED, 1, "梅花4");
+    ASSERT_PUB_MSG(FAILED, 1, "pass");
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(OK, 1, "pass");
+    ASSERT_PRI_MSG(OK, 3, "pass");
+    ASSERT_PRI_MSG(OK, 4, "pass");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "黑桃A");
 
     ASSERT_PRI_MSG(OK, 0, "赛况");
 

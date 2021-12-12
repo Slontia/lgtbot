@@ -124,7 +124,7 @@ static std::atomic<bool> substage_blocked_;
 class GameOption : public GameOptionBase
 {
   public:
-    GameOption() : GameOptionBase(0) {}
+    GameOption() : GameOptionBase(0), timeout_sec_(1) {}
     virtual ~GameOption() {}
     virtual void SetResourceDir(const char* const resource_dir) { resource_dir_ = resource_dir; }
     virtual const char* ResourceDir() const { return resource_dir_.c_str(); }
@@ -134,6 +134,7 @@ class GameOption : public GameOptionBase
     virtual bool SetOption(const char* const msg) { return true; };
     virtual bool IsValid(MsgSenderBase& reply) const { return true; }
     virtual uint64_t BestPlayerNum() const { return 2; }
+    uint64_t timeout_sec_;
   private:
     std::string resource_dir_;
 };
@@ -164,14 +165,14 @@ class SubStage : public SubGameStage<>
     virtual void OnStageBegin() override
     {
         Boardcast() << "子阶段开始";
-        StartTimer(1);
+        StartTimer(option().timeout_sec_);
     }
 
     virtual CheckoutErrCode OnTimeout() override
     {
         if (to_reset_timer_) {
             to_reset_timer_ = false;
-            StartTimer(1);
+            StartTimer(option().timeout_sec_);
             Boardcast() << "时间到，但是回合继续";
             return StageErrCode::OK;
         }
@@ -336,6 +337,19 @@ class TestBot : public testing::Test
     MockDBManager& db_manager() { return static_cast<MockDBManager&>(*static_cast<BotCtx*>(bot_)->db_manager()); }
 
   protected:
+    void AddGame(const char* const name, const uint64_t max_player, const GameHandle::game_options_allocator new_option)
+    {
+        static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
+                    name, name, max_player, "这是规则介绍",
+                    new_option,
+                    [](const GameOptionBase* const options) {},
+                    [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
+                            -> MainStageBase* { return new MainStage(static_cast<const GameOption&>(option), match); },
+                    [](const MainStageBase* const main_stage) { delete main_stage; },
+                    []() {}
+        ));
+    }
+
     void AddGame(const char* const name, const uint64_t max_player)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
@@ -1102,7 +1116,7 @@ TEST_F(TestBot, substage_reset_timer)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
 
-TEST_F(TestBot, timeout_during_handle_rquest)
+TEST_F(TestBot, timeout_during_handle_request)
 {
   AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");

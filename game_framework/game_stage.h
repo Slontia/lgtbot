@@ -464,6 +464,7 @@ class GameStage<GameOption, MainStage>
     void StartTimer(const uint64_t sec)
     {
         finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
+        // cannot pass substage pointer because substage may has been released when alert
         Base::match_.StartTimer(sec, this, TimerCallback);
     }
 

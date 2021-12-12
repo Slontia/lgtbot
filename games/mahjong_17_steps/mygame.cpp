@@ -126,6 +126,7 @@ class PrepareStage : public SubGameStage<>
         Boardcast() << "请私信裁判进行配牌，时限 " << option().GET_VALUE(配牌时限) << " 秒";
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             Tell(pid) << Markdown(game_table_.PrepareHtml(pid));
+            Tell(pid) << "请配牌，您可通过「帮助」命令查看命令格式";
         }
     }
 

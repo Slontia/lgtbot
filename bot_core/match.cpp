@@ -361,28 +361,39 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
     Timer::TaskSet tasks;
     timer_is_over_ = std::make_shared<bool>(false);
     // We must store a timer_is_over because it may be reset to true when new timer begins.
-    const auto timeout_handler = [timer_is_over = timer_is_over_, match_wk = weak_from_this()]() {
-        // Handle a reference because match may be removed from match_manager if timeout cause game over.
-        auto match = match_wk.lock();
-        if (!match) {
-            return; // match is released
-        }
-        // Timeout event should not be triggered during request handling, so we need lock here.
-        // timer_is_over also should protected in lock. Otherwise, a rquest may be handled after checking timer_is_over and before timeout_timer lock match.
-        std::lock_guard<std::mutex> l(match->mutex_);
-        // If stage has been finished by other request, timeout event should not be triggered again, so we check stage_is_over_ here.
-        if (!*timer_is_over) {
-            match->main_stage_->HandleTimeout();
-            match->Routine_();
-        }
-    };
+    const auto timeout_handler = [timer_is_over = timer_is_over_, match_wk = weak_from_this()]()
+        {
+            // Handle a reference because match may be removed from match_manager if timeout cause game over.
+            auto match = match_wk.lock();
+            if (!match) {
+                return; // match is released
+            }
+            // Timeout event should not be triggered during request handling, so we need lock here.
+            // timer_is_over also should protected in lock. Otherwise, a rquest may be handled after checking timer_is_over and before timeout_timer lock match.
+            std::lock_guard<std::mutex> l(match->mutex_);
+            // If stage has been finished by other request, timeout event should not be triggered again, so we check stage_is_over_ here.
+            if (!*timer_is_over) {
+                match->main_stage_->HandleTimeout();
+                match->Routine_();
+            }
+        };
     if (kMinAlertSec > sec / 2) {
         tasks.emplace_front(sec, timeout_handler);
     } else {
         tasks.emplace_front(kMinAlertSec, timeout_handler);
         uint64_t sum_alert_sec = kMinAlertSec;
         for (uint64_t alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2) {
-            tasks.emplace_front(alert_sec, std::bind(cb, p, alert_sec));
+            tasks.emplace_front(alert_sec, [cb, p, alert_sec, timer_is_over = timer_is_over_, match_wk = weak_from_this()]()
+                    {
+                        auto match = match_wk.lock();
+                        if (!match) {
+                            return; // match is released
+                        }
+                        std::lock_guard<std::mutex> l(match->mutex_);
+                        if (!*timer_is_over) {
+                            cb(p, alert_sec);
+                        }
+                    });
         }
         tasks.emplace_front(sec - sum_alert_sec, [] {});
     }

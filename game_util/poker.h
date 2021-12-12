@@ -57,6 +57,8 @@ ENUM_END(PatternType)
 #include <random>
 #include <sstream>
 
+#include "utility/html.h"
+
 namespace poker {
 
 #define ENUM_FILE "../game_util/poker.h"
@@ -66,6 +68,7 @@ struct Poker
 {
     auto operator<=>(const Poker&) const = default;
     std::string ToString() const;
+    std::string ToHtml() const;
     const PokerNumber number_;
     const PokerSuit suit_;
 };
@@ -94,6 +97,34 @@ std::vector<Poker> ShuffledPokers(const std::string_view& sv = "")
         std::shuffle(pokers.begin(), pokers.end(), g);
     }
     return pokers;
+}
+
+std::string Poker::ToHtml() const
+{
+    std::string s;
+    switch (suit_) {
+        case PokerSuit::SPADE: s += HTML_COLOR_FONT_HEADER(black) "♠"; break;
+        case PokerSuit::HEART: s += HTML_COLOR_FONT_HEADER(red) "♥"; break;
+        case PokerSuit::CLUB: s += HTML_COLOR_FONT_HEADER(black) "♣"; break;
+        case PokerSuit::DIANMOND: s += HTML_COLOR_FONT_HEADER(red) "♦"; break;
+    }
+    switch (number_) {
+        case PokerNumber::_2: s += "2"; break;
+        case PokerNumber::_3: s += "3"; break;
+        case PokerNumber::_4: s += "4"; break;
+        case PokerNumber::_5: s += "5"; break;
+        case PokerNumber::_6: s += "6"; break;
+        case PokerNumber::_7: s += "7"; break;
+        case PokerNumber::_8: s += "8"; break;
+        case PokerNumber::_9: s += "9"; break;
+        case PokerNumber::_10: s += "10"; break;
+        case PokerNumber::_J: s += "J"; break;
+        case PokerNumber::_Q: s += "Q"; break;
+        case PokerNumber::_K: s += "K"; break;
+        case PokerNumber::_A: s += "A"; break;
+    }
+    s += HTML_FONT_TAIL;
+    return s;
 }
 
 template <typename Sender>
@@ -250,38 +281,36 @@ struct Deck
             return 1;
         }
     }
+    const char* TypeName() const;
     const PatternType type_;
     const std::array<Poker, 5> pokers_;
 };
 
-//void swap(Deck& _1, Deck& _2)
-//{
-//    std::swap(const_cast<PatternType&>(_1.type_), const_cast<PatternType&>(_2.type_));
-//    std::swap(const_cast<std::array<Poker, 5>&>(_1.pokers_), const_cast<std::array<Poker, 5>&>(_2.pokers_));
-//}
+const char* Deck::TypeName() const
+{
+    switch (type_) {
+        case PatternType::HIGH_CARD: return "高牌";
+        case PatternType::ONE_PAIR: return "一对";
+        case PatternType::TWO_PAIRS: return "两对";
+        case PatternType::THREE_OF_A_KIND: return "三条";
+        case PatternType::STRAIGHT: return "顺子";
+        case PatternType::FLUSH: return "同花";
+        case PatternType::FULL_HOUSE: return "满堂红";
+        case PatternType::FOUR_OF_A_KIND: return "四条";
+        case PatternType::STRAIGHT_FLUSH:
+            if (pokers_.front().number_ == PokerNumber::_A) {
+                return "皇家同花顺";
+            } else {
+                return "同花顺";
+            }
+    }
+    return "【错误：未知的牌型】";
+}
 
 template <typename Sender>
 Sender& operator<<(Sender& sender, const Deck& deck)
 {
-    sender << "[";
-    switch (deck.type_) {
-        case PatternType::HIGH_CARD: sender << "高牌"; break;
-        case PatternType::ONE_PAIR: sender << "一对"; break;
-        case PatternType::TWO_PAIRS: sender << "两对"; break;
-        case PatternType::THREE_OF_A_KIND: sender << "三条"; break;
-        case PatternType::STRAIGHT: sender << "顺子"; break;
-        case PatternType::FLUSH: sender << "同花"; break;
-        case PatternType::FULL_HOUSE: sender << "满堂红"; break;
-        case PatternType::FOUR_OF_A_KIND: sender << "四条"; break;
-        case PatternType::STRAIGHT_FLUSH:
-            if (deck.pokers_.front().number_ == PokerNumber::_A) {
-                sender << "皇家同花顺";
-            } else {
-                sender << "同花顺";
-            }
-            break;
-    }
-    sender << "]";
+    sender << "[" << deck.TypeName() << "]";
     for (const auto& poker : deck.pokers_) {
         sender << " " << poker;
     }
@@ -346,6 +375,19 @@ class Hand
             sender << "（" << *best_deck << "）";
         }
         return sender;
+    }
+
+    std::string ToHtml() const
+    {
+        std::string s;
+        for (const auto& number : PokerNumber::Members()) {
+            for (const auto& suit : PokerSuit::Members()) {
+                if (Has(number, suit)) {
+                    s += Poker(number, suit).ToHtml() + " ";
+                }
+            }
+        }
+        return s;
     }
 
     const std::optional<Deck>& BestDeck() const
