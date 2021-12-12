@@ -308,7 +308,7 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
                     .with_red_dora_ = main_stage.option().GET_VALUE(赤宝牌),
                     .dora_num_ = main_stage.option().GET_VALUE(宝牌),
                     .ron_required_point_ = main_stage.option().GET_VALUE(起和点),
-                    .seed_ = main_stage.option().GET_VALUE(种子),
+                    .seed_ = main_stage.option().GET_VALUE(种子) + stage_name,
                     .image_path_ = main_stage.option().ResourceDir(),
                     .player_descs_ = [&]()
                             {

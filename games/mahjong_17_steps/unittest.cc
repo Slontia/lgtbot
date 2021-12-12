@@ -45,7 +45,7 @@ GAME_TEST(2, cannot_public_add_hand)
     ASSERT_PUB_MSG(OK, 0, "宝牌 0");
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
     ASSERT_TRUE(StartGame());
-    ASSERT_PUB_MSG(FAILED, 0, "添加 224455p1133577z");
+    ASSERT_PUB_MSG(FAILED, 0, "添加 456m456456s456p4m");
 }
 
 GAME_TEST(2, repeat_riichi)
@@ -53,7 +53,7 @@ GAME_TEST(2, repeat_riichi)
     ASSERT_PUB_MSG(OK, 0, "宝牌 0");
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
     ASSERT_TRUE(StartGame());
-    ASSERT_PRI_MSG(OK, 0, "添加 224455p1133577z");
+    ASSERT_PRI_MSG(OK, 0, "添加 456m456456s456p4m");
     ASSERT_PRI_MSG(OK, 0, "立直");
     ASSERT_PRI_MSG(FAILED, 0, "立直");
     ASSERT_PRI_MSG(FAILED, 0, "移除 2z");
@@ -65,7 +65,7 @@ GAME_TEST(3, hook_not_skip_when_others_computer)
     ASSERT_TRUE(StartGame());
     ASSERT_COMPUTER_ACT(OK, 1);
     ASSERT_COMPUTER_ACT(OK, 2);
-    ASSERT_PRI_MSG(OK, 0, "添加 224455p1133577z");
+    ASSERT_PRI_MSG(OK, 0, "添加 456m456456s456p4m");
     ASSERT_PRI_MSG(CHECKOUT, 0, "立直");
     for (uint32_t i = 0; i < 16; ++i) {
         ASSERT_COMPUTER_ACT(OK, 1);
@@ -82,8 +82,8 @@ GAME_TEST(3, double_kiri_failed)
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
     ASSERT_TRUE(StartGame());
     ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PRI_MSG(OK, 0, "7z");
-    ASSERT_PRI_MSG(FAILED, 0, "7z");
+    ASSERT_PRI_MSG(OK, 0, "1z");
+    ASSERT_PRI_MSG(FAILED, 0, "1z");
 }
 
 int main(int argc, char** argv)
