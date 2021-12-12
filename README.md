@@ -8,10 +8,10 @@ LGTBot 是一个基于 C++ 实现的，用于在 **聊天室** 或 **其它通�
 
 - 提供了通用的 **聊天信息交互接口**，需要由已实现好的机器人框架调用使用
 - 支持 **群组公开游戏** 和 **私密游戏** 两种方式，无需在群组内也可以进行游戏
-- 内置了 3 种已实现好的游戏，同时提供了通用的**游戏框架**，便于后续开发新游戏
+- 内置了 7 种已实现好的游戏，同时提供了通用的**游戏框架**，便于后续开发新游戏
 - 基于 CMake 编译，支持跨平台
 
-其中，“LGT”源自日本漫画家甲斐谷忍创作的《Liar Game》中的虚构组织“**L**iar **G**ame **T**ournament事务所”。
+其中，「LGT」源自日本漫画家甲斐谷忍创作的《Liar Game》中的虚构组织「**L**iar **G**ame **T**ournament事务所」。
 
 本项目是一个面向开发者的机器人库，需要和已有的机器人框架进行结合，如您想直接在通讯工具中使用该机器人库，可以参考以下已结合好的解决方案：
 
@@ -19,30 +19,22 @@ LGTBot 是一个基于 C++ 实现的，用于在 **聊天室** 或 **其它通�
 
 ## 2 开始
 
-### 2.1 安装依赖
-
-- gflags + glog
-
-		$ sudo yum install gflags-devel glog-devel
-
-- qt
-
-        $ sudo yum install qt5-qtwebkit
-
-- MySQL Connector C++
-
-### 2.2 编译
-
 请确保您的编译器基于 **C++20** 语法，建议使用 g++10 以上版本
+
+    # 安装依赖库（Ubuntu 系统）
+	$ sudo apt-get install -y libgoogle-glog-dev libgflags-dev libgtest-dev libsqlite3-dev libqt5webkit5-dev
 
 	# 完整克隆本项目
 	$ git clone github.com/slontia/lgtbot
+
+    # 安装子模块
+    $ git submodule update --init --recursive
 
 	# 构建二进制路径
 	$ mkdir build
 
 	# 编译项目
-	$ cmake .. -DMYSQL_CONNECTOR_PATH=/usr/include/mysql-cppconn/ -DMYSQL_CONNECTOR_LIBRARIES=/usr/lib64/libmysqlcppconn.so
+    $ cmake .. -DWITH_GCOV=OFF -DWITH_ASAN=OFF -DWITH_GLOG=OFF -DWITH_SQLITE=ON -DWITH_TEST=ON -DWITH_SIMULATOR=ON -DWITH_GAMES=ON
 	$ make
 
 ## 3 项目组成
@@ -53,38 +45,64 @@ LGTBot 是一个基于 C++ 实现的，用于在 **聊天室** 或 **其它通�
 - `game_framework`：游戏框架，包括游戏的底层逻辑（如阶段切换等）
 - `games`：已经实现好的游戏
 - `utility`：通用组件
+- `game_util`：通用的游戏组件
 
 ## 4 使用方法
-
 
 ### 4.1 使用机器人框架链接LGTBot库
 
 **如您在理解下述使用方式中遇到困难，请参考 simulator 的调用方式[bot_simulaor](https://github.com/Slontia/lgtbot-mirai/blob/master/bot_simulaor/simulaor.cpp)，或参考基于Mirai框架实现的范例[lgtbot-mirai](https://github.com/Slontia/lgtbot-mirai/blob/master/src/main.cpp)。**
 
-执行编译后，会在 `build`目录下生成`libbot_core.so`和`libbot_core_static.a`两文件，前者为LGTBot的动态库，后者为LGTBot的静态库。
+执行编译后，会在 `build` 目录下生成 `libbot_core.so` 和 `libbot_core_static.a` 两文件，前者为 LGTBot 的动态库，后者为 LGTBot 的静态库。
 
-#### 4.1.1 创建一个MsgSender
+#### 4.1.1 实现接口，支持机器人发送消息
 
-MsgSender是一个用来向用户发送消息的接口，客户需要继承`MsgSender`类，并完善以下成员函数的实现：
+客户需要实现以下几个接口，用来让机器人可以发送消息。
 
-- `SendString`：用于记录一段需要发送给用户的字符串
-- `SendAt`：用于记录At信息
-- `~MsgSender`：将所记录的信息发送给用户
+- `OpenMessager`：客户需要在此函数中创建一个「消息发送对象」，返回该对象的指针。参数：
+    - `uint64_t id`：消息发送目标的 ID，可能为用户 ID（即私信用户）或群组 ID
+    - `bool is_uid`：如果为 true，为用户 ID，否则为群组 ID
+- `MessagerPostText`：记录一条文本消息。参数：
+    - `void* p`：指向通过 `OpenMessager` 创建的对象
+    - `const char* data`：需要发送的字符串
+    - `uint64_t len`：字符串长度
+- `MessagerPostUser`：记录一条用户相关的消息。参数：
+    - `void* p`：指向通过 `OpenMessager` 创建的对象
+    - `uint64_t uid`：用户 ID
+    - `bool is_at`：如果为 true，表示 at 对应的用户，否则只需要获取该用户的名字
+- `MessagerPostImage`：记录一条图片消息。参数：
+    - `void* p`：指向通过 `OpenMessager` 创建的对象
+    - `const char* path`：要发送的图片所在路径
+- `MessagerFlush`：将目前为止所记录的消息发送出去。参数：
+    - `void* p`：指向通过 `OpenMessager` 创建的对象
+- `MessagerClose`：释放消息发送对象。参数：
+    - `void* p`：指向通过 `OpenMessager` 创建的对象
 
-#### 4.1.2 调用LGTBot提供的接口
+其中，`MessagerPost*` 的三个接口，并不负责实际发送消息，仅仅是将要发送的消息记录下来，真正发送是在 `MessagerFlush` 接口中进行。
+
+函数实现后，不需要客户进行调用，函数的定义会在链接 LGTBot 库的过程中被载入，LGTBot 库负责进行函数的调用。
+
+#### 4.1.2 调用接口，实现机器人接收消息
 
 LGTBot 所提供的接口，定义在`bot_core/bot_core.h`中，包括：
 
-- `Init`：进行LGTBot的初始化工作，需要插入供LGTBot回调的接口：
-	- `this_uid`：当前机器人所属的用户ID
-	- `new_msg_sender_cb`：创建一个用于回复消息的MsgSender
-	- `delete_msg_sender_cb`：清理MsgSender，同时将消息发送给用户
-	- `game_path`：游戏所在的路径
-	- `admins | admin_count`：管理员用户ID列表 | 数量
-- `Release`：释放机器人
-- `HandlePrivateRequest`：当收到用户私信的消息时，需要调用该接口，将消息转发给 LGTBot
+- `Init`：进行 LGTBot 的初始化工作，并返回一个 bot handler，需要的参数在 BotOption 类中定义，包括：
+	- `uint64_t this_uid_`：当前机器人所属的用户ID
+    - `const char* game_path_`：游戏库所在路径（即编译出来的 plugins 目录的路径），建议为绝对路径，不可为空
+    - `const char* image_path_`：（暂未使用）
+	- `const uint64_t* admins_`：管理员用户 ID 列表（管理员可以使用管理命令），**末尾元素需为 0**，可为空，说明无管理员
+    - `const char* db_path_`：SQLite 文件路径，用于存储对战数据，不可为空
+- `Release`：释放机器人。参数：
+    - `void* bot`：通过 `Init` 函数获取到的指针
+- `HandlePrivateRequest`：当收到用户私信的消息时，需要调用该接口，将消息转发给 LGTBot。参数：
+    - `void* bot`：通过 `Init` 函数获取到的指针
+    - `const uint64_t uid`：发送消息的用户 ID
+    - `const char* msg`：发送的消息
 - `HandlePublicRequest`：当收到群组中用户发送的消息时，需要调用该接口，将消息转发给 LGTBot
-- `ConnectDatabase`：连接数据库（目前只支持MySQL）
+    - `void* bot`：通过 `Init` 函数获取到的指针
+    - `const uint64_t gid`：发送消息的群组 ID
+    - `const uint64_t uid`：发送消息的用户 ID
+    - `const char* msg`：发送的消息
 
 #### 4.1.3 支持配置项
 
@@ -92,17 +110,48 @@ LGTBot 本身不提供配置项，但您可以通过配置项更改 glog 输出�
 
 ### 4.2 使用simulator测试机器人
 
-执行编译后，会在`build`目录下生成`simulator`可执行文件。
+执行编译后，会在 `build` 目录下生成 `simulator` 可执行文件，执行后会进入命令行界面，可在此测试机器人行为。
 
-可以通过以下参数控制`simulator`行为：
+- 命令格式：`<group_id> <user_id> <msg...>`
+- 例如：「1 2 #新游戏 投标扑克」，表示用户 2 在群组 1 中发送了「#新游戏 投标扑克」指令给机器人
+- 若为私信，则将 group\_id 置为 「-」，例如 「- 2 #新游戏 投标扑克」，表示用户 2 私信发送了「#新游戏 投标扑克」指令给机器人
+- 通过 `quit` 命令退出
 
-- `game_path`：游戏所在路径，默认为`./plugins"`
-- `history_filename`：历史命令保存路径，默认为`./.simulator_history.txt`
-- `color`：输出内容是否带颜色，默认为true
-- `bot_uid`：机器人用户ID，默认为114514
-- `admin_uid`：管理员用户ID，默认为0
-- 数据库相关配置项：
-	- `db_addr`：数据库地址（`<ip>:<port>`，如`127.0.0.1:3306`）。如果不配置这个数据项，则不会进行数据库连接操作。
-	- `db_user`：数据库用户，默认为`root`
-	- `db_passwd`：数据库密码，默认为空
-	- `db_name`：数据库名称，默认为`lgtbot_simulator`
+`simulator` 有如下附加参数，可在执行二进制时指定：
+
+- `admin_uid`：管理员用户 ID，默认为 1
+- `bot_uid`：机器人用户 ID，默认为 114514
+- `color`：输出内容是否带颜色，默认为 true
+- `db_path`：SQLite 数据文件路径，默认为 "simulator.db"
+- `game_path`：游戏所在路径，默认为 "./plugins"
+- `history_filename`：历史命令保存路径，默认为 `./.simulator_history.txt`
+
+## 5 游戏展示
+
+### 5.1 LIE
+
+![](./images/game_lie.png)
+
+### 5.2 投标扑克
+
+![](./images/game_bidding_poker.png)
+
+### 5.3 二择猜拳
+
+![](./images/game_alter_rps.png)
+
+### 5.4 数字蜂巢
+
+![](./images/game_numcomb.png)
+
+### 5.5 炼金术士
+
+![](./images/game_alchemist.png)
+
+### 5.6 你推我挤
+
+![](./images/game_quixo.png)
+
+### 5.7 十七步
+
+![](./images/game_mahjong_17_steps.png)
