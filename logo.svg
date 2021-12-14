@@ -14,14 +14,6 @@
    sodipodi:docname="logo.svg"
    inkscape:version="0.92.2 (5c3e80d, 2017-08-06)">
   <text
-     style="font-size:107.01413727px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#333333;stroke:#000000;stroke-width:0"
-     x="-4.4414873"
-     y="-1.5468822e-007"
-     id="text37"
-     font-size="24"
-     xml:space="preserve"
-     transform="matrix(0,1.913766,-0.52252993,0,0,0)">I</text>
-  <text
      transform="matrix(0,2.2098265,-0.45252421,0,0,0)"
      xml:space="preserve"
      font-size="24"
@@ -30,13 +22,21 @@
      x="-3.8464398"
      style="font-size:92.67695618px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#000000;stroke:#000000;stroke-width:0">I</text>
   <text
+     style="font-size:125.4852066px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#000000;stroke:#000000;stroke-width:0"
+     x="-5.2081051"
+     y="-1.3191857e-007"
+     id="text37"
+     font-size="24"
+     xml:space="preserve"
+     transform="matrix(0,1.6320652,-0.61272062,0,0,0)">I</text>
+  <text
      transform="scale(1.5625834,0.63996584)"
      xml:space="preserve"
      font-size="24"
      id="svg_17-5-6"
      y="171.8842"
-     x="26.55858"
-     style="font-size:131.0650177px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#333333;stroke:#000000;stroke-width:0">I</text>
+     x="29.75841"
+     style="font-size:131.0650177px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#000000;stroke:#000000;stroke-width:0">I</text>
   <text
      transform="scale(1.2103718,0.82619241)"
      xml:space="preserve"
@@ -44,7 +44,7 @@
      id="svg_19-2-9"
      y="133.14093"
      x="-15.284557"
-     style="font-size:169.20420837px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#333333;stroke:#000000;stroke-width:0">I</text>
+     style="font-size:169.20420837px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#000000;stroke:#000000;stroke-width:0;">I</text>
   <text
      transform="matrix(0,1.3532369,-0.73896892,0,0,0)"
      xml:space="preserve"
@@ -52,15 +52,15 @@
      id="svg_38-1-3-9"
      y="-1.0931267e-008"
      x="52.836304"
-     style="font-size:151.34083557px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#333333;stroke:#000000;stroke-width:0">I</text>
+     style="font-size:151.34083557px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#000000;stroke:#000000;stroke-width:0;">I</text>
   <text
      transform="matrix(0,1.5625833,-0.63996588,0,0,0)"
      xml:space="preserve"
      font-size="24"
      id="svg_38-1-3-3-4"
-     y="-62.503334"
+     y="-70.316246"
      x="20.158936"
-     style="font-size:131.0650177px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#333333;stroke:#000000;stroke-width:0">I</text>
+     style="font-size:131.0650177px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#000000;stroke:#000000;stroke-width:0">I</text>
   <metadata
      id="metadata201">
     <rdf:RDF>
@@ -95,9 +95,9 @@
      inkscape:window-height="705"
      id="namedview197"
      showgrid="false"
-     inkscape:zoom="0.834386"
-     inkscape:cx="210.30811"
-     inkscape:cy="239.75338"
+     inkscape:zoom="1.7579384"
+     inkscape:cx="201.29467"
+     inkscape:cy="70.000018"
      inkscape:window-x="-8"
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
@@ -136,7 +136,7 @@
      x="15.887839"
      style="font-size:151.34083557px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#ff0000;stroke:#000000;stroke-width:0">I</text>
   <text
-     style="font-size:84.60210419px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#aa0000;stroke:#000000;stroke-width:0"
+     style="font-size:84.60210419px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#ff5555;stroke:#000000;stroke-width:0;"
      x="8.8815699"
      y="60.518597"
      id="text366"
@@ -144,7 +144,7 @@
      xml:space="preserve"
      transform="scale(0.60518591,1.6523848)">I</text>
   <text
-     style="font-size:37.83520889px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#aa0000;stroke:#000000;stroke-width:0"
+     style="font-size:37.83520889px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#ff5555;stroke:#000000;stroke-width:0;"
      x="3.9719605"
      y="-297.7121"
      id="text368"
@@ -152,7 +152,7 @@
      xml:space="preserve"
      transform="matrix(0,5.4129475,-0.18474223,0,0,0)">I</text>
   <text
-     style="font-size:75.67041779px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#aa0000;stroke:#000000;stroke-width:0"
+     style="font-size:75.67041779px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#ff5555;stroke:#000000;stroke-width:0;"
      x="104.00987"
      y="94.726593"
      id="text370"
@@ -176,7 +176,7 @@
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:'Segoe UI Symbol';-inkscape-font-specification:'Segoe UI Symbol'"
          id="tspan384">Bot</tspan></tspan></text>
   <text
-     style="font-size:84.60210419px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#000000;stroke:#000000;stroke-width:0"
+     style="font-size:84.60210419px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#4d4d4d;stroke:#000000;stroke-width:0;"
      x="-7.6422753"
      y="66.570465"
      id="text31"
@@ -184,19 +184,19 @@
      xml:space="preserve"
      transform="scale(0.60518591,1.6523848)">I</text>
   <text
-     style="font-size:37.83520889px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#000000;stroke:#000000;stroke-width:0"
+     style="font-size:37.83520889px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#4d4d4d;stroke:#000000;stroke-width:0"
      x="5.8193831"
-     y="-216.51791"
+     y="-243.58264"
      id="text33"
      font-size="24"
      xml:space="preserve"
      transform="matrix(0,5.4129475,-0.18474223,0,0,0)">I</text>
   <text
-     style="font-size:26.75353241px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#000000;stroke:#000000;stroke-width:0"
-     x="28.935097"
-     y="153.10133"
+     style="font-size:46.33847809px;font-family:'Trebuchet MS', Gadget, sans-serif;text-anchor:start;fill:#4d4d4d;stroke:#000000;stroke-width:0"
+     x="54.642303"
+     y="110.49136"
      id="text35"
      font-size="24"
      xml:space="preserve"
-     transform="scale(1.9137659,0.52252995)">I</text>
+     transform="scale(1.1049132,0.90504844)">I</text>
 </svg>
