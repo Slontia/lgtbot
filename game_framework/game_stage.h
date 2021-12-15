@@ -403,7 +403,12 @@ class GameStage<GameOption, MainStage>
 
     virtual StageErrCode HandleTimeout() override final
     {
-        return Handle_(OnTimeout());
+        // should not check all players ready
+        const auto rc = OnTimeout();
+        if (rc == StageErrCode::CHECKOUT) {
+            Over();
+        }
+        return rc;
     }
 
     virtual StageErrCode HandleLeave(const PlayerID pid) override final

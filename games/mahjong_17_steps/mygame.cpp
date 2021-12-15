@@ -208,6 +208,9 @@ class KiriStage : public SubGameStage<>
     {
         StartTimer(option().GET_VALUE(切牌时限));
         Boardcast() << "请从牌山中选择一张切出去，时限 " << option().GET_VALUE(切牌时限) << " 秒";
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            Boardcast() << "请从牌山中选择一张切出去，时限 " << option().GET_VALUE(切牌时限) << " 秒";
+        }
     }
 
    private:

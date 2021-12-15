@@ -86,6 +86,27 @@ GAME_TEST(3, double_kiri_failed)
     ASSERT_PRI_MSG(FAILED, 0, "1z");
 }
 
+GAME_TEST(3, do_nothing)
+{
+    ASSERT_PUB_MSG(OK, 0, "宝牌 0");
+    ASSERT_PUB_MSG(OK, 0, "种子 ABC");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "添加 456m456456s456p4m");
+    ASSERT_PRI_MSG(OK, 1, "添加 778s1123356p112z");
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_PRI_MSG(OK, 0, "4z");
+    ASSERT_PRI_MSG(OK, 1, "7m");
+    ASSERT_TIMEOUT(CHECKOUT);
+    for (uint32_t game_idx = 0; game_idx < 3; ++game_idx) {
+        ASSERT_TIMEOUT(CHECKOUT);
+        for (uint32_t i = 0; i < 16; ++i) {
+            ASSERT_TIMEOUT(CONTINUE);
+        }
+        ASSERT_TIMEOUT(CHECKOUT);
+    }
+    ASSERT_SCORE(33000, 17000, 25000);
+}
+
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
