@@ -1,7 +1,11 @@
+<div align="center">
+
 ![Logo](./logo.svg)
 
 ![image](https://img.shields.io/badge/author-slontia-blue.svg) ![image](https://img.shields.io/badge/language-c++20-green.svg)
 
+</div>
+	
 ## 1 项目简介
 
 LGTBot 是一个基于 C++ 实现的，用于在 **聊天室** 或 **其它通讯软件** 中，实现多人 **文字推理游戏** 的裁判机器人库。
@@ -19,7 +23,7 @@ LGTBot 是一个基于 C++ 实现的，用于在 **聊天室** 或 **其它通�
 
 ## 2 开始
 
-请确保您的编译器基于 **C++20** 语法，建议使用 g++10 以上版本
+请确保您的编译器支持 **C++20** 语法，建议使用 g++10 以上版本
 
     # 安装依赖库（Ubuntu 系统）
 	$ sudo apt-get install -y libgoogle-glog-dev libgflags-dev libgtest-dev libsqlite3-dev libqt5webkit5-dev
@@ -128,30 +132,34 @@ LGTBot 本身不提供配置项，但您可以通过配置项更改 glog 输出�
 
 ## 5 游戏展示
 
-### 5.1 LIE
+<div align="center">
+
+### LIE
 
 ![](./images/game_lie.png)
 
-### 5.2 投标扑克
+### 投标扑克
 
 ![](./images/game_bidding_poker.png)
 
-### 5.3 二择猜拳
+### 二择猜拳
 
 ![](./images/game_alter_rps.png)
 
-### 5.4 数字蜂巢
+### 数字蜂巢
 
 ![](./images/game_numcomb.png)
 
-### 5.5 炼金术士
+### 炼金术士
 
 ![](./images/game_alchemist.png)
 
-### 5.6 你推我挤
+### 你推我挤
 
 ![](./images/game_quixo.png)
 
-### 5.7 十七步
+### 十七步
 
 ![](./images/game_mahjong_17_steps.png)
+
+</div>
