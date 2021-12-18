@@ -27,7 +27,7 @@ std::string GameOption::StatusInfo() const
     return str;
 }
 
-bool GameOption::IsValid(MsgSenderBase& reply) const { return true; }
+bool GameOption::ToValid(MsgSenderBase& reply) { return true; }
 
 uint64_t GameOption::BestPlayerNum() const { return 1; }
 
@@ -211,9 +211,9 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     return NewStage_();
 }
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
+MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
 {
-    if (!options.IsValid(reply)) {
+    if (!options.ToValid(reply)) {
         return nullptr;
     }
     return new MainStage(options, match);

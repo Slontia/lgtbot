@@ -20,7 +20,7 @@ std::string GameOption::StatusInfo() const
     return "每手棋" + std::to_string(GET_VALUE(局时)) + "秒超时，超时即判负，最多" + std::to_string(GET_VALUE(回合数)) + "回合";
 }
 
-bool GameOption::IsValid(MsgSenderBase& reply) const
+bool GameOption::ToValid(MsgSenderBase& reply)
 {
     if (PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << PlayerNum();
@@ -183,9 +183,9 @@ class MainStage : public MainGameStage<>
     std::optional<PlayerID> winner_;
 };
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
+MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
 {
-    if (!options.IsValid(reply)) {
+    if (!options.ToValid(reply)) {
         return nullptr;
     }
     return new MainStage(options, match);

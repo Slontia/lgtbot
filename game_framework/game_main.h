@@ -48,7 +48,7 @@ class GameOptionBase
     uint64_t PlayerNum() const { return player_num_; }
     virtual const char* ResourceDir() const = 0;
 
-    virtual bool IsValid(MsgSenderBase& reply) const = 0;
+    virtual bool ToValid(MsgSenderBase& reply) = 0;
     virtual uint64_t BestPlayerNum() const = 0;
 
     virtual const char* Info(const uint64_t index) const = 0;

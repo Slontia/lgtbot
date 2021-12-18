@@ -133,7 +133,7 @@ class GameOption : public GameOptionBase
     virtual const char* ColoredInfo(const uint64_t index) const { return "这是配置介绍"; };
     virtual const char* Status() const { return "这是配置状态"; };
     virtual bool SetOption(const char* const msg) { return true; };
-    virtual bool IsValid(MsgSenderBase& reply) const { return true; }
+    virtual bool ToValid(MsgSenderBase& reply) { return true; }
     virtual uint64_t BestPlayerNum() const { return 2; }
     uint64_t timeout_sec_;
   private:

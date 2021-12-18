@@ -11,7 +11,7 @@ DEFINE_uint64(player, 0, "Player number: if set to 0, best player num will be se
 DEFINE_uint64(repeat, 1, "Repeat times: if set to 0, will run unlimitedly");
 DEFINE_string(resource_dir, "", "The path of game image resources");
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match);
+MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
 
 extern inline bool enable_markdown_to_image;
 

@@ -7,7 +7,7 @@
 #include "game_framework/game_main.h"
 #include "game_framework/mock_match.h"
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match);
+MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
 
 template <uint64_t k_player_num>
 class TestGame : public MockMatch, public testing::Test

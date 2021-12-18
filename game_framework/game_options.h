@@ -41,6 +41,13 @@ class GameOption : public GameOptionBase
 	 } {};
 
     template <Option op>
+    auto& Option2Value()
+    {
+        static_assert(op != Option::INVALID_OPTION, "Unexpected option");
+        return std::get<op * 2>(options_);
+    }
+
+    template <Option op>
     const auto& Option2Value() const
     {
         static_assert(op != Option::INVALID_OPTION, "Unexpected option");
@@ -82,7 +89,7 @@ class GameOption : public GameOptionBase
     }
 
     std::string StatusInfo() const;
-    virtual bool IsValid(MsgSenderBase& reply) const;
+    virtual bool ToValid(MsgSenderBase& reply);
     virtual uint64_t BestPlayerNum() const;
 
    private:

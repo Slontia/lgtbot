@@ -20,7 +20,7 @@ struct PlayerDesc
 {
     std::string name_;
     Wind wind_ = Wind::East;
-    uint32_t base_point_ = 25000;
+    int32_t base_point_ = 25000;
 };
 
 struct Mahjong17StepsOption

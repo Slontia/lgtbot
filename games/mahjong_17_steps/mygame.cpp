@@ -21,15 +21,16 @@ std::string GameOption::StatusInfo() const
         " 枚宝牌，" + (GET_VALUE(赤宝牌) ? "有" : "无") + "赤宝牌";
 }
 
-bool GameOption::IsValid(MsgSenderBase& reply) const
+bool GameOption::ToValid(MsgSenderBase& reply)
 {
     if (PlayerNum() == 1) {
         reply() << "该游戏至少 2 名玩家参加，当前玩家数为 " << PlayerNum();
         return false;
     }
     if (PlayerNum() == 4 && GET_VALUE(宝牌) > 0) {
-        reply() << "四人游戏不允许有宝牌，请将宝牌数量设置为 0，当前数量为 " << GET_VALUE(宝牌);
-        return false;
+        GET_VALUE(宝牌) = 0;
+        reply() << "[警告] 四人游戏不允许有宝牌，已经将宝牌数量自动调整为 0";
+        return true;
     }
     return true;
 }
@@ -209,7 +210,7 @@ class KiriStage : public SubGameStage<>
         StartTimer(option().GET_VALUE(切牌时限));
         Boardcast() << "请从牌山中选择一张切出去，时限 " << option().GET_VALUE(切牌时限) << " 秒";
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            Boardcast() << "请从牌山中选择一张切出去，时限 " << option().GET_VALUE(切牌时限) << " 秒";
+            Tell(pid) << "请从牌山中选择一张切出去，时限 " << option().GET_VALUE(切牌时限) << " 秒";
         }
     }
 
@@ -311,7 +312,7 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
                     .with_red_dora_ = main_stage.option().GET_VALUE(赤宝牌),
                     .dora_num_ = main_stage.option().GET_VALUE(宝牌),
                     .ron_required_point_ = main_stage.option().GET_VALUE(起和点),
-                    .seed_ = main_stage.option().GET_VALUE(种子) + stage_name,
+                    .seed_ = main_stage.option().GET_VALUE(种子).empty() ? "" : main_stage.option().GET_VALUE(种子) + stage_name,
                     .image_path_ = main_stage.option().ResourceDir(),
                     .player_descs_ = [&]()
                             {
@@ -346,9 +347,9 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
     Mahjong17Steps game_table_;
 };
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
+MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
 {
-    if (!options.IsValid(reply)) {
+    if (!options.ToValid(reply)) {
         return nullptr;
     }
     return new MainStage(options, match);

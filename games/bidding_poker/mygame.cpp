@@ -31,7 +31,7 @@ std::string GameOption::StatusInfo() const
     return ss.str();
 }
 
-bool GameOption::IsValid(MsgSenderBase& reply) const
+bool GameOption::ToValid(MsgSenderBase& reply)
 {
     if (PlayerNum() < 5) {
         reply() << "该游戏至少 5 人参加，当前玩家数为" << PlayerNum();
@@ -647,9 +647,9 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     return {};
 }
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
+MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
 {
-    if (!options.IsValid(reply)) {
+    if (!options.ToValid(reply)) {
         return nullptr;
     }
     return new MainStage(options, match);

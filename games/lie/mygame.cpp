@@ -17,7 +17,7 @@ std::string GameOption::StatusInfo() const
     return ss.str();
 }
 
-bool GameOption::IsValid(MsgSenderBase& reply) const
+bool GameOption::ToValid(MsgSenderBase& reply)
 {
     if (PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << PlayerNum();
@@ -361,9 +361,9 @@ bool MainStage::JudgeOver()
 
 void MainStage::OnPlayerLeave(const PlayerID pid) { leaver_ = pid; }
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, const GameOption& options, MatchBase& match)
+MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
 {
-    if (!options.IsValid(reply)) {
+    if (!options.ToValid(reply)) {
         return nullptr;
     }
     return new MainStage(options, match);
