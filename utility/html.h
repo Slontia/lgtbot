@@ -86,6 +86,9 @@ class Table
     Box& GetLastRow(const uint32_t column) { return boxes_[row_ - 1][column]; }
     const Box& GetLastRow(const uint32_t column) const { return boxes_[row_ - 1][column]; }
 
+    Box& GetLastColumn(const uint32_t row) { return boxes_[row][column_ - 1]; }
+    const Box& GetLastColumn(const uint32_t row) const { return boxes_[row][column_ - 1]; }
+
     void SetTableStyle(std::string style) { table_style_ = std::move(style); }
     void SetRowStyle(std::string style) { row_style_ = std::move(style); }
 

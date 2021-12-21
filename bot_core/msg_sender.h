@@ -56,6 +56,9 @@ class MsgSenderBase
             return (*this) << std::to_string(arg);
         }
 
+        inline MsgSenderGuard& operator<<(const char c) { return (*this) << std::string(1, c); }
+
+
         // It is safe to use STL because MsgSenderGuard will not be passed between libraries
         inline MsgSenderGuard& operator<<(const At<UserID>&);
         inline MsgSenderGuard& operator<<(const At<PlayerID>&);

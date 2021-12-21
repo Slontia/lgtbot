@@ -18,7 +18,8 @@ std::string GameOption::StatusInfo() const
 {
     return "配牌时限 " + std::to_string(GET_VALUE(配牌时限)) + " 秒，切牌时限 " + std::to_string(GET_VALUE(切牌时限)) +
         " 秒，和牌牌型最少需要 " + std::to_string(GET_VALUE(起和点)) + " 点，场上有 " + std::to_string(GET_VALUE(宝牌)) +
-        " 枚宝牌，" + (GET_VALUE(赤宝牌) ? "有" : "无") + "赤宝牌";
+        " 枚宝牌，" + (GET_VALUE(赤宝牌) ? "有" : "无") + "赤宝牌，" +
+        (GET_VALUE(种子).empty() ? "无种子" : "种子：" + GET_VALUE(种子));
 }
 
 bool GameOption::ToValid(MsgSenderBase& reply)

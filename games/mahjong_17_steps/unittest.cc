@@ -5,14 +5,6 @@ GAME_TEST(1, cannot_one_player)
     ASSERT_FALSE(StartGame());
 }
 
-GAME_TEST(4, four_player_must_without_dora)
-{
-    ASSERT_PUB_MSG(OK, 0, "宝牌 1");
-    ASSERT_FALSE(StartGame());
-    ASSERT_PUB_MSG(OK, 0, "宝牌 0");
-    ASSERT_TRUE(StartGame());
-}
-
 GAME_TEST(4, do_nothing)
 {
     ASSERT_PUB_MSG(OK, 0, "宝牌 0");
