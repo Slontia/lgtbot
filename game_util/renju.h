@@ -6,6 +6,7 @@
 #include <bitset>
 #include <set>
 #include <memory>
+#include <vector>
 
 #include "utility/html.h"
 
@@ -17,8 +18,8 @@ enum class Result { CONTINUE_OK, CONTINUE_CRASH, CONTINUE_EXTEND, TIE_FULL_BOARD
 class Piece
 {
   public:
+    Piece(const AreaType type) : type_(type), tmp_disappered_(false) {}
 
-  private:
     AreaType type_; // should only be BLACK or WHITE
     std::set<std::pair<uint32_t, uint32_t>> liberties_;
     std::set<std::pair<uint32_t, uint32_t>> areas_;
@@ -31,18 +32,84 @@ class GoBoard
     static constexpr const uint32_t k_size_ = 15;
 
     // should be valid
-    bool CanBeSet(const uint32_t row, const uint32_t column, const AreaType type) const
+    bool CanBeSet(const uint32_t row, const uint32_t col, const AreaType type) const
     {
-        
+        const auto check = [&](const uint32_t round_row, const uint32_t round_col)
+            {
+                if (!IsValid_(round_row, round_col)) {
+                    return false;
+                }
+                const auto& round_piece = pieces_[round_row][round_col];
+                return !round_piece || (round_piece->type_ == type && round_piece->liberties_.size() > 1);
+            };
+        if (check(row - 1, col) || check(row + 1, col) || check(row, col - 1) || check(row, col + 1)) {
+            return true;
+        }
+        return false;
     }
 
-    // should be valid
-    bool Set(const uint32_t row, const uint32_t column, const AreaType type) const
+    void MakePiece_(const uint32_t row, const uint32_t col, const AreaType type)
     {
+        const auto& piece = pieces_[row][col] = std::make_shared<Piece>(type);
+        piece->areas_.emplace(row, col);
+        const auto check_round = [&](const uint32_t round_row, const uint32_t round_col)
+            {
+                if (!IsValid_(round_row, round_col)) {
+                    return;
+                }
+                auto& round_piece = pieces_[round_row][round_col];
+                if (round_piece == nullptr) {
+                    piece->liberties_.emplace(round_row, round_col);
+                } else if (round_piece->type_ == type) {
+                    MergePieces_(piece, round_piece);
+                }
+            };
+        check_round(row - 1, col);
+        check_round(row + 1, col);
+        check_round(row, col - 1);
+        check_round(row, col + 1);
+    }
+
+    // hold a reference to ${from}
+    void MergePieces_(const std::shared_ptr<Piece> from, const std::shared_ptr<Piece>& to)
+    {
+        if (from == to) {
+            return;
+        }
+        to->liberties_.insert(from->liberties_.begin(), from->liberties_.end());
+        to->areas_.insert(from->areas_.begin(), from->areas_.end());
+        for (const auto& [row, col] : from->areas_) {
+            pieces_[row][col] = to;
+        }
+    };
+
+    // should be valid
+    std::vector<std::shared_ptr<Piece>> Set(const uint32_t row, const uint32_t column, const AreaType type)
+    {
+        MakePiece_(row, column, type);
+        return {};
     }
 
   private:
+    bool Is_(const uint32_t row, const uint32_t col, const AreaType type) const
+    {
+        return IsValid_(row, col) && pieces_[row][col] && pieces_[row][col]->type_ == type;
+    }
 
+    bool IsNot_(const uint32_t row, const uint32_t col, const AreaType type) const
+    {
+        return !IsValid_(row, col) || (pieces_[row][col] && pieces_[row][col]->type_ != type);
+    }
+
+    bool IsEmpty_(const uint32_t row, const uint32_t col) const
+    {
+        return IsValid_(row, col) && !pieces_[row][col];
+    }
+
+    static bool IsValid_(const uint32_t row, const uint32_t col)
+    {
+        return row <= k_size_ && col <= k_size_;
+    }
 
     std::array<std::array<std::shared_ptr<Piece>, k_size_>, k_size_> pieces_;
 };
