@@ -9,7 +9,11 @@
 #include "bot_core/db_manager.h"
 #include "sqlite_modern_cpp.h"
 
+#ifdef _WIN32
+static const std::filesystem::path k_db_path = "TEMP_test_db.db";
+#else
 static const std::filesystem::path k_db_path = "/tmp/lgtbot_test_db.db";
+#endif
 
 class TestDB : public testing::Test
 {
@@ -22,7 +26,7 @@ class TestDB : public testing::Test
   protected:
     bool UseDB_()
     {
-        return (db_manager_ = SQLiteDBManager::UseDB(k_db_path)) != nullptr;
+        return (db_manager_ = SQLiteDBManager::UseDB(k_db_path.c_str())) != nullptr;
     }
 
     std::unique_ptr<DBManagerBase> db_manager_;

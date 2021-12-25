@@ -117,7 +117,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     MatchManager& match_manager() { return bot_.match_manager(); }
 
     const uint64_t user_controlled_player_num() const { return users_.size() * player_num_each_user_; }
-    const uint64_t com_num() const { return std::max(0L, static_cast<int64_t>(bench_to_player_num_ - user_controlled_player_num())); }
+    const uint64_t com_num() const { return std::max(int64_t(0), static_cast<int64_t>(bench_to_player_num_ - user_controlled_player_num())); }
 
    private:
     std::string State2String()

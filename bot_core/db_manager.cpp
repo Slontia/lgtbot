@@ -21,7 +21,7 @@ static void HandleError(const std::exception& e)
 }
 
 template <typename Fn>
-static bool ExecuteTransaction(const std::string& db_name, const Fn& fn)
+static bool ExecuteTransaction(const DBName& db_name, const Fn& fn)
 {
     try {
         sqlite::database db(db_name);
@@ -50,7 +50,7 @@ static bool ExecuteTransaction(const std::string& db_name, const Fn& fn)
         }                                                                            \
     } while (0)
 
-SQLiteDBManager::SQLiteDBManager(const std::string& db_name) : db_name_(db_name)
+SQLiteDBManager::SQLiteDBManager(const DBName& db_name) : db_name_(db_name)
 {
 }
 
@@ -166,10 +166,16 @@ RankInfo SQLiteDBManager::GetRank()
     return info;
 }
 
-std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::string& db_name)
+std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::path::value_type* const db_name)
 {
+#ifdef _WIN32
+    std::wstring db_name_wstr(db_name);
+    std::u16string db_name_str(db_name_wstr.begin(), db_name_wstr.end()); 
+#else
+    std::string db_name_str(db_name);
+#endif
     try {
-        sqlite::database db(db_name);
+        sqlite::database db(db_name_str);
         db << "CREATE TABLE IF NOT EXISTS match("
                 "match_id INTEGER PRIMARY KEY AUTOINCREMENT, "
                 "game_name VARCHAR(100) NOT NULL, "
@@ -199,7 +205,7 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::string& db_name
         db << "CREATE TABLE IF NOT EXISTS user_with_achievement("
                 "user_id BIGINT UNSIGNED NOT NULL, "
                 "achi_id BIGINT UNSIGNED NOT NULL);";
-        return std::unique_ptr<DBManagerBase>(new SQLiteDBManager(db_name));
+        return std::unique_ptr<DBManagerBase>(new SQLiteDBManager(db_name_str));
     } catch (const sqlite::sqlite_exception& e) {
         HandleError(e);
     } catch (const std::exception& e) {

@@ -58,6 +58,7 @@ ERRCODE_DEF(EC_GAME_REQUEST_UNKNOWN)
 #include <map>
 #include <memory>
 #include <string>
+#include <filesystem>
 
 #include "bot_core/id.h"
 
@@ -100,7 +101,7 @@ struct BotOption
     const char* game_path_ = nullptr;
     const char* image_path_ = nullptr;
     const uint64_t* admins_ = nullptr;
-    const char* db_path_ = nullptr;
+    const std::filesystem::path::value_type* db_path_ = nullptr;
 };
 
 class BOT_API

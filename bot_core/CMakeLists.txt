@@ -40,9 +40,10 @@ endif()
 find_package(gflags REQUIRED)
 list(APPEND THIRD_PARTIES gflags)
 
-# find mysql-connector-c++
 add_library(bot_core_static STATIC ${SOURCE_FILES})
-add_library(bot_core SHARED ${SOURCE_FILES})
+if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+  add_library(bot_core SHARED ${SOURCE_FILES})
+endif()
 
 target_link_libraries(bot_core_static ${THIRD_PARTIES})
 

@@ -22,7 +22,11 @@ class TestGame : public MockMatch, public testing::Test
     virtual void SetUp()
     {
         option_.SetPlayerNum(k_player_num);
+#ifdef _WIN32
+        option_.SetResourceDir(L"/resource_dir/");
+#else
         option_.SetResourceDir("/resource_dir/");
+#endif
     }
 
     bool StartGame()

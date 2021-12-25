@@ -38,7 +38,6 @@ class BotCtx
   private:
     void LoadGameModules_(const char* const games_path);
     void LoadAdmins_(const uint64_t* const admins);
-    void LoadGame_(void* mod);
 
     const UserID this_uid_;
     const std::string game_path_;

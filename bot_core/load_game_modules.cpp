@@ -19,7 +19,7 @@ static_assert(false, "Not support OS");
 #include "bot_core/match.h"
 #include "bot_core/msg_sender.h"
 
-void BotCtx::LoadGame_(HINSTANCE mod)
+static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
 {
     if (!mod) {
 #ifdef __linux__
@@ -37,7 +37,9 @@ void BotCtx::LoadGame_(HINSTANCE mod)
         const auto proc = GetProcAddress(mod, name);
         if (!proc) {
             ErrorLog() << "Load proc " << name << " from module failed";
+#ifdef __linux__
             std::cerr << dlerror() << std::endl;
+#endif
         }
         return proc;
     };
@@ -60,7 +62,7 @@ void BotCtx::LoadGame_(HINSTANCE mod)
         ErrorLog() << "Load failed: Cannot get game game";
         return;
     }
-    game_handles_.emplace(name, std::make_unique<GameHandle>(name, module_name, max_player, rule,
+    game_handles.emplace(name, std::make_unique<GameHandle>(name, module_name, max_player, rule,
                                                              game_options_allocator_fn, game_options_deleter_fn,
                                                              main_stage_allocator_fn, main_stage_deleter_fn,
                                                              [mod] { FreeLibrary(mod); }));
@@ -79,9 +81,8 @@ void BotCtx::LoadGameModules_(const char* const games_path)
         return;
     }
     do {
-        const std::string_view module_name(file_data.cFileName);
-        const auto dll_path = std::string(games_path) + "\\" + module_name;
-        LoadGame_(LoadLibrary(dll_path.c_str()));
+        const auto dll_path = std::string(games_path) + "\\" + file_data.cFileName;
+        LoadGame(LoadLibrary(dll_path.c_str()), game_handles_);
     } while (FindNextFile(file_handle, &file_data));
     FindClose(file_handle);
     InfoLog() << "Load module count: " << game_handles_.size();
@@ -101,7 +102,7 @@ void BotCtx::LoadGameModules_(const char* const games_path)
             continue;
         }
         InfoLog() << "Loading library " << name;
-        LoadGame_(dlopen((std::string(games_path) + "/" + name).c_str(), RTLD_LAZY));
+        LoadGame(dlopen((std::string(games_path) + "/" + name).c_str(), RTLD_LAZY), game_handles_);
     }
     InfoLog() << "Loading finished.";
     closedir(d);

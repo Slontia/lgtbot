@@ -5,6 +5,7 @@
 #include <sstream>
 #include <vector>
 #include <optional>
+#include <filesystem>
 
 #include "bot_core/bot_core.h"
 #include "bot_core/msg_sender.h"
@@ -81,10 +82,11 @@ void MessagerPostUser(void* p, uint64_t uid, bool is_at)
     messager->ss_ << Default();
 }
 
-void MessagerPostImage(void* p, const char* path)
+void MessagerPostImage(void* p, const std::filesystem::path::value_type* path)
 {
     Messager* const messager = static_cast<Messager*>(p);
-    messager->ss_ << "[image=" << std::string_view(path) << "]";
+    std::basic_string<std::filesystem::path::value_type> path_str(path);
+    messager->ss_ << "[image=" << std::string(path_str.begin(), path_str.end()) << "]";
 }
 
 void MessagerFlush(void* p)
@@ -177,7 +179,7 @@ int main(int argc, char** argv)
         .image_path_ = "/image_path/",
         .admins_ = admins,
 #ifdef WITH_SQLITE
-        .db_path_ = FLAGS_db_path.c_str(),
+        .db_path_ = std::filesystem::path(FLAGS_db_path).c_str(),
 #endif
     };
     auto bot = BOT_API::Init(&option);
@@ -189,7 +191,7 @@ int main(int argc, char** argv)
 #if __linux__
     for (char* line_cstr = nullptr; (line_cstr = linenoise("Simulator>>> ")) != nullptr;) {
 #else
-    for (char line_cstr[1024] = {0}; std::cin.getline(&line_cstr[0], 1024); ) {
+    for (char line_cstr[1024] = {0}; std::cout << "Simulator>>> ", std::cin.getline(&line_cstr[0], 1024); ) {
 #endif
         const std::string_view line(line_cstr);
         if (line.find_first_not_of(' ') == std::string_view::npos) {

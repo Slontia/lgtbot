@@ -65,7 +65,11 @@ class GameOption : public GameOptionBase
         return false;
     }
 
-    virtual void SetResourceDir(const char* const resource_dir) { resource_dir_ = resource_dir; }
+    virtual void SetResourceDir(const std::filesystem::path::value_type* const resource_dir) 
+    {
+        std::basic_string<std::filesystem::path::value_type> resource_dir_str(resource_dir);
+        resource_dir_ = std::string(resource_dir_str.begin(), resource_dir_str.end());
+    }
     virtual const char* ResourceDir() const { return resource_dir_.c_str(); }
     virtual const char* Info(const uint64_t index) const override { return infos_[index].first.c_str(); }
     virtual const char* ColoredInfo(const uint64_t index) const override { return infos_[index].second.c_str(); }

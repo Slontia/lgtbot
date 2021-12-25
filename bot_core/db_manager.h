@@ -5,9 +5,16 @@
 #include <optional>
 #include <memory>
 #include <vector>
+#include <filesystem>
 
 #include "bot_core/log.h"
 #include "bot_core/id.h"
+
+#ifdef _WIN32
+using DBName = std::u16string;
+#else
+using DBName = std::string;
+#endif
 
 struct MatchProfile
 {
@@ -65,7 +72,7 @@ class DBManagerBase
 class SQLiteDBManager : public DBManagerBase
 {
    public:
-    static std::unique_ptr<DBManagerBase> UseDB(const std::string& sv);
+    static std::unique_ptr<DBManagerBase> UseDB(const std::filesystem::path::value_type* sv);
     virtual ~SQLiteDBManager();
     virtual bool RecordMatch(const std::string& game_name, const std::optional<GroupID> gid, const UserID host_uid,
             const uint64_t multiple, const std::vector<ScoreInfo>& score_infos) override;
@@ -74,9 +81,9 @@ class SQLiteDBManager : public DBManagerBase
     virtual RankInfo GetRank() override;
 
    private:
-    SQLiteDBManager(const std::string& db_name);
+    SQLiteDBManager(const DBName& db_name);
 
-    std::string db_name_;
+    DBName db_name_;
 };
 
 #endif

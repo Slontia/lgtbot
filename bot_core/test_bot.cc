@@ -81,10 +81,11 @@ void MessagerPostUser(void* p, uint64_t uid, bool is_at)
     }
 }
 
-void MessagerPostImage(void* p, const char* path)
+void MessagerPostImage(void* p, const std::filesystem::path::value_type* path)
 {
     Messager* const messager = static_cast<Messager*>(p);
-    messager->ss_ << "[image=" << std::string_view(path) << "]";
+    std::basic_string<std::filesystem::path::value_type> path_str(path);
+    messager->ss_ << "[image=" << std::string(path_str.begin(), path_str.end()) << "]";
 }
 
 void MessagerFlush(void* p)
@@ -126,8 +127,8 @@ class GameOption : public GameOptionBase
   public:
     GameOption() : GameOptionBase(0), timeout_sec_(1) {}
     virtual ~GameOption() {}
-    virtual void SetResourceDir(const char* const resource_dir) { resource_dir_ = resource_dir; }
-    virtual const char* ResourceDir() const { return resource_dir_.c_str(); }
+    virtual void SetResourceDir(const std::filesystem::path::value_type* const resource_dir) { /*resource_dir_ = resource_dir;*/ }
+    virtual const char* ResourceDir() const { return "这是资源路径"; }
     virtual const char* Info(const uint64_t index) const { return "这是配置介绍"; };
     virtual const char* ColoredInfo(const uint64_t index) const { return "这是配置介绍"; };
     virtual const char* Status() const { return "这是配置状态"; };
@@ -136,7 +137,7 @@ class GameOption : public GameOptionBase
     virtual uint64_t BestPlayerNum() const { return 2; }
     uint64_t timeout_sec_;
   private:
-    std::string resource_dir_;
+    //std::string resource_dir_;
 };
 
 class MainStage;
@@ -323,7 +324,11 @@ class TestBot : public testing::Test
             .game_path_ = "/game_path/",
             .image_path_ = "/image_path/",
             .admins_ = admins,
+#ifdef _WIN32
+            .db_path_ = L":memory:",
+#else
             .db_path_ = ":memory:",
+#endif
         };
         bot_ = new BotCtx(option, std::unique_ptr<DBManagerBase>(new MockDBManager()));
         ASSERT_NE(bot_, nullptr) << "init bot failed";

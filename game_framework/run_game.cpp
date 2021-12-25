@@ -60,7 +60,9 @@ int main(int argc, char** argv)
 {
     std::srand(std::chrono::steady_clock::now().time_since_epoch().count());
 
+#ifdef __linux__
     std::locale::global(std::locale(""));
+#endif
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 
     if (FLAGS_player == 0) {

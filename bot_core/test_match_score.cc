@@ -13,7 +13,7 @@
 void* OpenMessager(const uint64_t id, const bool is_uid) { return nullptr; }
 void MessagerPostText(void* p, const char* data, uint64_t len) {}
 void MessagerPostUser(void* p, uint64_t uid, bool is_at) {}
-void MessagerPostImage(void* p, const char* path) {}
+void MessagerPostImage(void* p, const std::filesystem::path::value_type* path) {}
 void MessagerFlush(void* p) {}
 void CloseMessager(void* p) {}
 const char* GetUserName(const uint64_t uid, const uint64_t* const group_id) { return nullptr; }

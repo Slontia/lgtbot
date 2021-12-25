@@ -2,6 +2,9 @@
 
 #if WITH_GLOG && !TEST_BOT
 
+#ifndef GLOG_NO_ABBREVIATED_SEVERITIES
+#define GLOG_NO_ABBREVIATED_SEVERITIES
+#endif
 #include <glog/logging.h>
 
 #define DebugLog() LOG(INFO)
