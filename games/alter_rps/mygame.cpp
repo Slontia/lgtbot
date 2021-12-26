@@ -12,6 +12,7 @@
 
 const std::string k_game_name = "二择猜拳";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
+const uint64_t k_multiple = 1;
 
 std::string GameOption::StatusInfo() const
 {

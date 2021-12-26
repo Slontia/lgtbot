@@ -18,6 +18,7 @@ static_assert(false, "Not support OS");
 #include "bot_core/log.h"
 #include "bot_core/match.h"
 #include "bot_core/msg_sender.h"
+#include "game_framework/game_main.h"
 
 static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
 {
@@ -30,7 +31,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
         return;
     }
 
-    typedef char*(*GameInfo)(uint64_t*, const char**, const char**);
+    typedef bool(*GetGameInfo)(GameInfo* game_info);
 
     const auto load_proc = [&mod](const char* const name)
     {
@@ -44,7 +45,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
         return proc;
     };
 
-    const auto game_info_fn = (GameInfo)load_proc("GameInfo");
+    const auto game_info_fn = (GetGameInfo)load_proc("GetGameInfo");
     const auto game_options_allocator_fn = (GameHandle::game_options_allocator)load_proc("NewGameOptions");
     const auto game_options_deleter_fn = (GameHandle::game_options_deleter)load_proc("DeleteGameOptions");
     const auto main_stage_allocator_fn = (GameHandle::main_stage_allocator)load_proc("NewMainStage");
@@ -57,15 +58,16 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
     const char* rule = nullptr;
     const char* module_name = nullptr;
     uint64_t max_player = 0;
-    char* name = game_info_fn(&max_player, &rule, &module_name);
-    if (!name) {
+    GameInfo game_info;
+    if (!game_info_fn(&game_info)) {
         ErrorLog() << "Load failed: Cannot get game game";
         return;
     }
-    game_handles.emplace(name, std::make_unique<GameHandle>(name, module_name, max_player, rule,
-                                                             game_options_allocator_fn, game_options_deleter_fn,
-                                                             main_stage_allocator_fn, main_stage_deleter_fn,
-                                                             [mod] { FreeLibrary(mod); }));
+    game_handles.emplace(
+            game_info.game_name_,
+            std::make_unique<GameHandle>(game_info.game_name_, game_info.module_name_, game_info.max_player_,
+                game_info.rule_, game_info.multiple_, game_options_allocator_fn, game_options_deleter_fn,
+                main_stage_allocator_fn, main_stage_deleter_fn, [mod] { FreeLibrary(mod); }));
     InfoLog() << "Loaded successfully!";
 }
 

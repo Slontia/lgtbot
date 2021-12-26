@@ -43,11 +43,12 @@ class MockDBManager : public DBManagerBase
         return true;
     }
 
-    virtual UserProfile GetUserProfile(const UserID uid) override { return {}; }
+    virtual UserProfile GetUserProfile(const UserID uid) override { return user_profiles_[uid]; }
     virtual bool Suicide(const UserID uid, const uint32_t required_match_num) override { return true; }
     virtual RankInfo GetRank() override { return {}; }
 
     std::vector<MatchProfile> match_profiles_;
+    std::map<UserID, UserProfile> user_profiles_;
 };
 
 struct Messager
@@ -345,7 +346,7 @@ class TestBot : public testing::Test
     void AddGame(const char* const name, const uint64_t max_player, const GameHandle::game_options_allocator new_option)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
-                    name, name, max_player, "这是规则介绍",
+                    name, name, max_player, "这是规则介绍", 1,
                     new_option,
                     [](const GameOptionBase* const options) {},
                     [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
@@ -358,7 +359,7 @@ class TestBot : public testing::Test
     void AddGame(const char* const name, const uint64_t max_player)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
-                    name, name, max_player, "这是规则介绍",
+                    name, name, max_player, "这是规则介绍", 1,
                     []() -> GameOptionBase* { return new GameOption(); },
                     [](const GameOptionBase* const options) { delete options; },
                     [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
@@ -1210,7 +1211,7 @@ TEST_F(TestBot, eliminate_last)
 TEST_F(TestBot, record_score)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认 测试游戏 正式");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");
@@ -1224,7 +1225,7 @@ TEST_F(TestBot, record_score)
 TEST_F(TestBot, not_released_game_not_record)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认 测试游戏 试玩");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 0");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");
@@ -1238,7 +1239,7 @@ TEST_F(TestBot, not_released_game_not_record)
 TEST_F(TestBot, one_player_game_not_record)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认 测试游戏 正式");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, 1, "#替补至 2");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");
@@ -1250,13 +1251,55 @@ TEST_F(TestBot, one_player_game_not_record)
 TEST_F(TestBot, all_player_leave_not_record)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认 测试游戏 正式");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 1");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#加入");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#开始");
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#退出 强制");
   ASSERT_PUB_MSG(EC_OK, 1, 2, "#退出 强制");
   ASSERT_EQ(0, db_manager().match_profiles_.size());
+}
+
+TEST_F(TestBot, score_not_enough_cannot_set_multiple_greater)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_MATCH_SCORE_NOT_ENOUGH, 1, 1, "#倍率 2");
+}
+
+TEST_F(TestBot, score_not_enough_cannot_join_multiple_greater)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  db_manager().user_profiles_[1].total_zero_sum_score_ = 4000;
+  db_manager().user_profiles_[1].total_top_score_ = 80;
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#倍率 2");
+  ASSERT_PUB_MSG(EC_MATCH_SCORE_NOT_ENOUGH, 1, 2, "#加入");
+}
+
+TEST_F(TestBot, score_not_enough_can_set_multiple_less_or_equal)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 2");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#倍率 1");
+  ASSERT_PUB_MSG(EC_OK, 1, 1, "#倍率 2");
+}
+
+TEST_F(TestBot, set_multiple_effects_zero_sum_score)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 2");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "分数 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 2, "分数 2");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 2, "准备");
+  ASSERT_EQ(2, db_manager().match_profiles_.size());
+  ASSERT_EQ(2000, db_manager().match_profiles_[0].zero_sum_score_);
+  ASSERT_EQ(40, db_manager().match_profiles_[0].top_score_);
 }
 
 int main(int argc, char** argv)

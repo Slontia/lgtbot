@@ -34,6 +34,15 @@ ENUM_END(StageErrCode)
 class MsgSenderForGame;
 class MatchBase;
 
+struct GameInfo
+{
+    const char* game_name_;
+    const char* module_name_;
+    const char* rule_;
+    uint64_t max_player_;
+    uint32_t multiple_;
+};
+
 class GameOptionBase
 {
   public:

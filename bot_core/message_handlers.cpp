@@ -123,7 +123,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
     sender << "游戏列表：";
     for (const auto& [name, info] : bot.game_handles()) {
         sender << "\n" << (++i) << ". " << name;
-        if (!info->is_formal_) {
+        if (info->multiple_ == 0) {
             sender << "（试玩）";
         }
     }
@@ -166,49 +166,47 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
     return EC_OK;
 }
 
-static ErrCode set_bench_to(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
-        const uint64_t bench_to_player_num)
+template <typename Fn>
+static auto handle_match_by_user(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+        const Fn& fn, const char* const action_name = "")
 {
     const auto match = bot.match_manager().GetMatch(uid);
     if (!match) {
-        reply() << "[错误] 开始失败：您未加入游戏";
+        reply() << "[错误] " << action_name << "失败：您未加入游戏";
         return EC_MATCH_USER_NOT_IN_MATCH;
     }
-    if (gid.has_value() && match->gid() != gid) {
-        reply() << "[错误] 开始失败，您是在其他房间创建的游戏，若您忘记该房间，可以尝试私信裁判";
+    if (gid.has_value() && match->gid() != *gid) {
+        reply() << "[错误] " << action_name << "失败：您是在其他房间创建的游戏，若您忘记该房间，可以尝试私信裁判";
         return EC_MATCH_NOT_THIS_GROUP;
     }
-    return match->SetBenchTo(uid, reply, bench_to_player_num);
+    return fn(match);
+}
+
+static ErrCode set_bench_to(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+        const uint32_t bench_to_player_num)
+{
+    return handle_match_by_user(bot, uid, gid, reply,
+            [&](const auto& match) { return match->SetBenchTo(uid, reply, bench_to_player_num); }, "配置");
+}
+
+static ErrCode set_multiple(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+        const uint32_t multiple)
+{
+    return handle_match_by_user(bot, uid, gid, reply,
+            [&](const auto& match) { return match->SetMultiple(uid, reply, multiple); }, "配置");
 }
 
 static ErrCode start_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
 {
-    const auto match = bot.match_manager().GetMatch(uid);
-    if (!match) {
-        reply() << "[错误] 开始失败：您未加入游戏";
-        return EC_MATCH_USER_NOT_IN_MATCH;
-    }
-    if (gid.has_value() && match->gid() != gid) {
-        reply() << "[错误] 开始失败，您是在其他房间创建的游戏，若您忘记该房间，可以尝试私信裁判";
-        return EC_MATCH_NOT_THIS_GROUP;
-    }
-    return match->GameStart(uid, gid.has_value(), reply);
+    return handle_match_by_user(bot, uid, gid, reply,
+            [&](const auto& match) { return match->GameStart(uid, gid.has_value(), reply); }, "开始");
 }
 
 static ErrCode leave(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
         const bool force)
 {
-    const auto match = bot.match_manager().GetMatch(uid);
-    if (!match) {
-        reply() << "[错误] 退出失败：您未加入游戏";
-        return EC_MATCH_USER_NOT_IN_MATCH;
-    }
-    if (gid.has_value() && match->gid() != *gid) {
-        reply() << "[错误] 退出失败：您未加入本房间游戏，您可以尝试私信裁判\"#退出\"以退出您所在的游戏";
-        return EC_MATCH_NOT_THIS_GROUP;
-    }
-    RETURN_IF_FAILED(match->Leave(uid, reply, force));
-    return EC_OK;
+    return handle_match_by_user(bot, uid, gid, reply,
+            [&](const auto& match) { return match->Leave(uid, reply, force); }, "退出");
 }
 
 static ErrCode join_private(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid,
@@ -440,6 +438,8 @@ const std::vector<MetaCommandGroup> meta_cmds = {
                         OptionalDefaultChecker<BoolChecker>(false, "单机", "多人")),
             make_command("房主设置参与游戏的AI数量，使得玩家不低于一定数量（属于配置变更，会使得全部玩家退出游戏）",
                         set_bench_to, VoidChecker("#替补至"), ArithChecker<uint32_t>(2, 12, "数量")),
+            make_command("房主调整分数倍率，0 代表试玩（属于配置变更，会使得全部玩家退出游戏）",
+                        set_multiple, VoidChecker("#倍率"), ArithChecker<uint32_t>(0, 3, "倍率")),
             make_command("房主开始游戏", start_game, VoidChecker("#开始")),
         }
     },
@@ -473,16 +473,16 @@ static ErrCode interrupt_game(BotCtx& bot, const UserID uid, const std::optional
     return EC_OK;
 }
 
-static ErrCode set_game_default(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                                 MsgSenderBase& reply, const std::string& gamename, const bool is_formal)
+static ErrCode set_game_default_multiple(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+                                 MsgSenderBase& reply, const std::string& gamename, const uint32_t multiple)
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
         reply() << "[错误] 查看失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     };
-    it->second->is_formal_ = is_formal;
-    reply() << "设置成功，游戏默认为" << (is_formal ? "正式" : "试玩") << "游戏";
+    it->second->multiple_ = multiple;
+    reply() << "设置成功，游戏默认倍率为 " << multiple;
     return EC_OK;
 }
 
@@ -497,8 +497,8 @@ const std::vector<MetaCommandGroup> admin_cmds = {
         "管理操作", {
             make_command("强制中断比赛", interrupt_game, VoidChecker("%中断"),
                         OptionalChecker<BasicChecker<MatchID>>("私密比赛编号")),
-            make_command("设置游戏默认属性", set_game_default, VoidChecker("%默认"),
-                        AnyArg("游戏名称", "猜拳游戏"), BoolChecker("正式", "试玩")),
+            make_command("设置游戏默认属性", set_game_default_multiple, VoidChecker("%默认倍率"),
+                        AnyArg("游戏名称", "猜拳游戏"), ArithChecker<uint32_t>(0, 3, "倍率")),
         }
     },
 };

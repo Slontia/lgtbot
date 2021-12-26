@@ -38,7 +38,7 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
                                 )
           )
         , bench_to_player_num_(0)
-        , multiple_(1)
+        , multiple_(game_handle.multiple_)
         , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")))
 {
     users_.emplace(host_uid, ParticipantUser(host_uid));
@@ -79,6 +79,47 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, std::optional<
     sender << "设置成功！"
            << "\n- 当前用户数：" << user_controlled_player_num()
            << "\n- 当前电脑数：" << com_num();
+    return EC_OK;
+}
+
+ErrCode Match::CheckScoreEnough_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const
+{
+    const auto required_zero_sum_score = k_zero_sum_score_multi_ * multiple * 2;
+    const auto required_top_score = k_top_score_multi_ * multiple * 2;
+    if (const auto profit = bot_.db_manager()->GetUserProfile(uid);
+            (multiple > game_handle_.multiple_ &&
+                (required_zero_sum_score > profit.total_zero_sum_score_ ||
+                 required_top_score > profit.total_top_score_))) {
+        reply() << "[错误] 您的分数未达到要求，零和总分至少需要达到 "
+                << required_zero_sum_score << "（当前 " << profit.total_zero_sum_score_ << "），"
+                << "头名总分至少需要达到 "
+                << required_top_score << "（当前 " << profit.total_top_score_ << "）";
+        return EC_MATCH_SCORE_NOT_ENOUGH;
+    }
+    return EC_OK;
+}
+
+ErrCode Match::SetMultiple(const UserID uid, MsgSenderBase& reply, const uint32_t multiple)
+{
+    std::lock_guard<std::mutex> l(mutex_);
+    if (uid != host_uid_) {
+        reply() << "[错误] 您并非房主，没有变更游戏设置的权限";
+        return EC_MATCH_NOT_HOST;
+    }
+    if (multiple == multiple_) {
+        reply() << "[警告] 赔率 " << multiple << " 和目前配置相同";
+        return EC_OK;
+    }
+    if (const auto ret = CheckScoreEnough_(uid, reply, multiple); ret != EC_OK) {
+        return ret;
+    }
+    multiple_ = multiple;
+    KickForConfigChange_();
+    if (multiple == 0) {
+        reply() << "设置成功！当前游戏为试玩游戏";
+    } else {
+        reply() << "设置成功！当前倍率为 " << multiple;
+    }
     return EC_OK;
 }
 
@@ -198,6 +239,9 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         reply() << "[错误] 加入失败：您已加入其他游戏，您可通过私信裁判\"#游戏信息\"查看该游戏信息";
         return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
     }
+    if (const auto ret = CheckScoreEnough_(uid, reply, multiple_); ret != EC_OK) {
+        return ret;
+    }
     users_.emplace(uid, ParticipantUser(uid));
     Boardcast() << "玩家 " << At(uid) << " 加入了游戏"
                 << "\n- 当前用户数：" << user_controlled_player_num()
@@ -284,12 +328,11 @@ MsgSenderBase::MsgSenderGuard Match::BoardcastAtAll()
     }
 }
 
-std::vector<ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int64_t>>& scores)
+std::vector<ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int64_t>>& scores, const uint64_t multiple)
 {
     const int64_t user_num = scores.size();
 
     // calculate zero sum score
-    static constexpr auto k_zero_sum_multi = 1000;
     const auto accum_score = [&](const auto& fn)
         {
             return std::accumulate(scores.begin(), scores.end(), 0,
@@ -318,7 +361,7 @@ std::vector<ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int
         };
     const auto top_score_fn = [&](const int64_t score, const ScoreRecorder& recorder)
         {
-            return score == recorder.score_ ? user_num * 10 / recorder.count_ : 0;
+            return score == recorder.score_ ? user_num * k_top_score_multi_ / recorder.count_ * multiple : 0;
         };
     for (const auto& [_, score] : scores) {
         record_fn(score, min_recorder, std::less());
@@ -332,7 +375,8 @@ std::vector<ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int
         ret.back().uid_ = uid;
         ret.back().game_score_ = score;
         ret.back().zero_sum_score_ =
-            abs_sum_score == 0 ? 0 : (score * user_num - sum_score) * user_num * 1000 / abs_sum_score;
+            abs_sum_score == 0 ?  0 :
+                (score * user_num - sum_score) * user_num * k_zero_sum_score_multi_ / abs_sum_score * multiple;
         ret.back().top_score_ += top_score_fn(score, max_recorder);
         ret.back().top_score_ -= top_score_fn(score, min_recorder);
     }
@@ -358,7 +402,7 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
     if (sec == 0) {
         return;
     }
-    Timer::TaskSet tasks;
+    StopTimer();
     timer_is_over_ = std::make_shared<bool>(false);
     // We must store a timer_is_over because it may be reset to true when new timer begins.
     const auto timeout_handler = [timer_is_over = timer_is_over_, match_wk = weak_from_this()]()
@@ -377,6 +421,7 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
                 match->Routine_();
             }
         };
+    Timer::TaskSet tasks;
     if (kMinAlertSec > sec / 2) {
         tasks.emplace_front(sec, timeout_handler);
     } else {
@@ -491,9 +536,9 @@ void Match::OnGameOver_()
             sender << "\n\n游戏结果不记录：因为玩家数小于2";
         } else if (!bot_.db_manager()) {
             sender << "\n\n游戏结果不记录：因为未连接数据库";
-        } else if (!game_handle_.is_formal_) {
+        } else if (multiple_ == 0) {
             sender << "\n\n游戏结果不记录：因为该游戏为试玩游戏";
-        } else if (const auto score_info = CalScores_(user_scores);
+        } else if (const auto score_info = CalScores_(user_scores, multiple_);
                 !bot_.db_manager()->RecordMatch(game_handle_.name_, gid_, host_uid_, multiple_, score_info)) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
         } else {

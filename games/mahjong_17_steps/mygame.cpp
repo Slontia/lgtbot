@@ -13,6 +13,7 @@
 
 const std::string k_game_name = "十七步";
 const uint64_t k_max_player = 4; /* 0 means no max-player limits */
+const uint64_t k_multiple = 1;
 
 std::string GameOption::StatusInfo() const
 {

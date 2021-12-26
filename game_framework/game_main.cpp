@@ -12,19 +12,21 @@ extern MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, M
 
 extern "C" {
 
-const char* GameInfo(uint64_t* max_player, const char** rule, const char** module_name)
+const bool GetGameInfo(GameInfo* game_info)
 {
-    if (!max_player || !rule) {
-        return nullptr;
+    if (!game_info) {
+        return false;
     }
-    *max_player = k_max_player;
-    *rule = Rule();
+    game_info->game_name_ = k_game_name.c_str();
 #ifndef GAME_MODULE_NAME
-    *module_name = "[unset_module_name]";
+    game_info->module_name_ = "[unset_module_name]";
 #else
-    *module_name = GAME_MODULE_NAME;
+    game_info->module_name_ = GAME_MODULE_NAME;
 #endif
-    return k_game_name.c_str();
+    game_info->rule_ = Rule();
+    game_info->max_player_ = k_max_player;
+    game_info->multiple_ = k_multiple;
+    return true;
 }
 
 GameOptionBase* NewGameOptions() { return new GameOption(); }

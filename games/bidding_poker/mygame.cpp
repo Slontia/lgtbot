@@ -14,6 +14,7 @@
 
 const std::string k_game_name = "投标扑克";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
+const uint64_t k_multiple = 1;
 
 std::string GameOption::StatusInfo() const
 {

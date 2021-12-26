@@ -11,6 +11,6 @@ extern void StopTimer(void* match);
 extern const char* Rule();
 
 extern const std::string k_game_name;
-extern const uint64_t k_min_player;
 extern const uint64_t k_max_player;
+extern const uint64_t k_multiple;
 
