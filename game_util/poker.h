@@ -3,13 +3,14 @@
 #ifdef ENUM_END
 
 ENUM_BEGIN(PokerSuit)
-ENUM_MEMBER(PokerSuit, CLUB)
-ENUM_MEMBER(PokerSuit, DIANMOND)
-ENUM_MEMBER(PokerSuit, HEART)
-ENUM_MEMBER(PokerSuit, SPADE)
+ENUM_MEMBER(PokerSuit, PURPLE)
+ENUM_MEMBER(PokerSuit, BLUE)
+ENUM_MEMBER(PokerSuit, RED)
+ENUM_MEMBER(PokerSuit, BLACK)
 ENUM_END(PokerSuit)
 
 ENUM_BEGIN(PokerNumber)
+ENUM_MEMBER(PokerNumber, _1)
 ENUM_MEMBER(PokerNumber, _2)
 ENUM_MEMBER(PokerNumber, _3)
 ENUM_MEMBER(PokerNumber, _4)
@@ -18,11 +19,7 @@ ENUM_MEMBER(PokerNumber, _6)
 ENUM_MEMBER(PokerNumber, _7)
 ENUM_MEMBER(PokerNumber, _8)
 ENUM_MEMBER(PokerNumber, _9)
-ENUM_MEMBER(PokerNumber, _10)
-ENUM_MEMBER(PokerNumber, _J)
-ENUM_MEMBER(PokerNumber, _Q)
-ENUM_MEMBER(PokerNumber, _K)
-ENUM_MEMBER(PokerNumber, _A)
+ENUM_MEMBER(PokerNumber, _0)
 ENUM_END(PokerNumber)
 
 ENUM_BEGIN(PatternType)
@@ -103,12 +100,14 @@ std::string Poker::ToHtml() const
 {
     std::string s;
     switch (suit_) {
-        case PokerSuit::SPADE: s += HTML_COLOR_FONT_HEADER(black) "♠"; break;
-        case PokerSuit::HEART: s += HTML_COLOR_FONT_HEADER(red) "♥"; break;
-        case PokerSuit::CLUB: s += HTML_COLOR_FONT_HEADER(black) "♣"; break;
-        case PokerSuit::DIANMOND: s += HTML_COLOR_FONT_HEADER(red) "♦"; break;
+        case PokerSuit::BLACK: s += HTML_COLOR_FONT_HEADER(black) "★"; break;
+        case PokerSuit::RED: s += HTML_COLOR_FONT_HEADER(red) "■"; break;
+        case PokerSuit::BLUE: s += HTML_COLOR_FONT_HEADER(blue) "▲"; break;
+        case PokerSuit::PURPLE: s += HTML_COLOR_FONT_HEADER(purple) "●"; break;
     }
     switch (number_) {
+        case PokerNumber::_0: s += "X"; break;
+        case PokerNumber::_1: s += "1"; break;
         case PokerNumber::_2: s += "2"; break;
         case PokerNumber::_3: s += "3"; break;
         case PokerNumber::_4: s += "4"; break;
@@ -117,11 +116,6 @@ std::string Poker::ToHtml() const
         case PokerNumber::_7: s += "7"; break;
         case PokerNumber::_8: s += "8"; break;
         case PokerNumber::_9: s += "9"; break;
-        case PokerNumber::_10: s += "10"; break;
-        case PokerNumber::_J: s += "J"; break;
-        case PokerNumber::_Q: s += "Q"; break;
-        case PokerNumber::_K: s += "K"; break;
-        case PokerNumber::_A: s += "A"; break;
     }
     s += HTML_FONT_TAIL;
     return s;
@@ -131,12 +125,14 @@ template <typename Sender>
 Sender& operator<<(Sender& sender, const Poker& poker)
 {
     switch (poker.suit_) {
-        case PokerSuit::SPADE: sender << "♠"; break;
-        case PokerSuit::HEART: sender << "♡"; break;
-        case PokerSuit::CLUB: sender << "♣"; break;
-        case PokerSuit::DIANMOND: sender << "♢"; break;
+        case PokerSuit::BLACK: sender << "★"; break;
+        case PokerSuit::RED: sender << "■"; break;
+        case PokerSuit::BLUE: sender << "△"; break;
+        case PokerSuit::PURPLE: sender << "○"; break;
     }
     switch (poker.number_) {
+        case PokerNumber::_0: sender << "X"; break;
+        case PokerNumber::_1: sender << "1"; break;
         case PokerNumber::_2: sender << "2"; break;
         case PokerNumber::_3: sender << "3"; break;
         case PokerNumber::_4: sender << "4"; break;
@@ -145,11 +141,6 @@ Sender& operator<<(Sender& sender, const Poker& poker)
         case PokerNumber::_7: sender << "7"; break;
         case PokerNumber::_8: sender << "8"; break;
         case PokerNumber::_9: sender << "9"; break;
-        case PokerNumber::_10: sender << "10"; break;
-        case PokerNumber::_J: sender << "J"; break;
-        case PokerNumber::_Q: sender << "Q"; break;
-        case PokerNumber::_K: sender << "K"; break;
-        case PokerNumber::_A: sender << "A"; break;
     }
     return sender;
 }
@@ -165,25 +156,14 @@ template <typename String, typename Sender>
 std::optional<PokerSuit> ParseSuit(const String& s, Sender&& sender)
 {
     static const std::map<std::string, PokerSuit> str2suit = {
-        {"黑桃", PokerSuit::SPADE},
-        {"黑心", PokerSuit::SPADE},
-        {"黑", PokerSuit::SPADE},
-        {"♠", PokerSuit::SPADE},
-        {"♤", PokerSuit::SPADE},
-        {"红桃", PokerSuit::HEART},
-        {"红心", PokerSuit::HEART},
-        {"红", PokerSuit::HEART},
-        {"♥", PokerSuit::HEART},
-        {"♡", PokerSuit::HEART},
-        {"梅花", PokerSuit::CLUB},
-        {"梅", PokerSuit::CLUB},
-        {"♣", PokerSuit::CLUB},
-        {"♧", PokerSuit::CLUB},
-        {"方板", PokerSuit::DIANMOND},
-        {"方片", PokerSuit::DIANMOND},
-        {"方块", PokerSuit::DIANMOND},
-        {"♦", PokerSuit::DIANMOND},
-        {"♢", PokerSuit::DIANMOND},
+        {"黑", PokerSuit::BLACK},
+        {"星", PokerSuit::BLACK},
+        {"红", PokerSuit::RED},
+        {"方", PokerSuit::RED},
+        {"蓝", PokerSuit::BLUE},
+        {"角", PokerSuit::BLUE},
+        {"紫", PokerSuit::PURPLE},
+        {"圆", PokerSuit::PURPLE},
     };
     const auto it = str2suit.find(s);
     if (it == str2suit.end()) {
@@ -201,6 +181,10 @@ template <typename String, typename Sender>
 std::optional<PokerNumber> ParseNumber(const String& s, Sender&& sender)
 {
     static const std::map<std::string, PokerNumber> str2num = {
+        {"X", PokerNumber::_0},
+        {"x", PokerNumber::_0},
+        {"0", PokerNumber::_0},
+        {"1", PokerNumber::_1},
         {"2", PokerNumber::_2},
         {"3", PokerNumber::_3},
         {"4", PokerNumber::_4},
@@ -209,19 +193,6 @@ std::optional<PokerNumber> ParseNumber(const String& s, Sender&& sender)
         {"7", PokerNumber::_7},
         {"8", PokerNumber::_8},
         {"9", PokerNumber::_9},
-        {"10", PokerNumber::_10},
-        {"J", PokerNumber::_J},
-        {"j", PokerNumber::_J},
-        {"11", PokerNumber::_J},
-        {"Q", PokerNumber::_Q},
-        {"q", PokerNumber::_Q},
-        {"12", PokerNumber::_Q},
-        {"K", PokerNumber::_K},
-        {"k", PokerNumber::_K},
-        {"13", PokerNumber::_K},
-        {"A", PokerNumber::_A},
-        {"a", PokerNumber::_A},
-        {"1", PokerNumber::_A},
     };
     const auto it = str2num.find(s);
     if (it == str2num.end()) {
@@ -242,8 +213,8 @@ std::optional<Poker> Parse(const String& s, Sender&& sender)
     std::smatch match_ret;
     PokerNumber number_;
     PokerSuit suit_;
-    if (!std::regex_match(s, match_ret, std::regex("(.*)([AJQKajqk1-9]|10|11|12|13)"))) {
-        sender << "非法的点数，需为2~10，或A、J、Q、K中一种";
+    if (!std::regex_match(s, match_ret, std::regex("(.*)([Xx1-9])"))) {
+        sender << "非法的点数，需为 1~9 或 X 中一种";
         return std::nullopt;
     }
     assert(match_ret.size() == 3);
@@ -298,7 +269,7 @@ const char* Deck::TypeName() const
         case PatternType::FULL_HOUSE: return "满堂红";
         case PatternType::FOUR_OF_A_KIND: return "四条";
         case PatternType::STRAIGHT_FLUSH:
-            if (pokers_.front().number_ == PokerNumber::_A) {
+            if (pokers_.front().number_ == PokerNumber::_0) {
                 return "皇家同花顺";
             } else {
                 return "同花顺";
@@ -480,7 +451,7 @@ class Hand
                 pokers.clear();
             }
         }
-        if (const auto poker = get_poker(PokerNumber::_A); FIND_STRAIGHT && pokers.size() == 4 && poker.has_value()) {
+        if (const auto poker = get_poker(PokerNumber::_0); FIND_STRAIGHT && pokers.size() == 4 && poker.has_value()) {
             return std::array<Poker, 5>{pokers[0], pokers[1], pokers[2], pokers[3], *poker};
         } else {
             return std::nullopt;

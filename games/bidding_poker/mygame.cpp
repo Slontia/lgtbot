@@ -12,9 +12,9 @@
 #include "game_util/poker.h"
 #include "game_util/util.h"
 
-const std::string k_game_name = "投标扑克";
+const std::string k_game_name = "投标波卡";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+const uint64_t k_multiple = 0;
 
 std::string GameOption::StatusInfo() const
 {
@@ -34,8 +34,8 @@ std::string GameOption::StatusInfo() const
 
 bool GameOption::ToValid(MsgSenderBase& reply)
 {
-    if (PlayerNum() < 5) {
-        reply() << "该游戏至少 5 人参加，当前玩家数为" << PlayerNum();
+    if (PlayerNum() < 3) {
+        reply() << "该游戏至少 3 人参加，当前玩家数为" << PlayerNum();
         return false;
     }
     return true;
@@ -471,13 +471,13 @@ class DiscardStage : public SubGameStage<>
         : GameStage(main_stage, "弃牌阶段",
                 MakeStageCommand("查看各玩家手牌及金币情况", &DiscardStage::Status_, VoidChecker("赛况")),
                 MakeStageCommand("本回合不进行弃牌", &DiscardStage::Cancel_, VoidChecker("pass")),
-                MakeStageCommand("决定本回合**所有的**弃牌", &DiscardStage::Discard_, RepeatableChecker<AnyArg>("扑克", "红桃A")))
+                MakeStageCommand("决定本回合**所有的**弃牌", &DiscardStage::Discard_, RepeatableChecker<AnyArg>("扑克", "红3")))
     {}
 
     void OnStageBegin()
     {
         Boardcast() << Markdown(InfoHtml_());
-        Boardcast() << "弃牌阶段开始，请私信裁判进行弃牌，当到达时间限制，或所有玩家皆选择完毕后，回合结束。"
+        Boardcast() << "弃牌阶段开始，请一次性私信裁判**所有的**弃牌，当到达时间限制，或所有玩家皆选择完毕后，回合结束。"
                        "\n回合结束前您可以随意更改您的选择。";
         StartTimer(option().GET_VALUE(弃牌时间));
         for (const auto& player : main_stage().players()) {
@@ -552,7 +552,7 @@ class DiscardStage : public SubGameStage<>
         for (auto& [discarder, pokers] : main_stage().poker_items()) {
             if (discarder.has_value() && *discarder == pid) {
                 pokers = std::move(pokers_to_discard);
-                return StageErrCode::OK;
+                return StageErrCode::READY;
             }
         }
         main_stage().poker_items().emplace_back(pid, std::move(pokers_to_discard));
@@ -620,7 +620,7 @@ class RoundStage : public SubGameStage<DiscardStage, MainBidStage>
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
     const auto shuffled_pokers = poker::ShuffledPokers(option().GET_VALUE(种子));
-    assert(shuffled_pokers.size() == 52);
+    assert(shuffled_pokers.size() == 40);
     poker_items_.emplace_back(std::nullopt, std::set<poker::Poker>(shuffled_pokers.begin() + 0, shuffled_pokers.begin() + 5));
     poker_items_.emplace_back(std::nullopt, std::set<poker::Poker>(shuffled_pokers.begin() + 5, shuffled_pokers.begin() + 10));
     poker_items_.emplace_back(std::nullopt, std::set<poker::Poker>(shuffled_pokers.begin() + 10, shuffled_pokers.begin() + 15));
@@ -629,8 +629,6 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     poker_items_.emplace_back(std::nullopt, std::set<poker::Poker>(shuffled_pokers.begin() + 25, shuffled_pokers.begin() + 30));
     poker_items_.emplace_back(std::nullopt, std::set<poker::Poker>(shuffled_pokers.begin() + 30, shuffled_pokers.begin() + 35));
     poker_items_.emplace_back(std::nullopt, std::set<poker::Poker>(shuffled_pokers.begin() + 35, shuffled_pokers.begin() + 40));
-    poker_items_.emplace_back(std::nullopt, std::set<poker::Poker>(shuffled_pokers.begin() + 40, shuffled_pokers.begin() + 46));
-    poker_items_.emplace_back(std::nullopt, std::set<poker::Poker>(shuffled_pokers.begin() + 46, shuffled_pokers.begin() + 52));
     return std::make_unique<MainBidStage>(*this);
 }
 
