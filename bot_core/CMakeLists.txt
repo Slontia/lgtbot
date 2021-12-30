@@ -13,18 +13,18 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -latomic")
 
 list(APPEND SOURCE_FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/bot_core.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/db_manager.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/match.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/match_manager.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/message_handlers.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/load_game_modules.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/bot_core.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/db_manager.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match_manager.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/message_handlers.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/load_game_modules.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cc
 )
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
-  list(APPEND SOURCE_FLIES ${CMAKE_CURRENT_SOURCE_DIR}/dllmain.cpp)
+  list(APPEND SOURCE_FLIES ${CMAKE_CURRENT_SOURCE_DIR}/dllmain.cc)
 endif()
 
 find_package(Threads REQUIRED)
@@ -58,11 +58,11 @@ if (WITH_TEST)
   target_include_directories(test_bot PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}) # to include empty options.h
   add_test(NAME test_bot COMMAND test_bot)
 
-  add_executable(test_db test_db.cc db_manager.cpp)
+  add_executable(test_db test_db.cc db_manager.cc)
   target_link_libraries(test_db ${THIRD_PARTIES})
   add_test(NAME test_db COMMAND test_db)
 
-  add_executable(test_match_score test_match_score.cc match.cpp msg_sender.cpp)
+  add_executable(test_match_score test_match_score.cc match.cc msg_sender.cc)
   target_link_libraries(test_match_score ${THIRD_PARTIES})
   add_test(NAME test_match_score COMMAND test_match_score)
 endif()

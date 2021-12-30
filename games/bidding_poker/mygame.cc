@@ -1,3 +1,7 @@
+// Copyright (c) 2018-present, Chang Liu <github.com/slontia>. All rights reserved.
+//
+// This source code is licensed under LGPLv2 (found in the LICENSE file).
+
 #include <array>
 #include <functional>
 #include <memory>
@@ -10,7 +14,6 @@
 #include "utility/html.h"
 #include "game_util/bidding.h"
 #include "game_util/poker.h"
-#include "game_util/util.h"
 
 const std::string k_game_name = "投标波卡";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */

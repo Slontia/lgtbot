@@ -33,10 +33,10 @@ foreach (GAME_DIR ${GAME_DIRS})
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${GAME_DIR}/resource ${LIBRARY_OUTPUT_PATH}/${GAME})
 
     set(SOURCE_FILES
-      ${GAME_DIR}/mygame.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/game_main.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource_loader.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cpp
+      ${GAME_DIR}/mygame.cc
+      ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/game_main.cc
+      ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource_loader.cc
+      ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cc
     )
 
     set(RULE_BINARY ${CMAKE_CURRENT_BINARY_DIR}/${GAME}_rule.o)
@@ -70,7 +70,7 @@ foreach (GAME_DIR ${GAME_DIRS})
       target_compile_definitions(test_game_${GAME} PUBLIC TEST_BOT)
       add_test(NAME test_game_${GAME} COMMAND test_game_${GAME})
 
-      add_executable(run_game_${GAME} ${SOURCE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/run_game.cpp)
+      add_executable(run_game_${GAME} ${SOURCE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/run_game.cc)
       target_include_directories(run_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
       target_compile_definitions(run_game_${GAME} PUBLIC TEST_BOT)
       target_link_libraries(run_game_${GAME} gflags)

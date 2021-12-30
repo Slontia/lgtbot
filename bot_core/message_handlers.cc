@@ -1,3 +1,7 @@
+// Copyright (c) 2018-present, Chang Liu <github.com/slontia>. All rights reserved.
+//
+// This source code is licensed under LGPLv2 (found in the LICENSE file).
+
 #include "bot_core/message_handlers.h"
 
 #include "utility/msg_checker.h"
