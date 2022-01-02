@@ -67,13 +67,11 @@ GAME_TEST(5, do_nothing)
     START_GAME();
 
     for (int j = 0; j < 8; ++j) {
-        ASSERT_TIMEOUT(CONTINUE);
-        ASSERT_TIMEOUT(CHECKOUT);
+        ASSERT_TIMEOUT(CHECKOUT); // no bid will checkout directly
     }
     for (int i = 0; i < 5; ++i) {
         //ASSERT_TIMEOUT(CHECKOUT); // discard stage
         for (int j = 0; j < 8; ++j) {
-            ASSERT_TIMEOUT(CONTINUE);
             ASSERT_TIMEOUT(CHECKOUT);
         }
     }
@@ -96,7 +94,7 @@ GAME_TEST(5, do_nothing_no_items)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    ASSERT_SCORE(300, 50, 50, 50, 50);
+    ASSERT_SCORE(200, 75, 75, 75, 75);
 }
 
 // 种子 ABC
@@ -200,8 +198,8 @@ GAME_TEST(5, discard_1)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    // pool coins 50 * 5 + 25 = 275
-    ASSERT_SCORE(50 + 20, 50 + 7, 25 + 3, 50 + 61, 50 + 184);
+    // pool coins 50 * 5 + 13 = 263
+    ASSERT_SCORE(50 + 33, 50 + 16, 37 + 16, 50 + 66, 50 + 132);
 }
 
 GAME_TEST(5, discard_2)
@@ -253,8 +251,8 @@ GAME_TEST(5, discard_2)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    // pool coins 103 + 25 + 50 + 50 = 228
-    ASSERT_SCORE(48 + 152, 25, 99 + 76, 50, 50);
+    // pool coins 103 + 13 + 25 + 25 = 166
+    ASSERT_SCORE(48 + 83, 37, 99 + 83, 75, 75);
 }
 
 int main(int argc, char** argv)

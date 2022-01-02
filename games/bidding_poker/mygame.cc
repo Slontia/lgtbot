@@ -17,7 +17,7 @@
 
 const std::string k_game_name = "投标波卡";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
-const uint64_t k_multiple = 0;
+const uint64_t k_multiple = 1;
 
 std::string GameOption::StatusInfo() const
 {
@@ -109,14 +109,14 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
 
         std::sort(best_decks.begin(), best_decks.end(), [](const DeckElement& _1, const DeckElement& _2) { return _1.second > _2.second; });
 
-        static const auto half = [](const auto value, const uint32_t split) { return value - value / split; };
+        static const auto get_percent = [](const auto value, const uint32_t percent) { return value - value * (100 - percent) / 100; };
 
         uint32_t bonus_coins = BonusCoins_();
 
         // decrease coins
         const auto decrese_coins = [&](const PlayerID pid)
         {
-            const auto lost_coins = half(players_[pid].coins_, 2);
+            const auto lost_coins = get_percent(players_[pid].coins_, option().GET_VALUE(惩罚比例));
             bonus_coins += lost_coins;
             players_[pid].bonus_coins_ -= lost_coins;
         };
@@ -128,9 +128,15 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
             }
         }
 
+	// const double increase_scale = static_cast<double>(option().GET_VALUE(奖励比例)) / 100;
+        // const double logical_sum = (std::pow(increase_scale, best_deck.size()) - 1) / (increase_scale - 1);
+	// std::cout << "logical: " << logical_sum << std::endl;
+	// auto remains_bonus_coins = bonus_coins;
+
         // increase coins
-        for (uint64_t i = 0; i < best_decks.size() - 1; ++i) {
-            const auto add_coins = half(bonus_coins, 3);
+        for (uint64_t i = 0; i < best_decks.size(); ++i) {
+            // const auto increase_coins = std::min(std::pow(increase_scale, i) * increase;
+            const auto add_coins = get_percent(bonus_coins, 50);
             players_[best_decks[i].first].bonus_coins_ += add_coins;
             bonus_coins -= add_coins;
         }
@@ -342,7 +348,7 @@ class BidStage : public SubGameStage<>
                 }
             }
             return true;
-        } else {
+        } else if (ret.second.size() > 1) {
             auto sender = Boardcast();
             sender << "最大金额投标者有多名玩家，分别是：";
             for (const auto& winner : ret.second) {
@@ -355,6 +361,8 @@ class BidStage : public SubGameStage<>
             }
             StartTimer(option().GET_VALUE(投标时间));
             return false;
+        } else {
+            return true;
         }
     }
 
