@@ -16,6 +16,7 @@
 #include "bot_core/log.h"
 #include "bot_core/match.h"
 #include "bot_core/match_manager.h"
+#include "bot_core/score_calculate.h"
 
 Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, const UserID host_uid,
              const std::optional<GroupID> gid)
@@ -88,8 +89,8 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, std::optional<
 
 ErrCode Match::CheckScoreEnough_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const
 {
-    const auto required_zero_sum_score = k_zero_sum_score_multi_ * multiple * 2;
-    const auto required_top_score = k_top_score_multi_ * multiple * 2;
+    const auto required_zero_sum_score = k_zero_sum_score_multi * multiple * 2;
+    const auto required_top_score = k_top_score_multi * multiple * 2;
     if (const auto profit = bot_.db_manager()->GetUserProfile(uid);
             (multiple > game_handle_.multiple_ &&
                 (required_zero_sum_score > profit.total_zero_sum_score_ ||
@@ -332,61 +333,6 @@ MsgSenderBase::MsgSenderGuard Match::BoardcastAtAll()
     }
 }
 
-std::vector<ScoreInfo> Match::CalScores_(const std::vector<std::pair<UserID, int64_t>>& scores, const uint64_t multiple)
-{
-    const int64_t user_num = scores.size();
-
-    // calculate zero sum score
-    const auto accum_score = [&](const auto& fn)
-        {
-            return std::accumulate(scores.begin(), scores.end(), 0,
-                    [&](const int64_t sum, const auto& pair) { return fn(pair.second) + sum; });
-        };
-    const int64_t sum_score = accum_score([](const int64_t score) { return score; });
-    const int64_t abs_sum_score =
-        accum_score([&](const int64_t score) { return std::abs(score * user_num - sum_score); });
-
-    // calculate top score
-    struct ScoreRecorder
-    {
-        int64_t score_ = 0;
-        uint64_t count_ = 0;
-    };
-    ScoreRecorder min_recorder;
-    ScoreRecorder max_recorder;
-    const auto record_fn = [&](const int64_t score, ScoreRecorder& recorder, const auto& op)
-        {
-            if (recorder.count_ == 0 || op(score, recorder.score_)) {
-                recorder.score_ = score;
-                recorder.count_ = 1;
-            } else if (score == recorder.score_) {
-                ++recorder.count_;
-            }
-        };
-    const auto top_score_fn = [&](const int64_t score, const ScoreRecorder& recorder)
-        {
-            return score == recorder.score_ ? user_num * k_top_score_multi_ / recorder.count_ * multiple : 0;
-        };
-    for (const auto& [_, score] : scores) {
-        record_fn(score, min_recorder, std::less());
-        record_fn(score, max_recorder, std::greater());
-    }
-
-    // save to map
-    std::vector<ScoreInfo> ret;
-    for (const auto& [uid, score] : scores) {
-        ret.emplace_back();
-        ret.back().uid_ = uid;
-        ret.back().game_score_ = score;
-        ret.back().zero_sum_score_ =
-            abs_sum_score == 0 ?  0 :
-                (score * user_num - sum_score) * user_num * k_zero_sum_score_multi_ / abs_sum_score * multiple;
-        ret.back().top_score_ += top_score_fn(score, max_recorder);
-        ret.back().top_score_ -= top_score_fn(score, min_recorder);
-    }
-    return ret;
-}
-
 bool Match::SwitchHost()
 {
     if (users_.empty()) {
@@ -514,7 +460,7 @@ void Match::OnGameOver_()
     state_ = State::IS_OVER; // is necessary because other thread may own a match reference
     //end_time_ = std::chrono::system_clock::now();
     {
-        std::vector<std::pair<UserID, int64_t>> user_scores;
+        std::vector<UserInfoForCalScore> user_scores;
 
         auto sender = Boardcast();
         sender << "游戏结束，公布分数：\n";
@@ -523,14 +469,14 @@ void Match::OnGameOver_()
             sender << At(pid) << " " << score << "\n";
             const auto id = ConvertPid(pid);
             if (const auto pval = std::get_if<UserID>(&id); pval) {
-                user_scores.emplace_back(*pval, score);
+                user_scores.emplace_back(*pval, score, 0, 1500); // TODO: get info from db
             }
         }
         sender << "感谢诸位参与！";
 
         assert(user_scores.size() == users_.size());
         std::sort(user_scores.begin(), user_scores.end(),
-                [](const auto& _1, const auto& _2) { return _1.second > _2.second; });
+                [](const auto& _1, const auto& _2) { return _1.game_score_ > _2.game_score_; });
 
         static const auto show_score = [](const char* const name, const int64_t score)
             {
@@ -542,7 +488,7 @@ void Match::OnGameOver_()
             sender << "\n\n游戏结果不记录：因为未连接数据库";
         } else if (multiple_ == 0) {
             sender << "\n\n游戏结果不记录：因为该游戏为试玩游戏";
-        } else if (const auto score_info = CalScores_(user_scores, multiple_);
+        } else if (const auto score_info = CalScores(user_scores, multiple_);
                 !bot_.db_manager()->RecordMatch(game_handle_.name_, gid_, host_uid_, multiple_, score_info)) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
         } else {

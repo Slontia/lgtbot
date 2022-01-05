@@ -20,7 +20,7 @@ list(APPEND SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/message_handlers.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/load_game_modules.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/score_calculate.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cc
 )
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
@@ -62,7 +62,7 @@ if (WITH_TEST)
   target_link_libraries(test_db ${THIRD_PARTIES})
   add_test(NAME test_db COMMAND test_db)
 
-  add_executable(test_match_score test_match_score.cc match.cc msg_sender.cc)
+  add_executable(test_match_score test_match_score.cc score_calculate.cc)
   target_link_libraries(test_match_score ${THIRD_PARTIES})
   add_test(NAME test_match_score COMMAND test_match_score)
 endif()

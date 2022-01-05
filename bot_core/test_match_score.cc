@@ -10,9 +10,7 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-#define private public
-#include "bot_core/match.h"
-#undef private
+#include "bot_core/score_calculate.h"
 
 void* OpenMessager(const uint64_t id, const bool is_uid) { return nullptr; }
 void MessagerPostText(void* p, const char* data, uint64_t len) {}
@@ -36,7 +34,11 @@ do { \
 
 TEST_F(TestMatchScore, two_different_user)
 {
-    const auto ret = Match::CalScores_({ {1, 10}, {2, 20} });
+    std::vector<UserInfoForCalScore> user_infos{
+        UserInfoForCalScore{1, 10, 0, 1500},
+        UserInfoForCalScore{2, 20, 0, 1500}
+    };
+    const auto ret = CalScores(user_infos);
     ASSERT_EQ(2, ret.size());
     ASSERT_SCORE_INFO(ret[0], UserID(1), 10, -1000, -20);
     ASSERT_SCORE_INFO(ret[1], UserID(2), 20, 1000, 20);
@@ -44,7 +46,12 @@ TEST_F(TestMatchScore, two_different_user)
 
 TEST_F(TestMatchScore, three_different_user)
 {
-    const auto ret = Match::CalScores_({ {1, 10}, {2, 20}, {3, 30}});
+    std::vector<UserInfoForCalScore> user_infos{
+        UserInfoForCalScore{1, 10, 0, 1500},
+        UserInfoForCalScore{2, 20, 0, 1500},
+        UserInfoForCalScore{3, 30, 0, 1500}
+    };
+    const auto ret = CalScores(user_infos);
     ASSERT_EQ(3, ret.size());
     ASSERT_SCORE_INFO(ret[0], UserID(1), 10, -1500, -30);
     ASSERT_SCORE_INFO(ret[1], UserID(2), 20, 0, 0);
@@ -53,7 +60,13 @@ TEST_F(TestMatchScore, three_different_user)
 
 TEST_F(TestMatchScore, four_different_user)
 {
-    const auto ret = Match::CalScores_({ {1, 10}, {2, 20}, {3, 30}, {4, 40}});
+    std::vector<UserInfoForCalScore> user_infos{
+        UserInfoForCalScore{1, 10, 0, 1500},
+        UserInfoForCalScore{2, 20, 0, 1500},
+        UserInfoForCalScore{3, 30, 0, 1500},
+        UserInfoForCalScore{4, 40, 0, 1500}
+    };
+    const auto ret = CalScores(user_infos);
     ASSERT_EQ(4, ret.size());
     ASSERT_SCORE_INFO(ret[0], UserID(1), 10, -1500, -40);
     ASSERT_SCORE_INFO(ret[1], UserID(2), 20, -500, 0);
@@ -63,7 +76,11 @@ TEST_F(TestMatchScore, four_different_user)
 
 TEST_F(TestMatchScore, two_same_user)
 {
-    const auto ret = Match::CalScores_({ {1, 10}, {2, 10} });
+    std::vector<UserInfoForCalScore> user_infos{
+        UserInfoForCalScore{1, 10, 0, 1500},
+        UserInfoForCalScore{2, 10, 0, 1500}
+    };
+    const auto ret = CalScores(user_infos);
     ASSERT_EQ(2, ret.size());
     ASSERT_SCORE_INFO(ret[0], UserID(1), 10, 0, 0);
     ASSERT_SCORE_INFO(ret[1], UserID(2), 10, 0, 0);
@@ -71,7 +88,12 @@ TEST_F(TestMatchScore, two_same_user)
 
 TEST_F(TestMatchScore, three_both_top_user)
 {
-    const auto ret = Match::CalScores_({ {1, 10}, {2, 20}, {3, 20} });
+    std::vector<UserInfoForCalScore> user_infos{
+        UserInfoForCalScore{1, 10, 0, 1500},
+        UserInfoForCalScore{2, 20, 0, 1500},
+        UserInfoForCalScore{3, 20, 0, 1500}
+    };
+    const auto ret = CalScores(user_infos);
     ASSERT_EQ(3, ret.size());
     ASSERT_SCORE_INFO(ret[0], UserID(1), 10, -1500, -30);
     ASSERT_SCORE_INFO(ret[1], UserID(2), 20, 750, 15);
@@ -80,7 +102,12 @@ TEST_F(TestMatchScore, three_both_top_user)
 
 TEST_F(TestMatchScore, three_both_last_user)
 {
-    const auto ret = Match::CalScores_({ {1, 10}, {2, 10}, {3, 20} });
+    std::vector<UserInfoForCalScore> user_infos{
+        UserInfoForCalScore{1, 10, 0, 1500},
+        UserInfoForCalScore{2, 10, 0, 1500},
+        UserInfoForCalScore{3, 20, 0, 1500}
+    };
+    const auto ret = CalScores(user_infos);
     ASSERT_EQ(3, ret.size());
     ASSERT_SCORE_INFO(ret[0], UserID(1), 10, -750, -15);
     ASSERT_SCORE_INFO(ret[1], UserID(2), 10, -750, -15);
@@ -89,7 +116,13 @@ TEST_F(TestMatchScore, three_both_last_user)
 
 TEST_F(TestMatchScore, four_both_top_last_user)
 {
-    const auto ret = Match::CalScores_({ {1, 10}, {2, 10}, {3, 20}, {4, 20}});
+    std::vector<UserInfoForCalScore> user_infos{
+        UserInfoForCalScore{1, 10, 0, 1500},
+        UserInfoForCalScore{2, 10, 0, 1500},
+        UserInfoForCalScore{3, 20, 0, 1500},
+        UserInfoForCalScore{4, 20, 0, 1500}
+    };
+    const auto ret = CalScores(user_infos);
     ASSERT_EQ(4, ret.size());
     ASSERT_SCORE_INFO(ret[0], UserID(1), 10, -1000, -20);
     ASSERT_SCORE_INFO(ret[1], UserID(2), 10, -1000, -20);
@@ -99,7 +132,13 @@ TEST_F(TestMatchScore, four_both_top_last_user)
 
 TEST_F(TestMatchScore, four_user_complex)
 {
-    const auto ret = Match::CalScores_({ {1, -9}, {2, -1}, {3, 4}, {4, 6}});
+    std::vector<UserInfoForCalScore> user_infos{
+        UserInfoForCalScore{1, -9, 0, 1500},
+        UserInfoForCalScore{2, -1, 0, 1500},
+        UserInfoForCalScore{3, 4, 0, 1500},
+        UserInfoForCalScore{4, 6, 0, 1500}
+    };
+    const auto ret = CalScores(user_infos);
     ASSERT_EQ(4, ret.size());
     ASSERT_SCORE_INFO(ret[0], UserID(1), -9, -1800, -40);
     ASSERT_SCORE_INFO(ret[1], UserID(2), -1, -200, 0);

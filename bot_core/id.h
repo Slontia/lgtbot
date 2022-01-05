@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 #define DEFINE_ID(idname) \
 struct idname \
 { \

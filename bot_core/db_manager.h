@@ -44,6 +44,7 @@ struct ScoreInfo
     int64_t game_score_ = 0;
     int64_t zero_sum_score_ = 0;
     int64_t top_score_ = 0;
+    int64_t level_score_ = 0;
 };
 
 struct RankInfo

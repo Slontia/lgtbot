@@ -125,9 +125,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     const uint64_t com_num() const { return std::max(int64_t(0), static_cast<int64_t>(bench_to_player_num_ - user_controlled_player_num())); }
 
    private:
-    static constexpr auto k_zero_sum_score_multi_ = 1000;
-    static constexpr auto k_top_score_multi_ = 10;
-
     ErrCode CheckScoreEnough_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const;
 
     std::string State2String()
@@ -141,8 +138,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
             return "已结束";
         }
     }
-    static std::vector<ScoreInfo> CalScores_(const std::vector<std::pair<UserID, int64_t>>& scores,
-            const uint64_t multiple = 1);
     void OnGameOver_();
     void Help_(MsgSenderBase& reply, const bool text_mode);
     void Routine_();
