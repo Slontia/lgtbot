@@ -16,7 +16,7 @@
 #include "bot_core/log.h"
 #include "bot_core/match.h"
 #include "bot_core/match_manager.h"
-#include "bot_core/score_calculate.h"
+#include "bot_core/score_calculation.h"
 
 Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, const UserID host_uid,
              const std::optional<GroupID> gid)
@@ -460,7 +460,7 @@ void Match::OnGameOver_()
     state_ = State::IS_OVER; // is necessary because other thread may own a match reference
     //end_time_ = std::chrono::system_clock::now();
     {
-        std::vector<UserInfoForCalScore> user_scores;
+        std::vector<std::pair<UserID, int64_t>> user_game_scores;
 
         auto sender = Boardcast();
         sender << "游戏结束，公布分数：\n";
@@ -469,34 +469,36 @@ void Match::OnGameOver_()
             sender << At(pid) << " " << score << "\n";
             const auto id = ConvertPid(pid);
             if (const auto pval = std::get_if<UserID>(&id); pval) {
-                user_scores.emplace_back(*pval, score, 0, 1500); // TODO: get info from db
+                user_game_scores.emplace_back(*pval, score);
             }
         }
         sender << "感谢诸位参与！";
 
-        assert(user_scores.size() == users_.size());
-        std::sort(user_scores.begin(), user_scores.end(),
-                [](const auto& _1, const auto& _2) { return _1.game_score_ > _2.game_score_; });
+        assert(user_game_scores.size() == users_.size());
+        std::sort(user_game_scores.begin(), user_game_scores.end(),
+                [](const auto& _1, const auto& _2) { return _1.second > _2.second; });
 
-        static const auto show_score = [](const char* const name, const int64_t score)
+        static const auto show_score = [](const char* const name, const auto score)
             {
                 return std::string("[") + name + (score > 0 ? "+" : "") + std::to_string(score) + "] ";
             };
-        if (user_scores.size() <= 1) {
-            sender << "\n\n游戏结果不记录：因为玩家数小于2";
+        if (user_game_scores.size() <= 1) {
+            sender << "\n\n游戏结果不记录：因为玩家数小于 2";
         } else if (!bot_.db_manager()) {
             sender << "\n\n游戏结果不记录：因为未连接数据库";
         } else if (multiple_ == 0) {
             sender << "\n\n游戏结果不记录：因为该游戏为试玩游戏";
-        } else if (const auto score_info = CalScores(user_scores, multiple_);
-                !bot_.db_manager()->RecordMatch(game_handle_.name_, gid_, host_uid_, multiple_, score_info)) {
+        } else if (const auto score_info =
+                    bot_.db_manager()->RecordMatch(game_handle_.name_, gid_, host_uid_, multiple_, user_game_scores);
+                score_info.empty()) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
         } else {
             assert(score_info.size() == users_.size());
             sender << "\n\n游戏结果写入数据库成功：";
             for (const auto& info : score_info) {
                 sender << "\n" << At(info.uid_) << "：" << show_score("零和", info.zero_sum_score_)
-                                                        << show_score("头名", info.top_score_);
+                                                        << show_score("头名", info.top_score_)
+                                                        << show_score("等级", info.level_score_);
 
             }
         }

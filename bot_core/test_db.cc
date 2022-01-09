@@ -14,23 +14,25 @@
 #include "sqlite_modern_cpp.h"
 
 #ifdef _WIN32
-static const std::filesystem::path k_db_path = "TEMP_test_db.db";
+static const char* const k_db_path = "TEMP_test_db.db";
 #else
-static const std::filesystem::path k_db_path = "/tmp/lgtbot_test_db.db";
+static const char* const k_db_path = "/tmp/lgtbot_test_db.db";
 #endif
 
 class TestDB : public testing::Test
 {
   public:
+    TestDB() {}
+
     virtual void SetUp() override
     {
-        std::filesystem::remove(k_db_path);
+        std::filesystem::remove(std::filesystem::path(k_db_path));
     }
 
   protected:
     bool UseDB_()
     {
-        return (db_manager_ = SQLiteDBManager::UseDB(k_db_path.c_str())) != nullptr;
+        return (db_manager_ = SQLiteDBManager::UseDB(std::filesystem::path(k_db_path).c_str())) != nullptr;
     }
 
     std::unique_ptr<DBManagerBase> db_manager_;
@@ -56,6 +58,18 @@ class TestDB : public testing::Test
     ASSERT_EQ((top), profile.top_score_); \
 }()
 
+void RecordMatch(sqlite::database& db, const std::string& game_name, const std::optional<GroupID> gid,
+        const UserID host_uid, const uint64_t multiple, const std::vector<ScoreInfo>& score_infos);
+
+void RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
+        const UserID host_uid, const uint64_t multiple, const std::vector<ScoreInfo>& score_infos)
+{
+    sqlite::database db(k_db_path);
+    db << "BEGIN;";
+    RecordMatch(db, game_name, gid, host_uid, multiple, score_infos);
+    db << "COMMIT;";
+}
+
 TEST_F(TestDB, get_user_profile_empty)
 {
     ASSERT_TRUE(UseDB_());
@@ -65,7 +79,7 @@ TEST_F(TestDB, get_user_profile_empty)
 TEST_F(TestDB, get_user_profile_one_match)
 {
     ASSERT_TRUE(UseDB_());
-    db_manager_->RecordMatch("mygame", std::nullopt, 1, 1,
+    RecordMatch("mygame", std::nullopt, 1, 1,
             std::vector<ScoreInfo>{ScoreInfo(UserID(2), 30, 40, 50), ScoreInfo(UserID(3), 10, 10, 10)});
     ASSERT_USER_PROFILE(UserID(1), 0, 0, 0, 0);
     const auto profile_2 = ASSERT_USER_PROFILE(UserID(2), 40, 50, 1, 1);
@@ -77,8 +91,8 @@ TEST_F(TestDB, get_user_profile_one_match)
 TEST_F(TestDB, get_user_profile_two_matches)
 {
     ASSERT_TRUE(UseDB_());
-    db_manager_->RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 30, 40, 50)});
-    db_manager_->RecordMatch("g2", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), -20, -10, 0)});
+    RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 30, 40, 50)});
+    RecordMatch("g2", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), -20, -10, 0)});
     const auto profile = ASSERT_USER_PROFILE(UserID(1), 30, 50, 2, 2);
     ASSERT_MATCH_PROFILE(profile.recent_matches_[0], "g2", 1, -20, -10, 0);
     ASSERT_MATCH_PROFILE(profile.recent_matches_[1], "g1", 1, 30, 40, 50);
@@ -88,7 +102,7 @@ TEST_F(TestDB, get_user_profile_more_than_ten_matches)
 {
     ASSERT_TRUE(UseDB_());
     for (int i = 0; i < 15; ++i) {
-        db_manager_->RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
+        RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
     }
     const auto profile = ASSERT_USER_PROFILE(UserID(1), 150, 150, 15, 10);
     for (int i = 0; i < 10; ++i) {
@@ -105,16 +119,16 @@ TEST_F(TestDB, cannot_suicide_at_first)
 TEST_F(TestDB, suicide_only_achieve_required_match_num)
 {
     ASSERT_TRUE(UseDB_());
-    db_manager_->RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
+    RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
     ASSERT_FALSE(db_manager_->Suicide(UserID(1), 2));
-    db_manager_->RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
+    RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
     ASSERT_TRUE(db_manager_->Suicide(UserID(1), 2));
 }
 
 TEST_F(TestDB, cannot_suicide_repeatedly)
 {
     ASSERT_TRUE(UseDB_());
-    db_manager_->RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
+    RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
     ASSERT_TRUE(db_manager_->Suicide(UserID(1), 1));
     ASSERT_FALSE(db_manager_->Suicide(UserID(1), 1));
 }
@@ -122,7 +136,7 @@ TEST_F(TestDB, cannot_suicide_repeatedly)
 TEST_F(TestDB, check_suicide)
 {
     ASSERT_TRUE(UseDB_());
-    db_manager_->RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 99, 99, 99)});
+    RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 99, 99, 99)});
     ASSERT_TRUE(db_manager_->Suicide(UserID(1), 1));
     ASSERT_USER_PROFILE(UserID(1), 0, 0, 0, 0);
 }
@@ -130,7 +144,7 @@ TEST_F(TestDB, check_suicide)
 TEST_F(TestDB, reopen_db)
 {
     ASSERT_TRUE(UseDB_());
-    db_manager_->RecordMatch("mygame", std::nullopt, 1, 1,
+    RecordMatch("mygame", std::nullopt, 1, 1,
             std::vector<ScoreInfo>{ScoreInfo(UserID(2), 30, 40, 50), ScoreInfo(UserID(3), 10, 10, 10)});
 
     db_manager_.reset();

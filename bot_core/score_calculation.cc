@@ -1,6 +1,13 @@
-#include "bot_core/score_calculate.h"
+// Copyright (c) 2018-present, Chang Liu <github.com/slontia>. All rights reserved.
+//
+// This source code is licensed under LGPLv2 (found in the LICENSE file).
+
+#include "bot_core/score_calculation.h"
 
 #include <numeric>
+#include <map>
+#include <cmath>
+#include <iostream>
 
 static void CalZeroSumScore(std::vector<UserInfoForCalScore>& user_infos)
 {
@@ -19,14 +26,15 @@ static void CalZeroSumScore(std::vector<UserInfoForCalScore>& user_infos)
     }
 }
 
+struct ScoreRecorder
+{
+    int64_t score_ = 0;
+    uint64_t count_ = 0;
+};
+
 static void CalTopScore(std::vector<UserInfoForCalScore>& user_infos)
 {
     const int64_t user_num = user_infos.size();
-    struct ScoreRecorder
-    {
-        int64_t score_ = 0;
-        uint64_t count_ = 0;
-    };
     ScoreRecorder min_recorder;
     ScoreRecorder max_recorder;
     const auto record_fn = [&](const int64_t score, ScoreRecorder& recorder, const auto& op)
@@ -52,6 +60,33 @@ static void CalTopScore(std::vector<UserInfoForCalScore>& user_infos)
     }
 }
 
+static std::map<int64_t, uint64_t> CalLevelScoreRank(const std::vector<UserInfoForCalScore>& user_infos)
+{
+    std::map<int64_t, uint64_t> result; // second is count or rank_score
+    for (const auto& info : user_infos) {
+        ++(result.emplace(info.game_score_, 0).first->second);
+    }
+    uint64_t base = 0;
+    for (auto& [game_score, rank_score] : result) {
+        rank_score += base;
+        base += (rank_score - base) * 2;
+    }
+    return result;
+}
+
+static void CalLevelScore(std::vector<UserInfoForCalScore>& user_infos)
+{
+    const double avg_level_score_sum = std::accumulate(user_infos.begin(), user_infos.end(), double(0),
+            [&](const double sum, const auto& info) { return info.level_score_sum_ + sum; }) / user_infos.size();
+    const auto rank_scores = CalLevelScoreRank(user_infos);
+    for (auto& info : user_infos) {
+        const double multiple = info.match_count_ > 80 ? 20 : 100 - info.match_count_;
+        const double actual_rank_score = double(rank_scores.find(info.game_score_)->second - 1) / (2 * user_infos.size() - 2);
+        const double expected_rank_score = double(1) / (double(1) + std::pow(10, (avg_level_score_sum - info.level_score_sum_) / 200));
+        info.level_score_ = multiple * (actual_rank_score - expected_rank_score);
+    }
+}
+
 static std::vector<ScoreInfo> MakeScoreInfo(const std::vector<UserInfoForCalScore>& user_infos, const uint16_t multiple)
 {
     std::vector<ScoreInfo> ret;
@@ -61,6 +96,7 @@ static std::vector<ScoreInfo> MakeScoreInfo(const std::vector<UserInfoForCalScor
         ret.back().game_score_ = info.game_score_;
         ret.back().zero_sum_score_ = info.zero_sum_score_ * multiple;
         ret.back().top_score_ = info.top_score_ * multiple;
+        ret.back().level_score_ = info.level_score_ * multiple;
     }
     return ret;
 }
@@ -69,6 +105,7 @@ std::vector<ScoreInfo> CalScores(std::vector<UserInfoForCalScore>& user_infos, c
 {
     CalZeroSumScore(user_infos);
     CalTopScore(user_infos);
+    CalLevelScore(user_infos);
     return MakeScoreInfo(user_infos, multiple);
 }
 

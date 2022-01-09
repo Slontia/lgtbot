@@ -10,7 +10,7 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-#include "bot_core/score_calculate.h"
+#include "bot_core/score_calculation.h"
 
 void* OpenMessager(const uint64_t id, const bool is_uid) { return nullptr; }
 void MessagerPostText(void* p, const char* data, uint64_t len) {}

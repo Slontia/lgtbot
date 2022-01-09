@@ -15,6 +15,7 @@
 #include "bot_core/bot_ctx.h"
 #include "bot_core/game_handle.h"
 #include "bot_core/db_manager.h"
+#include "bot_core/score_calculation.h"
 
 static_assert(TEST_BOT);
 
@@ -38,18 +39,25 @@ typedef ErrCode(*HandlePublicRequestFunc)(const UserID uid, const GroupID gid, c
 class MockDBManager : public DBManagerBase
 {
   public:
-    virtual bool RecordMatch(const std::string& game_name, const std::optional<GroupID> gid, const UserID host_uid,
-            const uint64_t multiple, const std::vector<ScoreInfo>& score_infos) override
+    virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
+            const UserID host_uid, const uint64_t multiple,
+            const std::vector<std::pair<UserID, int64_t>>& game_score_infos) override
     {
+        std::vector<UserInfoForCalScore> user_infos;
+        for (const auto& [uid, game_score] : game_score_infos) {
+            user_infos.emplace_back(uid, game_score, 0, 1500);
+        }
+        auto score_infos = CalScores(user_infos, multiple);
         for (const auto& info : score_infos) {
             match_profiles_.emplace_back(game_name, score_infos.size(), info.game_score_, info.zero_sum_score_, info.top_score_);
         }
-        return true;
+        return score_infos;
     }
 
     virtual UserProfile GetUserProfile(const UserID uid) override { return user_profiles_[uid]; }
     virtual bool Suicide(const UserID uid, const uint32_t required_match_num) override { return true; }
     virtual RankInfo GetRank() override { return {}; }
+    virtual std::vector<std::pair<UserID, double>> GetLevelScoreRank(const std::string& game_name) override { return {}; }
 
     std::vector<MatchProfile> match_profiles_;
     std::map<UserID, UserProfile> user_profiles_;

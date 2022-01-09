@@ -329,7 +329,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
         reply() << "[错误] 查看失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
-    const auto profit = bot.db_manager()->GetUserProfile(uid);  // TODO: pass sender
+    const auto profile = bot.db_manager()->GetUserProfile(uid);  // TODO: pass sender
 
     const auto colored_text = [](const auto score, std::string text)
         {
@@ -347,28 +347,54 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
         };
 
     std::string html = std::string("## ") + GetUserName(uid, gid.has_value() ? &(gid->Get()) : nullptr) + "\n";
-    html += "\n- **游戏局数**：" + std::to_string(profit.match_count_);
-    html += "\n- **零和总分**：" + colored_text(profit.total_zero_sum_score_, std::to_string(profit.total_zero_sum_score_));
-    html += "\n- **头名总分**：" + colored_text(profit.total_top_score_, std::to_string(profit.total_top_score_));
-    html += "\n- **近十场游戏记录**：\n\n";
+    html += "\n- **游戏局数**：" + std::to_string(profile.match_count_);
+    html += "\n- **零和总分**：" + colored_text(profile.total_zero_sum_score_, std::to_string(profile.total_zero_sum_score_));
+    html += "\n- **头名总分**：" + colored_text(profile.total_top_score_, std::to_string(profile.total_top_score_));
 
-    html::Table recent_matches_table(1, 6);
+    html += "\n- **各游戏等级总分**：\n\n";
+    html::Table level_score_table(1, 4);
+    level_score_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"0\" cellspacing=\"1\" ");
+    level_score_table.Get(0, 0).SetContent("**游戏名称**");
+    level_score_table.Get(0, 1).SetContent("**参与次数**");
+    level_score_table.Get(0, 2).SetContent("**等级总分**");
+    level_score_table.Get(0, 3).SetContent("**评级**");
+    for (const auto& [game_name, info] : profile.game_level_infos_) {
+        const int32_t total_level_score_ = static_cast<int32_t>(info.total_level_score_);
+        level_score_table.AppendRow();
+        level_score_table.GetLastRow(0).SetContent(colored_text(total_level_score_ / 100, game_name));
+        level_score_table.GetLastRow(1).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.count_)));
+        level_score_table.GetLastRow(2).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.total_level_score_)));
+        level_score_table.GetLastRow(3).SetContent(colored_text(total_level_score_ / 100,
+                    info.count_ < k_show_grade_required_match_count ? "/" :
+                    total_level_score_ <= -300 ? "E" :
+                    total_level_score_ <= -100 ? "D" :
+                    total_level_score_ < 100   ? "C" :
+                    total_level_score_ < 300   ? "B" :
+                    total_level_score_ < 500   ? "A" : "S"));
+    }
+    html += "\n\n" + level_score_table.ToString() + "\n\n";
+
+    html += "\n- **近十场游戏记录**：\n\n";
+    html::Table recent_matches_table(1, 7);
+    recent_matches_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"0\" cellspacing=\"1\" ");
     recent_matches_table.Get(0, 0).SetContent("**序号**");
     recent_matches_table.Get(0, 1).SetContent("**游戏名称**");
     recent_matches_table.Get(0, 2).SetContent("**参与人数**");
     recent_matches_table.Get(0, 3).SetContent("**游戏得分**");
     recent_matches_table.Get(0, 4).SetContent("**零和得分**");
     recent_matches_table.Get(0, 5).SetContent("**头名得分**");
+    recent_matches_table.Get(0, 6).SetContent("**等级得分**");
 
-    for (uint32_t i = 0; i < profit.recent_matches_.size(); ++i) {
+    for (uint32_t i = 0; i < profile.recent_matches_.size(); ++i) {
         recent_matches_table.AppendRow();
-        const auto match_profile = profit.recent_matches_[i];
+        const auto match_profile = profile.recent_matches_[i];
         recent_matches_table.Get(i + 1, 0).SetContent(colored_text(match_profile.top_score_, std::to_string(i + 1)));
         recent_matches_table.Get(i + 1, 1).SetContent(colored_text(match_profile.top_score_, match_profile.game_name_));
         recent_matches_table.Get(i + 1, 2).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.user_count_)));
         recent_matches_table.Get(i + 1, 3).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.game_score_)));
         recent_matches_table.Get(i + 1, 4).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.zero_sum_score_)));
         recent_matches_table.Get(i + 1, 5).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.top_score_)));
+        recent_matches_table.Get(i + 1, 6).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.level_score_)));
     }
 
     html += "\n\n" + recent_matches_table.ToString();
@@ -393,25 +419,43 @@ static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<
     return EC_OK;
 }
 
+template <typename V>
+static std::string print_score(const V& vec, const std::optional<GroupID> gid)
+{
+    std::string s;
+    for (uint64_t i = 0; i < vec.size(); ++i) {
+        s += "\n" + std::to_string(i + 1) + "位：" +
+                GetUserName(vec[i].first, gid.has_value() ? &(gid->Get()) : nullptr) +
+                "【" + std::to_string(vec[i].second) + "分】";
+    }
+    return s;
+};
+
 static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
     if (!bot.db_manager()) {
-        reply() << "[错误] 重来失败：未连接数据库";
+        reply() << "[错误] 查看失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
     const auto info = bot.db_manager()->GetRank();
-    const auto print_score = [&](const auto& vec)
-        {
-            std::string s;
-            for (uint64_t i = 0; i < vec.size(); ++i) {
-                s += "\n" + std::to_string(i + 1) + "位：" +
-                     GetUserName(vec[i].first, gid.has_value() ? &(gid->Get()) : nullptr) +
-                     "【" + std::to_string(vec[i].second) + "分】";
-            }
-            return s;
-        };
-    reply() << "## 零和得分排行：\n" << print_score(info.zero_sum_score_rank_);
-    reply() << "## 头名得分排行：\n" << print_score(info.top_score_rank_);
+    reply() << "## 零和得分排行：\n" << print_score(info.zero_sum_score_rank_, gid);
+    reply() << "## 头名得分排行：\n" << print_score(info.top_score_rank_, gid);
+    return EC_OK;
+}
+
+static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+        const std::string& game_name)
+{
+    if (!bot.db_manager()) {
+        reply() << "[错误] 查看失败：未连接数据库";
+        return EC_DB_NOT_CONNECTED;
+    }
+    if (bot.game_handles().find(game_name) == bot.game_handles().end()) {
+        reply() << "[错误] 查看失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
+        return EC_REQUEST_UNKNOWN_GAME;
+    }
+    const auto vec = bot.db_manager()->GetLevelScoreRank(game_name);
+    reply() << "## 等级得分排行（要求至少完成 " << k_show_grade_required_match_count << " 场比赛）：\n" << print_score(vec, gid);
     return EC_OK;
 }
 
@@ -433,6 +477,8 @@ const std::vector<MetaCommandGroup> meta_cmds = {
             make_command("查看个人战绩", show_profile, VoidChecker("#战绩")),
             make_command("清除个人战绩", clear_profile, VoidChecker("#人生重来算了")),
             make_command("查看排行榜", show_rank, VoidChecker("#排行")),
+            make_command("查看单个游戏等级积分排行榜", show_game_rank, VoidChecker("#排行"),
+                    AnyArg("游戏名称", "猜拳游戏")),
         }
     },
     {

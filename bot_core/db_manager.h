@@ -10,6 +10,7 @@
 #include <memory>
 #include <vector>
 #include <filesystem>
+#include <map>
 
 #include "bot_core/log.h"
 #include "bot_core/id.h"
@@ -27,6 +28,13 @@ struct MatchProfile
     int64_t game_score_ = 0;
     int64_t zero_sum_score_ = 0;
     int64_t top_score_ = 0;
+    double level_score_ = 0;
+};
+
+struct GameLevelInfo
+{
+    uint64_t count_ = 0;
+    double total_level_score_ = 0;
 };
 
 struct UserProfile
@@ -35,6 +43,7 @@ struct UserProfile
     int64_t total_zero_sum_score_ = 0;
     int64_t total_top_score_ = 0;
     int64_t match_count_ = 0;
+    std::map<std::string, GameLevelInfo> game_level_infos_;
     std::vector<MatchProfile> recent_matches_;
 };
 
@@ -44,7 +53,7 @@ struct ScoreInfo
     int64_t game_score_ = 0;
     int64_t zero_sum_score_ = 0;
     int64_t top_score_ = 0;
-    int64_t level_score_ = 0;
+    double level_score_ = 0;
 };
 
 struct RankInfo
@@ -53,15 +62,20 @@ struct RankInfo
     std::vector<std::pair<UserID, int64_t>> top_score_rank_;
 };
 
+static constexpr const auto k_level_score_initial_value = 1500;
+static constexpr const auto k_show_grade_required_match_count = 3;
+
 class DBManagerBase
 {
    public:
     virtual ~DBManagerBase() {}
-    virtual bool RecordMatch(const std::string& game_name, const std::optional<GroupID> gid, const UserID host_uid,
-            const uint64_t multiple, const std::vector<ScoreInfo>& score_infos) = 0;
+    virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
+            const UserID host_uid, const uint64_t multiple,
+            const std::vector<std::pair<UserID, int64_t>>& game_score_infos) = 0;
     virtual UserProfile GetUserProfile(const UserID uid) = 0;
     virtual bool Suicide(const UserID uid, const uint32_t required_match_num) = 0;
     virtual RankInfo GetRank() = 0;
+    virtual std::vector<std::pair<UserID, double>> GetLevelScoreRank(const std::string& game_name) = 0;
 };
 
 #ifdef WITH_SQLITE
@@ -76,16 +90,18 @@ class DBManagerBase
 
 class SQLiteDBManager : public DBManagerBase
 {
-   public:
+  public:
     static std::unique_ptr<DBManagerBase> UseDB(const std::filesystem::path::value_type* sv);
     virtual ~SQLiteDBManager();
-    virtual bool RecordMatch(const std::string& game_name, const std::optional<GroupID> gid, const UserID host_uid,
-            const uint64_t multiple, const std::vector<ScoreInfo>& score_infos) override;
+    virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
+            const UserID host_uid, const uint64_t multiple,
+            const std::vector<std::pair<UserID, int64_t>>& game_score_infos) override;
     virtual UserProfile GetUserProfile(const UserID uid) override;
     virtual bool Suicide(const UserID uid, const uint32_t required_match_num) override;
     virtual RankInfo GetRank() override;
+    virtual std::vector<std::pair<UserID, double>> GetLevelScoreRank(const std::string& game_name) override;
 
-   private:
+  private:
     SQLiteDBManager(const DBName& db_name);
 
     DBName db_name_;
