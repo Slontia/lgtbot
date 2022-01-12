@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
-#include "log.h"
+#include "utility/log.h"
 
 #ifdef TEST_BOT
 inline bool enable_markdown_to_image = false;
@@ -39,10 +39,10 @@ inline int MarkdownToImage(const std::string& markdown, const std::filesystem::p
     const std::string cmd = k_markdown2image_path.string() + " --output " + abs_path.string() + " --width 600 --nowith_css";
     FILE* fp = popen(cmd.c_str(), "w");
     if (fp == nullptr) {
-        ErrorLog() << "popen markdown2image failed cmd=\'" << cmd;
+        ErrorLog() << "Draw image failed cmd=\'" << cmd;
         return -1;
     }
-    DebugLog() << "popen markdown2image cmd=\'" << cmd;
+    DebugLog() << "Draw image succeed cmd=\'" << cmd;
     fputs(markdown.c_str(), fp);
     pclose(fp);
     return 0;

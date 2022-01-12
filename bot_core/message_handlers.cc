@@ -5,13 +5,12 @@
 #include "bot_core/message_handlers.h"
 
 #include "utility/msg_checker.h"
-
+#include "utility/html.h"
+#include "utility/log.h"
 #include "bot_core/bot_core.h"
 #include "bot_core/db_manager.h"
-#include "bot_core/log.h"
 #include "bot_core/match.h"
 #include "bot_core/image.h"
-#include "utility/html.h"
 
 // para func can appear only once
 #define RETURN_IF_FAILED(func)                                 \

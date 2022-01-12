@@ -18,8 +18,8 @@
 static_assert(false, "Not support OS");
 #endif
 
+#include "utility/log.h"
 #include "bot_core/db_manager.h"
-#include "bot_core/log.h"
 #include "bot_core/match.h"
 #include "bot_core/msg_sender.h"
 #include "game_framework/game_main.h"

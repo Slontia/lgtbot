@@ -9,7 +9,7 @@
 #include <sstream>
 #include <type_traits>
 
-#include "bot_core/log.h"
+#include "utility/log.h"
 #include "bot_core/match.h"
 #include "bot_core/score_calculation.h"
 

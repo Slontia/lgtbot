@@ -10,10 +10,9 @@
 #include <numeric>
 
 #include "utility/msg_checker.h"
+#include "utility/log.h"
 #include "game_framework/game_main.h"
-
 #include "bot_core/db_manager.h"
-#include "bot_core/log.h"
 #include "bot_core/match.h"
 #include "bot_core/match_manager.h"
 #include "bot_core/score_calculation.h"
@@ -144,6 +143,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
 {
     std::lock_guard<std::mutex> l(mutex_);
     if (state_ == State::IS_OVER) {
+        WarnLog() << "Match is over but receive request mid=" << mid() << " uid=" << uid << " msg=" << msg;
         reply() << "[错误] 游戏已经结束";
         return EC_MATCH_ALREADY_OVER;
     }
@@ -336,6 +336,7 @@ MsgSenderBase::MsgSenderGuard Match::BoardcastAtAll()
 bool Match::SwitchHost()
 {
     if (users_.empty()) {
+        InfoLog() << "SwitchHost but no users left mid=" << mid();
         return false;
     }
     if (state_ == NOT_STARTED) {
@@ -360,6 +361,7 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
             // Handle a reference because match may be removed from match_manager if timeout cause game over.
             auto match = match_wk.lock();
             if (!match) {
+                WarnLog() << "Timer timeout but match is released";
                 return; // match is released
             }
             // Timeout event should not be triggered during request handling, so we need lock here.
@@ -367,8 +369,11 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
             std::lock_guard<std::mutex> l(match->mutex_);
             // If stage has been finished by other request, timeout event should not be triggered again, so we check stage_is_over_ here.
             if (!*timer_is_over) {
+                DebugLog() << "Timer timeout mid=" << match->mid();
                 match->main_stage_->HandleTimeout();
                 match->Routine_();
+            } else {
+                WarnLog() << "Timer timeout but timer is over mid=" << match->mid();
             }
         };
     Timer::TaskSet tasks;
@@ -382,11 +387,15 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
                     {
                         auto match = match_wk.lock();
                         if (!match) {
+                            WarnLog() << "Timer alert but match is released sec=" << alert_sec;
                             return; // match is released
                         }
                         std::lock_guard<std::mutex> l(match->mutex_);
                         if (!*timer_is_over) {
+                            DebugLog() << "Timer alert mid=" << match->mid() << " sec=" << alert_sec;
                             cb(p, alert_sec);
+                        } else {
+                            WarnLog() << "Timer alert but timer is over mid=" << match->mid() << " sec=" << alert_sec;
                         }
                     });
         }
@@ -400,7 +409,10 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
 void Match::StopTimer()
 {
     if (timer_is_over_ != nullptr) {
+        DebugLog() << "Timer stop mid=" << mid();
         *timer_is_over_ = true;
+    } else {
+        WarnLog() << "Timer stop but timer is over mid=" << mid();
     }
     timer_ = nullptr; // stop timer
 }
@@ -492,6 +504,7 @@ void Match::OnGameOver_()
                     bot_.db_manager()->RecordMatch(game_handle_.name_, gid_, host_uid_, multiple_, user_game_scores);
                 score_info.empty()) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
+            ErrorLog() << "Save database failed mid=" << mid_ << " host_uid=" << host_uid_ << " gid=" << (gid_.has_value() ? gid_->Get() : 0);
         } else {
             assert(score_info.size() == users_.size());
             sender << "\n\n游戏结果写入数据库成功：";

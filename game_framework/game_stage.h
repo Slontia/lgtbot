@@ -11,8 +11,9 @@
 #include <concepts>
 #include <chrono>
 
-#include "bot_core/match_base.h"
 #include "utility/msg_checker.h"
+#include "utility/log.h"
+#include "bot_core/match_base.h"
 
 #include "game_framework/util.h"
 
@@ -28,13 +29,14 @@ using CheckoutErrCode = StageErrCode::SubSet<StageErrCode::CONTINUE, StageErrCod
 class Masker
 {
   public:
-    enum class State { SET, UNSET, PINNED };
+    enum class State { SET = 'S', UNSET = 'U', PINNED = 'P' };
 
     Masker(const size_t size) : recorder_(size, State::UNSET), unset_count_(size), any_user_ready_(false) {}
 
     bool Set(const size_t index, const bool is_user)
     {
         if (is_user) {
+            DebugLog() << "Set game stage mask by user index=" << index << " any_user_ready=" << any_user_ready_;
             any_user_ready_ = true;
         }
         return Record_(index, State::SET);
@@ -74,6 +76,7 @@ class Masker
                 ++unset_count_;
             }
         }
+        DebugLog() << "Clear game stage mask unset_count=" << unset_count_;
     }
 
     bool IsReady() const { return unset_count_ == 0 && any_user_ready_; }
@@ -87,6 +90,7 @@ class Masker
             unset_count_ += (state == State::UNSET);
             unset_count_ -= (old == State::UNSET);
         }
+        DebugLog() << "Record game stage mask index=" << index << " state=" << static_cast<char>(state) << " unset_count=" << unset_count_;
         return IsReady();
     }
 
@@ -272,6 +276,7 @@ class GameStage<GameOption, MainStage, SubStages...>
                 {
                     sub_stage->HandleStageBegin();
                     if (sub_stage->IsOver()) {
+                        WarnLog() << "Begin substage skipped name=" << sub_stage->name();
                         this->CheckoutSubStage(CheckoutReason::SKIP);
                     }
                 }, sub_stage_);
@@ -345,12 +350,15 @@ class GameStage<GameOption, MainStage, SubStages...>
                 [this](auto&& sub_stage)
                 {
                     if (!sub_stage) {
+                        InfoLog() << "Checkout no more substages name=" << Base::name();
                         Over();
-                        // no more substages
                     } else {
                         sub_stage->HandleStageBegin();
                         if (sub_stage->IsOver()) {
+                            WarnLog() << "Checkout substage skipped name=" << sub_stage->name();
                             this->CheckoutSubStage(CheckoutReason::SKIP);
+                        } else {
+                            InfoLog() << "Checkout substage to name=" << sub_stage->name();
                         }
                     }
                 },
@@ -494,6 +502,7 @@ class GameStage<GameOption, MainStage>
         if (Base::masker().IsReady()) {
             // We do not check IsReady only when rc is READY to handle all player force exit.
             OnAllPlayerReady();
+            InfoLog() << "OnAllPlayerReady name=" << Base::name() << " masker_ready=" << Base::masker().IsReady();
             rc = StageErrCode::Condition(Base::masker().IsReady(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
         }
         if (rc == StageErrCode::CHECKOUT) {

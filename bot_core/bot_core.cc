@@ -7,11 +7,12 @@
 #include <fstream>
 #include <filesystem>
 
-#include "utility/msg_checker.h"
-#include "game_framework/game_main.h"
+#include <glog/logging.h>
 
+#include "utility/msg_checker.h"
+#include "utility/log.h"
+#include "game_framework/game_main.h"
 #include "bot_core/db_manager.h"
-#include "bot_core/log.h"
 #include "bot_core/match.h"
 #include "bot_core/message_handlers.h"
 #include "bot_core/msg_sender.h"
@@ -82,6 +83,9 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
 
 void* /*__cdecl*/ BOT_API::Init(const BotOption* option)
 {
+#ifdef WITH_GLOG
+    google::InitGoogleLogging("lgtbot");
+#endif
     std::srand(std::chrono::steady_clock::now().time_since_epoch().count());
     if (option == nullptr) {
         return nullptr;
@@ -96,6 +100,7 @@ ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const uint6
     if (!bot_p) {
         return EC_NOT_INIT;
     }
+    DebugLog() << "Handle private request uid=" << uid << " msg=" << msg;
     BotCtx& bot = *static_cast<BotCtx*>(bot_p);
     MsgSender sender(UserID{uid});
     return HandleRequest(bot, std::nullopt, uid, msg, sender);
@@ -121,6 +126,7 @@ ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const uint64
     if (!bot_p) {
         return EC_NOT_INIT;
     }
+    DebugLog() << "Handle public request uid=" << uid << " gid=" << gid << " msg=" << msg;
     BotCtx& bot = *static_cast<BotCtx*>(bot_p);
     PublicReplyMsgSender sender(GroupID{gid}, UserID{uid});
     return HandleRequest(bot, gid, uid, msg, sender);
