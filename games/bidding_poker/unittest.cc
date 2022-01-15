@@ -255,6 +255,28 @@ GAME_TEST(5, discard_2)
     ASSERT_SCORE(48 + 83, 37, 99 + 83, 75, 75);
 }
 
+GAME_TEST(5, no_bid_return_item)
+{
+    ASSERT_PUB_MSG(OK, 0, "种子 ABC");
+    ASSERT_PUB_MSG(OK, 0, "投标轮数 1");
+    ASSERT_PUB_MSG(OK, 0, "初始金币数 100");
+    ASSERT_PUB_MSG(OK, 0, "回合数 2");
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "50");
+    for (int i = 0; i < 8; ++i) {
+        ASSERT_TIMEOUT(CHECKOUT);
+    }
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "角2");
+
+    for (int i = 0; i < 8; ++i) {
+        ASSERT_TIMEOUT(CHECKOUT);
+    }
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "角2");
+}
+
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);

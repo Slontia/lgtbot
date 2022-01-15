@@ -162,12 +162,20 @@ std::optional<PokerSuit> ParseSuit(const String& s, Sender&& sender)
     static const std::map<std::string, PokerSuit> str2suit = {
         {"黑", PokerSuit::BLACK},
         {"星", PokerSuit::BLACK},
+        {"★", PokerSuit::BLACK},
+        {"☆", PokerSuit::BLACK},
         {"红", PokerSuit::RED},
         {"方", PokerSuit::RED},
+        {"■", PokerSuit::RED},
+        {"□", PokerSuit::RED},
         {"蓝", PokerSuit::BLUE},
         {"角", PokerSuit::BLUE},
+        {"▲", PokerSuit::BLUE},
+        {"△", PokerSuit::BLACK},
         {"紫", PokerSuit::PURPLE},
         {"圆", PokerSuit::PURPLE},
+        {"●", PokerSuit::PURPLE},
+        {"○", PokerSuit::PURPLE},
     };
     const auto it = str2suit.find(s);
     if (it == str2suit.end()) {

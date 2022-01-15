@@ -247,8 +247,11 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
 
     std::string TitleHtml() const
     {
-        return "<center>\n\n## 第 " + std::to_string(round_ + 1) +
-            " 回合\n\n</center>\n\n<center>\n\n**奖池金币数：" + std::to_string(BonusCoins_()) + "**</center>\n\n";
+        const std::string round_info =
+            round_ == 0                         ? "开局" :
+            round_ > option().GET_VALUE(回合数) ? "终局" : "第 " + std::to_string(round_) + " 回合";
+        return "<center>\n\n## " + round_info +
+            "\n\n</center>\n\n<center>\n\n**奖池金币数：" + std::to_string(BonusCoins_()) + "**</center>\n\n";
     }
 
   private:
@@ -323,8 +326,21 @@ class BidStage : public SubGameStage<>
   private:
     bool BidOver_()
     {
+        const auto return_item = [&]()
+            {
+                if (discarder_.has_value()) {
+                    for (const auto& poker : pokers_) {
+                        main_stage().players()[*discarder_].hand_.Add(poker);
+                    }
+                    pokers_.clear();
+                }
+                main_stage().UpdatePlayerScore();
+            };
         const auto ret = bidding_manager_.BidOver(BoardcastMsgSender());
-        if (ret.second.size() == 1) {
+        if (ret.second.size() == 0) {
+            return_item();
+            return true;
+        } else if (ret.second.size() == 1) {
             assert(ret.first.has_value());
             const auto& max_chip = *ret.first;
             auto& winner = main_stage().players()[ret.second[0]];
@@ -341,14 +357,9 @@ class BidStage : public SubGameStage<>
             return true;
         } else if ((++bid_count_) == option().GET_VALUE(投标轮数)) {
             Boardcast() << "投标轮数达到最大值，本商品流标";
-            if (discarder_.has_value()) {
-                pokers_.clear();
-                for (const auto& poker : pokers_) {
-                    main_stage().players()[*discarder_].hand_.Add(poker);
-                }
-            }
+            return_item();
             return true;
-        } else if (ret.second.size() > 1) {
+        } else {
             auto sender = Boardcast();
             sender << "最大金额投标者有多名玩家，分别是：";
             for (const auto& winner : ret.second) {
@@ -361,8 +372,6 @@ class BidStage : public SubGameStage<>
             }
             StartTimer(option().GET_VALUE(投标时间));
             return false;
-        } else {
-            return true;
         }
     }
 
@@ -549,7 +558,7 @@ class DiscardStage : public SubGameStage<>
                 reply() << "弃牌失败：非法的扑克名“" << poker_str << "”，" << ss.str();
                 return StageErrCode::FAILED;
             } else if (!main_stage().players()[pid].hand_.Has(*poker)) {
-                reply() << "弃牌失败：您未持有这张扑克牌";
+                reply() << "弃牌失败：您未持有「" << poker_str << "」这张扑克牌";
                 return StageErrCode::FAILED;
             } else {
                 pokers_to_discard.emplace(*poker);
@@ -619,6 +628,7 @@ class RoundStage : public SubGameStage<DiscardStage, MainBidStage>
                 }
             }
         }
+        main_stage().UpdatePlayerScore();
         return std::make_unique<MainBidStage>(main_stage());
     }
 
