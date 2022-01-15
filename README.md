@@ -1,6 +1,6 @@
 <div align="center">
 
-![Logo](./logo.svg)
+![Logo](./images/gradient_logo_text.svg)
 
 ![image](https://img.shields.io/badge/author-slontia-blue.svg) ![image](https://img.shields.io/badge/language-c++20-green.svg)
 
