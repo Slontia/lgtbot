@@ -90,6 +90,7 @@ void* /*__cdecl*/ BOT_API::Init(const BotOption* option)
     if (option == nullptr) {
         return nullptr;
     }
+    InfoLog() << "Init bot succeed";
     return new BotCtx(*option, SQLiteDBManager::UseDB(option->db_path_));
 }
 
@@ -98,6 +99,7 @@ void /*__cdelcl*/ BOT_API::Release(void* const bot) { delete static_cast<BotCtx*
 ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const uint64_t uid, const char* const msg)
 {
     if (!bot_p) {
+        ErrorLog() << "Handle private request not init failed uid=" << uid << " msg=" << msg;
         return EC_NOT_INIT;
     }
     DebugLog() << "Handle private request uid=" << uid << " msg=" << msg;
@@ -124,6 +126,7 @@ ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const uint64
                                                  const char* const msg)
 {
     if (!bot_p) {
+        ErrorLog() << "Handle public request not init failed uid=" << uid << " gid=" << gid << " msg=" << msg;
         return EC_NOT_INIT;
     }
     DebugLog() << "Handle public request uid=" << uid << " gid=" << gid << " msg=" << msg;

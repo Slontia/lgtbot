@@ -61,13 +61,13 @@ class TestGame : public MockMatch, public testing::Test
         return rc;
     }
 
-    StageErrCode PublicRequest(const PlayerID pid, const char* const msg)
+    StageErrCode PublicRequest(const PlayerID pid, const std::string& msg)
     {
         std::cout << "[PLAYER_" << pid << " -> GROUP]" << std::endl << msg << std::endl;
         return Request_(pid, msg, true);
     }
 
-    StageErrCode PrivateRequest(const PlayerID pid, const char* const msg)
+    StageErrCode PrivateRequest(const PlayerID pid, const std::string& msg)
     {
         std::cout << "[PLAYER_" << pid << " -> BOT]" << std::endl << msg << std::endl;
         return Request_(pid, msg, false);
@@ -105,13 +105,13 @@ class TestGame : public MockMatch, public testing::Test
         }
     }
 
-    StageErrCode Request_(const PlayerID pid, const char* const msg, const bool is_public)
+    StageErrCode Request_(const PlayerID pid, const std::string& msg, const bool is_public)
     {
         MockMsgSender sender(pid, is_public);
         assert(!main_stage_ || !main_stage_->IsOver());
         const auto rc =
-            main_stage_  ? main_stage_->HandleRequest(msg, pid, is_public, sender)
-                         : StageErrCode::Condition(option_.SetOption(msg), StageErrCode::OK , StageErrCode::FAILED); // for easy test
+            main_stage_  ? main_stage_->HandleRequest(msg.c_str(), pid, is_public, sender)
+                         : StageErrCode::Condition(option_.SetOption(msg.c_str()), StageErrCode::OK , StageErrCode::FAILED); // for easy test
         HandleGameOver_();
         return rc;
     }

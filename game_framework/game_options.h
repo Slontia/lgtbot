@@ -9,6 +9,12 @@
 #include "game_framework/game_main.h"
 #include "utility/msg_checker.h"
 
+#define INIT_OPTION_DEPEND
+#define GAME_OPTION(_0, _1, _2, _3)
+#include "options.h"
+#undef INIT_OPTION_DEPEND
+#undef GAME_OPTION
+
 #define OPTION_(name) OPTION_##name
 #define CHECKER_(name) (std::get<OPTION_(name) * 2 + 1>(options_))
 #define VALUE_(name) (std::get<OPTION_(name) * 2>(options_))

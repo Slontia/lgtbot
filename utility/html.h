@@ -26,10 +26,11 @@ class Box
     enum class MergeDirect { TO_BOTTOM, TO_RIGHT };
 
     template <typename String>
-    void SetContent(String&& str)
+    Box& SetContent(String&& str)
     {
         assert(merge_num_ > 0);
         content_ = std::forward<String>(str);
+        return *this;
     }
 
     std::string& Content()
@@ -39,10 +40,11 @@ class Box
     }
 
     template <typename String>
-    void SetColor(String&& str)
+    Box& SetColor(String&& str)
     {
         assert(merge_num_ > 0);
         color_ = std::forward<String>(str);
+        return *this;
     }
 
     bool IsVisable() const { return merge_num_ >= 1; }
