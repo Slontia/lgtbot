@@ -47,7 +47,7 @@ enum class Choise { UP, RIGHT, DOWN, LEFT, RIGHT_UP, LEFT_UP, RIGHT_DOWN, LEFT_D
 
 static std::ostream& operator<<(std::ostream& os, const Coor& coor) { return os << ('A' + coor.m_) << coor.n_; }
 
-std::array<Board(*)(std::string), 3> game_map_initers = {InitAceBoard, InitCuriosityBoard, InitGeniusBoard};
+std::array<Board(*)(std::string), 6> game_map_initers = {InitAceBoard, InitCuriosityBoard, InitGrailBoard, InitMercuryBoard, InitSophieBoard, InitGeniusBoard};
 
 // Player 1 use fork, player 0 use circle
 class MainStage : public MainGameStage<>
@@ -57,7 +57,7 @@ class MainStage : public MainGameStage<>
         : GameStage(option, match,
                 MakeStageCommand("查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
                 MakeStageCommand("移动棋子", &MainStage::Set_,
-                    AnyArg("棋子当前位置"), AlterChecker<Choise>(
+                    AnyArg("棋子当前位置", "B5"), AlterChecker<Choise>(
                             {{ "上", Choise::UP },
                             { "右", Choise::RIGHT },
                             { "下", Choise::DOWN },
@@ -73,6 +73,9 @@ class MainStage : public MainGameStage<>
         , board_(option.GET_VALUE(地图) == GameMap::ACE ? InitAceBoard(option.ResourceDir()) :
                  option.GET_VALUE(地图) == GameMap::CURIOSITY ? InitCuriosityBoard(option.ResourceDir()) :
                  option.GET_VALUE(地图) == GameMap::GENIUS ? InitGeniusBoard(option.ResourceDir()) :
+                 option.GET_VALUE(地图) == GameMap::GRAIL ? InitGrailBoard(option.ResourceDir()) :
+                 option.GET_VALUE(地图) == GameMap::MERCURY ? InitMercuryBoard(option.ResourceDir()) :
+                 option.GET_VALUE(地图) == GameMap::SOPHIE ? InitSophieBoard(option.ResourceDir()) :
                      (*game_map_initers[rand() % game_map_initers.size()])(option.ResourceDir()))
         , round_(0)
     {
@@ -114,8 +117,11 @@ class MainStage : public MainGameStage<>
   private:
     bool Act_(const PlayerID pid, const Coor& coor, const Choise choise, MsgSenderBase& reply)
     {
-        assert(board_.IsValidCoor(coor));
         const auto coor_to_str = [](const Coor& coor) { return char('A' + coor.m_) + std::to_string(coor.n_); };
+        if (!board_.IsValidCoor(coor)) {
+            reply() << "行动失败：位置 " << coor_to_str(coor) << " 并不位于棋盘上";
+            return false;
+        }
         if (!board_.IsMyChess(coor, pid)) {
             reply() << "行动失败：该位置并非本方棋子";
             return false;
@@ -131,10 +137,10 @@ class MainStage : public MainGameStage<>
             const auto new_coor = coor + (
                         choise == Choise::UP ? Coor{-1, 0} :
                         choise == Choise::DOWN ? Coor{1, 0} :
-                        choise == Choise::LEFT ? Coor{0, 1} :
-                        choise == Choise::RIGHT ? Coor{0, -1} :
-                        choise == Choise::LEFT_UP ? Coor{-1, 1} :
-                        choise == Choise::RIGHT_UP ? Coor{-1, -1} :
+                        choise == Choise::LEFT ? Coor{0, -1} :
+                        choise == Choise::RIGHT ? Coor{0, 1} :
+                        choise == Choise::LEFT_UP ? Coor{-1, -1} :
+                        choise == Choise::RIGHT_UP ? Coor{-1, 1} :
                         choise == Choise::LEFT_DOWN ? Coor{1, -1} :
                         choise == Choise::RIGHT_DOWN ? Coor{1, 1} : (assert(false), Coor())
                     );

@@ -104,7 +104,7 @@ class BoolChecker : public MsgArgChecker<bool>
             : true_str_(true_str)
             , false_str_(false_str)
             , format_info_(true_str_ + "|" + false_str_)
-            , colored_format_info_(HTML_COLOR_FONT_HEADER(yellow) + format_info_ + HTML_FONT_TAIL)
+            , colored_format_info_(HTML_COLOR_FONT_HEADER(purple) + format_info_ + HTML_FONT_TAIL)
     {
     }
     virtual ~BoolChecker() {}
@@ -143,8 +143,8 @@ class AlterChecker : public MsgArgChecker<T>
     template <typename String = const char* const>
     AlterChecker(std::map<std::string, T>&& arg_map)
             : arg_map_(std::move(arg_map))
-            , format_info_(FormatInfoInternal_(arg_map))
-            , colored_format_info_(HTML_COLOR_FONT_HEADER(yellow) + format_info_ + HTML_FONT_TAIL)
+            , format_info_(FormatInfoInternal_(arg_map_))
+            , colored_format_info_(HTML_COLOR_FONT_HEADER(purple) + format_info_ + HTML_FONT_TAIL)
     {}
     virtual ~AlterChecker() {}
     virtual std::string FormatInfo() const override { return format_info_; }
