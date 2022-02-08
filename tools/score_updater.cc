@@ -118,16 +118,3 @@ int main(int argc, char** argv)
     return 0;
 }
 
-
-// 查询排名：
-// select match.game_name, user_with_match.user_id, user_with_match.birth_count, SUM(user_with_match.level_score) as score from user, user_with_match, match where user_with_match.match_id = match.match_id AND user.user_id = user_with_match.user_id AND user.birth_count = user_with_match.birth_count group by user.user_id, game_name, user.birth_count order by match.game_name, score desc;
-//
-// 没有体现出差距带来的影响：
-// select match.match_id, user_id, level_score from user_with_match, match where user_with_match.match_id = match.match_id AND user_id = 372542780 AND game_name = 'LIE';
-// select match.match_id, user_id, level_score from user_with_match, match where user_with_match.match_id = match.match_id AND user_id = 654867229 AND game_name = '决胜五子';
-//
-// expected 加起来应该是 1 才对
-// 87 1 0.0828298 79.7938
-// 96 0 0.174279 -16.7308
-//
-// select match.game_name, user_with_match.user_id, user_with_match.birth_count, SUM(user_with_match.level_score) as score, COUNT(*) from user, user_with_match, match where user_with_match.match_id = match.match_id AND user.user_id = user_with_match.user_id AND user.birth_count = user_with_match.birth_count group by user.user_id, game_name, user.birth_count order by match.game_name, score desc;
