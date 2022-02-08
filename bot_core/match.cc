@@ -581,8 +581,10 @@ ErrCode Match::Terminate(const bool is_force)
 
 void Match::Terminate_()
 {
-    for (auto& [uid, uesr_info] : users_) {
-        match_manager().UnbindMatch(uid);
+    for (auto& [uid, user_info] : users_) {
+        if (user_info.state_ != ParticipantUser::State::LEFT) {
+            match_manager().UnbindMatch(uid);
+        }
     }
     users_.clear();
     Unbind_();

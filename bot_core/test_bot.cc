@@ -1184,6 +1184,24 @@ TEST_F(TestBot, leave_during_handle_request)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
 
+TEST_F(TestBot, leave_and_join_other_game)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_OK, 1, "#退出 强制");
+
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 3, "#加入 2");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 2, "结束子阶段");
+  ASSERT_PRI_MSG(EC_OK, 2, "#新游戏 测试游戏"); // match 1 is over
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备");
+}
+
 // Eliminate
 
 TEST_F(TestBot, eliminate_first)
