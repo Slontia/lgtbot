@@ -20,6 +20,12 @@ add_custom_target(make_output_dir ALL
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_PATH})
 
+if (WITH_GLOG)
+    find_package(glog REQUIRED)
+    list(APPEND GAME_THIRD_PARTIES glog)
+    add_definitions(-DWITH_GLOG)
+endif()
+
 foreach (GAME_DIR ${GAME_DIRS})
   if (IS_DIRECTORY ${GAME_DIR})
 
@@ -54,6 +60,7 @@ foreach (GAME_DIR ${GAME_DIRS})
 
     target_compile_definitions(${GAME} PUBLIC GAME_MODULE_NAME="${GAME}")
     target_include_directories(${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
+    target_link_libraries(${GAME} ${GAME_THIRD_PARTIES})
 
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
       add_dependencies(${GAME} ${GAME}_rule_binary)
@@ -66,14 +73,14 @@ foreach (GAME_DIR ${GAME_DIRS})
 
       add_executable(test_game_${GAME} ${SOURCE_FILES} ${GAME_DIR}/unittest.cc)
       target_include_directories(test_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
-      target_link_libraries(test_game_${GAME} GTest::GTest GTest::Main)
+      target_link_libraries(test_game_${GAME} GTest::GTest GTest::Main ${GAME_THIRD_PARTIES})
       target_compile_definitions(test_game_${GAME} PUBLIC TEST_BOT)
       add_test(NAME test_game_${GAME} COMMAND test_game_${GAME})
 
       add_executable(run_game_${GAME} ${SOURCE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/run_game.cc)
       target_include_directories(run_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
       target_compile_definitions(run_game_${GAME} PUBLIC TEST_BOT)
-      target_link_libraries(run_game_${GAME} gflags)
+      target_link_libraries(run_game_${GAME} gflags ${GAME_THIRD_PARTIES})
       add_test(NAME run_game_${GAME} COMMAND run_game_${GAME} --repeat=100)
 
       include(${GAME_DIR}/option.cmake)
