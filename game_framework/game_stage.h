@@ -494,7 +494,7 @@ class GameStage<GameOption, MainStage>
     void ClearReady() { Base::masker().Clear(); }
     void ClearReady(const PlayerID pid) { Base::masker().Unset(pid); }
     void SetReady(const PlayerID pid) { Base::masker().Set(pid, true); }
-    bool IsReady(const PlayerID pid) { return Base::masker().Get(pid) != Masker::State::UNSET; }
+    bool IsReady(const PlayerID pid) { return Base::masker().Get(pid) == Masker::State::SET; }
 
    private:
     StageErrCode Handle_(StageErrCode rc)

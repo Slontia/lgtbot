@@ -240,12 +240,12 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         reply() << "[错误] 加入失败：您已加入该游戏";
         return EC_MATCH_USER_ALREADY_IN_MATCH;
     }
+    if (const auto ret = CheckScoreEnough_(uid, reply, multiple_); ret != EC_OK) {
+        return ret;
+    }
     if (!match_manager().BindMatch(uid, shared_from_this())) {
         reply() << "[错误] 加入失败：您已加入其他游戏，您可通过私信裁判\"#游戏信息\"查看该游戏信息";
         return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
-    }
-    if (const auto ret = CheckScoreEnough_(uid, reply, multiple_); ret != EC_OK) {
-        return ret;
     }
     users_.emplace(uid, ParticipantUser(uid));
     Boardcast() << "玩家 " << At(uid) << " 加入了游戏"

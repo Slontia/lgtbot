@@ -15,10 +15,21 @@ GAME_TEST(2, show_info)
     ASSERT_PUB_MSG(OK, 0, "赛况");
 }
 
-GAME_TEST(2, leave_when_begin)
+GAME_TEST(2, leave_default_choise)
 {
     START_GAME();
-    ASSERT_LEAVE(CHECKOUT, 1);
+    ASSERT_LEAVE(CONTINUE, 1);
+    ASSERT_PRI_MSG(CHECKOUT, 0, "石头1");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "石头2");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "石头1");
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "石头2");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "石头4");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "石头2");
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "石头4");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "剪刀4");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "石头4");
     ASSERT_SCORE(1, 0);
 }
 
@@ -36,66 +47,6 @@ GAME_TEST(2, forbid_public_alter)
     ASSERT_PRI_MSG(OK, 0, "剪刀1");
     ASSERT_PRI_MSG(CHECKOUT, 1, "剪刀1");
     ASSERT_PUB_MSG(FAILED, 0, "石头1");
-}
-
-GAME_TEST(2, leave_when_choose_left)
-{
-    START_GAME();
-    ASSERT_PRI_MSG(OK, 0, "石头1");
-    ASSERT_LEAVE(CHECKOUT, 1);
-    ASSERT_SCORE(1, 0);
-}
-
-GAME_TEST(2, leave_when_choosed_left)
-{
-    START_GAME();
-    ASSERT_PRI_MSG(OK, 1, "石头1");
-    ASSERT_LEAVE(CHECKOUT, 1);
-    ASSERT_SCORE(1, 0);
-}
-
-GAME_TEST(2, leave_when_choose_right)
-{
-    START_GAME();
-    ASSERT_PRI_MSG(OK, 0, "石头1");
-    ASSERT_PRI_MSG(CHECKOUT, 1, "石头1");
-    ASSERT_PRI_MSG(OK, 0, "剪刀1");
-    ASSERT_LEAVE(CHECKOUT, 1);
-    ASSERT_SCORE(1, 0);
-}
-
-GAME_TEST(2, leave_when_choosed_right)
-{
-    START_GAME();
-    ASSERT_PRI_MSG(OK, 0, "石头1");
-    ASSERT_PRI_MSG(CHECKOUT, 1, "石头1");
-    ASSERT_PRI_MSG(OK, 1, "剪刀1");
-    ASSERT_LEAVE(CHECKOUT, 1);
-    ASSERT_SCORE(1, 0);
-}
-
-GAME_TEST(2, leave_when_alter)
-{
-    START_GAME();
-    ASSERT_PRI_MSG(OK, 0, "石头1");
-    ASSERT_PRI_MSG(CHECKOUT, 1, "石头1");
-    ASSERT_PRI_MSG(OK, 0, "剪刀1");
-    ASSERT_PRI_MSG(CHECKOUT, 1, "剪刀1");
-    ASSERT_PRI_MSG(OK, 0, "剪刀1");
-    ASSERT_LEAVE(CHECKOUT, 1);
-    ASSERT_SCORE(1, 0);
-}
-
-GAME_TEST(2, leave_when_altered)
-{
-    START_GAME();
-    ASSERT_PRI_MSG(OK, 0, "石头1");
-    ASSERT_PRI_MSG(CHECKOUT, 1, "石头1");
-    ASSERT_PRI_MSG(OK, 0, "剪刀1");
-    ASSERT_PRI_MSG(CHECKOUT, 1, "剪刀1");
-    ASSERT_PRI_MSG(OK, 1, "剪刀1");
-    ASSERT_LEAVE(CHECKOUT, 1);
-    ASSERT_SCORE(1, 0);
 }
 
 GAME_TEST(2, repeat_choose)

@@ -155,7 +155,6 @@ class MainStage : public MainGameStage<RoundStage>
 
    private:
     bool JudgeOver();
-    virtual void OnPlayerLeave(const PlayerID pid) override;
     void Info_()
     {
         Boardcast() << Markdown("## 第" + std::to_string(round_) + "回合\n\n" + table_.ToHtml(questioner_));
@@ -165,7 +164,6 @@ class MainStage : public MainGameStage<RoundStage>
     PlayerID questioner_;
     uint64_t round_;
     std::array<std::vector<int>, 2> player_nums_;
-    std::optional<PlayerID> leaver_;
 };
 
 class NumberStage : public SubGameStage<>
@@ -216,8 +214,6 @@ class NumberStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
-
     const PlayerID questioner_;
     int& actual_number_;
     int& lie_number_;
@@ -230,7 +226,7 @@ class GuessStage : public SubGameStage<>
             : GameStage(main_stage, "猜测阶段",
                     MakeStageCommand("猜测", &GuessStage::Guess_, BoolChecker("质疑", "相信"))),
               guesser_(guesser),
-              doubt_(false)
+              doubt_(false) // default value
     {}
 
     virtual void OnStageBegin() override
@@ -262,8 +258,6 @@ class GuessStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
-
     const PlayerID guesser_;
     bool doubt_;
 };
@@ -274,8 +268,8 @@ class RoundStage : public SubGameStage<NumberStage, GuessStage>
     RoundStage(MainStage& main_stage, const uint64_t round, const uint64_t questioner)
             : GameStage(main_stage, "第" + std::to_string(round) + "回合"),
               questioner_(questioner),
-              actual_number_(1),
-              lie_number_(1),
+              actual_number_(1), // default value
+              lie_number_(1), // default value
               loser_(0)
     {}
 
@@ -299,10 +293,7 @@ class RoundStage : public SubGameStage<NumberStage, GuessStage>
 
     virtual VariantSubStage NextSubStage(GuessStage& sub_stage, const CheckoutReason reason) override
     {
-        if (reason == CheckoutReason::BY_LEAVE) {
-            return {};
-        }
-        const bool doubt = reason == CheckoutReason::BY_TIMEOUT ? false : sub_stage.doubt();
+        const bool doubt = sub_stage.doubt();
         if (reason == CheckoutReason::BY_TIMEOUT) {
             Tell(questioner_) << "选择超时，默认为相信";
         }
@@ -350,21 +341,15 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 int64_t MainStage::PlayerScore(const PlayerID pid) const
 {
-    const PlayerID loser_pid = leaver_.has_value() ? *leaver_ : questioner_;
-    return pid == loser_pid ? 0 : 1;
+    return pid == questioner_ ? 0 : 1;
 }
 
 bool MainStage::JudgeOver()
 {
-    if (leaver_.has_value()) {
-        return true;
-    }
     const bool is_over = table_.CheckOver(questioner_);
     Info_();
     return is_over;
 }
-
-void MainStage::OnPlayerLeave(const PlayerID pid) { leaver_ = pid; }
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
 {

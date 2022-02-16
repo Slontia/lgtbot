@@ -158,29 +158,29 @@ GAME_TEST(2, do_nothing)
     ASSERT_FINISHED(true);
 }
 
-GAME_TEST(2, leave_1)
-{
-    START_GAME();
-    ASSERT_LEAVE(CHECKOUT, 1);
-    ASSERT_SCORE(1, 0);
-}
-
-GAME_TEST(2, leave_2)
-{
-    START_GAME();
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_LEAVE(CHECKOUT, 1);
-    ASSERT_SCORE(1, 0);
-}
-
 GAME_TEST(2, leave)
 {
+    ASSERT_PUB_MSG(OK, 0, "数字种类 6");
+    ASSERT_PUB_MSG(OK, 0, "失败数量 3");
     START_GAME();
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_LEAVE(CHECKOUT, 1);
-    ASSERT_SCORE(1, 0);
+    bool first_hand = 0;
+    if (const auto ret = PrivateRequest(0, "1 2"); ret == StageErrCode::FAILED) {
+        first_hand = 1;
+        ASSERT_PRI_MSG(CHECKOUT, 1, "1 2");
+    } else {
+        first_hand = 0;
+        ASSERT_ERRCODE(StageErrCode::CHECKOUT, ret);
+    }
+    ASSERT_LEAVE(CHECKOUT, 1 - first_hand);
+    ASSERT_PRI_MSG(CHECKOUT, first_hand, "相信");
+    ASSERT_PRI_MSG(CHECKOUT, first_hand, "相信");
+    if (first_hand == 0) {
+        ASSERT_SCORE(1, 0);
+    } else {
+        ASSERT_SCORE(0, 1);
+    }
 }
+
 
 int main(int argc, char** argv)
 {

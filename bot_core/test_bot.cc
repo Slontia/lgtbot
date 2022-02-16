@@ -1305,6 +1305,7 @@ TEST_F(TestBot, score_not_enough_cannot_join_multiple_greater)
   db_manager().user_profiles_[1].total_top_score_ = 80;
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#倍率 2");
   ASSERT_PUB_MSG(EC_MATCH_SCORE_NOT_ENOUGH, 1, 2, "#加入");
+  ASSERT_PRI_MSG(EC_OK, 2, "#新游戏 测试游戏");
 }
 
 TEST_F(TestBot, score_not_enough_can_set_multiple_less_or_equal)

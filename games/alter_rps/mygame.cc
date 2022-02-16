@@ -291,15 +291,7 @@ class MainStage : public MainGameStage<RoundStage>
         return StageErrCode::OK;
     }
 
-    virtual void OnPlayerLeave(const PlayerID pid) override
-    {
-        leaver_ = pid;
-        players_[pid].score_ = 0;
-        players_[1 - pid].score_ = 1;
-    }
-
     uint64_t round_;
-    std::optional<PlayerID> leaver_;
 };
 
 template <bool IS_LEFT>
@@ -334,8 +326,7 @@ class ChooseStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-   private:
-    virtual CheckoutErrCode OnTimeout() override
+    void DefaultAct()
     {
         for (PlayerID pid = 0; pid < uint64_t(2); ++pid) {
             if (IsReady(pid)) {
@@ -346,14 +337,14 @@ class ChooseStage : public SubGameStage<>
                 if (it->second.second == CardState::UNUSED) {
                     // set default value: the first unused card
                     SetCard_(pid, it);
-                    Tell(pid) << "您选择超时，已自动为您选择：" << it->first;
+                    Tell(pid) << "已自动为您选择：" << it->first;
                     break;
                 }
             }
         }
-        return StageErrCode::CHECKOUT;
     }
 
+  private:
     AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str)
     {
         // TODO: test repeat choose
@@ -373,7 +364,7 @@ class ChooseStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
         if (IsReady(pid)) {
-            (IS_LEFT ? player.left_ : player.right_)->second.second = CardState::UNUSED;
+            PlayerCard(player)->second.second = CardState::UNUSED;
         }
         SetCard_(pid, it);
         reply() << "选择成功";
@@ -385,13 +376,13 @@ class ChooseStage : public SubGameStage<>
         it->second.second = CardState::CHOOSED;
 
         auto& player = main_stage().players_[pid];
-        (IS_LEFT ? player.left_ : player.right_) = it;
+        PlayerCard(player) = it;
 
         const auto round = main_stage().round();
         main_stage().tables_[(round - 1) / 3].SetCard(pid, (round - 1) % 3, !IS_LEFT, it->second.first, true);
     }
 
-    virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
+    CardMap::iterator& PlayerCard(Player& player) { return IS_LEFT ? player.left_ : player.right_; }
 };
 
 class AlterStage : public SubGameStage<>
@@ -418,8 +409,7 @@ class AlterStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-   private:
-    virtual CheckoutErrCode OnTimeout() override
+    void DefaultAct()
     {
         for (PlayerID pid = 0; pid < uint64_t(2); ++pid) {
             if (IsReady(pid)) {
@@ -427,11 +417,11 @@ class AlterStage : public SubGameStage<>
             }
             auto& player = main_stage().players_[pid];
             player.alter_ = player.left_;
-            Tell(pid) << "您选择超时，已自动为您选择左拳卡牌";
+            Tell(pid) << "已自动为您选择左拳卡牌";
         }
-        return StageErrCode::CHECKOUT;
     }
 
+  private:
     AtomReqErrCode Alter_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str)
     {
         // TODO: test repeat choose
@@ -463,8 +453,6 @@ class AlterStage : public SubGameStage<>
         main_stage().tables_[(main_stage().round() - 1) / 3].SetCard(pid, (main_stage().round() - 1) % 3,
                 choose_left, choose_left ? player.right_->second.first : player.left_->second.first, false);
     }
-
-    virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override { return StageErrCode::CHECKOUT; }
 };
 
 class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, AlterStage>
@@ -485,9 +473,7 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
 
     virtual VariantSubStage NextSubStage(ChooseStage<true>& sub_stage, const CheckoutReason reason) override
     {
-        if (reason == CheckoutReason::BY_LEAVE) {
-            return {};
-        }
+        sub_stage.DefaultAct();
         {
             auto sender = Boardcast();
             const auto show_choose = [&](const PlayerID pid)
@@ -505,9 +491,7 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
 
     virtual VariantSubStage NextSubStage(ChooseStage<false>& sub_stage, const CheckoutReason reason) override
     {
-        if (reason == CheckoutReason::BY_LEAVE) {
-            return {};
-        }
+        sub_stage.DefaultAct();
         {
             auto sender = Boardcast();
             const auto show_choose = [&](const PlayerID pid)
@@ -525,9 +509,7 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
 
     virtual VariantSubStage NextSubStage(AlterStage& sub_stage, const CheckoutReason reason) override
     {
-        if (reason == CheckoutReason::BY_LEAVE) {
-            return {};
-        }
+        sub_stage.DefaultAct();
         main_stage().Battle();
         return {};
     }

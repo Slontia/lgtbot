@@ -46,6 +46,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "Linux")
 endif()
 
 target_link_libraries(bot_core_static ${THIRD_PARTIES})
+target_link_libraries(bot_core ${THIRD_PARTIES})
 
 if (WITH_TEST)
   enable_testing()

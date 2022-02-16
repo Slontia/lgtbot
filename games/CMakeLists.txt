@@ -22,7 +22,7 @@ add_custom_target(make_output_dir ALL
 
 if (WITH_GLOG)
     find_package(glog REQUIRED)
-    list(APPEND GAME_THIRD_PARTIES glog)
+    # list(APPEND GAME_THIRD_PARTIES glog) # bot_core has already link glog
     add_definitions(-DWITH_GLOG)
 endif()
 
