@@ -86,19 +86,24 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, std::optional<
     return EC_OK;
 }
 
-ErrCode Match::CheckScoreEnough_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const
+ErrCode Match::CheckMultipleAllowed_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const
 {
     const auto required_zero_sum_score = k_zero_sum_score_multi * multiple * 2;
     const auto required_top_score = k_top_score_multi * multiple * 2;
-    if (const auto profit = bot_.db_manager()->GetUserProfile(uid);
-            (multiple > game_handle_.multiple_ &&
-                (required_zero_sum_score > profit.total_zero_sum_score_ ||
-                 required_top_score > profit.total_top_score_))) {
+    const auto profit = bot_.db_manager()->GetUserProfile(uid);
+    if (multiple <= game_handle_.multiple_) {
+        return EC_OK;
+    } else if (required_zero_sum_score > profit.total_zero_sum_score_ || required_top_score > profit.total_top_score_) {
         reply() << "[错误] 您的分数未达到要求，零和总分至少需要达到 "
                 << required_zero_sum_score << "（当前 " << profit.total_zero_sum_score_ << "），"
                 << "头名总分至少需要达到 "
                 << required_top_score << "（当前 " << profit.total_top_score_ << "）";
         return EC_MATCH_SCORE_NOT_ENOUGH;
+    } else if (profit.recent_matches_.size() < multiple ||
+            std::any_of(profit.recent_matches_.begin(), profit.recent_matches_.begin() + multiple,
+                [](const auto& match) { return match.multiple_ != 1; })) {
+        reply() << "[错误] 您近期需连续完成 " << multiple << " 场单倍率的比赛";
+        return EC_MATCH_SINGLE_MULTT_MATCH_NOT_ENOUGH;
     }
     return EC_OK;
 }
@@ -114,7 +119,7 @@ ErrCode Match::SetMultiple(const UserID uid, MsgSenderBase& reply, const uint32_
         reply() << "[警告] 赔率 " << multiple << " 和目前配置相同";
         return EC_OK;
     }
-    if (const auto ret = CheckScoreEnough_(uid, reply, multiple); ret != EC_OK) {
+    if (const auto ret = CheckMultipleAllowed_(uid, reply, multiple); ret != EC_OK) {
         return ret;
     }
     multiple_ = multiple;
@@ -240,7 +245,7 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         reply() << "[错误] 加入失败：您已加入该游戏";
         return EC_MATCH_USER_ALREADY_IN_MATCH;
     }
-    if (const auto ret = CheckScoreEnough_(uid, reply, multiple_); ret != EC_OK) {
+    if (const auto ret = CheckMultipleAllowed_(uid, reply, multiple_); ret != EC_OK) {
         return ret;
     }
     if (!match_manager().BindMatch(uid, shared_from_this())) {

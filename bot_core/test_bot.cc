@@ -49,7 +49,7 @@ class MockDBManager : public DBManagerBase
         }
         auto score_infos = CalScores(user_infos, multiple);
         for (const auto& info : score_infos) {
-            match_profiles_.emplace_back(game_name, score_infos.size(), info.game_score_, info.zero_sum_score_, info.top_score_);
+            match_profiles_.emplace_back(game_name, score_infos.size(), multiple, info.game_score_, info.zero_sum_score_, info.top_score_);
         }
         return score_infos;
     }
@@ -1303,6 +1303,10 @@ TEST_F(TestBot, score_not_enough_cannot_join_multiple_greater)
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#新游戏 测试游戏");
   db_manager().user_profiles_[1].total_zero_sum_score_ = 4000;
   db_manager().user_profiles_[1].total_top_score_ = 80;
+  db_manager().user_profiles_[1].recent_matches_.emplace_back();
+  db_manager().user_profiles_[1].recent_matches_.emplace_back();
+  db_manager().user_profiles_[1].recent_matches_[0].multiple_ = 1;
+  db_manager().user_profiles_[1].recent_matches_[1].multiple_ = 1;
   ASSERT_PUB_MSG(EC_OK, 1, 1, "#倍率 2");
   ASSERT_PUB_MSG(EC_MATCH_SCORE_NOT_ENOUGH, 1, 2, "#加入");
   ASSERT_PRI_MSG(EC_OK, 2, "#新游戏 测试游戏");

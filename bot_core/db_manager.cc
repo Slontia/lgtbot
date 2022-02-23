@@ -160,17 +160,17 @@ void ForeachTotalLevelScoreOfUser(sqlite::database& db, const UserID& uid, const
 }
 
 template <typename Fn>
-void ForeachRecentMatchOfUser(sqlite::database& db, const UserID& uid, const Fn& fn)
+void ForeachRecentMatchOfUser(sqlite::database& db, const UserID& uid, const uint32_t limit, const Fn& fn)
 {
-    db << "SELECT match.game_name, match.user_count, user_with_match.game_score, "
+    db << "SELECT match.game_name, match.user_count, match.multiple, user_with_match.game_score, "
                 "user_with_match.zero_sum_score, user_with_match.top_score, user_with_match.level_score "
             "FROM user_with_match, match, user "
             "WHERE user_with_match.user_id = ? AND "
                 "user_with_match.user_id = user.user_id AND "
                 "user_with_match.birth_count = user.birth_count AND "
                 "user_with_match.match_id = match.match_id "
-            "ORDER BY match.match_id DESC LIMIT 10"
-        << uid.Get()
+            "ORDER BY match.match_id DESC LIMIT ?"
+        << uid.Get() << limit
         >> fn;
 }
 
@@ -263,13 +263,15 @@ UserProfile SQLiteDBManager::GetUserProfile(const UserID uid)
                           profile.game_level_infos_.emplace(
                               game_name, GameLevelInfo{.count_ = count, .total_level_score_ = total_level_score});
                       });
-            ForeachRecentMatchOfUser(db, uid,
-                  [&](const std::string& game_name, const uint64_t user_count, const int64_t game_score,
-                              const int64_t zero_sum_score, const int64_t top_score, const double level_score)
+            ForeachRecentMatchOfUser(db, uid, 10,
+                  [&](const std::string& game_name, const uint64_t user_count, const uint32_t multiple,
+                              const int64_t game_score, const int64_t zero_sum_score, const int64_t top_score,
+                              const double level_score)
                       {
                           profile.recent_matches_.emplace_back();
                           profile.recent_matches_.back().game_name_ = game_name;
                           profile.recent_matches_.back().user_count_ = user_count;
+                          profile.recent_matches_.back().multiple_ = multiple;
                           profile.recent_matches_.back().game_score_ = game_score;
                           profile.recent_matches_.back().zero_sum_score_ = zero_sum_score;
                           profile.recent_matches_.back().top_score_ = top_score;
@@ -284,7 +286,15 @@ bool SQLiteDBManager::Suicide(const UserID uid, const uint32_t required_match_nu
 {
     return ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            if (GetMatchCountOfUser(db, uid) >= required_match_num) {
+            uint32_t posi_score_count = 0;
+            ForeachRecentMatchOfUser(db, uid, required_match_num,
+                  [&](const std::string& game_name, const uint64_t user_count, const uint32_t multiple,
+                              const int64_t game_score, const int64_t zero_sum_score, const int64_t top_score,
+                              const double level_score)
+                      {
+                          posi_score_count += zero_sum_score > 0;
+                      });
+            if (posi_score_count == required_match_num) {
                 UpdateBirthOfUser(db, uid);
                 return true;
             }

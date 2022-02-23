@@ -374,15 +374,16 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
     html += "\n\n" + level_score_table.ToString() + "\n\n";
 
     html += "\n- **近十场游戏记录**：\n\n";
-    html::Table recent_matches_table(1, 7);
+    html::Table recent_matches_table(1, 8);
     recent_matches_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"0\" cellspacing=\"1\" ");
     recent_matches_table.Get(0, 0).SetContent("**序号**");
     recent_matches_table.Get(0, 1).SetContent("**游戏名称**");
     recent_matches_table.Get(0, 2).SetContent("**参与人数**");
-    recent_matches_table.Get(0, 3).SetContent("**游戏得分**");
-    recent_matches_table.Get(0, 4).SetContent("**零和得分**");
-    recent_matches_table.Get(0, 5).SetContent("**头名得分**");
-    recent_matches_table.Get(0, 6).SetContent("**等级得分**");
+    recent_matches_table.Get(0, 3).SetContent("**倍率**");
+    recent_matches_table.Get(0, 4).SetContent("**游戏得分**");
+    recent_matches_table.Get(0, 5).SetContent("**零和得分**");
+    recent_matches_table.Get(0, 6).SetContent("**头名得分**");
+    recent_matches_table.Get(0, 7).SetContent("**等级得分**");
 
     for (uint32_t i = 0; i < profile.recent_matches_.size(); ++i) {
         recent_matches_table.AppendRow();
@@ -390,10 +391,11 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
         recent_matches_table.Get(i + 1, 0).SetContent(colored_text(match_profile.top_score_, std::to_string(i + 1)));
         recent_matches_table.Get(i + 1, 1).SetContent(colored_text(match_profile.top_score_, match_profile.game_name_));
         recent_matches_table.Get(i + 1, 2).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.user_count_)));
-        recent_matches_table.Get(i + 1, 3).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.game_score_)));
-        recent_matches_table.Get(i + 1, 4).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.zero_sum_score_)));
-        recent_matches_table.Get(i + 1, 5).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.top_score_)));
-        recent_matches_table.Get(i + 1, 6).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.level_score_)));
+        recent_matches_table.Get(i + 1, 3).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.multiple_)));
+        recent_matches_table.Get(i + 1, 4).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.game_score_)));
+        recent_matches_table.Get(i + 1, 5).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.zero_sum_score_)));
+        recent_matches_table.Get(i + 1, 6).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.top_score_)));
+        recent_matches_table.Get(i + 1, 7).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.level_score_)));
     }
 
     html += "\n\n" + recent_matches_table.ToString();
@@ -411,7 +413,7 @@ static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<
         return EC_DB_NOT_CONNECTED;
     }
     if (!bot.db_manager()->Suicide(uid, k_required_match_num)) {
-        reply() << "[错误] 重来失败：至少完成三局比赛后，方可清除战绩";
+        reply() << "[错误] 重来失败：清除战绩，需最近三局比赛均取得正零和分的收益";
         return EC_USER_IS_EMPTY;
     }
     reply() << GetUserName(uid, gid.has_value() ? &(gid->Get()) : nullptr) << "，凋零！";
@@ -535,6 +537,12 @@ static ErrCode set_game_default_multiple(BotCtx& bot, const UserID uid, const st
     return EC_OK;
 }
 
+static ErrCode show_others_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+                            MsgSenderBase& reply, const uint64_t others_uid)
+{
+    return show_profile(bot, others_uid, gid, reply);
+}
+
 const std::vector<MetaCommandGroup> admin_cmds = {
     {
         "信息查看", {
@@ -548,6 +556,7 @@ const std::vector<MetaCommandGroup> admin_cmds = {
                         OptionalChecker<BasicChecker<MatchID>>("私密比赛编号")),
             make_command("设置游戏默认属性", set_game_default_multiple, VoidChecker("%默认倍率"),
                         AnyArg("游戏名称", "猜拳游戏"), ArithChecker<uint32_t>(0, 3, "倍率")),
+            make_command("查看他人战绩", show_others_profile, VoidChecker("%战绩"), ArithChecker<uint64_t>(0, 10000000000UL, "用户 ID")),
         }
     },
 };

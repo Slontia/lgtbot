@@ -96,7 +96,7 @@ static std::vector<ScoreInfo> MakeScoreInfo(const std::vector<UserInfoForCalScor
         ret.back().game_score_ = info.game_score_;
         ret.back().zero_sum_score_ = info.zero_sum_score_ * multiple;
         ret.back().top_score_ = info.top_score_ * multiple;
-        ret.back().level_score_ = info.level_score_ * multiple;
+        ret.back().level_score_ = info.level_score_;
     }
     return ret;
 }

@@ -25,6 +25,7 @@ struct MatchProfile
 {
     std::string game_name_;
     int64_t user_count_ = 0;
+    uint32_t multiple_ = 0;
     int64_t game_score_ = 0;
     int64_t zero_sum_score_ = 0;
     int64_t top_score_ = 0;

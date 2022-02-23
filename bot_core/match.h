@@ -125,7 +125,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     const uint64_t com_num() const { return std::max(int64_t(0), static_cast<int64_t>(bench_to_player_num_ - user_controlled_player_num())); }
 
    private:
-    ErrCode CheckScoreEnough_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const;
+    ErrCode CheckMultipleAllowed_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const;
 
     std::string State2String()
     {
