@@ -78,23 +78,21 @@ class MainStage : public MainGameStage<>
                  option.GET_VALUE(地图) == GameMap::SOPHIE ? InitSophieBoard(option.ResourceDir()) :
                      (*game_map_initers[rand() % game_map_initers.size()])(option.ResourceDir()))
         , round_(0)
+        , scores_{0}
     {
     }
 
     virtual void OnStageBegin()
     {
-        SetReady(1 - cur_pid());
         StartTimer(option().GET_VALUE(局时));
+        board_html_ = board_.ToHtml();
         Boardcast() << Markdown(ShowInfo_());
-        Boardcast() << "请" << At(cur_pid()) << "行动，" << option().GET_VALUE(局时)
+        Boardcast() << "请双方行动，" << option().GET_VALUE(局时)
                     << "秒未行动自动判负\n格式：棋子位置 行动方式";
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
     {
-        if (pid != cur_pid()) {
-            return StageErrCode::OK;
-        }
         const Coor coor = [&]() -> Coor
             {
                 while (true) {
@@ -111,28 +109,20 @@ class MainStage : public MainGameStage<>
 
     int64_t PlayerScore(const PlayerID pid) const
     {
-        return winner_ == pid;
+        return scores_[pid];
     }
 
   private:
     bool Act_(const PlayerID pid, const Coor& coor, const Choise choise, MsgSenderBase& reply)
     {
         const auto coor_to_str = [](const Coor& coor) { return char('A' + coor.m_) + std::to_string(coor.n_); };
-        if (!board_.IsValidCoor(coor)) {
-            reply() << "行动失败：位置 " << coor_to_str(coor) << " 并不位于棋盘上";
-            return false;
-        }
-        if (!board_.IsMyChess(coor, pid)) {
-            reply() << "行动失败：该位置并非本方棋子";
-            return false;
-        }
         if (choise == Choise::CLOCKWISE || choise == Choise::ANTICLOCKWISE) {
-            if (!board_.Rotate(coor, choise == Choise::CLOCKWISE)) {
-                reply() << "行动失败：无法如此旋转该棋子";
+            if (const auto errmsg = board_.Rotate(coor, choise == Choise::CLOCKWISE, pid); !errmsg.empty()) {
+                reply() << "行动失败：" << errmsg;
                 return false;
             }
-            Boardcast() << At(pid) << "将 " << coor_to_str(coor) << " 位置的棋子"
-                        << (choise == Choise::CLOCKWISE ? "顺" : "逆") << "时针旋转";
+            reply() << "您将 " << coor_to_str(coor) << " 位置的棋子"
+                << (choise == Choise::CLOCKWISE ? "顺" : "逆") << "时针旋转";
         } else {
             const auto new_coor = coor + (
                         choise == Choise::UP ? Coor{-1, 0} :
@@ -144,25 +134,19 @@ class MainStage : public MainGameStage<>
                         choise == Choise::LEFT_DOWN ? Coor{1, -1} :
                         choise == Choise::RIGHT_DOWN ? Coor{1, 1} : (assert(false), Coor())
                     );
-            if (!board_.IsValidCoor(new_coor)) {
-                reply() << "行动失败：您无法将棋子移动至棋盘外";
+            if (const auto errmsg = board_.Move(coor, new_coor, pid); !errmsg.empty()) {
+                reply() << "行动失败：" << errmsg;
                 return false;
             }
-            if (!board_.Move(coor, new_coor)) {
-                reply() << "行动失败：您无法移动该棋子，或目标位置已有棋子";
-                return false;
-            }
-            Boardcast() << At(pid) << "将 " << coor_to_str(coor) << " 位置的棋子移动至 " << coor_to_str(new_coor) << " 位置";
+            reply() << "您将 " << coor_to_str(coor) << " 位置的棋子移动至 " << coor_to_str(new_coor) << " 位置";
         }
-        reply() << "行动成功";
-        board_.Shoot(pid);
         return true;
     }
 
     AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& coor_str, const Choise choise)
     {
-        if (pid != cur_pid()) {
-            reply() << "在您的对手行动完毕前，您无法行动";
+        if (IsReady(pid)) {
+            reply() << "行动失败：您已经行动完成";
             return StageErrCode::FAILED;
         }
         const auto coor_ret = DecodePos(coor_str);
@@ -185,65 +169,83 @@ class MainStage : public MainGameStage<>
 
     std::string ShowInfo_() const
     {
-        std::string str = "## 第 " + std::to_string(round_ / 2 + 1) + " / " + std::to_string(option().GET_VALUE(回合数)) + " 回合\n\n";
+        std::string str = "## 第 " + std::to_string(round_) + " / " + std::to_string(option().GET_VALUE(回合数)) + " 回合\n\n";
         html::Table player_table(1, 4);
         player_table.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(0, 0 + pid * 2).SetContent(
-                        std::string("![](file://") + option().ResourceDir() +
-                        (pid == cur_pid() ? std::string("king_") + bool_to_rb(pid) : "empty") +
-                        ".png)");
+                        std::string("![](file://") + option().ResourceDir() + std::string("king_") + bool_to_rb(pid) + ".png)");
                 player_table.Get(0, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
             };
         print_player(0);
         print_player(1);
         str += player_table.ToString();
         str += "\n\n";
-        str += board_.ToHtml();
+        str += board_html_;
         return str;
     }
 
     virtual void OnAllPlayerReady()
     {
-        Boardcast() << Markdown(ShowInfo_());
-        const auto settle_ret = board_.Settle();
+        if (!ShootAndSettle_()) {
+            ClearReady();
+        }
+    }
 
-        if (settle_ret.king_dead_num_[cur_pid()]) {
-            winner_.emplace(1 - cur_pid());
-            Boardcast() << "玩家" << At(cur_pid()) << "命中了己方的王，输掉了比赛";
-        } else if (settle_ret.king_dead_num_[1 - cur_pid()]) {
-            winner_.emplace(cur_pid());
-            Boardcast() << "玩家" << At(cur_pid()) << "命中了敌方的王，赢得了比赛";
-        } else if ((++round_) / 2 >= option().GET_VALUE(回合数)) { // cur_pid changed
+    bool ShootAndSettle_()
+    {
+        bool finish = true;
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            if (!IsReady(pid)) {
+                Hook(pid);
+                board_.DefaultBehavior(pid);
+                Tell(pid) << "您未行动，默认为您旋转发射器";
+            }
+        }
+
+        const auto settle_ret = board_.Settle();
+        board_html_ = settle_ret.html_;
+
+        Boardcast() << Markdown(ShowInfo_());
+        if (settle_ret.king_alive_num_[0] == 0 && settle_ret.king_alive_num_[1] == 0) {
+            Boardcast() << "双方王同归于尽，游戏平局";
+        } else if (settle_ret.king_alive_num_[0] == 0) {
+            Boardcast() << "玩家" << At(PlayerID{0}) << "的王被命中，输掉了比赛";
+        } else if (settle_ret.king_alive_num_[1] == 0) {
+            Boardcast() << "玩家" << At(PlayerID{1}) << "的王被命中，输掉了比赛";
+        } else if (++round_ >= option().GET_VALUE(回合数)) {
             Boardcast() << "达到最大回合数，游戏平局";
         } else {
             auto sender = Boardcast();
-            if (settle_ret.chess_dead_num_[0] || settle_ret.chess_dead_num_[1]) {
-                sender << "玩家" << At(PlayerID{1 - cur_pid()}) << "命中了敌方 " << settle_ret.chess_dead_num_[cur_pid()]
-                       << " 枚棋子，命中了己方 " << settle_ret.chess_dead_num_[1 - cur_pid()] << " 枚棋子\n\n";
+            if (settle_ret.crashed_) {
+                sender << "双方移动的棋子因碰撞而湮灭\n\n";
             }
-            ClearReady(cur_pid());
+            if (settle_ret.chess_dead_num_[0]) {
+                sender << "玩家" << At(PlayerID{0}) << "被命中了 " << settle_ret.chess_dead_num_[0] << " 枚棋子\n\n";
+                scores_[1] = 1;
+            }
+            if (settle_ret.chess_dead_num_[1]) {
+                sender << "玩家" << At(PlayerID{1}) << "被命中了 " << settle_ret.chess_dead_num_[1] << " 枚棋子\n\n";
+                scores_[0] = 1;
+            }
+            finish = false;
             StartTimer(option().GET_VALUE(局时));
-            sender << "请" << At(cur_pid()) << "行动，" << option().GET_VALUE(局时)
-                   << "秒未行动自动判负\n格式：棋子位置 行动方式";
+            sender << "请双方行动，" << option().GET_VALUE(局时) << "秒未行动自动判负\n格式：棋子位置 行动方式";
         }
-        Boardcast() << Markdown(ShowInfo_());
+        return finish;
     }
 
     CheckoutErrCode OnTimeout()
     {
-        winner_.emplace(1 - cur_pid());
-        Boardcast() << At(cur_pid()) << "超时判负";
-        return StageErrCode::CHECKOUT;
+        return CheckoutErrCode::Condition(ShootAndSettle_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
-
-    PlayerID cur_pid() const { return round_ % 2 ? PlayerID(1 - first_turn_) : first_turn_; }
 
     const PlayerID first_turn_;
     laser::Board board_;
     uint32_t round_;
-    std::optional<PlayerID> winner_;
+    std::array<int64_t, 2> scores_;
+    std::string board_html_;
 };
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)

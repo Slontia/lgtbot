@@ -62,18 +62,14 @@ class EmptyChess
 
     bool Rotate(const bool) { return false; }
 
-    bool CanMove() const { return false; }
+    bool CanMove() const { return true; }
 
     bool IsMyChess(const bool pid) const { return false; }
 
-    std::string Image(const std::bitset<4>& laser_tracker, const bool laser_pid) const
+    std::string Image(const std::bitset<4>& laser_tracker) const
     {
-        if (laser_tracker.none()) {
-            return "empty";
-        } else {
-            return "empty_" + std::to_string(laser_tracker.test(UP) || laser_tracker.test(DOWN)) +
-                std::to_string(laser_tracker.test(LEFT) || laser_tracker.test(RIGHT)) + "_" + bool_to_rb(laser_pid);
-        }
+        return "empty_" + std::to_string(laser_tracker.test(UP) || laser_tracker.test(DOWN)) +
+            std::to_string(laser_tracker.test(LEFT) || laser_tracker.test(RIGHT));
     }
 
     std::string Image() const { return "empty"; }
@@ -100,7 +96,7 @@ class KingChess : public PlayerChessBase<k_pid_>
 
     bool CanMove() const { return true; }
 
-    std::string Image(const std::bitset<4>& laser_tracker = {}, const bool laser_pid = 0) const
+    std::string Image(const std::bitset<4>& laser_tracker) const
     {
         return "king_" + bool_to_rb(k_pid_);
     }
@@ -129,7 +125,7 @@ class ShieldChess : public PlayerChessBase<k_pid_>
 
     bool CanMove() const { return true; }
 
-    std::string Image(const std::bitset<4>& laser_tracker = {}, const bool laser_pid = 0) const
+    std::string Image(const std::bitset<4>& laser_tracker) const
     {
         return "shield_" + bool_to_rb(k_pid_) + "_" + direct_to_str(direct_);
     }
@@ -145,7 +141,7 @@ class ShooterChess : public PlayerChessBase<k_pid_>
     ShooterChess(const int direct, const std::bitset<4>& avaliable_directs)
         : direct_(direct), avaliable_directs_(avaliable_directs) {}
 
-    LaserResult HandleLaser(const int) const { return LaserResult{{}, false}; }
+    LaserResult HandleLaser(const int) const { return LaserResult{std::bitset<4>().set(direct_), false}; }
 
     bool Rotate(const bool is_clock_wise)
     {
@@ -159,10 +155,9 @@ class ShooterChess : public PlayerChessBase<k_pid_>
 
     bool CanMove() const { return false; }
 
-    std::string Image(const std::bitset<4>& laser_tracker = {}, const bool laser_pid = !k_pid_) const
+    std::string Image(const std::bitset<4>& laser_tracker) const
     {
-        return "shooter_" + bool_to_rb(k_pid_) + "_" + direct_to_str(direct_) + "_" +
-            std::to_string(!k_pid_ ^ laser_pid);
+        return "shooter_" + bool_to_rb(k_pid_) + "_" + direct_to_str(direct_) + "_" + std::to_string(laser_tracker.any());
     }
 
     int Direct() const { return direct_; }
@@ -197,10 +192,10 @@ class SingleMirrorChess : public PlayerChessBase<k_pid_>
 
     bool CanMove() const { return true; }
 
-    std::string Image(const std::bitset<4>& laser_tracker = {}, const bool laser_pid = {}) const
+    std::string Image(const std::bitset<4>& laser_tracker) const
     {
         return "single_" + bool_to_rb(k_pid_) + "_" + direct_to_str(direct_) + "_" +
-            (!laser_tracker.test(direct_) && !laser_tracker.test(AntiClockWise(direct_)) ? "x" : bool_to_rb(laser_pid));
+            std::to_string(laser_tracker.test(direct_) || laser_tracker.test(AntiClockWise(direct_)));
     }
 
   private:
@@ -230,11 +225,11 @@ class DoubleMirrorChess : public PlayerChessBase<k_pid_>
 
     bool CanMove() const { return true; }
 
-    std::string Image(const std::bitset<4>& laser_tracker = {}, const bool laser_pid = {}) const
+    std::string Image(const std::bitset<4>& laser_tracker) const
     {
         return "double_" + bool_to_rb(k_pid_) + "_" + std::to_string(is_left_bottom_) + "_" +
-            (laser_tracker.test(DOWN) || (laser_tracker.test(RIGHT) && is_left_bottom_) || (laser_tracker.test(LEFT) && !is_left_bottom_) ? bool_to_rb(laser_pid) : "x") +
-            (laser_tracker.test(UP) || (laser_tracker.test(LEFT) && is_left_bottom_) || (laser_tracker.test(RIGHT) && !is_left_bottom_) ? bool_to_rb(laser_pid) : "x");
+            std::to_string(laser_tracker.test(DOWN) || (laser_tracker.test(RIGHT) && is_left_bottom_) || (laser_tracker.test(LEFT) && !is_left_bottom_)) +
+            std::to_string(laser_tracker.test(UP) || (laser_tracker.test(LEFT) && is_left_bottom_) || (laser_tracker.test(RIGHT) && !is_left_bottom_));
     }
 
   private:
@@ -264,17 +259,15 @@ class LensedMirrorChess : public PlayerChessBase<k_pid_>
 
     bool CanMove() const { return true; }
 
-    std::string Image(const std::bitset<4>& laser_tracker = {}, const bool laser_pid = {}) const
+    std::string Image(const std::bitset<4>& laser_tracker) const
     {
-        if (laser_tracker.none()) {
-            return "lensed_" + bool_to_rb(k_pid_) + "_" + std::to_string(is_left_bottom_);
-        }
-        const std::string type = laser_tracker.count() >= 2 ? "f" :
+        const std::string type = laser_tracker.none()       ? "x" :
+                                 laser_tracker.count() >= 2 ? "f" :
                                  laser_tracker.test(UP)     ? "u" :
                                  laser_tracker.test(LEFT)   ? "l" :
                                  laser_tracker.test(RIGHT)  ? "r" :
                                  laser_tracker.test(DOWN)   ? "d" : "?";
-        return "lensed_" + bool_to_rb(k_pid_) + "_" + std::to_string(is_left_bottom_) + "_" + type + bool_to_rb(laser_pid);
+        return "lensed_" + bool_to_rb(k_pid_) + "_" + std::to_string(is_left_bottom_) + "_" + type;
     }
 
   private:
@@ -288,44 +281,35 @@ using VariantChess = std::variant<EmptyChess,
 
 struct SettleResult
 {
-    SettleResult& operator+=(const SettleResult& s)
-    {
-        king_dead_num_[0] += s.king_dead_num_[0];
-        king_dead_num_[1] += s.king_dead_num_[1];
-        chess_dead_num_[0] += s.chess_dead_num_[0];
-        chess_dead_num_[1] += s.chess_dead_num_[1];
-        return *this;
-    }
-
-    std::array<uint32_t, 2> king_dead_num_ = {0};
+    std::array<uint32_t, 2> king_alive_num_ = {0};
     std::array<uint32_t, 2> chess_dead_num_ = {0};
+    bool crashed_ = false;
+    std::string html_;
 };
 
 class Area
 {
   public:
-    Area() : chess_(std::in_place_type<EmptyChess>), is_dead_(false) {}
+    Area() : chess_(std::in_place_type<EmptyChess>), is_dead_(false), state_(Area::IDL) {}
 
     // Return 1 if the player's king is dead
-    SettleResult Settle()
+    void Settle(SettleResult& result)
     {
-        SettleResult result;
         laser_tracker_.reset();
+        result.crashed_ |= state_ == Area::DST && Empty();
+        state_ = Area::IDL;
         if (!is_dead_) {
-            return result;
+            if (auto* const king_chess = std::get_if<KingChess<true>>(&chess_)) {
+                ++result.king_alive_num_[true];
+            } else if (auto* const king_chess = std::get_if<KingChess<false>>(&chess_)) {
+                ++result.king_alive_num_[false];
+            }
+            return;
         }
-        if (auto* const king_chess = std::get_if<KingChess<true>>(&chess_)) {
-            result.chess_dead_num_[true] = 1;
-            result.king_dead_num_[true] = 1;
-        } else if (auto* const king_chess = std::get_if<KingChess<false>>(&chess_)) {
-            result.chess_dead_num_[false] = 1;
-            result.king_dead_num_[false] = 1;
-        } else {
-            result.chess_dead_num_[IsMyChess(true)] = 1;
-        }
+        result.chess_dead_num_[IsMyChess(true)] = 1;
         chess_ = EmptyChess();
         is_dead_ = false;
-        return result;
+        return;
     }
 
     bool IsMyChess(const bool pid) const
@@ -354,14 +338,10 @@ class Area
         return result.next_directs_;
     }
 
-    std::string Image(const bool laser_pid) const
+    std::string Image() const
     {
-        return std::visit(
-                [laser_pid, this](const auto& chess) { return chess.Image(laser_tracker_, laser_pid); },
-                chess_);
+        return std::visit([&](const auto& chess) { return chess.Image(laser_tracker_); }, chess_);
     }
-
-    std::string Image() const { return std::visit([](const auto& chess) { return chess.Image(); }, chess_); }
 
     bool Empty() const { return std::get_if<EmptyChess>(&chess_) != nullptr; }
 
@@ -371,11 +351,25 @@ class Area
     template <typename T>
     const T& GetChess() const { return std::get<T>(chess_); }
 
+    enum State { IDL, SRC, DST };
+
+    State SetState(const State state)
+    {
+        return std::exchange(state_, state);
+    }
+
+    State GetState() const { return state_; }
+
+    static void SwapChess(Area& _1, Area& _2) { std::swap(_1.chess_, _2.chess_); }
+
   private:
     VariantChess chess_;
     std::bitset<4> laser_tracker_;
     bool is_dead_;
+    State state_;
 };
+
+auto coor_to_str (const Coor& coor) { return char('A' + coor.m_) + std::to_string(coor.n_); };
 
 class Board
 {
@@ -385,6 +379,7 @@ class Board
         , max_n_(max_n)
         , image_path_(std::move(image_path))
         , areas_(max_m * max_n)
+        , is_shooting_(false)
     {
         assert(max_m > 0);
         assert(max_n > 0);
@@ -397,13 +392,18 @@ class Board
         return GetArea_(coor).IsMyChess(pid);
     }
 
+    bool IsEmpty(const Coor& coor) const
+    {
+        return GetArea_(coor).Empty();
+    }
+
     template <typename T>
     inline bool SetChess(const Coor& coor, T&& chess)
     {
         constexpr const bool is_shooter =
             std::is_same_v<std::decay_t<T>, ShooterChess<true>> || std::is_same_v<std::decay_t<T>, ShooterChess<false>>;
         auto& shooter_pos = shooter_pos_[chess.IsMyChess(1)];
-        assert(!shot_pid_.has_value());
+        assert(!is_shooting_);
         auto& area = GetArea_(coor);
         if (!area.Empty() || (is_shooter && IsValidCoor(shooter_pos))) {
             return false;
@@ -415,48 +415,72 @@ class Board
         return true;
     }
 
-    bool Move(const Coor& src, const Coor& dst)
+    void DefaultBehavior(const bool pid)
     {
-        assert(!shot_pid_.has_value());
+        Rotate(shooter_pos_[pid], true, pid).empty() || Rotate(shooter_pos_[pid], false, pid).empty();
+    }
+
+    std::string Move(const Coor& src, const Coor& dst, const bool pid)
+    {
+        assert(!is_shooting_);
+        if (!IsValidCoor(src)) {
+            return std::string("位置 ") + coor_to_str(src) + " 并不位于棋盘上";
+        }
+        if (!IsValidCoor(dst)) {
+            return "您无法将棋子移动至棋盘外";
+        }
         auto& src_area = GetArea_(src);
         auto& dst_area = GetArea_(dst);
-        if (src_area.CanMove() && dst_area.Empty()) {
-            std::swap(dst_area, src_area);
-            return true;
+        if (!src_area.CanMove() || !src_area.IsMyChess(pid) || src_area.GetState() != Area::IDL) {
+            return std::string("位置 ") + coor_to_str(src) + " 上的棋子无法被移动";
         }
-        return false;
+        if (dst_area.GetState() == Area::DST) { // crash
+            src_area.SetChess(EmptyChess());
+            src_area.SetState(Area::SRC);
+            dst_area.SetChess(EmptyChess());
+            return "";
+        }
+        if ((!dst_area.Empty() && (!dst_area.CanMove() || !dst_area.IsMyChess(pid))) || dst_area.GetState() != Area::IDL) {
+            return std::string("位置 ") + coor_to_str(dst) + " 不能作为移动的目标";
+        }
+        src_area.SetState(Area::SRC);
+        dst_area.SetState(dst_area.Empty() ? Area::DST : Area::SRC);
+        Area::SwapChess(dst_area, src_area);
+        return "";
     }
 
-    bool Rotate(const Coor& coor, const bool is_clock_wise)
+    std::string Rotate(const Coor& coor, const bool is_clock_wise, const bool pid)
     {
-        assert(!shot_pid_.has_value());
-        return GetArea_(coor).Rotate(is_clock_wise);
-    }
-
-    void Shoot(const bool pid)
-    {
-        assert(!shot_pid_.has_value());
-        shot_pid_ = pid;
-        const auto shooter_pos = shooter_pos_[pid];
-        const auto handle_laser = [&](const auto& shooter)
-            {
-                RecursiveHandleLaser_(shooter_pos + DirectMove(shooter.Direct()), shooter.Direct());
-            };
-        if (pid) {
-            handle_laser(GetArea_(shooter_pos).GetChess<ShooterChess<true>>());
-        } else {
-            handle_laser(GetArea_(shooter_pos).GetChess<ShooterChess<false>>());
+        assert(!is_shooting_);
+        if (!IsValidCoor(coor)) {
+            return std::string("位置 ") + coor_to_str(coor) + " 并不位于棋盘上";
         }
+        auto& area = GetArea_(coor);
+        if (!area.IsMyChess(pid) || area.GetState() != Area::IDL || !area.Rotate(is_clock_wise)) {
+            return std::string("位置 ") + coor_to_str(coor) + " 上的棋子无法被如此旋转";
+        }
+        area.SetState(Area::SRC);
+        return "";
     }
 
     SettleResult Settle()
     {
-        assert(shot_pid_.has_value());
-        shot_pid_.reset();
+        is_shooting_ = true;
+        RecursiveHandleLaser_(shooter_pos_[0], UP);
+        RecursiveHandleLaser_(shooter_pos_[1], UP);
+
+        assert(is_shooting_);
+        is_shooting_ = false;
         SettleResult result {0};
+
+        result.html_ += ToHtml();
+
         for (auto& area : areas_) {
-            result += area.Settle();
+            area.Settle(result);
         }
+
+        result.html_ += "<br />\n\n" + ToHtml();
+
         return result;
     }
 
@@ -467,28 +491,25 @@ class Board
 
     std::string ToHtml() const
     {
-        const std::string bg_color = !shot_pid_.has_value() ? "white"   :
-                                     *shot_pid_             ? "#e8bfc6" : "#b0c2db";
         html::Table table(max_m_ + 2, max_n_ + 2);
         table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
         for (int32_t m = 1; m <= max_m_; ++m) {
             for (int32_t n = 1; n <= max_n_; ++n) {
-                table.Get(m, n).SetColor((m % 2) ^ (n % 2) ? "#bcbcbc" : bg_color);
                 const auto& area = GetArea_(Coor{m - 1, n - 1});
-                table.Get(m, n).SetContent("![](file://" + image_path_ + "/" +
-                        (shot_pid_.has_value() ? area.Image(*shot_pid_) : area.Image()) + ".png)");
+                table.Get(m, n).SetColor(area.GetState() != Area::IDL ? "yellow" :
+                                         (m % 2) ^ (n % 2)            ? "#bcbcbc" : "efe4b0");
+                table.Get(m, n).SetContent("![](file://" + image_path_ + "/" + area.Image() + ".png)");
             }
         }
         for (int32_t m = 0; m < max_m_; ++m) {
-            table.Get(m + 1, 0).SetContent(std::string(1, 'A' + m)).SetColor(bg_color);
-            table.GetLastColumn(m + 1).SetContent(std::string(1, 'A' + m)).SetColor(bg_color);
+            table.Get(m + 1, 0).SetContent(std::string(1, 'A' + m));
+            table.GetLastColumn(m + 1).SetContent(std::string(1, 'A' + m));
         }
         for (int32_t n = 0; n < max_n_; ++n) {
-            table.Get(0, n + 1).SetContent(std::to_string(n)).SetColor(bg_color);
-            table.GetLastRow(n + 1).SetContent(std::to_string(n)).SetColor(bg_color);
+            table.Get(0, n + 1).SetContent(std::to_string(n));
+            table.GetLastRow(n + 1).SetContent(std::to_string(n));
         }
-        //table.Get(0, 0).SetColor(bg_color);
-        return "<style>html,body{color:#000000; background:" + bg_color + ";}</style>\n" + table.ToString();
+        return table.ToString();
     }
 
     uint32_t max_m() const { return max_m_; }
@@ -516,7 +537,7 @@ class Board
     const std::string image_path_;
     std::vector<Area> areas_;
     std::array<Coor, 2> shooter_pos_;
-    std::optional<bool> shot_pid_;
+    bool is_shooting_;
 };
 
 };
