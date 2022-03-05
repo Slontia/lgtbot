@@ -25,7 +25,7 @@ const uint64_t k_multiple = 0;
 
 std::string GameOption::StatusInfo() const
 {
-    return "每手棋" + std::to_string(GET_VALUE(局时)) + "秒超时，超时即判负，最多" + std::to_string(GET_VALUE(回合数)) + "回合";
+    return "每手棋" + std::to_string(GET_VALUE(局时)) + "秒超时，超时即判负，最多" + std::to_string(GET_VALUE(回合数)) + "回合，地图：" + GET_VALUE(地图).ToString();
 }
 
 bool GameOption::ToValid(MsgSenderBase& reply)
@@ -47,7 +47,9 @@ enum class Choise { UP, RIGHT, DOWN, LEFT, RIGHT_UP, LEFT_UP, RIGHT_DOWN, LEFT_D
 
 static std::ostream& operator<<(std::ostream& os, const Coor& coor) { return os << ('A' + coor.m_) << coor.n_; }
 
-std::array<Board(*)(std::string), 6> game_map_initers = {InitAceBoard, InitCuriosityBoard, InitGrailBoard, InitMercuryBoard, InitSophieBoard, InitGeniusBoard};
+// function order should be same as enum order
+std::array<Board(*)(std::string), GameMap::Count() - 1> game_map_initers =
+    {InitAceBoard, InitCuriosityBoard, InitGrailBoard, InitMercuryBoard, InitSophieBoard, InitGeniusBoard};
 
 // Player 1 use fork, player 0 use circle
 class MainStage : public MainGameStage<>
@@ -70,13 +72,8 @@ class MainStage : public MainGameStage<>
                             { "逆", Choise::ANTICLOCKWISE }}
                         )))
         , first_turn_(rand() % 2)
-        , board_(option.GET_VALUE(地图) == GameMap::ACE ? InitAceBoard(option.ResourceDir()) :
-                 option.GET_VALUE(地图) == GameMap::CURIOSITY ? InitCuriosityBoard(option.ResourceDir()) :
-                 option.GET_VALUE(地图) == GameMap::GENIUS ? InitGeniusBoard(option.ResourceDir()) :
-                 option.GET_VALUE(地图) == GameMap::GRAIL ? InitGrailBoard(option.ResourceDir()) :
-                 option.GET_VALUE(地图) == GameMap::MERCURY ? InitMercuryBoard(option.ResourceDir()) :
-                 option.GET_VALUE(地图) == GameMap::SOPHIE ? InitSophieBoard(option.ResourceDir()) :
-                     (*game_map_initers[rand() % game_map_initers.size()])(option.ResourceDir()))
+        , map_(option.GET_VALUE(地图) == GameMap::随机 ? GameMap::Members()[rand() % (GameMap::Count() - 1)] : option.GET_VALUE(地图))
+        , board_(game_map_initers[map_.ToUInt()](option.ResourceDir()))
         , round_(0)
         , scores_{0}
     {
@@ -145,6 +142,10 @@ class MainStage : public MainGameStage<>
 
     AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& coor_str, const Choise choise)
     {
+        if (is_public) {
+            reply() << "行动失败：请私信裁判行动";
+            return StageErrCode::FAILED;
+        }
         if (IsReady(pid)) {
             reply() << "行动失败：您已经行动完成";
             return StageErrCode::FAILED;
@@ -182,20 +183,22 @@ class MainStage : public MainGameStage<>
         print_player(1);
         str += player_table.ToString();
         str += "\n\n";
+        str += "<center>\n\n **地图：** " HTML_COLOR_FONT_HEADER(red) " **";
+        str += map_.ToString();
+        str += "** " HTML_FONT_TAIL " \n\n</center>\n\n";
         str += board_html_;
         return str;
     }
 
     virtual void OnAllPlayerReady()
     {
-        if (!ShootAndSettle_()) {
-            ClearReady();
-        }
+        ShootAndSettle_();
     }
 
     bool ShootAndSettle_()
     {
         bool finish = true;
+        ++round_;
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             if (!IsReady(pid)) {
                 Hook(pid);
@@ -212,9 +215,11 @@ class MainStage : public MainGameStage<>
             Boardcast() << "双方王同归于尽，游戏平局";
         } else if (settle_ret.king_alive_num_[0] == 0) {
             Boardcast() << "玩家" << At(PlayerID{0}) << "的王被命中，输掉了比赛";
+            scores_[1] = 1;
         } else if (settle_ret.king_alive_num_[1] == 0) {
             Boardcast() << "玩家" << At(PlayerID{1}) << "的王被命中，输掉了比赛";
-        } else if (++round_ >= option().GET_VALUE(回合数)) {
+            scores_[0] = 1;
+        } else if (round_ >= option().GET_VALUE(回合数)) {
             Boardcast() << "达到最大回合数，游戏平局";
         } else {
             auto sender = Boardcast();
@@ -223,13 +228,12 @@ class MainStage : public MainGameStage<>
             }
             if (settle_ret.chess_dead_num_[0]) {
                 sender << "玩家" << At(PlayerID{0}) << "被命中了 " << settle_ret.chess_dead_num_[0] << " 枚棋子\n\n";
-                scores_[1] = 1;
             }
             if (settle_ret.chess_dead_num_[1]) {
                 sender << "玩家" << At(PlayerID{1}) << "被命中了 " << settle_ret.chess_dead_num_[1] << " 枚棋子\n\n";
-                scores_[0] = 1;
             }
             finish = false;
+            ClearReady();
             StartTimer(option().GET_VALUE(局时));
             sender << "请双方行动，" << option().GET_VALUE(局时) << "秒未行动自动判负\n格式：棋子位置 行动方式";
         }
@@ -242,6 +246,7 @@ class MainStage : public MainGameStage<>
     }
 
     const PlayerID first_turn_;
+    GameMap map_;
     laser::Board board_;
     uint32_t round_;
     std::array<int64_t, 2> scores_;

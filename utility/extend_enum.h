@@ -71,7 +71,9 @@ class name \
 \
     inline static const std::array<name, static_cast<uint32_t>(INNER_ENUM(name)::name##_MAX_)>& Members(); \
 \
-    inline static std::optional<name> Parse(const std::string_view& str); \
+    inline static const std::map<std::string, name>& ParseMap(); \
+\
+    inline static std::optional<name> Parse(const std::string& str); \
 \
     constexpr static name Condition(const bool cond, const name _1, const name _2) { return cond ? _1 : _2; } \
 \
@@ -149,18 +151,30 @@ inline const std::array<name, static_cast<uint32_t>(INNER_ENUM(name)::name##_MAX
 #undef ENUM_END
 
 #define ENUM_BEGIN(name) \
-inline std::optional<name> name::Parse(const std::string_view& str) \
+inline const std::map<std::string, name>& name::ParseMap() \
 { \
-    static std::map<std::string_view, name> parser = {
+    static std::map<std::string, name> parser = {
 #define ENUM_MEMBER(name, member)  { #member, name::member },
 #define ENUM_END(name) \
     }; \
-    const auto it = parser.find(str); \
-    if (it == parser.end()) { \
+    return parser; \
+}
+#include ENUM_FILE
+#undef ENUM_BEGIN
+#undef ENUM_MEMBER
+#undef ENUM_END
+
+#define ENUM_BEGIN(name) \
+inline std::optional<name> name::Parse(const std::string& str) \
+{ \
+    const auto it = ParseMap().find(str); \
+    if (it == ParseMap().end()) { \
         return std::nullopt; \
     } \
     return it->second; \
 }
+#define ENUM_MEMBER(name, member)
+#define ENUM_END(name)
 #include ENUM_FILE
 #undef ENUM_BEGIN
 #undef ENUM_MEMBER

@@ -141,7 +141,7 @@ class AlterChecker : public MsgArgChecker<T>
 {
   public:
     template <typename String = const char* const>
-    AlterChecker(std::map<std::string, T>&& arg_map)
+    AlterChecker(std::map<std::string, T> arg_map)
             : arg_map_(std::move(arg_map))
             , format_info_(FormatInfoInternal_(arg_map_))
             , colored_format_info_(HTML_COLOR_FONT_HEADER(purple) + format_info_ + HTML_FONT_TAIL)
