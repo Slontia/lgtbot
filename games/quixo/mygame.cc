@@ -180,10 +180,17 @@ class MainStage : public MainGameStage<>
         }
     }
 
-    CheckoutErrCode OnTimeout()
+    virtual CheckoutErrCode OnTimeout() override
     {
         scores_[1 - cur_pid()] = 1;
         Boardcast() << At(cur_pid()) << "超时判负";
+        return StageErrCode::CHECKOUT;
+    }
+
+    virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
+    {
+        scores_[1 - pid] = 1;
+        Boardcast() << At(pid) << "中途离开判负";
         return StageErrCode::CHECKOUT;
     }
 

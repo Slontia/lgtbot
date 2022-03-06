@@ -426,7 +426,7 @@ class GameStage<GameOption, MainStage>
     virtual StageErrCode HandleLeave(const PlayerID pid) override final
     {
         Base::masker().Pin(pid);
-        return  Handle_(pid, true, OnPlayerLeave(pid));
+        return Handle_(pid, true, OnPlayerLeave(pid));
     }
 
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public,
@@ -499,7 +499,7 @@ class GameStage<GameOption, MainStage>
    private:
     StageErrCode Handle_(StageErrCode rc)
     {
-        if (Base::masker().IsReady()) {
+        if (rc != StageErrCode::CHECKOUT && Base::masker().IsReady()) {
             // We do not check IsReady only when rc is READY to handle all player force exit.
             OnAllPlayerReady();
             InfoLog() << "OnAllPlayerReady name=" << Base::name() << " masker_ready=" << Base::masker().IsReady();

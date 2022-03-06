@@ -159,6 +159,66 @@ GAME_TEST(2, hard_cannot_move_other_type)
     ASSERT_PUB_MSG(FAILED, first_hand, "0 4");
 }
 
+GAME_TEST(2, timeout_lose)
+{
+    bool first_hand = 0;
+    ASSERT_PUB_MSG(OK, 0, "模式 简单");
+    ASSERT_TRUE(StartGame());
+    if (const auto ret = PrivateRequest(0, "4 0"); ret == StageErrCode::FAILED) {
+        first_hand = 1;
+        ASSERT_PRI_MSG(CONTINUE, 1, "4 0");
+    } else {
+        first_hand = 0;
+        ASSERT_ERRCODE(StageErrCode::CONTINUE, ret);
+    }
+    ASSERT_TIMEOUT(StageErrCode::CHECKOUT);
+    if (first_hand == 0) {
+        ASSERT_SCORE(1, 0);
+    } else {
+        ASSERT_SCORE(0, 1);
+    }
+}
+
+GAME_TEST(2, cur_player_leave_lose)
+{
+    bool first_hand = 0;
+    ASSERT_PUB_MSG(OK, 0, "模式 简单");
+    ASSERT_TRUE(StartGame());
+    if (const auto ret = PrivateRequest(0, "4 0"); ret == StageErrCode::FAILED) {
+        first_hand = 1;
+        ASSERT_PRI_MSG(CONTINUE, 1, "4 0");
+    } else {
+        first_hand = 0;
+        ASSERT_ERRCODE(StageErrCode::CONTINUE, ret);
+    }
+    ASSERT_LEAVE(StageErrCode::CHECKOUT, first_hand);
+    if (first_hand == 0) {
+        ASSERT_SCORE(0, 1);
+    } else {
+        ASSERT_SCORE(1, 0);
+    }
+}
+
+GAME_TEST(2, non_cur_player_leave_lose)
+{
+    bool first_hand = 0;
+    ASSERT_PUB_MSG(OK, 0, "模式 简单");
+    ASSERT_TRUE(StartGame());
+    if (const auto ret = PrivateRequest(0, "4 0"); ret == StageErrCode::FAILED) {
+        first_hand = 1;
+        ASSERT_PRI_MSG(CONTINUE, 1, "4 0");
+    } else {
+        first_hand = 0;
+        ASSERT_ERRCODE(StageErrCode::CONTINUE, ret);
+    }
+    ASSERT_LEAVE(StageErrCode::CHECKOUT, 1 - first_hand);
+    if (first_hand == 0) {
+        ASSERT_SCORE(1, 0);
+    } else {
+        ASSERT_SCORE(0, 1);
+    }
+}
+
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);

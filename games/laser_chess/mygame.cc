@@ -25,7 +25,7 @@ const uint64_t k_multiple = 0;
 
 std::string GameOption::StatusInfo() const
 {
-    return "每手棋" + std::to_string(GET_VALUE(局时)) + "秒超时，超时即判负，最多" + std::to_string(GET_VALUE(回合数)) + "回合，地图：" + GET_VALUE(地图).ToString();
+    return "每手棋" + std::to_string(GET_VALUE(局时)) + "秒超时，超时即默认旋转发射器，最多" + std::to_string(GET_VALUE(回合数)) + "回合，地图：" + GET_VALUE(地图).ToString();
 }
 
 bool GameOption::ToValid(MsgSenderBase& reply)
@@ -85,7 +85,7 @@ class MainStage : public MainGameStage<>
         board_html_ = board_.ToHtml();
         Boardcast() << Markdown(ShowInfo_());
         Boardcast() << "请双方行动，" << option().GET_VALUE(局时)
-                    << "秒未行动自动判负\n格式：棋子位置 行动方式";
+                    << "秒未行动自动默认旋转发射器\n格式：棋子位置 行动方式";
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
@@ -235,7 +235,7 @@ class MainStage : public MainGameStage<>
             finish = false;
             ClearReady();
             StartTimer(option().GET_VALUE(局时));
-            sender << "请双方行动，" << option().GET_VALUE(局时) << "秒未行动自动判负\n格式：棋子位置 行动方式";
+            sender << "请双方行动，" << option().GET_VALUE(局时) << "秒未行动自动默认旋转发射器\n格式：棋子位置 行动方式";
         }
         return finish;
     }
