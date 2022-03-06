@@ -50,6 +50,7 @@ class MainStage : public MainGameStage<>
         , first_turn_(rand() % 2)
         , board_(option.ResourceDir())
         , round_(0)
+        , scores_{0}
     {
     }
 
@@ -82,7 +83,7 @@ class MainStage : public MainGameStage<>
 
     int64_t PlayerScore(const PlayerID pid) const
     {
-        return winner_ == pid;
+        return scores_[pid];
     }
 
   private:
@@ -121,8 +122,11 @@ class MainStage : public MainGameStage<>
     std::string ShowInfo_() const
     {
         std::string str = "## 第" + std::to_string(round_ / 2 + 1) + "回合\n\n";
-        html::Table player_table(1, 4);
+        html::Table player_table(2, 4);
+        player_table.MergeDown(0, 0, 2);
+        player_table.MergeDown(0, 2, 2);
         player_table.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
+        const auto chess_counts = ChessCounts_();
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(0, 0 + pid * 2).SetContent(
@@ -130,6 +134,7 @@ class MainStage : public MainGameStage<>
                         (pid == cur_pid() ? std::string("box_") + static_cast<char>(cur_type()) : "empty") +
                         ".png)");
                 player_table.Get(0, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
+                player_table.Get(1, 1 + pid * 2).SetContent("棋子数量： " HTML_COLOR_FONT_HEADER(red) + std::to_string(chess_counts[pid]) + HTML_FONT_TAIL);
             };
         print_player(0);
         print_player(1);
@@ -145,19 +150,27 @@ class MainStage : public MainGameStage<>
         if (ret[1 - static_cast<uint32_t>(cur_symbol())]) {
             Boardcast() << Markdown(ShowInfo_());
             Boardcast() << At(cur_pid()) << "帮助对手达成了直线，于是，输掉了比赛";
-            winner_.emplace(1 - cur_pid());
+            scores_[1 - cur_pid()] = 1;
         } else if (ret[static_cast<uint32_t>(cur_symbol())]) {
             Boardcast() << Markdown(ShowInfo_());
             Boardcast() << At(cur_pid()) << "达成了直线，于是，赢得了比赛";
-            winner_.emplace(cur_pid());
+            scores_[cur_pid()] = 1;
         } else if ((++round_) / 2 >= option().GET_VALUE(回合数)) {
             Boardcast() << Markdown(ShowInfo_());
-            Boardcast() << "后手方" << At(PlayerID(1 - first_turn_)) << "坚持到了最大回合数，于是，赢得了比赛";
-            winner_.emplace(1 - first_turn_);
+            const auto chess_counts = ChessCounts_();
+            if (chess_counts[0] == chess_counts[1]) {
+                Boardcast() << "游戏达到最大回合数，双方棋子数量相同，游戏平局";
+            } else if (chess_counts[0] > chess_counts[1]) {
+                scores_[1] = 1;
+                Boardcast() << "游戏达到最大回合数，玩家" << At(PlayerID(1)) << "棋子数量较少，于是，赢得了比赛";
+            } else {
+                scores_[0] = 1;
+                Boardcast() << "游戏达到最大回合数，玩家" << At(PlayerID(0)) << "棋子数量较少，于是，赢得了比赛";
+            }
         } else if (!board_.CanPush(cur_type())) {
             Boardcast() << Markdown(ShowInfo_());
             Boardcast() << At(cur_pid()) << "没有可取出的棋子，于是，输掉了比赛";
-            winner_.emplace(1 - cur_pid());
+            scores_[1 - cur_pid()] = 1;
         } else {
             Boardcast() << Markdown(ShowInfo_());
             ClearReady(cur_pid());
@@ -169,7 +182,7 @@ class MainStage : public MainGameStage<>
 
     CheckoutErrCode OnTimeout()
     {
-        winner_.emplace(1 - cur_pid());
+        scores_[1 - cur_pid()] = 1;
         Boardcast() << At(cur_pid()) << "超时判负";
         return StageErrCode::CHECKOUT;
     }
@@ -182,10 +195,19 @@ class MainStage : public MainGameStage<>
     }
     quixo::Symbol cur_symbol() const { return round_ % 2 ? quixo::Symbol::X : quixo::Symbol::O; }
 
+    std::array<uint32_t, 2> ChessCounts_() const
+    {
+        const auto board_chess_counts = board_.ChessCounts();
+        std::array<uint32_t, 2> chess_counts;
+        chess_counts[cur_pid()] = board_chess_counts[static_cast<uint32_t>(cur_symbol())];
+        chess_counts[1 - cur_pid()] = board_chess_counts[1 - static_cast<uint32_t>(cur_symbol())];
+        return chess_counts;
+    }
+
     const PlayerID first_turn_;
     quixo::Board board_;
     uint32_t round_;
-    std::optional<PlayerID> winner_;
+    std::array<int32_t, 2> scores_;
 };
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)

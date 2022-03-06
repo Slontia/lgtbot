@@ -54,7 +54,7 @@ enum class Symbol { O = 0, X = 1 };
 class Board
 {
   public:
-    Board(const std::string& image_path) : image_path_(image_path)
+    Board(const std::string& image_path) : image_path_(image_path), chess_counts_{0}
     {
         for (auto& arr : areas_) {
             for (auto& type : arr) {
@@ -107,6 +107,13 @@ class Board
         if (src_type != Type::_ && src_type != type) {
             return ErrCode::INVALID_SRC;
         }
+        if (src_type == Type::_) {
+            if (type == Type::X1 || type == Type::X2) {
+                ++chess_counts_[static_cast<uint32_t>(Symbol::X)];
+            } else if (type == Type::O1 || type == Type::O2) {
+                ++chess_counts_[static_cast<uint32_t>(Symbol::O)];
+            }
+        }
         if (!TryPush_<true>(src_coor, dst_coor, type) && !TryPush_<false>(src_coor, dst_coor, type)) {
             return ErrCode::INVALID_DST;
         }
@@ -120,6 +127,11 @@ class Board
         std::array<uint32_t, 2> r{0, 0};
         ForAllSuccLine_([&](const auto& coors, const Symbol s) { ++r[static_cast<uint32_t>(s)]; });
         return r;
+    }
+
+    std::array<uint32_t, 2> ChessCounts() const
+    {
+        return chess_counts_;
     }
 
     std::vector<uint32_t> ValidDsts(const uint32_t src)
@@ -203,6 +215,7 @@ class Board
     const std::string image_path_;
     std::array<std::array<Type, 5>, 5> areas_;
     std::optional<Coor> last_move_coor_;
+    std::array<uint32_t, 2> chess_counts_;
 };
 
 }
