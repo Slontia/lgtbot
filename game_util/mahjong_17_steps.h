@@ -561,8 +561,8 @@ class Mahjong17Steps
                 counter.score1 == 24000      ? "三倍满" :
                 counter.score1 == 16000      ? "倍满" :
                 counter.score1 == 12000      ? "跳满" :
-                counter.score1 == 8000       ? "满贯" :
-                std::to_string(counter.fu) + " 符 " + std::to_string(counter.fan) + " 番") +
+                counter.score1 == 8000       ? "满贯" : "") + " " +
+                (counter.fan > 0 ? std::to_string(counter.fu) + " 符 " + std::to_string(counter.fan) + " 番" : "") +
             " " + std::to_string(counter.score1) + " 点** </font>");
         for (const auto& text : texts) {
             title_table.AppendRow();
@@ -648,13 +648,13 @@ class Mahjong17Steps
                     for (auto& yaku : counter.yakus) {
                         if (yaku == Yaku::国士无双十三面) {
                             yaku = Yaku::国士无双;
-                            counter.fan -= 13;
+                            counter.yakuman -= 1;
                         } else if (yaku == Yaku::纯正九莲宝灯) {
                             yaku = Yaku::九莲宝灯;
-                            counter.fan -= 13;
+                            counter.yakuman -= 1;
                         } else if (yaku == Yaku::四暗刻单骑) {
                             yaku = Yaku::四暗刻;
-                            counter.fan -= 13;
+                            counter.yakuman -= 1;
                         }
                     }
                     // remove non 役满 tiles

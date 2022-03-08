@@ -186,7 +186,7 @@ TEST_F(TestMahjong17Steps, get_listen_info_普通九莲)
         EXPECT_NE(it, info.end());
         EXPECT_EQ(1, it->second.yakus.size());
         EXPECT_EQ(1, std::count_if(it->second.yakus.begin(), it->second.yakus.end(), [](const Yaku yaku) { return yaku == Yaku::九莲宝灯; }));
-        EXPECT_EQ(13, it->second.fan);
+        EXPECT_EQ(0, it->second.fan);
         EXPECT_EQ(32000, it->second.score1);
     }
 }
@@ -564,6 +564,40 @@ TEST_F(TestMahjong17Steps, get_listen_info_not_count_inner_dora)
         EXPECT_EQ(40, it->second.fu);
         EXPECT_EQ(7, it->second.fan);
         EXPECT_EQ(12000, it->second.score1);
+    }
+}
+
+TEST_F(TestMahjong17Steps, get_listen_info_累计役满)
+{
+    table_.doras_.emplace_back(Tile{BaseTile::_3m, 0}, Tile{BaseTile::_1s});
+    table_.players_[0].hand_ = {
+        Tile{BaseTile::_1m, 0},
+        Tile{BaseTile::_1m, 0},
+        Tile{BaseTile::_2m, 0},
+        Tile{BaseTile::_2m, 0},
+        Tile{BaseTile::_2m, 0},
+        Tile{BaseTile::_4m, 0},
+        Tile{BaseTile::_4m, 0},
+        Tile{BaseTile::_4m, 0},
+        Tile{BaseTile::_6m, 0},
+        Tile{BaseTile::_6m, 0},
+        Tile{BaseTile::_6m, 0},
+        Tile{BaseTile::_7m, 0},
+        Tile{BaseTile::_7m, 0},
+    };
+    auto info = table_.GetListenInfo_(0);
+    EXPECT_EQ(2, info.size());
+    for (const auto& tile : {BaseTile::_1m, BaseTile::_7m}) {
+        const auto it = info.find(tile);
+        EXPECT_NE(it, info.end());
+        EXPECT_EQ(7, it->second.yakus.size());
+        EXPECT_EQ(1, std::count_if(it->second.yakus.begin(), it->second.yakus.end(), [](const Yaku yaku) { return yaku == Yaku::立直; }));
+        EXPECT_EQ(1, std::count_if(it->second.yakus.begin(), it->second.yakus.end(), [](const Yaku yaku) { return yaku == Yaku::三暗刻; }));
+        EXPECT_EQ(1, std::count_if(it->second.yakus.begin(), it->second.yakus.end(), [](const Yaku yaku) { return yaku == Yaku::对对和; }));
+        EXPECT_EQ(1, std::count_if(it->second.yakus.begin(), it->second.yakus.end(), [](const Yaku yaku) { return yaku == Yaku::清一色; }));
+        EXPECT_EQ(3, std::count_if(it->second.yakus.begin(), it->second.yakus.end(), [](const Yaku yaku) { return yaku == Yaku::宝牌; }));
+        EXPECT_EQ(14, it->second.fan);
+        EXPECT_EQ(32000, it->second.score1);
     }
 }
 
@@ -1041,7 +1075,7 @@ int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
     gflags::ParseCommandLineFlags(&argc, &argv, true);
-    //return RUN_ALL_TESTS();
-    ShowImage();
+    return RUN_ALL_TESTS();
+    //ShowImage();
     return 0;
 }
