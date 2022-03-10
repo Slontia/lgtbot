@@ -31,6 +31,7 @@ struct Mahjong17StepsOption
 {
     std::string name_;
     bool with_red_dora_ = false;
+    bool with_inner_dora_ = false;
     uint32_t dora_num_ = 0;
     uint32_t ron_required_point_ = 8000;
     std::string seed_;
@@ -310,8 +311,9 @@ class Mahjong17Steps
     std::string KiriHtml(const uint64_t pid)
     {
         const Player& player = players_[pid];
+        const bool is_ron = !players_[pid].ron_infos_.empty();
         std::string s = TitleHtml_() + "\n\n" + PlayerNameHtml_(pid) + "\n\n";
-        if (!players_[pid].ron_infos_.empty()) {
+        if (is_ron) {
             if (player.furutin_) {
                 s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(red) " **振&nbsp;&nbsp;听** "
                     HTML_FONT_TAIL "\n\n</font> </center>\n\n";
@@ -320,8 +322,8 @@ class Mahjong17Steps
                     HTML_FONT_TAIL "\n\n</font> </center>\n\n";
             }
         }
-        s += DoraHtml_(false) + "\n\n" + HandHtml_(pid, false, TileStyle::HAND) + "\n\n";
-        if (!players_[pid].ron_infos_.empty()) {
+        s += DoraHtml_(is_ron && !player.furutin_) + "\n\n" + HandHtml_(pid, false, TileStyle::HAND) + "\n\n";
+        if (is_ron) {
             s += RonInfoHtml_(pid) + "\n\n<br />\n\n";
         } else if (player.furutin_) {
             s += "<center>\n\n" HTML_COLOR_FONT_HEADER(red) " **振听中，无法荣和** " HTML_FONT_TAIL "\n\n</center>";
@@ -379,7 +381,7 @@ class Mahjong17Steps
             const auto it = this_player.listen_tiles_.find(other_player.kiri_->tile);
             if (it != this_player.listen_tiles_.end()) {
                 this_player.ron_infos_.emplace_back(other_pid, *other_player.kiri_,
-                        UpdateCounterResult_(it->second, false, ron_occu, other_player.kiri_->red_dora));
+                        UpdateCounterResult_(it->second, option_.with_inner_dora_, ron_occu, other_player.kiri_->red_dora));
             }
         }
     }
@@ -415,7 +417,7 @@ class Mahjong17Steps
         if (!players_[pid].ron_infos_.empty() && !players_[pid].furutin_) {
             s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(blue) " **和&nbsp;&nbsp;了** "
                 HTML_FONT_TAIL "\n\n</font> </center>\n\n";
-            s += DoraHtml_(false) + "\n\n" + HandHtml_(pid, false, TileStyle::FORWARD) + "\n\n" + RonInfoHtml_(pid) + "\n\n<br />\n\n";
+            s += DoraHtml_(true) + "\n\n" + HandHtml_(pid, false, TileStyle::FORWARD) + "\n\n" + RonInfoHtml_(pid) + "\n\n<br />\n\n";
         } else if (is_flow_) {
             s += HandHtml_(pid, false, TileStyle::FORWARD) + "\n\n<br />\n\n";
         }
@@ -483,18 +485,25 @@ class Mahjong17Steps
         return s;
     }
 
-    std::string DoraHtml_(const bool /*show_inner_dora*/) const
+    std::string DoraHtml_(const bool show_inner_dora) const
     {
-        std::string str = "<center>\n\n" + BackImage_(TileStyle::FORWARD) + BackImage_(TileStyle::FORWARD);
+        const std::string head_str = "<center>\n\n" + BackImage_(TileStyle::FORWARD) + BackImage_(TileStyle::FORWARD);
+        std::string outer_str;
+        std::string inner_str;
         for (const auto& [dora, inner_dora] : doras_) {
-            str += Image_(dora, TileStyle::FORWARD);
-            //str += show_inner_dora ? Image_(inner_dora) : NonImage_();
+            outer_str += Image_(dora, TileStyle::FORWARD);
+            inner_str += show_inner_dora ? Image_(inner_dora, TileStyle::FORWARD) : BackImage_(TileStyle::FORWARD);
         }
+        std::string tail_str;
         for (auto i = doras_.size(); i < 5; ++i) {
-            str += BackImage_(TileStyle::FORWARD);
+            tail_str += BackImage_(TileStyle::FORWARD);
         }
-        str += "\n\n</center>";
-        return str;
+        tail_str += "\n\n</center>";
+        std::string final_str = head_str + outer_str + tail_str;
+        if (option_.with_inner_dora_) {
+            final_str += "\n\n" + head_str + inner_str + tail_str;
+        }
+        return final_str;
     }
 
     std::string HandHtml_(const uint64_t pid, const bool with_tile_str, const TileStyle style) const

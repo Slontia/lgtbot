@@ -23,7 +23,7 @@ std::string GameOption::StatusInfo() const
 {
     return "配牌时限 " + std::to_string(GET_VALUE(配牌时限)) + " 秒，切牌时限 " + std::to_string(GET_VALUE(切牌时限)) +
         " 秒，和牌牌型最少需要 " + std::to_string(GET_VALUE(起和点)) + " 点，场上有 " + std::to_string(GET_VALUE(宝牌)) +
-        " 枚宝牌，" + (GET_VALUE(赤宝牌) ? "有" : "无") + "赤宝牌，" +
+        " 枚宝牌，" + (GET_VALUE(赤宝牌) ? "有" : "无") + "赤宝牌，" + (GET_VALUE(里宝牌) ? "有" : "无") + "里宝牌，" +
         (GET_VALUE(种子).empty() ? "无种子" : "种子：" + GET_VALUE(种子));
 }
 
@@ -316,6 +316,7 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
         , game_table_(Mahjong17Steps(Mahjong17StepsOption{
                     .name_ = stage_name,
                     .with_red_dora_ = main_stage.option().GET_VALUE(赤宝牌),
+                    .with_inner_dora_ = main_stage.option().GET_VALUE(里宝牌),
                     .dora_num_ = main_stage.option().GET_VALUE(宝牌),
                     .ron_required_point_ = main_stage.option().GET_VALUE(起和点),
                     .seed_ = main_stage.option().GET_VALUE(种子).empty() ? "" : main_stage.option().GET_VALUE(种子) + stage_name,

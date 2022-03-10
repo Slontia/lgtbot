@@ -936,6 +936,7 @@ class TestMahjong17StepsPlayer3 : public testing::Test
   public:
     TestMahjong17StepsPlayer3()
         : table_(Mahjong17StepsOption{
+                .with_inner_dora_ = false,
                 .dora_num_ = 0, // keep zero because we will emplace_back to doras_ directly
                 .ron_required_point_ = 8000,
                 .player_descs_{
