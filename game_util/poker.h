@@ -10,7 +10,7 @@ ENUM_BEGIN(PokerSuit)
 ENUM_MEMBER(PokerSuit, PURPLE)
 ENUM_MEMBER(PokerSuit, BLUE)
 ENUM_MEMBER(PokerSuit, RED)
-ENUM_MEMBER(PokerSuit, BLACK)
+ENUM_MEMBER(PokerSuit, GREEN)
 ENUM_END(PokerSuit)
 
 ENUM_BEGIN(PokerNumber)
@@ -70,8 +70,8 @@ struct Poker
     auto operator<=>(const Poker&) const = default;
     std::string ToString() const;
     std::string ToHtml() const;
-    const PokerNumber number_;
-    const PokerSuit suit_;
+    PokerNumber number_;
+    PokerSuit suit_;
 };
 
 void swap(Poker& _1, Poker& _2)
@@ -104,7 +104,7 @@ std::string Poker::ToHtml() const
 {
     std::string s;
     switch (suit_) {
-        case PokerSuit::BLACK: s += HTML_COLOR_FONT_HEADER(black) "★"; break;
+        case PokerSuit::GREEN: s += HTML_COLOR_FONT_HEADER(green) "★"; break;
         case PokerSuit::RED: s += HTML_COLOR_FONT_HEADER(red) "■"; break;
         case PokerSuit::BLUE: s += HTML_COLOR_FONT_HEADER(blue) "▲"; break;
         case PokerSuit::PURPLE: s += HTML_COLOR_FONT_HEADER(purple) "●"; break;
@@ -129,8 +129,8 @@ template <typename Sender>
 Sender& operator<<(Sender& sender, const Poker& poker)
 {
     switch (poker.suit_) {
-        case PokerSuit::BLACK: sender << "★"; break;
-        case PokerSuit::RED: sender << "■"; break;
+        case PokerSuit::GREEN: sender << "☆"; break;
+        case PokerSuit::RED: sender << "□"; break;
         case PokerSuit::BLUE: sender << "△"; break;
         case PokerSuit::PURPLE: sender << "○"; break;
     }
@@ -160,10 +160,10 @@ template <typename String, typename Sender>
 std::optional<PokerSuit> ParseSuit(const String& s, Sender&& sender)
 {
     static const std::map<std::string, PokerSuit> str2suit = {
-        {"黑", PokerSuit::BLACK},
-        {"星", PokerSuit::BLACK},
-        {"★", PokerSuit::BLACK},
-        {"☆", PokerSuit::BLACK},
+        {"绿", PokerSuit::GREEN},
+        {"星", PokerSuit::GREEN},
+        {"★", PokerSuit::GREEN},
+        {"☆", PokerSuit::GREEN},
         {"红", PokerSuit::RED},
         {"方", PokerSuit::RED},
         {"■", PokerSuit::RED},
@@ -171,7 +171,7 @@ std::optional<PokerSuit> ParseSuit(const String& s, Sender&& sender)
         {"蓝", PokerSuit::BLUE},
         {"角", PokerSuit::BLUE},
         {"▲", PokerSuit::BLUE},
-        {"△", PokerSuit::BLACK},
+        {"△", PokerSuit::BLUE},
         {"紫", PokerSuit::PURPLE},
         {"圆", PokerSuit::PURPLE},
         {"●", PokerSuit::PURPLE},
@@ -248,7 +248,7 @@ struct Deck
         return *this;
     }
     auto operator<=>(const Deck&) const = default;
-    int CompareIgnoreSuit(const Deck& d)
+    int CompareIgnoreSuit(const Deck& d) const
     {
         if (type_ < d.type_) {
             return -1;
