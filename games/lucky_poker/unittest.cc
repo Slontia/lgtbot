@@ -102,6 +102,48 @@ GAME_TEST(2, not_bet_skip_second_bet)
     ASSERT_PRI_MSG(OK, 0, "准备");
 }
 
+GAME_TEST(2, timeout)
+{
+    ASSERT_PRI_MSG(OK, 0, "种子 ABC");
+    START_GAME();
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_PRI_MSG(OK, 0, "A 20 蓝5");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "准备");
+}
+
+GAME_TEST(2, folded_score_add_when_round_over)
+{
+    ASSERT_PRI_MSG(OK, 0, "种子 ABC");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 0, "A 10");
+    ASSERT_PRI_MSG(OK, 0, "B 弃牌");
+    ASSERT_PRI_MSG(OK, 0, "C 弃牌");
+    ASSERT_PRI_MSG(OK, 0, "D 弃牌");
+    ASSERT_PRI_MSG(OK, 0, "准备");
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_PRI_MSG(FAILED, 0, "A 6 蓝5");
+    ASSERT_PRI_MSG(OK, 0, "A 5 蓝5");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "准备");
+}
+
+GAME_TEST(2, raise_exceed_score_both_bet)
+{
+    ASSERT_PRI_MSG(OK, 0, "种子 ABC");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 0, "A 弃牌");
+    ASSERT_PRI_MSG(OK, 0, "B 弃牌");
+    ASSERT_PRI_MSG(OK, 0, "C 弃牌");
+    ASSERT_PRI_MSG(OK, 0, "D 弃牌");
+    ASSERT_PRI_MSG(OK, 0, "准备");
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_TIMEOUT(CHECKOUT); // 6 * 4 = 24 score
+    ASSERT_PRI_MSG(FAILED, 0, "A 65");
+    ASSERT_PRI_MSG(OK, 0, "A 64");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "准备");
+    ASSERT_PRI_MSG(FAILED, 0, "A 21 蓝1");
+    ASSERT_PRI_MSG(OK, 0, "A 20 蓝1");
+}
+
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);

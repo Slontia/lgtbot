@@ -18,7 +18,7 @@
 
 const std::string k_game_name = "幸运波卡";
 const uint64_t k_max_player = 4; /* 0 means no max-player limits */
-const uint64_t k_multiple = 0;
+const uint64_t k_multiple = 1;
 
 std::string GameOption::StatusInfo() const
 {
@@ -129,7 +129,7 @@ std::optional<poker::Deck> GetBestDeck(const PlayerHand& hand, const std::vector
 struct PlayerRoundInfo
 {
     PlayerRoundInfo(const PlayerID& pid, const std::string& player_name, const int64_t score, std::vector<PlayerHand>& hands)
-        : pid_(pid), player_name_(player_name), score_(score), remain_coins_(0), hands_(hands)
+        : pid_(pid), player_name_(player_name), score_(score), score_change_(0), remain_coins_(0), hands_(hands)
     {
     }
 
@@ -181,10 +181,11 @@ struct PlayerRoundInfo
     }
 
     // return score chagne
-    uint64_t ClearRemainCoins(const auto& teller)
+    void ClearRemainCoins(const auto& teller)
     {
         if (remain_coins_ <= 0) {
-            return remain_coins_;
+            score_change_ += remain_coins_;
+            return;
         }
         for (auto& hand : hands_) {
             if (hand.pid_ == pid_ && hand.discard_idx_ != PlayerHand::DISCARD_ALL && hand.discard_idx_ != PlayerHand::DISCARD_ALL_IMMUTBLE) {
@@ -194,7 +195,6 @@ struct PlayerRoundInfo
                 break;
             }
         }
-        return 0;
     }
 
     std::string Reset_(const uint32_t hand_id, const int64_t coins, const int64_t scores, const uint32_t discard_idx)
@@ -207,11 +207,9 @@ struct PlayerRoundInfo
             return "该牌组已被弃置，无法变动";
         }
         const int64_t offset = hand.mutable_coins_ + hand.mutable_score_ - coins - scores;
-        //std::cout << hand_id << " " << score_ << " " << remain_coins_ << " " << offset << " " << coins << " " << scores << std::endl;
-        if (score_ + remain_coins_ + offset < 0) {
+        if (score_ + score_change_ + remain_coins_ + offset < 0) {
             return "您积分不足，无法加注";
         }
-        //std::cout << hand.immutable_coins_ << " " << coins << " " << discard_idx;
         if (hand.immutable_coins_ < coins && discard_idx < k_hand_poker_num) {
             return "下注筹码数不得超过上一轮下注数量 " + std::to_string(hand.immutable_coins_);
         }
@@ -225,7 +223,14 @@ struct PlayerRoundInfo
     std::string ToHtml(const bool show_coins, const bool show_all_pokers, const std::vector<poker::Poker>& public_pokers) const
     {
         std::string str;
-        str += "### " + player_name_ + "（当前积分：" HTML_COLOR_FONT_HEADER(blue) + std::to_string(score_) + HTML_FONT_TAIL;
+        str += "### " + player_name_ + "（当前积分：" + std::to_string(score_);
+        if (score_change_ > 0) {
+            str += HTML_COLOR_FONT_HEADER(green);
+            str += " + " + std::to_string(score_change_) + HTML_FONT_TAIL;
+        } else if (score_change_ < 0) {
+            str += HTML_COLOR_FONT_HEADER(red);
+            str += " - " + std::to_string(-score_change_) + HTML_FONT_TAIL;
+        }
         if (show_coins) {
             if (remain_coins_ > 0) {
                 str += "，剩余筹码：" HTML_COLOR_FONT_HEADER(green) + std::to_string(remain_coins_) + HTML_FONT_TAIL;
@@ -315,6 +320,7 @@ struct PlayerRoundInfo
     const PlayerID pid_;
     const std::string player_name_;
     const int64_t score_;
+    int64_t score_change_;
     int64_t remain_coins_;
     std::vector<PlayerHand>& hands_;
     std::string html_;
@@ -348,7 +354,6 @@ class MainStage : public MainGameStage<RoundStage>
 
 std::optional<uint64_t> ToHandID(const std::string& str)
 {
-    //std::cout << "hand_id: " << str[0] << std::endl;
     if (str.size() != 1) {
         return std::nullopt;
     } else if (str[0] >= 'A' && str[0] <= 'Z') {
@@ -387,8 +392,16 @@ class BetStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    // TODO: Hook unready players
-    CheckoutErrCode OnTimeout() { return StageErrCode::CHECKOUT; }
+    CheckoutErrCode OnTimeout()
+    {
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            if (!IsReady(pid)) {
+                Hook(pid);
+            }
+        }
+        return StageErrCode::CHECKOUT;
+    }
+
     void OnAllPlayerReady() { }
  
   private:
@@ -565,8 +578,7 @@ class RoundStage : public SubGameStage<BetStage>
     virtual VariantSubStage NextSubStage(BetStage& sub_stage, const CheckoutReason reason) override
     {
         for (auto& player_info : player_round_infos_) {
-            main_stage().PlayerScoreRef(player_info.pid_) +=
-                player_info.ClearRemainCoins([this](const PlayerID pid) { return Tell(pid); });
+            player_info.ClearRemainCoins([this](const PlayerID pid) { return Tell(pid); });
         }
         for (auto& hand : hands_) {
             hand.immutable_coins_ += hand.mutable_coins_;
@@ -612,15 +624,17 @@ class RoundStage : public SubGameStage<BetStage>
                     hands_[hand_id].mutable_score_ += ret.total_coins_ / ret.winner_ids_.size();
                 }
             }
+            for (const auto& hand : hands_) {
+                player_round_infos_[hand.pid_].score_change_ += hand.immutable_score_ + hand.mutable_score_;
+            }
             Boardcast() << "第二轮下注结束，公布各玩家选择：";
             Group() << Markdown(EndHtml_() + BetResultHtml_(bet_rets));
             for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
                 Tell(pid) << Markdown(EndHtml_() + BetResultHtml_(bet_rets));
             }
             Boardcast() << "回合结束";
-            for (const auto& hand : hands_) {
-                //std::cout << hand.immutable_coins_ << " " << hand.mutable_score_ << std::endl;
-                main_stage().PlayerScoreRef(hand.pid_) += hand.immutable_score_ + hand.mutable_score_;
+            for (const auto& info : player_round_infos_) {
+                main_stage().PlayerScoreRef(info.pid_) += info.score_change_;
             }
             return nullptr;
         }
