@@ -87,6 +87,8 @@ class MockMatch : public MatchBase
         return tell_senders_.try_emplace(pid, MockMsgSender(pid, false)).first->second;
     }
 
+    virtual MockMsgSender& GroupMsgSender() override { return boardcast_sender_; }
+
     virtual const char* PlayerName(const PlayerID& pid)
     {
         thread_local static std::string str;

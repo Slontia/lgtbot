@@ -257,7 +257,7 @@ class KiriStage : public SubGameStage<>
 
     void SendInfo_()
     {
-        Boardcast() << Markdown(game_table_.PublicHtml());
+        Group() << Markdown(game_table_.PublicHtml());
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             Tell(pid) << Markdown(game_table_.KiriHtml(pid));
         }

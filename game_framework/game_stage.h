@@ -152,9 +152,13 @@ class StageBaseWrapper : virtual public StageBase
 
     decltype(auto) TellMsgSender(const PlayerID pid) const { return match_.TellMsgSender(pid); }
 
+    decltype(auto) GroupMsgSender() const { return match_.GroupMsgSender(); }
+
     decltype(auto) Boardcast() const { return BoardcastMsgSender()(); }
 
     decltype(auto) Tell(const PlayerID pid) const { return TellMsgSender(pid)(); }
+
+    decltype(auto) Group() const { return GroupMsgSender()(); }
 
     std::string PlayerName(const PlayerID pid) const { return match_.PlayerName(pid); }
 

@@ -543,12 +543,11 @@ class RoundStage : public SubGameStage<BetStage>
             info.SetRemainCoins(option().GET_VALUE(首轮筹码) * PlayerHandNum(option().PlayerNum()));
         }
         SavePlayerHtmls_();
-        Boardcast() << Markdown(MiddleHtml_(true));
-        Boardcast() << "请各位玩家私信裁判进行第一轮下注";
+        Group() << Markdown(MiddleHtml_(true));
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             Tell(pid) << Markdown(PrivateHtml_(pid, true));
-            Tell(pid) << "请私信裁判进行第一轮下注";
         }
+        Boardcast() << "请各位玩家私信裁判进行第一轮下注，您可通过「帮助」命令查看命令格式";
         return std::make_unique<BetStage>(main_stage(), is_first_, hands_, player_round_infos_);
     }
 
@@ -591,12 +590,11 @@ class RoundStage : public SubGameStage<BetStage>
                 }
             }
             Boardcast() << "第一轮下注结束，公布各玩家选择：";
-            Boardcast() << Markdown(MiddleHtml_(false));
-            Boardcast() << "请各位玩家私信裁判进行第二轮下注，并决定**不参与**决胜的卡牌";
+            Group() << Markdown(MiddleHtml_(false));
             for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
                 Tell(pid) << Markdown(PrivateHtml_(pid, false));
-                Tell(pid) << "请私信裁判进行第二轮下注，并决定**不参与**决胜的卡牌";
             }
+            Boardcast() << "请各位玩家私信裁判进行第二轮下注，并决定**不参与**决胜的卡牌，您可通过「帮助」命令查看命令格式";
             return std::make_unique<BetStage>(main_stage(), is_first_, hands_, player_round_infos_);
         } else {
             std::map<uint64_t, CallBetPoolInfo<DeckHelper>> decks;
@@ -615,10 +613,11 @@ class RoundStage : public SubGameStage<BetStage>
                 }
             }
             Boardcast() << "第二轮下注结束，公布各玩家选择：";
-            Boardcast() << Markdown(EndHtml_() + BetResultHtml_(bet_rets));
+            Group() << Markdown(EndHtml_() + BetResultHtml_(bet_rets));
             for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
                 Tell(pid) << Markdown(EndHtml_() + BetResultHtml_(bet_rets));
             }
+            Boardcast() << "回合结束";
             for (const auto& hand : hands_) {
                 //std::cout << hand.immutable_coins_ << " " << hand.mutable_score_ << std::endl;
                 main_stage().PlayerScoreRef(hand.pid_) += hand.immutable_score_ + hand.mutable_score_;

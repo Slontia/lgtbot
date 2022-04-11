@@ -29,9 +29,7 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
         , main_stage_(nullptr, [](const MainStageBase*) {}) // make when game starts
         , player_num_each_user_(1)
         , users_()
-        , boardcast_sender_(
-              gid.has_value() ? std::variant<MsgSender, MsgSenderBatch>(MsgSender(*gid_))
-                              : std::variant<MsgSender, MsgSenderBatch>(MsgSenderBatch([this](const std::function<void(MsgSender&)>& fn)
+        , boardcast_private_sender_([this](const std::function<void(MsgSender&)>& fn)
                                         {
                                             for (auto& [_, user_info] : users_) {
                                                 if (user_info.state_ != ParticipantUser::State::LEFT) {
@@ -39,8 +37,7 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
                                                 }
                                             }
                                         })
-                                )
-          )
+        , group_sender_(gid.has_value() ? std::optional<MsgSender>(MsgSender(*gid_)) : std::nullopt)
         , bench_to_player_num_(0)
         , multiple_(game_handle.multiple_)
         , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")))
@@ -223,7 +220,10 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
     for (ComputerID cid = 0; cid < com_num(); ++cid) {
         players_.emplace_back(cid);
     }
-    std::visit([this](auto& sender) { sender.SetMatch(this); }, boardcast_sender_);
+    boardcast_private_sender_.SetMatch(this);
+    if (group_sender_.has_value()) {
+        group_sender_->SetMatch(this);
+    }
     //start_time_ = std::chrono::system_clock::now();
     main_stage_->HandleStageBegin();
     Routine_(); // computer act first
@@ -307,7 +307,11 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
 
 MsgSenderBase& Match::BoardcastMsgSender()
 {
-    return std::visit([](auto& sender) -> MsgSenderBase& { return sender; }, boardcast_sender_);
+    if (group_sender_.has_value()) {
+        return *group_sender_;
+    } else {
+        return boardcast_private_sender_;
+    }
 }
 
 MsgSenderBase& Match::TellMsgSender(const PlayerID pid)
@@ -319,6 +323,15 @@ MsgSenderBase& Match::TellMsgSender(const PlayerID pid)
         return it->second.sender_;
     } else {
         return EmptyMsgSender::Get(); // player exit
+    }
+}
+
+MsgSenderBase& Match::GroupMsgSender()
+{
+    if (group_sender_.has_value()) {
+        return *group_sender_;
+    } else {
+        return EmptyMsgSender::Get();
     }
 }
 

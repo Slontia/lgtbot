@@ -82,6 +82,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     ErrCode LeaveMidway(const UserID uid, const bool is_public);
     virtual MsgSenderBase& BoardcastMsgSender() override;
     virtual MsgSenderBase& TellMsgSender(const PlayerID pid) override;
+    virtual MsgSenderBase& GroupMsgSender() override;
     virtual const char* PlayerName(const PlayerID& pid)
     {
         thread_local static std::string str;
@@ -170,7 +171,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     // player info
     std::map<UserID, ParticipantUser> users_;
-    std::variant<MsgSender, MsgSenderBatch> boardcast_sender_;
+    MsgSenderBatch boardcast_private_sender_;
+    std::optional<MsgSender> group_sender_;
 
     // other options
     uint64_t bench_to_player_num_;
