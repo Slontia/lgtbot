@@ -379,6 +379,7 @@ class Board
         , max_n_(max_n)
         , image_path_(std::move(image_path))
         , areas_(max_m * max_n)
+        , chess_count_{0}
         , is_shooting_(false)
     {
         assert(max_m > 0);
@@ -402,13 +403,15 @@ class Board
     {
         constexpr const bool is_shooter =
             std::is_same_v<std::decay_t<T>, ShooterChess<true>> || std::is_same_v<std::decay_t<T>, ShooterChess<false>>;
-        auto& shooter_pos = shooter_pos_[chess.IsMyChess(1)];
+        const bool pid = chess.IsMyChess(1);
+        auto& shooter_pos = shooter_pos_[pid];
         assert(!is_shooting_);
         auto& area = GetArea_(coor);
         if (!area.Empty() || (is_shooter && IsValidCoor(shooter_pos))) {
             return false;
         }
         area.SetChess(std::forward<T>(chess));
+        ++chess_count_[pid];
         if (is_shooter) {
             shooter_pos = coor;
         }
@@ -463,6 +466,8 @@ class Board
         return "";
     }
 
+    uint32_t ChessCount(const bool pid) const { return chess_count_[pid]; }
+
     SettleResult Settle()
     {
         is_shooting_ = true;
@@ -478,6 +483,8 @@ class Board
         for (auto& area : areas_) {
             area.Settle(result);
         }
+        chess_count_[0] -= result.chess_dead_num_[0] + result.crashed_;
+        chess_count_[1] -= result.chess_dead_num_[1] + result.crashed_;
 
         result.html_ += "<br />\n\n" + ToHtml();
 
@@ -537,6 +544,7 @@ class Board
     const std::string image_path_;
     std::vector<Area> areas_;
     std::array<Coor, 2> shooter_pos_;
+    std::array<uint32_t, 2> chess_count_;
     bool is_shooting_;
 };
 

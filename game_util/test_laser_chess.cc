@@ -24,6 +24,8 @@ TEST_F(TestLaserChess, single_chess_reflect)
     ASSERT_EQ(0, ret.king_alive_num_[1]);
     ASSERT_EQ(0, ret.chess_dead_num_[0]);
     ASSERT_EQ(1, ret.chess_dead_num_[1]);
+    ASSERT_EQ(3, b.ChessCount(0));
+    ASSERT_EQ(1, b.ChessCount(1));
 }
 
 TEST_F(TestLaserChess, single_chess_dead)
@@ -39,6 +41,8 @@ TEST_F(TestLaserChess, single_chess_dead)
     ASSERT_EQ(1, ret.king_alive_num_[1]);
     ASSERT_EQ(0, ret.chess_dead_num_[0]);
     ASSERT_EQ(1, ret.chess_dead_num_[1]);
+    ASSERT_EQ(3, b.ChessCount(0));
+    ASSERT_EQ(1, b.ChessCount(1));
 }
 
 TEST_F(TestLaserChess, double_chess_reflect)
@@ -55,6 +59,8 @@ TEST_F(TestLaserChess, double_chess_reflect)
     ASSERT_EQ(0, ret.king_alive_num_[1]);
     ASSERT_EQ(1, ret.chess_dead_num_[0]);
     ASSERT_EQ(0, ret.chess_dead_num_[1]);
+    ASSERT_EQ(1, b.ChessCount(0));
+    ASSERT_EQ(4, b.ChessCount(1));
 }
 
 TEST_F(TestLaserChess, lensed_chess_reflect)
@@ -69,6 +75,8 @@ TEST_F(TestLaserChess, lensed_chess_reflect)
     ASSERT_EQ(0, ret.king_alive_num_[1]);
     ASSERT_EQ(1, ret.chess_dead_num_[0]);
     ASSERT_EQ(0, ret.chess_dead_num_[1]);
+    ASSERT_EQ(2, b.ChessCount(0));
+    ASSERT_EQ(1, b.ChessCount(1));
 }
 
 #define ASSERT_SUCC(ret) \
@@ -89,6 +97,9 @@ TEST_F(TestLaserChess, move_crash)
     ASSERT_TRUE(b.IsEmpty(Coor{1, 1}));
     ASSERT_TRUE(b.IsEmpty(Coor{2, 1}));
     ASSERT_TRUE(b.IsEmpty(Coor{1, 2}));
+    const auto ret = b.Settle();
+    ASSERT_EQ(0, b.ChessCount(0));
+    ASSERT_EQ(0, b.ChessCount(1));
 }
 
 TEST_F(TestLaserChess, move_back)
@@ -98,6 +109,9 @@ TEST_F(TestLaserChess, move_back)
     ASSERT_SUCC(b.Move(Coor{1, 1}, Coor{2, 1}, 1));
     b.Settle();
     ASSERT_SUCC(b.Move(Coor{2, 1}, Coor{1, 1}, 1));
+    const auto ret = b.Settle();
+    ASSERT_EQ(0, b.ChessCount(0));
+    ASSERT_EQ(1, b.ChessCount(1));
 }
 
 TEST_F(TestLaserChess, move_to_other_src)
@@ -107,6 +121,9 @@ TEST_F(TestLaserChess, move_to_other_src)
     b.SetChess(Coor{1, 2}, LensedMirrorChess<1>(false));
     ASSERT_SUCC(b.Move(Coor{1, 1}, Coor{2, 1}, 0));
     ASSERT_FAIL(b.Move(Coor{1, 2}, Coor{1, 1}, 1));
+    const auto ret = b.Settle();
+    ASSERT_EQ(1, b.ChessCount(0));
+    ASSERT_EQ(1, b.ChessCount(1));
 }
 
 TEST_F(TestLaserChess, rotate_self)
@@ -114,6 +131,9 @@ TEST_F(TestLaserChess, rotate_self)
     Board b(8, 8, "");
     b.SetChess(Coor{1, 1}, LensedMirrorChess<0>(false));
     ASSERT_SUCC(b.Rotate(Coor{1, 1}, true, 0));
+    const auto ret = b.Settle();
+    ASSERT_EQ(1, b.ChessCount(0));
+    ASSERT_EQ(0, b.ChessCount(1));
 }
 
 TEST_F(TestLaserChess, rotate_other)
@@ -121,4 +141,7 @@ TEST_F(TestLaserChess, rotate_other)
     Board b(8, 8, "");
     b.SetChess(Coor{1, 1}, LensedMirrorChess<0>(false));
     ASSERT_FAIL(b.Rotate(Coor{1, 1}, true, 1));
+    const auto ret = b.Settle();
+    ASSERT_EQ(1, b.ChessCount(0));
+    ASSERT_EQ(0, b.ChessCount(1));
 }

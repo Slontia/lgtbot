@@ -171,13 +171,16 @@ class MainStage : public MainGameStage<>
     std::string ShowInfo_() const
     {
         std::string str = "## 第 " + std::to_string(round_) + " / " + std::to_string(option().GET_VALUE(回合数)) + " 回合\n\n";
-        html::Table player_table(1, 4);
+        html::Table player_table(2, 4);
+        player_table.MergeDown(0, 0, 2);
+        player_table.MergeDown(0, 2, 2);
         player_table.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(0, 0 + pid * 2).SetContent(
                         std::string("![](file://") + option().ResourceDir() + std::string("king_") + bool_to_rb(pid) + ".png)");
                 player_table.Get(0, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
+                player_table.Get(1, 1 + pid * 2).SetContent("棋子数量： " HTML_COLOR_FONT_HEADER(blue) + std::to_string(board_.ChessCount(pid)) + HTML_FONT_TAIL);
             };
         print_player(0);
         print_player(1);
@@ -212,7 +215,9 @@ class MainStage : public MainGameStage<>
 
         Boardcast() << Markdown(ShowInfo_());
         if (settle_ret.king_alive_num_[0] == 0 && settle_ret.king_alive_num_[1] == 0) {
-            Boardcast() << "双方王同归于尽，游戏平局";
+            Boardcast() << "双方王同归于尽，根据剩余棋子数量计算胜负";
+            scores_[0] = board_.ChessCount(0);
+            scores_[1] = board_.ChessCount(1);
         } else if (settle_ret.king_alive_num_[0] == 0) {
             Boardcast() << "玩家" << At(PlayerID{0}) << "的王被命中，输掉了比赛";
             scores_[1] = 1;
@@ -220,7 +225,9 @@ class MainStage : public MainGameStage<>
             Boardcast() << "玩家" << At(PlayerID{1}) << "的王被命中，输掉了比赛";
             scores_[0] = 1;
         } else if (round_ >= option().GET_VALUE(回合数)) {
-            Boardcast() << "达到最大回合数，游戏平局";
+            Boardcast() << "达到最大回合数，根据剩余棋子数量计算胜负";
+            scores_[0] = board_.ChessCount(0);
+            scores_[1] = board_.ChessCount(1);
         } else {
             auto sender = Boardcast();
             if (settle_ret.crashed_) {

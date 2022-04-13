@@ -16,7 +16,7 @@ GAME_TEST(2, keep_rotate)
     }
     ASSERT_PRI_MSG(OK, 0, chess_coor[0] + " 逆");
     ASSERT_PRI_MSG(CHECKOUT, 1, chess_coor[1] + " 逆");
-    ASSERT_SCORE(0, 0);
+    ASSERT_SCORE(10, 10);
 }
 
 GAME_TEST(2, forbid_public_message)
