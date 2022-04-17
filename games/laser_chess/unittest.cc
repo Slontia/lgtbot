@@ -9,7 +9,7 @@ GAME_TEST(2, keep_rotate)
     ASSERT_PUB_MSG(OK, 0, "地图 genius");
     ASSERT_PUB_MSG(OK, 0, "回合数 10");
     ASSERT_TRUE(StartGame());
-    const std::array<std::string, 2> chess_coor{"A2", "H5"};
+    const std::array<std::string, 2> chess_coor{"A5", "H2"};
     for (uint32_t i = 0; i < 9; ++i) {
         ASSERT_PRI_MSG(OK, 0, chess_coor[0] + " 逆");
         ASSERT_PRI_MSG(CONTINUE, 1, chess_coor[1] + " 逆");
@@ -51,10 +51,10 @@ GAME_TEST(2, timeout_default_rotate_shooter)
 {
     ASSERT_PUB_MSG(OK, 0, "地图 ace");
     ASSERT_TRUE(StartGame());
-    ASSERT_PRI_MSG(OK, 1, "H5 上");
+    ASSERT_PRI_MSG(OK, 1, "H2 上");
     ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_PRI_MSG(CONTINUE, 1, "G5 下");
-    ASSERT_PRI_MSG(CHECKOUT, 1, "H5 上");
+    ASSERT_PRI_MSG(CONTINUE, 1, "G2 下");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "H2 上");
     ASSERT_SCORE(0, 1);
 }
 
@@ -63,9 +63,9 @@ GAME_TEST(2, leave_default_rotate_shooter)
     ASSERT_PUB_MSG(OK, 0, "地图 ace");
     ASSERT_TRUE(StartGame());
     ASSERT_LEAVE(CONTINUE, 0);
-    ASSERT_PRI_MSG(CONTINUE, 1, "H5 上");
-    ASSERT_PRI_MSG(CONTINUE, 1, "G5 下");
-    ASSERT_PRI_MSG(CHECKOUT, 1, "H5 上");
+    ASSERT_PRI_MSG(CONTINUE, 1, "H2 上");
+    ASSERT_PRI_MSG(CONTINUE, 1, "G2 下");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "H2 上");
     ASSERT_SCORE(0, 1);
 }
 

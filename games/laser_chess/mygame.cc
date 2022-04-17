@@ -94,13 +94,12 @@ class MainStage : public MainGameStage<>
             {
                 while (true) {
                     const Coor coor(rand() % board_.max_m(), rand() % board_.max_n());
-                    if (board_.IsMyChess(coor, pid)) {
+                    if (!Act_(pid, coor, static_cast<Choise>(rand() % static_cast<uint32_t>(Choise::_MAX)), EmptyMsgSender::Get())) {
                         return coor;
                     }
                 }
                 return {};
             }();
-        while (!Act_(pid, coor, static_cast<Choise>(rand() % static_cast<uint32_t>(Choise::_MAX)), EmptyMsgSender::Get()));
         return StageErrCode::READY;
     }
 
