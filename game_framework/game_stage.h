@@ -491,7 +491,6 @@ class GameStage<GameOption, MainStage>
 
     void StopTimer()
     {
-        StopTimer();
         finish_time_ = nullptr;
     }
 

@@ -487,6 +487,10 @@ std::string Match::OptionInfo_() const
 
 void Match::OnGameOver_()
 {
+    if (state_ == State::IS_OVER) {
+        WarnLog() << "OnGameOver_ but has already been over";
+        return;
+    }
     state_ = State::IS_OVER; // is necessary because other thread may own a match reference
     //end_time_ = std::chrono::system_clock::now();
     {
