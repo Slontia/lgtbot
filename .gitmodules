@@ -9,4 +9,4 @@
 	url = git@github.com:SqliteModernCpp/sqlite_modern_cpp
 [submodule "third_party/mahjong"]
 	path = third_party/mahjong
-	url = git@github.com:Agony5757/mahjong
+	url = git@github.com:slontia/mahjong
