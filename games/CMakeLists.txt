@@ -57,10 +57,15 @@ foreach (GAME_DIR ${GAME_DIRS})
     endif()
 
     add_library(${GAME} SHARED ${SOURCE_FILES})
-
     target_compile_definitions(${GAME} PUBLIC GAME_MODULE_NAME="${GAME}")
     target_include_directories(${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
     target_link_libraries(${GAME} ${GAME_THIRD_PARTIES})
+
+    add_library(${GAME}_for_test_lib OBJECT ${SOURCE_FILES})
+    target_compile_definitions(${GAME}_for_test_lib PUBLIC TEST_BOT)
+    target_compile_definitions(${GAME}_for_test_lib PUBLIC GAME_MODULE_NAME="${GAME}")
+    target_include_directories(${GAME}_for_test_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
+    target_link_libraries(${GAME}_for_test_lib ${GAME_THIRD_PARTIES})
 
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
       add_dependencies(${GAME} ${GAME}_rule_binary)
@@ -71,16 +76,16 @@ foreach (GAME_DIR ${GAME_DIRS})
       enable_testing()
       find_package(GTest REQUIRED)
 
-      add_executable(test_game_${GAME} ${SOURCE_FILES} ${GAME_DIR}/unittest.cc)
+      add_executable(test_game_${GAME} ${GAME_DIR}/unittest.cc $<TARGET_OBJECTS:${GAME}_for_test_lib>)
       target_include_directories(test_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
-      target_link_libraries(test_game_${GAME} GTest::GTest GTest::Main ${GAME_THIRD_PARTIES})
+      target_link_libraries(test_game_${GAME} glog gflags GTest::GTest GTest::Main ${GAME_THIRD_PARTIES})
       target_compile_definitions(test_game_${GAME} PUBLIC TEST_BOT)
       add_test(NAME test_game_${GAME} COMMAND test_game_${GAME})
 
-      add_executable(run_game_${GAME} ${SOURCE_FILES} ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/run_game.cc)
+      add_executable(run_game_${GAME} ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/run_game.cc $<TARGET_OBJECTS:${GAME}_for_test_lib>)
       target_include_directories(run_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
+      target_link_libraries(run_game_${GAME} glog gflags ${GAME_THIRD_PARTIES})
       target_compile_definitions(run_game_${GAME} PUBLIC TEST_BOT)
-      target_link_libraries(run_game_${GAME} gflags ${GAME_THIRD_PARTIES})
       add_test(NAME run_game_${GAME} COMMAND run_game_${GAME} --repeat=100)
 
       include(${GAME_DIR}/option.cmake)
