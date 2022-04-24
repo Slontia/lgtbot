@@ -177,13 +177,16 @@ int main(int argc, char** argv)
     //std::locale::global(std::locale("")); // this line can make number with comma
     gflags::ParseCommandLineFlags(&argc, &argv, true);
     const uint64_t admins[2] = { FLAGS_admin_uid, 0 };
+#ifdef WITH_SQLITE
+    const auto db_path = std::filesystem::path(FLAGS_db_path);
+#endif
     const BotOption option {
         .this_uid_ = FLAGS_bot_uid,
         .game_path_ = FLAGS_game_path.c_str(),
         .image_path_ = "/image_path/",
         .admins_ = admins,
 #ifdef WITH_SQLITE
-        .db_path_ = std::filesystem::path(FLAGS_db_path).c_str(),
+        .db_path_ = db_path.c_str(),
 #endif
     };
     auto bot = BOT_API::Init(&option);

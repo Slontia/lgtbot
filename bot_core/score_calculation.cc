@@ -76,13 +76,17 @@ static std::map<int64_t, uint64_t> CalLevelScoreRank(const std::vector<UserInfoF
 
 static void CalLevelScore(std::vector<UserInfoForCalScore>& user_infos)
 {
+    const int k_decay_rate_para = 2; // depend on the decay rate of the second game's level score for streak players with same op opponent
+    //  2: the second game's level score is 82.8% of the first game
+    //  4: the second game's level score is 66.7% of the first game
+    // 10: the second game's level score is 48.1% of the first game
     const double avg_level_score_sum = std::accumulate(user_infos.begin(), user_infos.end(), double(0),
             [&](const double sum, const auto& info) { return info.level_score_sum_ + sum; }) / user_infos.size();
     const auto rank_scores = CalLevelScoreRank(user_infos);
     for (auto& info : user_infos) {
         const double multiple = info.match_count_ > 400 ? 20 : 100 - 0.2 * static_cast<double>(info.match_count_);
         const double actual_rank_score = double(rank_scores.find(info.game_score_)->second - 1) / (2 * user_infos.size() - 2);
-        const double expected_rank_score = double(1) / (double(1) + std::pow(10, (avg_level_score_sum - info.level_score_sum_) / 200));
+        const double expected_rank_score = double(1) / (double(1) + std::pow(k_decay_rate_para, (avg_level_score_sum - info.level_score_sum_) / 200));
         info.level_score_ = multiple * (actual_rank_score - expected_rank_score);
     }
 }
