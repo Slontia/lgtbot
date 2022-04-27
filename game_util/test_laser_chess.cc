@@ -186,3 +186,25 @@ TEST_F(TestLaserChess, cannot_swap_chess_nearby_king)
     ASSERT_FAIL(b.Move(Coor{1, 3}, Coor{1, 2}, 0));
     ASSERT_FAIL(b.Move(Coor{1, 3}, Coor{2, 2}, 0));
 }
+
+TEST_F(TestLaserChess, can_rotate_nearby_dst_king)
+{
+    Board b(8, 8, "");
+    b.SetChess(Coor{0, 0}, KingChess<1>());
+    b.SetChess(Coor{2, 2}, LensedMirrorChess<0>(false));
+    ASSERT_SUCC(b.Move(Coor{0, 0}, Coor{1, 1}, 1));
+    ASSERT_SUCC(b.Rotate(Coor{2, 2}, true, 0));
+}
+
+TEST_F(TestLaserChess, kill_two_chess)
+{
+    Board b(8, 8, "");
+    b.SetChess(Coor{0, 0}, ShooterChess<0>(RIGHT, std::bitset<4>().set(RIGHT).set(DOWN)));
+    b.SetChess(Coor{0, 1}, LensedMirrorChess<0>(false));
+    b.SetChess(Coor{0, 2}, ShieldChess<0>(DOWN));
+    b.SetChess(Coor{1, 1}, ShieldChess<0>(DOWN));
+    const auto ret = b.Settle();
+    ASSERT_EQ(2, b.ChessCount(0));
+    ASSERT_EQ(0, b.ChessCount(1));
+}
+

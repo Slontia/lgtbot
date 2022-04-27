@@ -11,6 +11,8 @@ ENUM_MEMBER(GameMap, grail)
 ENUM_MEMBER(GameMap, mercury)
 ENUM_MEMBER(GameMap, sophie)
 ENUM_MEMBER(GameMap, genius)
+ENUM_MEMBER(GameMap, refraction)
+ENUM_MEMBER(GameMap, gemini)
 ENUM_MEMBER(GameMap, 随机) // must be the last one, easy for rand
 ENUM_END(GameMap)
 

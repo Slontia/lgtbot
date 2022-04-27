@@ -47,28 +47,6 @@ GAME_TEST(2, forbid_rotate_shooter_towards_outside)
     ASSERT_PRI_MSG(FAILED, 0, "A0 顺");
 }
 
-GAME_TEST(2, timeout_default_rotate_shooter)
-{
-    ASSERT_PUB_MSG(OK, 0, "地图 ace");
-    ASSERT_TRUE(StartGame());
-    ASSERT_PRI_MSG(OK, 1, "H2 上");
-    ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_PRI_MSG(CONTINUE, 1, "G2 下");
-    ASSERT_PRI_MSG(CHECKOUT, 1, "H2 上");
-    ASSERT_SCORE(0, 1);
-}
-
-GAME_TEST(2, leave_default_rotate_shooter)
-{
-    ASSERT_PUB_MSG(OK, 0, "地图 ace");
-    ASSERT_TRUE(StartGame());
-    ASSERT_LEAVE(CONTINUE, 0);
-    ASSERT_PRI_MSG(CONTINUE, 1, "H2 上");
-    ASSERT_PRI_MSG(CONTINUE, 1, "G2 下");
-    ASSERT_PRI_MSG(CHECKOUT, 1, "H2 上");
-    ASSERT_SCORE(0, 1);
-}
-
 GAME_TEST(1, too_few_player)
 {
     ASSERT_FALSE(StartGame());
@@ -81,6 +59,20 @@ GAME_TEST(2, crash_king)
     ASSERT_PRI_MSG(OK, 0, "H6 左上");
     ASSERT_PRI_MSG(CHECKOUT, 1, "H4 右上");
     ASSERT_SCORE(1, 0);
+}
+
+GAME_TEST(2, keep_pass)
+{
+    ASSERT_PUB_MSG(OK, 0, "地图 genius");
+    ASSERT_PUB_MSG(OK, 0, "回合数 10");
+    ASSERT_TRUE(StartGame());
+    for (uint32_t i = 0; i < 9; ++i) {
+        ASSERT_PRI_MSG(OK, 0, "pass");
+        ASSERT_PRI_MSG(CONTINUE, 1, "pass");
+    }
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "pass");
+    ASSERT_SCORE(10, 10);
 }
 
 int main(int argc, char** argv)

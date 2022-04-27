@@ -25,7 +25,7 @@ const uint64_t k_multiple = 1;
 
 std::string GameOption::StatusInfo() const
 {
-    return "每手棋" + std::to_string(GET_VALUE(局时)) + "秒超时，超时即默认旋转发射器，最多" + std::to_string(GET_VALUE(回合数)) + "回合，地图：" + GET_VALUE(地图).ToString();
+    return "每手棋" + std::to_string(GET_VALUE(局时)) + "秒超时即默认 pass，最多" + std::to_string(GET_VALUE(回合数)) + "回合，地图：" + GET_VALUE(地图).ToString();
 }
 
 bool GameOption::ToValid(MsgSenderBase& reply)
@@ -49,7 +49,7 @@ static std::ostream& operator<<(std::ostream& os, const Coor& coor) { return os 
 
 // function order should be same as enum order
 std::array<Board(*)(std::string), GameMap::Count() - 1> game_map_initers =
-    {InitAceBoard, InitCuriosityBoard, InitGrailBoard, InitMercuryBoard, InitSophieBoard, InitGeniusBoard};
+    {InitAceBoard, InitCuriosityBoard, InitGrailBoard, InitMercuryBoard, InitSophieBoard, InitGeniusBoard, InitRefractionBoard, InitGeminiBoard};
 
 // Player 1 use fork, player 0 use circle
 class MainStage : public MainGameStage<>
@@ -58,6 +58,7 @@ class MainStage : public MainGameStage<>
     MainStage(const GameOption& option, MatchBase& match)
         : GameStage(option, match,
                 MakeStageCommand("查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
+                MakeStageCommand("跳过行动", &MainStage::Pass_, VoidChecker("pass")),
                 MakeStageCommand("移动棋子", &MainStage::Set_,
                     AnyArg("棋子当前位置", "B5"), AlterChecker<Choise>(
                             {{ "上", Choise::UP },
@@ -85,7 +86,7 @@ class MainStage : public MainGameStage<>
         board_html_ = board_.ToHtml();
         Boardcast() << Markdown(ShowInfo_());
         Boardcast() << "请双方行动，" << option().GET_VALUE(局时)
-                    << "秒未行动自动默认旋转发射器\n格式：棋子位置 行动方式";
+                    << "秒未行动自动 pass\n格式：棋子位置 行动方式";
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
@@ -94,7 +95,7 @@ class MainStage : public MainGameStage<>
             {
                 while (true) {
                     const Coor coor(rand() % board_.max_m(), rand() % board_.max_n());
-                    if (!Act_(pid, coor, static_cast<Choise>(rand() % static_cast<uint32_t>(Choise::_MAX)), EmptyMsgSender::Get())) {
+                    if (Act_(pid, coor, static_cast<Choise>(rand() % static_cast<uint32_t>(Choise::_MAX)), EmptyMsgSender::Get())) {
                         return coor;
                     }
                 }
@@ -137,6 +138,20 @@ class MainStage : public MainGameStage<>
             reply() << "您将 " << coor_to_str(coor) << " 位置的棋子移动至 " << coor_to_str(new_coor) << " 位置";
         }
         return true;
+    }
+
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        if (is_public) {
+            reply() << "行动失败：请私信裁判行动";
+            return StageErrCode::FAILED;
+        }
+        if (IsReady(pid)) {
+            reply() << "行动失败：您已经行动完成";
+            return StageErrCode::FAILED;
+        }
+        reply() << "您选择跳过本回合行动";
+        return StageErrCode::READY;
     }
 
     AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& coor_str, const Choise choise)
@@ -204,8 +219,6 @@ class MainStage : public MainGameStage<>
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             if (!IsReady(pid)) {
                 Hook(pid);
-                board_.DefaultBehavior(pid);
-                Tell(pid) << "您未行动，默认为您旋转发射器";
             }
         }
 
@@ -241,7 +254,7 @@ class MainStage : public MainGameStage<>
             finish = false;
             ClearReady();
             StartTimer(option().GET_VALUE(局时));
-            sender << "请双方行动，" << option().GET_VALUE(局时) << "秒未行动自动默认旋转发射器\n格式：棋子位置 行动方式";
+            sender << "请双方行动，" << option().GET_VALUE(局时) << "秒未行动默认 pass\n格式：棋子位置 行动方式";
         }
         return finish;
     }

@@ -306,7 +306,7 @@ class Area
             }
             return;
         }
-        result.chess_dead_num_[IsMyChess(true)] = 1;
+        result.chess_dead_num_[IsMyChess(true)] += 1;
         chess_ = EmptyChess();
         is_dead_ = false;
         return;
@@ -419,11 +419,6 @@ class Board
             shooter_pos = coor;
         }
         return true;
-    }
-
-    void DefaultBehavior(const bool pid)
-    {
-        Rotate(shooter_pos_[pid], true, pid).empty() || Rotate(shooter_pos_[pid], false, pid).empty();
     }
 
     std::string Move(const Coor& src, const Coor& dst, const bool pid)
@@ -551,8 +546,9 @@ class Board
         for (int32_t m = coor.m_ - 1; m <= coor.m_ + 1; ++m) {
             for (int32_t n = coor.n_ - 1; n <= coor.n_ + 1; ++n) {
                 const Coor cur_coor{.m_ = m, .n_ = n};
-                if ((m != coor.m_ || n != coor.n_) && IsValidCoor(cur_coor) &&
-                        (GetArea_(cur_coor).CheckType<KingChess<0>>() || GetArea_(cur_coor).CheckType<KingChess<1>>())) {
+                const auto& area = GetArea_(cur_coor);
+                if ((m != coor.m_ || n != coor.n_) && IsValidCoor(cur_coor) && area.GetState() != Area::DST &&
+                        (area.CheckType<KingChess<0>>() || area.CheckType<KingChess<1>>())) {
                     return true;
                 }
             }
