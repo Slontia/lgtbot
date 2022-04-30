@@ -36,6 +36,16 @@ TEST_F(TestAlchemist, make_one_row)
     }
 }
 
+TEST_F(TestAlchemist, make_one_row_with_score)
+{
+    Board board("");
+    board.SetStone(2, 2);
+    ASSERT_EQ(0, board.SetOrClearLine(2, 3, Card{Color::RED, Point::FIVE}));
+    ASSERT_EQ(0, board.SetOrClearLine(2, 4, Card{Color::RED, Point::FIVE}));
+    ASSERT_EQ(0, board.SetOrClearLine(2, 1, Card{Color::RED, Point::FIVE}));
+    ASSERT_EQ((10 + 5 + 5 + 5 + 5) * 2, board.SetOrClearLine(2, 0, Card{Color::RED, Point::FIVE}, true));
+}
+
 TEST_F(TestAlchemist, make_one_col)
 {
     Board board("");
@@ -64,6 +74,17 @@ TEST_F(TestAlchemist, make_one_left_slash)
     for (uint32_t i = 0; i < 5; ++i) {
         ASSERT_EQ(FAIL_NON_ADJ_CARDS, board.SetOrClearLine(i, i, Card{Color::RED, Point::FIVE}));
     }
+}
+
+TEST_F(TestAlchemist, make_one_left_slash_with_score)
+{
+    Board board("");
+    board.SetStone(2, 2);
+    board.areas_[0][0] = Card{Color::RED, Point::FIVE};
+    board.areas_[1][1] = Card{Color::RED, Point::FIVE};
+    board.areas_[3][3] = Card{Color::RED, Point::FIVE};
+    board.areas_[3][4] = Card{Color::RED, Point::FIVE};
+    ASSERT_EQ((10 + 5 + 5 + 5 + 5) * 3, board.SetOrClearLine(4, 4, Card{Color::RED, Point::FIVE}, true));
 }
 
 TEST_F(TestAlchemist, make_one_right_slash)
@@ -103,6 +124,20 @@ TEST_F(TestAlchemist, make_four_lines)
     }
 }
 
+TEST_F(TestAlchemist, make_four_lines_with_score)
+{
+    Board board("");
+    board.SetStone(2, 2);
+    for (uint32_t i = 0; i < 5; ++i) {
+        board.areas_[2][i] = Card{Color::RED, Point::FIVE};
+        board.areas_[i][2] = Card{Color::RED, Point::FIVE};
+        board.areas_[i][i] = Card{Color::RED, Point::FIVE};
+        board.areas_[i][4 - i] = Card{Color::RED, Point::FIVE};
+    }
+    board.areas_[2][2].reset();
+    ASSERT_EQ(5 * 5 * (2 + 2 + 3 + 3), board.SetOrClearLine(2, 2, Card{Color::RED, Point::FIVE}, true));
+}
+
 TEST_F(TestAlchemist, fail_non_adj)
 {
     Board board("");
@@ -140,5 +175,17 @@ TEST_F(TestAlchemist, test_clear)
     board.SetStone(2, 2);
     board.areas_[2][4] = Card{Color::RED, Point::FIVE};
     ASSERT_TRUE(board.Unset(2, 4));
+    ASSERT_TRUE(board.Unset(2, 2));
+}
+
+TEST_F(TestAlchemist, slash_should_not_clear)
+{
+    Board board("");
+    board.SetStone(0, 0);
+    board.SetStone(1, 1);
+    board.SetStone(2, 2);
+    board.SetStone(3, 3);
+    board.SetStone(3, 4);
+    ASSERT_EQ(0, board.SetOrClearLine(2, 4, Card{Color::RED, Point::FIVE}));
     ASSERT_TRUE(board.Unset(2, 2));
 }

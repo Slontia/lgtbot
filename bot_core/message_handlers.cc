@@ -98,7 +98,7 @@ ErrCode HandleMetaRequest(BotCtx& bot, const UserID uid, const std::optional<Gro
     MsgReader reader(msg);
     const auto ret = HandleRequest(bot, uid, gid, reader, reply, meta_cmds);
     if (ret == EC_REQUEST_NOT_FOUND) {
-        reply() << "[错误] 未预料的元指令，您可以通过\"#帮助\"查看所有支持的元指令";
+        reply() << "[错误] 未预料的元指令，您可以通过「#帮助」查看所有支持的元指令";
     }
     return ret;
 }
@@ -109,7 +109,7 @@ ErrCode HandleAdminRequest(BotCtx& bot, const UserID uid, const std::optional<Gr
     MsgReader reader(msg);
     const auto ret = HandleRequest(bot, uid, gid, reader, reply, admin_cmds);
     if (ret == EC_REQUEST_NOT_FOUND) {
-        reply() << "[错误] 未预料的管理指令，您可以通过\"%帮助\"查看所有支持的管理指令";
+        reply() << "[错误] 未预料的管理指令，您可以通过「%帮助」查看所有支持的管理指令";
     }
     return ret;
 }
@@ -138,7 +138,7 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
-        reply() << "[错误] 创建失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
+        reply() << "[错误] 创建失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
     if (gid.has_value()) {
@@ -159,9 +159,9 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
     } else {
         auto sender = match->Boardcast();
         if (match->gid().has_value()) {
-            sender << "现在玩家可以在群里通过「#加入」报名比赛";
+            sender << "现在玩家可以在群里通过「#加入」报名比赛，房主也可以通过「帮助」（不带#号）查看所有支持的游戏设置";
         } else {
-            sender << "现在玩家可以通过私信我「#加入 " << match->mid() << "」报名比赛";
+            sender << "现在玩家可以通过私信我「#加入 " << match->mid() << "」报名比赛，您也可以通过「帮助」（不带#号）查看所有支持的游戏设置";
         }
         sender << "\n- 当前用户数：" << match->user_controlled_player_num()
                << "\n- 当前电脑数：" << match->com_num();
@@ -289,7 +289,7 @@ static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<Grou
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
-        reply() << "[错误] 查看失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     };
     if (!show_text) {
@@ -452,7 +452,7 @@ static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional
         return EC_DB_NOT_CONNECTED;
     }
     if (bot.game_handles().find(game_name) == bot.game_handles().end()) {
-        reply() << "[错误] 查看失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
     const auto vec = bot.db_manager()->GetLevelScoreRank(game_name);
@@ -466,7 +466,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
             make_command("查看帮助", help<false>, VoidChecker("#帮助"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("查看游戏列表", show_gamelist, VoidChecker("#游戏列表")),
-            make_command("查看游戏规则（游戏名称可以通过\"#游戏列表\"查看）", show_rule, VoidChecker("#规则"),
+            make_command("查看游戏规则（游戏名称可以通过「#游戏列表」查看）", show_rule, VoidChecker("#规则"),
                         AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("查看已加入，或该房间正在进行的比赛信息", show_match_info, VoidChecker("#游戏信息")),
             make_command("查看当前所有未开始的私密比赛", show_private_matches, VoidChecker("#私密游戏列表")),
@@ -484,7 +484,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
     },
     {
         "新建游戏", { // NEW GAME: can only be executed by host
-            make_command("在当前房间建立公开游戏，或私信 bot 以建立私密游戏（游戏名称可以通过\"#游戏列表\"查看）",
+            make_command("在当前房间建立公开游戏，或私信 bot 以建立私密游戏（游戏名称可以通过「#游戏列表」查看）",
                         new_game, VoidChecker("#新游戏"), AnyArg("游戏名称", "猜拳游戏"),
                         OptionalDefaultChecker<BoolChecker>(false, "单机", "多人")),
             make_command("房主设置参与游戏的AI数量，使得玩家不低于一定数量（属于配置变更，会使得全部玩家退出游戏）",
@@ -529,7 +529,7 @@ static ErrCode set_game_default_multiple(BotCtx& bot, const UserID uid, const st
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
-        reply() << "[错误] 查看失败：未知的游戏名，请通过\"#游戏列表\"查看游戏名称";
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     };
     it->second->multiple_ = multiple;

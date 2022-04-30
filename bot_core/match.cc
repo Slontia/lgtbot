@@ -165,8 +165,8 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         }
         const auto stage_rc = main_stage_->HandleRequest(msg.c_str(), pid, gid.has_value(), reply);
         if (stage_rc == StageErrCode::NOT_FOUND) {
-            reply() << "[错误] 未预料的游戏指令，您可以通过\"帮助\"（不带#号）查看所有支持的游戏指令\n"
-                        "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
+            reply() << "[错误] 未预料的游戏指令，您可以通过「帮助」（不带#号）查看所有支持的游戏指令\n"
+                        "若您想执行元指令，请尝试在请求前加「#」，或通过「#帮助」查看所有支持的元指令";
         }
         Routine_();
         return ConverErrCode(stage_rc);
@@ -176,8 +176,8 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         return EC_MATCH_NOT_HOST;
     }
     if (!options_->SetOption(msg.c_str())) {
-        reply() << "[错误] 未预料的游戏设置，您可以通过\"帮助\"（不带#号）查看所有支持的游戏设置\n"
-                    "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
+        reply() << "[错误] 未预料的游戏设置，您可以通过「帮助」（不带#号）查看所有支持的游戏设置\n"
+                    "若您想执行元指令，请尝试在请求前加「#」，或通过「#帮助」查看所有支持的元指令";
         return EC_GAME_REQUEST_NOT_FOUND;
     }
     KickForConfigChange_();
@@ -209,7 +209,7 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
     state_ = State::IS_STARTED;
-    BoardcastAtAll() << "游戏开始，您可以使用<帮助>命令（无#号），查看可执行命令";
+    BoardcastAtAll() << "游戏开始，您可以使用「帮助」命令（不带#号），查看可执行命令";
     for (auto& [uid, user_info] : users_) {
         for (int i = 0; i < player_num_each_user_; ++i) {
             user_info.pids_.emplace_back(players_.size());
@@ -249,7 +249,7 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         return ret;
     }
     if (!match_manager().BindMatch(uid, shared_from_this())) {
-        reply() << "[错误] 加入失败：您已加入其他游戏，您可通过私信裁判\"#游戏信息\"查看该游戏信息";
+        reply() << "[错误] 加入失败：您已加入其他游戏，您可通过私信裁判「#游戏信息」查看该游戏信息";
         return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
     }
     users_.emplace(uid, ParticipantUser(uid));
@@ -299,7 +299,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
             }
         }
     } else {
-        reply() << "[错误] 退出失败：游戏已经开始，若仍要退出游戏，请使用<#退出 强制>命令";
+        reply() << "[错误] 退出失败：游戏已经开始，若仍要退出游戏，请使用「#退出 强制」命令";
         rc = EC_MATCH_ALREADY_BEGIN;
     }
     return rc;

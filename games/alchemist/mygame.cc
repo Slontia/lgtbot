@@ -20,14 +20,17 @@ const std::string k_game_name = "炼金术士";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
 const uint64_t k_multiple = 1;
 
+static int WinScoreThreshold(const bool mode) { return mode ? 200 : 10; }
+
 std::string GameOption::StatusInfo() const
 {
-    std::string str = "\n每回合" + std::to_string(GET_VALUE(局时)) + "秒\n当有玩家达到" +
-        std::to_string(GET_VALUE(胜利分数)) + "分，或游戏已经进行了" +
+    std::string str = std::string("\n「") + (GET_VALUE(模式) ? "竞技" : "经典") + "」模式\n每回合" +
+        std::to_string(GET_VALUE(局时)) + "秒\n当有玩家达到" +
+        std::to_string(WinScoreThreshold(GET_VALUE(模式))) + "分，或游戏已经进行了" +
         std::to_string(GET_VALUE(回合数)) + "回合时，游戏结束\n卡片包含" +
         std::to_string(GET_VALUE(颜色)) + "种颜色和" +
         std::to_string(GET_VALUE(点数)) + "种点数，每种相同卡片共有" +
-        std::to_string(GET_VALUE(副数)) + "张\n";
+        (GET_VALUE(副数) == 0 ? "无数" : " " + std::to_string(GET_VALUE(副数)) + " ") + "张\n";
     if (GET_VALUE(种子).empty()) {
         str += "未指定种子";
     } else {
@@ -39,7 +42,7 @@ std::string GameOption::StatusInfo() const
 bool GameOption::ToValid(MsgSenderBase& reply)
 {
     const auto card_num = GET_VALUE(颜色) * GET_VALUE(点数) * GET_VALUE(副数);
-    if (GET_VALUE(回合数) > card_num) {
+    if (GET_VALUE(回合数) > card_num && GET_VALUE(副数) > 0) {
         reply() << "回合数" << GET_VALUE(回合数) << "不能大于卡片总数量" << card_num;
         return false;
     }
@@ -70,7 +73,7 @@ const std::array<alchemist::Point, 6> k_points {
 
 struct Player
 {
-    Player(std::string resource_path) : score_(0), board_(new alchemist::Board(std::move(resource_path))) {}
+    Player(std::string resource_path, const int style) : score_(0), board_(new alchemist::Board(std::move(resource_path), style)) {}
     Player(Player&&) = default;
     int32_t score_;
     std::unique_ptr<alchemist::Board> board_;
@@ -87,19 +90,9 @@ class MainStage : public MainGameStage<RoundStage>
     {
         for (uint64_t i = 0; i < option.PlayerNum(); ++i) {
             std::cout << "path: " << option.ResourceDir() << std::endl;
-            players_.emplace_back(option.ResourceDir());
+            players_.emplace_back(option.ResourceDir(), option.GET_VALUE(模式));
         }
 
-        for (uint32_t color_idx = 0; color_idx < option.GET_VALUE(颜色); ++color_idx) {
-            for (uint32_t point_idx = 0; point_idx < option.GET_VALUE(点数); ++point_idx) {
-                for (uint32_t i = 0; i < option.GET_VALUE(副数); ++i) {
-                    cards_.emplace_back(std::in_place, k_colors[color_idx], k_points[point_idx]);
-                }
-            }
-        }
-        for (uint32_t i = 0; i < option.GET_VALUE(副数); ++i) {
-            cards_.emplace_back(std::nullopt);
-        }
         const std::string& seed_str = option.GET_VALUE(种子);
         std::variant<std::random_device, std::seed_seq> rd;
         std::mt19937 g([&]
@@ -112,17 +105,51 @@ class MainStage : public MainGameStage<RoundStage>
                     return std::mt19937(real_rd);
                 }
             }());
-        std::shuffle(cards_.begin(), cards_.end(), g);
 
-        std::uniform_int_distribution<uint32_t> distrib(0, alchemist::Board::k_size - 1);
-        static constexpr const uint32_t k_stone_num = 2;
-        for (int i = 0; i < k_stone_num; ++i) {
-            const auto row = distrib(g);
-            const auto col = distrib(g);
-            for (auto& player : players_) {
-                player.board_->SetStone(row, col);
+        if (option.GET_VALUE(副数) > 0) {
+            for (uint32_t color_idx = 0; color_idx < option.GET_VALUE(颜色); ++color_idx) {
+                for (uint32_t point_idx = 0; point_idx < option.GET_VALUE(点数); ++point_idx) {
+                    for (uint32_t i = 0; i < option.GET_VALUE(副数); ++i) {
+                        cards_.emplace_back(std::in_place, k_colors[color_idx], k_points[point_idx]);
+                    }
+                }
+            }
+            for (uint32_t i = 0; i < option.GET_VALUE(副数); ++i) {
+                cards_.emplace_back(std::nullopt); // add stone
+            }
+            std::shuffle(cards_.begin(), cards_.end(), g);
+        } else {
+            std::uniform_int_distribution<uint32_t> distrib(0, option.GET_VALUE(颜色) * option.GET_VALUE(点数));
+            for (uint32_t i = 0; i < option.GET_VALUE(回合数); ++i) {
+                const auto k = distrib(g);
+                if (k == 0) {
+                    cards_.emplace_back(std::nullopt); // add stone
+                } else {
+                    cards_.emplace_back(std::in_place, k_colors[(k - 1) % option.GET_VALUE(颜色)],
+                            k_points[(k - 1) / option.GET_VALUE(点数)]);
+                }
             }
         }
+
+        // TODO: handle fushu is zero
+
+        std::uniform_int_distribution<uint32_t> distrib(0, alchemist::Board::k_size - 1);
+        const auto set_stone = [this](const uint32_t row, const uint32_t col)
+            {
+                for (auto& player : players_) {
+                    player.board_->SetStone(row, col);
+                }
+            };
+        const auto row_1 = distrib(g);
+        const auto col_1 = distrib(g);
+        auto row_2 = distrib(g);
+        auto col_2 = distrib(g);
+        while (row_1 == row_2 && col_1 == col_2) {
+            row_2 = distrib(g);
+            col_2 = distrib(g);
+        }
+        set_stone(row_1, col_1);
+        set_stone(row_2, col_2);
     }
 
     virtual VariantSubStage OnStageBegin() override;
@@ -141,7 +168,7 @@ class MainStage : public MainGameStage<RoundStage>
             str += PlayerName(pid);
             str += "（当前积分：";
             str += std::to_string(players_[pid].score_);
-            str += "）\n\n";
+            str += " / " + std::to_string(WinScoreThreshold(option().GET_VALUE(模式))) + "）\n\n";
             str += players_[pid].board_->ToHtml();
         }
         return str;
@@ -166,7 +193,7 @@ class RoundStage : public SubGameStage<>
                 MakeStageCommand("跳过该回合行动", &RoundStage::Pass_, VoidChecker("pass")),
                 MakeStageCommand("设置卡片", &RoundStage::Set_, AnyArg("坐标", "C5")))
             , card_(card)
-            , board_html_(main_stage.BoardHtml("## 第" + std::to_string(round) + "回合"))
+            , board_html_(main_stage.BoardHtml("## 第 " + std::to_string(round) + " / " + std::to_string(option().GET_VALUE(回合数)) + " 回合"))
     {}
 
     virtual void OnStageBegin() override
@@ -227,7 +254,7 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
         if (card_.has_value()) {
-            const auto ret = player.board_->SetOrClearLine(coor->first, coor->second, *card_);
+            const auto ret = player.board_->SetOrClearLine(coor->first, coor->second, *card_, option().GET_VALUE(模式));
             if (ret == alchemist::FAIL_ALREADY_SET) {
                 reply() << "[错误] 该位置已被占用，试试其它位置吧";
                 return StageErrCode::FAILED;
@@ -298,7 +325,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
         return {};
     }
     if (std::any_of(players_.begin(), players_.end(),
-                [&](const Player& player) { return player.score_ >= option().GET_VALUE(胜利分数); })) {
+                [&](const Player& player) { return player.score_ >= WinScoreThreshold(option().GET_VALUE(模式)); })) {
         Boardcast() << "有玩家达到胜利分数，游戏结束";
         Boardcast() << Markdown(BoardHtml("## 终局"));
         return {};
