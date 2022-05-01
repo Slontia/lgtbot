@@ -1236,6 +1236,16 @@ TEST_F(TestBot, eliminate_last)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
 
+TEST_F(TestBot, eliminate_leave_need_not_force)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "淘汰");
+  ASSERT_PRI_MSG(EC_OK, 1, "#退出");
+}
+
 // Record Score
 
 TEST_F(TestBot, record_score)

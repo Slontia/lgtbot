@@ -572,7 +572,7 @@ class Mahjong17Steps
                 counter.score1 == 12000      ? "跳满" :
                 counter.score1 == 8000       ? "满贯" : "") + " " +
                 (counter.fan > 0 ? std::to_string(counter.fu) + " 符 " + std::to_string(counter.fan) + " 番" : "") +
-            " " + std::to_string(counter.score1) + " 点** </font>");
+            " " + std::to_string(counter.score1) + " 点 ** </font>");
         for (const auto& text : texts) {
             title_table.AppendRow();
             title_table.Get(title_table.Row() - 1, 0).SetContent(text);

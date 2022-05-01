@@ -47,7 +47,7 @@ class Overload : public Ts...
 struct ParticipantUser
 {
     enum class State { ACTIVE, LEFT };
-    ParticipantUser(const UserID uid)
+    explicit ParticipantUser(const UserID uid)
         : uid_(uid)
         , sender_(uid)
         , state_(State::ACTIVE)
@@ -80,6 +80,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     ErrCode Join(const UserID uid, MsgSenderBase& reply);
     ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force);
     ErrCode LeaveMidway(const UserID uid, const bool is_public);
+    ErrCode UserInterrupt(const bool cancel);
     virtual MsgSenderBase& BoardcastMsgSender() override;
     virtual MsgSenderBase& TellMsgSender(const PlayerID pid) override;
     virtual MsgSenderBase& GroupMsgSender() override;
@@ -106,7 +107,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     bool SwitchHost();
 
-    bool Has(const UserID uid) const;
     bool IsPrivate() const { return !gid_.has_value(); }
     auto PlayerNum() const { return players_.size(); }
 
@@ -146,6 +146,9 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     void KickForConfigChange_();
     void Unbind_();
     void Terminate_();
+    std::string BriefInfo_() const;
+    bool AllControlledPlayerEliminted_(const UserID uid) const;
+    bool Has_(const UserID uid) const;
 
     mutable std::mutex mutex_;
 

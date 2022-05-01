@@ -47,7 +47,7 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
 
 Match::~Match() {}
 
-bool Match::Has(const UserID uid) const { return users_.find(uid) != users_.end(); }
+bool Match::Has_(const UserID uid) const { return users_.find(uid) != users_.end(); }
 
 Match::VariantID Match::ConvertPid(const PlayerID pid) const
 {
@@ -77,9 +77,7 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, std::optional<
     }
     bench_to_player_num_ = *bench_to_player_num;
     KickForConfigChange_();
-    sender << "设置成功！"
-           << "\n- 当前用户数：" << user_controlled_player_num()
-           << "\n- 当前电脑数：" << com_num();
+    sender << "设置成功！\n\n" << BriefInfo_();
     return EC_OK;
 }
 
@@ -144,6 +142,11 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
                        MsgSender& reply)
 {
     std::lock_guard<std::mutex> l(mutex_);
+    const auto it = users_.find(uid);
+    if (it == users_.end() && it->second.state_ == ParticipantUser::State::LEFT) {
+        reply() << "[错误] 您未处于游戏中或已经离开";
+        return EC_MATCH_USER_NOT_IN_MATCH;
+    }
     if (state_ == State::IS_OVER) {
         WarnLog() << "Match is over but receive request mid=" << mid() << " uid=" << uid << " msg=" << msg;
         reply() << "[错误] 游戏已经结束";
@@ -155,8 +158,6 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
     }
     if (main_stage_) {
         // TODO: check player_num_each_user_
-        const auto it = users_.find(uid);
-        assert(it != users_.end());
         const auto pid = it->second.pids_[0];
         assert(state_ == State::IS_STARTED);
         if (players_[pid].is_eliminated_) {
@@ -181,9 +182,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         return EC_GAME_REQUEST_NOT_FOUND;
     }
     KickForConfigChange_();
-    reply() << "设置成功！目前配置：" << OptionInfo_()
-            << "\n- 当前用户数：" << user_controlled_player_num()
-            << "\n- 当前电脑数：" << com_num();
+    reply() << "设置成功！目前配置：" << OptionInfo_() << "\n\n" << BriefInfo_();
     return EC_GAME_REQUEST_OK;
 }
 
@@ -241,7 +240,7 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         reply() << "[错误] 加入失败：比赛人数已达到游戏上限";
         return EC_MATCH_ACHIEVE_MAX_PLAYER;
     }
-    if (Has(uid)) {
+    if (Has_(uid)) {
         reply() << "[错误] 加入失败：您已加入该游戏";
         return EC_MATCH_USER_ALREADY_IN_MATCH;
     }
@@ -253,25 +252,34 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
     }
     users_.emplace(uid, ParticipantUser(uid));
-    Boardcast() << "玩家 " << At(uid) << " 加入了游戏"
-                << "\n- 当前用户数：" << user_controlled_player_num()
-                << "\n- 当前电脑数：" << com_num();
+    Boardcast() << "玩家 " << At(uid) << " 加入了游戏\n\n" << BriefInfo_();
     return EC_OK;
+}
+
+bool Match::AllControlledPlayerEliminted_(const UserID uid) const
+{
+    const auto it = users_.find(uid);
+    assert(it != users_.end());
+    auto& user = it->second;
+    return std::all_of(user.pids_.begin(), user.pids_.end(), [this](const auto pid) { return players_[pid].is_eliminated_; });
 }
 
 ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
 {
     ErrCode rc = EC_OK;
     std::lock_guard<std::mutex> l(mutex_);
+    const auto it = users_.find(uid);
+    if (it == users_.end() && it->second.state_ == ParticipantUser::State::LEFT) {
+        reply() << "[错误] 您未处于游戏中或已经离开";
+        return EC_MATCH_USER_NOT_IN_MATCH;
+    }
     if (state_ == State::IS_OVER) {
         reply() << "[错误] 退出失败：游戏已经结束";
     } else if (state_ != State::IS_STARTED) {
         match_manager().UnbindMatch(uid);
         users_.erase(uid);
         reply() << "退出成功";
-        Boardcast() << "玩家 " << At(uid) << " 退出了游戏"
-                    << "\n- 当前用户数：" << user_controlled_player_num()
-                    << "\n- 当前电脑数：" << com_num();
+        Boardcast() << "玩家 " << At(uid) << " 退出了游戏\n\n" << BriefInfo_();
         if (users_.empty()) {
             Boardcast() << "所有玩家都退出了游戏，游戏解散";
             Unbind_();
@@ -279,12 +287,10 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
             host_uid_ = users_.begin()->first;
             Boardcast() << At(host_uid_) << "被选为新房主";
         }
-    } else if (force) {
+    } else if (force || AllControlledPlayerEliminted_(uid)) {
         match_manager().UnbindMatch(uid);
         reply() << "退出成功";
         Boardcast() << "玩家 " << At(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
-        const auto it = users_.find(uid);
-        assert(it != users_.end());
         assert(main_stage_);
         assert(it->second.state_ != ParticipantUser::State::LEFT);
         it->second.state_ = ParticipantUser::State::LEFT;
@@ -480,6 +486,13 @@ void Match::ShowInfo(const std::optional<GroupID>& gid, MsgSenderBase& reply) co
     }
 }
 
+std::string Match::BriefInfo_() const
+{
+    return "游戏名称：" + game_handle().name_ +
+        "\n- 当前用户数：" + std::to_string(user_controlled_player_num()) +
+        "\n- 当前电脑数：" + std::to_string(com_num());
+}
+
 std::string Match::OptionInfo_() const
 {
     return options_->Status();
@@ -587,6 +600,12 @@ void Match::Routine_()
     if (main_stage_->IsOver()) {
         OnGameOver_();
     }
+}
+
+ErrCode Match::UserInterrupt(const bool cancel)
+{
+    const std::lock_guard<std::mutex> l(mutex_);
+    return EC_OK;
 }
 
 ErrCode Match::Terminate(const bool is_force)
