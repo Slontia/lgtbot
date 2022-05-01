@@ -602,9 +602,25 @@ void Match::Routine_()
     }
 }
 
-ErrCode Match::UserInterrupt(const bool cancel)
+ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel)
 {
     const std::lock_guard<std::mutex> l(mutex_);
+    const auto it = users_.find(uid);
+    if (it == users_.end() && it->second.state_ == ParticipantUser::State::LEFT) {
+        reply() << "[错误] 您未处于游戏中或已经离开";
+        return EC_MATCH_USER_NOT_IN_MATCH;
+    }
+    it->second.want_interrupt_ = !cancel;
+    const auto remain = std::count_if(users_.begin(), users_.end(),
+            [](const auto& pair) { return !pair.second.want_interrupt_ && pair.second.state_ != ParticipantUser::State::LEFT; });
+    reply() << "中断成功";
+    if (remain == 0) {
+        BoardcastAtAll() << "全员支持中断游戏，游戏已中断，谢谢大家参与";
+        Terminate_();
+    } else {
+        Boardcast() << "有玩家" << (cancel ? "取消" : "确定") << "中断游戏，目前 " << remain << " 人尚未确定中止，所有玩家可通过「#中断」命令确定中断游戏，或「#中断 取消」命令取消中断游戏";
+    }
+
     return EC_OK;
 }
 

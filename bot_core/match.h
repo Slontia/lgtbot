@@ -52,12 +52,14 @@ struct ParticipantUser
         , sender_(uid)
         , state_(State::ACTIVE)
         , leave_when_config_changed_(true)
+        , want_interrupt_(false)
     {}
     const UserID uid_;
     std::vector<PlayerID> pids_;
     MsgSender sender_;
     State state_;
     bool leave_when_config_changed_;
+    bool want_interrupt_;
 };
 
 class Match : public MatchBase, public std::enable_shared_from_this<Match>
@@ -80,7 +82,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     ErrCode Join(const UserID uid, MsgSenderBase& reply);
     ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force);
     ErrCode LeaveMidway(const UserID uid, const bool is_public);
-    ErrCode UserInterrupt(const bool cancel);
+    ErrCode UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel);
     virtual MsgSenderBase& BoardcastMsgSender() override;
     virtual MsgSenderBase& TellMsgSender(const PlayerID pid) override;
     virtual MsgSenderBase& GroupMsgSender() override;

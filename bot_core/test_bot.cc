@@ -1347,6 +1347,43 @@ TEST_F(TestBot, set_multiple_effects_zero_sum_score)
   ASSERT_EQ(40, db_manager().match_profiles_[0].top_score_);
 }
 
+// User Interrupt
+
+TEST_F(TestBot, user_interrupt_game)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_OK, 1, "#中断");
+  ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#中断");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, user_interrupt_game_cancel)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_OK, 1, "#中断");
+  ASSERT_PRI_MSG(EC_OK, 1, "#中断 取消");
+  ASSERT_PRI_MSG(EC_OK, 2, "#中断");
+  ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, 1, "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, user_interrupt_game_not_consider_left_users)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+  ASSERT_PRI_MSG(EC_OK, 2, "#退出 强制");
+  ASSERT_PRI_MSG(EC_OK, 1, "#中断");
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+}
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

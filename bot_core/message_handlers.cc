@@ -215,6 +215,8 @@ static ErrCode leave(BotCtx& bot, const UserID uid, const std::optional<GroupID>
 static ErrCode user_interrupt_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
         const bool cancel)
 {
+    return handle_match_by_user(bot, uid, gid, reply,
+            [&](const auto& match) { return match->UserInterrupt(uid, reply, cancel); }, "中断");
 }
 
 static ErrCode join_private(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid,
@@ -506,7 +508,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
                         BasicChecker<MatchID>("私密比赛编号", "1")),
             make_command("退出游戏（若附带了「强制」参数，则可以在游戏进行中退出游戏，需注意退出后无法继续参与原游戏）",
                         leave, VoidChecker("#退出"),  OptionalDefaultChecker<BoolChecker>(false, "强制", "常规")),
-            make_command("发起中断比赛", user_interrupt_game, VoidChecker("#中断"), OptionalDefaultChecker<BoolChecker>(false, "取消", "确认")),
+            make_command("发起中断比赛", user_interrupt_game, VoidChecker("#中断"), OptionalDefaultChecker<BoolChecker>(false, "取消", "确定")),
         }
     }
 };
