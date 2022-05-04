@@ -256,7 +256,7 @@ TEST_F(TestPoker, compare_flushes)
     const auto best_deck_2 = hand_2.BestDeck();
     ASSERT_TRUE(best_deck_1.has_value());
     ASSERT_TRUE(best_deck_2.has_value());
-    ASSERT_TRUE(*best_deck_2 > *best_deck_1);
+    ASSERT_TRUE(*best_deck_2 < *best_deck_1); // the greatest poker RED 0 is greater than BLUE 0, so deck 1 is greater
 }
 
 int main(int argc, char** argv)

@@ -145,3 +145,44 @@ TEST_F(TestLaserChess, rotate_other)
     ASSERT_EQ(1, b.ChessCount(0));
     ASSERT_EQ(0, b.ChessCount(1));
 }
+
+TEST_F(TestLaserChess, cannot_rotate_chess_nearby_king)
+{
+    Board b(8, 8, "");
+    b.SetChess(Coor{1, 1}, KingChess<0>());
+    b.SetChess(Coor{0, 0}, LensedMirrorChess<0>(false));
+    b.SetChess(Coor{0, 1}, LensedMirrorChess<0>(false));
+    b.SetChess(Coor{0, 2}, LensedMirrorChess<0>(false));
+    b.SetChess(Coor{1, 2}, LensedMirrorChess<0>(false));
+    b.SetChess(Coor{2, 2}, LensedMirrorChess<0>(false));
+    b.SetChess(Coor{2, 1}, LensedMirrorChess<0>(false));
+    b.SetChess(Coor{2, 0}, LensedMirrorChess<0>(false));
+    b.SetChess(Coor{1, 0}, LensedMirrorChess<0>(false));
+    ASSERT_FAIL(b.Rotate(Coor{0, 0}, true, 0));
+    ASSERT_FAIL(b.Rotate(Coor{0, 1}, true, 0));
+    ASSERT_FAIL(b.Rotate(Coor{0, 2}, true, 0));
+    ASSERT_FAIL(b.Rotate(Coor{1, 2}, true, 0));
+    ASSERT_FAIL(b.Rotate(Coor{2, 2}, true, 0));
+    ASSERT_FAIL(b.Rotate(Coor{2, 1}, true, 0));
+    ASSERT_FAIL(b.Rotate(Coor{2, 0}, true, 0));
+    ASSERT_FAIL(b.Rotate(Coor{1, 0}, true, 0));
+}
+
+TEST_F(TestLaserChess, cannot_move_chess_nearby_king)
+{
+    Board b(8, 8, "");
+    b.SetChess(Coor{1, 1}, KingChess<0>());
+    b.SetChess(Coor{2, 2}, LensedMirrorChess<0>(false));
+    ASSERT_FAIL(b.Move(Coor{2, 2}, Coor{2, 1}, 0));
+}
+
+TEST_F(TestLaserChess, cannot_swap_chess_nearby_king)
+{
+    Board b(8, 8, "");
+    b.SetChess(Coor{1, 1}, KingChess<0>());
+    b.SetChess(Coor{2, 2}, LensedMirrorChess<0>(false));
+    b.SetChess(Coor{1, 2}, LensedMirrorChess<1>(false));
+    b.SetChess(Coor{1, 3}, LensedMirrorChess<0>(false));
+    ASSERT_FAIL(b.Move(Coor{1, 3}, Coor{1, 2}, 0));
+    ASSERT_FAIL(b.Move(Coor{1, 3}, Coor{2, 2}, 0));
+}

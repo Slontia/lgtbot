@@ -351,6 +351,9 @@ class Area
     template <typename T>
     const T& GetChess() const { return std::get<T>(chess_); }
 
+    template <typename T>
+    bool CheckType() const { return std::get_if<T>(&chess_); }
+
     enum State { IDL, SRC, DST };
 
     State SetState(const State state)
@@ -434,8 +437,14 @@ class Board
         }
         auto& src_area = GetArea_(src);
         auto& dst_area = GetArea_(dst);
-        if (!src_area.CanMove() || !src_area.IsMyChess(pid) || src_area.GetState() != Area::IDL) {
-            return std::string("位置 ") + coor_to_str(src) + " 上的棋子无法被移动";
+        if (!src_area.IsMyChess(pid) || src_area.GetState() != Area::IDL) {
+            return std::string("移动前位置 ") + coor_to_str(src) + " 上无可移动的本方棋子";
+        }
+        if (IsNearbyKing(src)) {
+            return std::string("移动前位置 ") + coor_to_str(src) + " 与王相邻，无法移动";
+        }
+        if (!src_area.CanMove()) {
+            return std::string("移动前位置 ") + coor_to_str(src) + " 上的棋子无法被移动";
         }
         if (dst_area.GetState() == Area::DST) { // crash
             src_area.SetChess(EmptyChess());
@@ -443,8 +452,16 @@ class Board
             dst_area.SetChess(EmptyChess());
             return "";
         }
-        if ((!dst_area.Empty() && (!dst_area.CanMove() || !dst_area.IsMyChess(pid))) || dst_area.GetState() != Area::IDL) {
-            return std::string("位置 ") + coor_to_str(dst) + " 不能作为移动的目标";
+        if (dst_area.IsMyChess(1 - pid) || dst_area.GetState() != Area::IDL) {
+            return std::string("移动后位置 ") + coor_to_str(src) + " 上无可移动的本方棋子，故无法交换棋子位置";
+        }
+        if (!dst_area.Empty()) {
+            if (IsNearbyKing(dst)) {
+                return std::string("移动后位置 ") + coor_to_str(src) + " 与王相邻，无法移动，故无法交换棋子位置";
+            }
+            if (!src_area.CanMove()) {
+                return std::string("移动后位置 ") + coor_to_str(src) + " 上的棋子无法被移动，故无法交换棋子位置";
+            }
         }
         src_area.SetState(Area::SRC);
         dst_area.SetState(dst_area.Empty() ? Area::DST : Area::SRC);
@@ -458,8 +475,14 @@ class Board
         if (!IsValidCoor(coor)) {
             return std::string("位置 ") + coor_to_str(coor) + " 并不位于棋盘上";
         }
+        if (IsNearbyKing(coor)) {
+            return std::string("位置") + coor_to_str(coor) + " 与王相邻，无法旋转";
+        }
         auto& area = GetArea_(coor);
-        if (!area.IsMyChess(pid) || area.GetState() != Area::IDL || !area.Rotate(is_clock_wise)) {
+        if (!area.IsMyChess(pid) || area.GetState() != Area::IDL) {
+            return std::string("位置 ") + coor_to_str(coor) + " 上无可旋转的本方棋子";
+        }
+        if (!area.Rotate(is_clock_wise)) {
             return std::string("位置 ") + coor_to_str(coor) + " 上的棋子无法被如此旋转";
         }
         area.SetState(Area::SRC);
@@ -491,7 +514,7 @@ class Board
         return result;
     }
 
-    bool IsValidCoor(const Coor& coor)
+    bool IsValidCoor(const Coor& coor) const
     {
         return coor.m_ >= 0 && coor.n_ >= 0 && coor.m_ < max_m_ && coor.n_ < max_n_;
     }
@@ -523,6 +546,20 @@ class Board
     uint32_t max_n() const { return max_n_; }
 
   private:
+    bool IsNearbyKing(const Coor& coor) const
+    {
+        for (int32_t m = coor.m_ - 1; m <= coor.m_ + 1; ++m) {
+            for (int32_t n = coor.n_ - 1; n <= coor.n_ + 1; ++n) {
+                const Coor cur_coor{.m_ = m, .n_ = n};
+                if ((m != coor.m_ || n != coor.n_) && IsValidCoor(cur_coor) &&
+                        (GetArea_(cur_coor).CheckType<KingChess<0>>() || GetArea_(cur_coor).CheckType<KingChess<1>>())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     void RecursiveHandleLaser_(const Coor& coor, const int direct)
     {
         if (!IsValidCoor(coor)) {
