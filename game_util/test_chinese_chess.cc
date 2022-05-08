@@ -12,7 +12,7 @@ using namespace chinese_chess;
 class TestChineseChess_ChessRule : public testing::Test
 {
   public:
-    TestChineseChess_ChessRule() : hb_(0) {}
+    TestChineseChess_ChessRule() : hb_(KingdomId(0)) {}
 
   protected:
     HalfBoard hb_;
@@ -44,6 +44,7 @@ TEST_F(TestChineseChess_ChessRule, can_move_ma_without_obstruct)
     const auto& chess = MaChessRule::Singleton();
     ASSERT_TRUE(chess.CanMove(hb_, Coor{0, 1}, Coor{2, 0}));
     ASSERT_TRUE(chess.CanMove(hb_, Coor{0, 1}, Coor{2, 2}));
+    ASSERT_TRUE(chess.CanMove(hb_, Coor{1, 2}, Coor{0, 0}));
 }
 
 TEST_F(TestChineseChess_ChessRule, cannot_move_ma_to_incorrect_pos)
@@ -228,8 +229,8 @@ TEST(TestChineseChess, eat_other_chess)
     BoardMgr board(2, 1);
     ASSERT_SUCC(board.Move(0, 0, Coor{2, 1}, Coor{9, 1}));
     board.Settle();
-    ASSERT_EQ(1, board.GetScore(0));
-    ASSERT_EQ(-1, board.GetScore(1));
+    ASSERT_EQ(17, board.GetScore(0));
+    ASSERT_EQ(15, board.GetScore(1));
 }
 
 TEST(TestChineseChess, cannot_continuously_move_same_chess)
@@ -255,10 +256,10 @@ TEST(TestChineseChess, eat_moved_chess_means_eat_failed)
     ASSERT_SUCC(board.Move(0, 0, Coor{2, 1}, Coor{9, 1}));
     ASSERT_SUCC(board.Move(1, 0, Coor{9, 1}, Coor{7, 0}));
     board.Settle();
-    ASSERT_EQ(0, board.GetScore(0));
-    ASSERT_EQ(0, board.GetScore(1));
-    ASSERT_EQ(16, board.GetChessCount(0));
-    ASSERT_EQ(16, board.GetChessCount(1));
+    ASSERT_EQ(16, board.GetScore(0));
+    ASSERT_EQ(16, board.GetScore(1));
+    ASSERT_EQ(16, board.GetChessCount(KingdomId(0)));
+    ASSERT_EQ(16, board.GetChessCount(KingdomId(1)));
 }
 
 TEST(TestChineseChess, promote_zu)
@@ -294,41 +295,40 @@ TEST(TestChineseChess, chess_crash)
     ASSERT_SUCC(board.Move(1, 0, Coor{6, 0}, Coor{5, 0}));
     board.Settle();
     board.Settle();
-    ASSERT_EQ(0, board.GetScore(0));
-    ASSERT_EQ(0, board.GetScore(1));
-    ASSERT_EQ(15, board.GetChessCount(0));
-    ASSERT_EQ(15, board.GetChessCount(1));
+    ASSERT_EQ(15, board.GetScore(0));
+    ASSERT_EQ(15, board.GetScore(1));
+    ASSERT_EQ(15, board.GetChessCount(KingdomId(0)));
+    ASSERT_EQ(15, board.GetChessCount(KingdomId(1)));
     ASSERT_FAIL(board.Move(0, 0, Coor{5, 0}, Coor{6, 0}));
     ASSERT_FAIL(board.Move(1, 0, Coor{5, 0}, Coor{4, 0}));
 }
 
-TEST(TestChineseChess, chess_eat_jiang_will_become_new_jiang)
+TEST(TestChineseChess, chess_eat_jiang_will_occupy)
 {
     BoardMgr board(2, 1);
     ASSERT_SUCC(board.Move(0, 0, Coor{2, 1}, Coor{9, 1}));
     ASSERT_SUCC(board.Move(1, 0, Coor{9, 3}, Coor{8, 4}));
     board.Settle(); // p1's ma is ate
-    ASSERT_EQ(1, board.GetScore(0));
-    ASSERT_EQ(-1, board.GetScore(1));
-    ASSERT_EQ(16, board.GetChessCount(0));
-    ASSERT_EQ(15, board.GetChessCount(1));
-    ASSERT_EQ((std::vector<uint32_t>{0}), board.GetUnreadyKingdomIds(0));
-    ASSERT_EQ((std::vector<uint32_t>{1}), board.GetUnreadyKingdomIds(1));
+    ASSERT_EQ(17, board.GetScore(0));
+    ASSERT_EQ(15, board.GetScore(1));
+    ASSERT_EQ(16, board.GetChessCount(KingdomId(0)));
+    ASSERT_EQ(15, board.GetChessCount(KingdomId(1)));
+    ASSERT_TRUE((std::vector<KingdomId>{KingdomId(0)}) == board.GetUnreadyKingdomIds(0));
+    ASSERT_TRUE((std::vector<KingdomId>{KingdomId(1)}) == board.GetUnreadyKingdomIds(1));
     board.Settle();
     ASSERT_SUCC(board.Move(0, 0, Coor{9, 1}, Coor{9, 4}));
     board.Settle();
     board.Settle();
-    ASSERT_EQ(16, board.GetScore(0));
-    ASSERT_EQ(-16, board.GetScore(1));
-    ASSERT_EQ(15, board.GetChessCount(0));
-    ASSERT_EQ(15, board.GetChessCount(1));
-    ASSERT_FAIL(board.Move(0, 0, Coor{9, 4}, Coor{7, 4})); // ju becomes k1 jiang, can only move one grid
-    ASSERT_SUCC(board.Move(0, 0, Coor{9, 4}, Coor{9, 3})); // we move new k1 jiang
-    ASSERT_EQ((std::vector<uint32_t>{0}), board.GetUnreadyKingdomIds(0));
-    ASSERT_EQ((std::vector<uint32_t>{}), board.GetUnreadyKingdomIds(1));
+    ASSERT_EQ(32, board.GetScore(0));
+    ASSERT_EQ(0, board.GetScore(1));
+    ASSERT_EQ(30, board.GetChessCount(KingdomId(0)));
+    ASSERT_EQ(0, board.GetChessCount(KingdomId(1)));
+    ASSERT_TRUE((std::vector<KingdomId>{KingdomId(0)}) == board.GetUnreadyKingdomIds(0));
+    ASSERT_TRUE((std::vector<KingdomId>{}) == board.GetUnreadyKingdomIds(1));
+    ASSERT_SUCC(board.Move(0, 0, Coor{9, 0}, Coor{8, 0})); // move occupied ju
 }
 
-TEST(TestChineseChess, jiang_eat_jiang_will_destroy_kingdom)
+TEST(TestChineseChess, jiang_eat_jiang_will_occupy)
 {
     BoardMgr board(2, 1);
     ASSERT_SUCC(board.Move(0, 0, Coor{0, 4}, Coor{1, 4}));
@@ -339,19 +339,18 @@ TEST(TestChineseChess, jiang_eat_jiang_will_destroy_kingdom)
     ASSERT_SUCC(board.Move(1, 0, Coor{8, 4}, Coor{8, 3}));
     board.Settle();
     board.Settle();
-    ASSERT_SUCC(board.Move(0, 0, Coor{1, 3}, Coor{8, 3})); // k0 jiang eats k1 jiang, k0 is destroyed
+    ASSERT_SUCC(board.Move(0, 0, Coor{1, 3}, Coor{8, 3})); // k0 jiang eat k1 jiang
     board.Settle();
-    board.Settle();
-    ASSERT_SUCC(board.Move(0, 0, Coor{8, 3}, Coor{8, 4})); // we move k1 jiang
-    ASSERT_EQ(16, board.GetScore(0));
-    ASSERT_EQ(-16, board.GetScore(1));
-    ASSERT_EQ(15, board.GetChessCount(0));
-    ASSERT_EQ(16, board.GetChessCount(1));
-    ASSERT_EQ((std::vector<uint32_t>{}), board.GetUnreadyKingdomIds(0));
-    ASSERT_EQ((std::vector<uint32_t>{}), board.GetUnreadyKingdomIds(1));
+    ASSERT_EQ(32, board.GetScore(0));
+    ASSERT_EQ(0, board.GetScore(1));
+    ASSERT_EQ(31, board.GetChessCount(KingdomId(0)));
+    ASSERT_EQ(0, board.GetChessCount(KingdomId(1)));
+    ASSERT_TRUE((std::vector<KingdomId>{KingdomId(0)}) == board.GetUnreadyKingdomIds(0));
+    ASSERT_TRUE((std::vector<KingdomId>{}) == board.GetUnreadyKingdomIds(1));
+    ASSERT_SUCC(board.Move(0, 0, Coor{9, 0}, Coor{8, 0})); // move occupied ju
 }
 
-TEST(TestChineseChess, jiang_crash_will_destroy_kingdom)
+TEST(TestChineseChess, jiang_crash_will_destroy)
 {
     BoardMgr board(2, 1);
     ASSERT_SUCC(board.Move(0, 0, Coor{0, 4}, Coor{1, 4}));
@@ -369,15 +368,16 @@ TEST(TestChineseChess, jiang_crash_will_destroy_kingdom)
     ASSERT_SUCC(board.Move(1, 0, Coor{8, 4}, Coor{8, 5}));
     board.Settle();
     board.Settle();
-    ASSERT_SUCC(board.Move(0, 0, Coor{8, 3}, Coor{8, 4}));
-    ASSERT_SUCC(board.Move(1, 0, Coor{8, 5}, Coor{8, 4}));
-    board.Settle();
+    ASSERT_SUCC(board.Move(0, 0, Coor{8, 3}, Coor{8, 4})); // move k0 jiang
+    ASSERT_SUCC(board.Move(1, 0, Coor{8, 5}, Coor{8, 4})); // move k1 jiang
+    board.Settle(); // crashed
     ASSERT_EQ(0, board.GetScore(0));
     ASSERT_EQ(0, board.GetScore(1));
-    ASSERT_EQ(15, board.GetChessCount(0));
-    ASSERT_EQ(15, board.GetChessCount(1));
-    ASSERT_EQ((std::vector<uint32_t>{}), board.GetUnreadyKingdomIds(0));
-    ASSERT_EQ((std::vector<uint32_t>{}), board.GetUnreadyKingdomIds(1));
+    ASSERT_EQ(0, board.GetChessCount(KingdomId(0)));
+    ASSERT_EQ(0, board.GetChessCount(KingdomId(1)));
+    ASSERT_TRUE((std::vector<KingdomId>{}) == board.GetUnreadyKingdomIds(0));
+    ASSERT_TRUE((std::vector<KingdomId>{}) == board.GetUnreadyKingdomIds(1));
+    ASSERT_FAIL(board.Move(0, 0, Coor{0, 0}, Coor{1, 0})); // ju becomes yong, cannot be moved
 }
 
 TEST(TestChineseChess, switch_board)
@@ -386,19 +386,19 @@ TEST(TestChineseChess, switch_board)
     // 0 - 2
     // 1 - 3
     ASSERT_SUCC(board.Move(1, 0, Coor{9, 0}, Coor{8, 0}));
-    ASSERT_EQ((std::vector<uint32_t>{3}), board.GetUnreadyKingdomIds(1));
+    ASSERT_TRUE((std::vector<KingdomId>{KingdomId(3)}) == board.GetUnreadyKingdomIds(1));
     board.Settle();
     board.Switch();
     // 0 - 3
     // 2 - 1
     ASSERT_SUCC(board.Move(1, 0, Coor{9, 0}, Coor{8, 0}));
-    ASSERT_EQ((std::vector<uint32_t>{2}), board.GetUnreadyKingdomIds(1));
+    ASSERT_TRUE((std::vector<KingdomId>{KingdomId(2)}) == board.GetUnreadyKingdomIds(1));
     board.Settle();
     board.Switch();
     // 0 - 1
     // 3 - 2
     ASSERT_SUCC(board.Move(0, 0, Coor{9, 0}, Coor{8, 0}));
-    ASSERT_EQ((std::vector<uint32_t>{0}), board.GetUnreadyKingdomIds(0));
+    ASSERT_TRUE((std::vector<KingdomId>{KingdomId(0)}) == board.GetUnreadyKingdomIds(0));
 }
 
 TEST(TestChineseChess, cannot_move_one_kingdom_chess_twice)
@@ -407,3 +407,50 @@ TEST(TestChineseChess, cannot_move_one_kingdom_chess_twice)
     ASSERT_SUCC(board.Move(0, 0, Coor{0, 0}, Coor{1, 0}));
     ASSERT_FAIL(board.Move(0, 0, Coor{0, 8}, Coor{1, 8}));
 }
+
+TEST(TestChineseChess, eat_each_jiang_will_destroy)
+{
+    BoardMgr board(2, 1);
+    ASSERT_SUCC(board.Move(0, 0, Coor{2, 1}, Coor{9, 1})); // k0 pao eat k1 ma
+    ASSERT_SUCC(board.Move(1, 0, Coor{7, 1}, Coor{0, 1})); // k1 pao eat k0 ma
+    board.Settle();
+    ASSERT_SUCC(board.Move(0, 0, Coor{0, 3}, Coor{1, 4})); // move shi
+    ASSERT_SUCC(board.Move(1, 0, Coor{9, 3}, Coor{8, 4})); // move shi
+    board.Settle();
+    ASSERT_SUCC(board.Move(0, 0, Coor{9, 1}, Coor{9, 4})); // k0 pao eat k1 jiang
+    ASSERT_SUCC(board.Move(1, 0, Coor{0, 1}, Coor{0, 4})); // k1 pao eat k2 jiang
+    board.Settle();
+    ASSERT_EQ(2, board.GetScore(0)); // eat ma and jiang
+    ASSERT_EQ(2, board.GetScore(1)); // eat ma and jiang
+    ASSERT_EQ(0, board.GetChessCount(KingdomId(0)));
+    ASSERT_EQ(0, board.GetChessCount(KingdomId(1)));
+    ASSERT_TRUE((std::vector<KingdomId>{}) == board.GetUnreadyKingdomIds(0));
+    ASSERT_TRUE((std::vector<KingdomId>{}) == board.GetUnreadyKingdomIds(1));
+    ASSERT_FAIL(board.Move(0, 0, Coor{0, 0}, Coor{1, 0})); // ju becomes yong, cannot be moved
+}
+
+TEST(TestChineseChess, pass_kingdom)
+{
+    BoardMgr board(2, 1);
+    ASSERT_SUCC(board.Pass(0, KingdomId(0)));
+}
+
+TEST(TestChineseChess, cannot_pass_other_player_kingdom)
+{
+    BoardMgr board(2, 1);
+    ASSERT_FAIL(board.Pass(0, KingdomId(1)));
+}
+
+TEST(TestChineseChess, cannot_pass_not_exist_kingdom)
+{
+    BoardMgr board(2, 1);
+    ASSERT_FAIL(board.Pass(0, KingdomId(2)));
+}
+
+TEST(TestChineseChess, cannot_move_after_pass)
+{
+    BoardMgr board(2, 1);
+    ASSERT_SUCC(board.Pass(0, KingdomId(0)));
+    ASSERT_FAIL(board.Move(0, 0, Coor{0, 0}, Coor{1, 0}));
+}
+

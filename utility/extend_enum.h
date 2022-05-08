@@ -49,6 +49,8 @@ class name \
 \
     constexpr name(const INNER_ENUM(name)& v) : v_(v) {} \
 \
+    explicit constexpr name(const uint32_t i) : v_(static_cast<INNER_ENUM(name)>(i)) {} \
+\
     constexpr auto operator<=>(const name&) const = default; \
 \
     template <INNER_ENUM(name) e> \

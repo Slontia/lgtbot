@@ -51,7 +51,6 @@ static std::ostream& operator<<(std::ostream& os, const Coor& coor) { return os 
 std::array<Board(*)(std::string), GameMap::Count() - 1> game_map_initers =
     {InitAceBoard, InitCuriosityBoard, InitGrailBoard, InitMercuryBoard, InitSophieBoard, InitGeniusBoard, InitRefractionBoard, InitGeminiBoard};
 
-// Player 1 use fork, player 0 use circle
 class MainStage : public MainGameStage<>
 {
   public:
@@ -72,7 +71,6 @@ class MainStage : public MainGameStage<>
                             { "顺", Choise::CLOCKWISE },
                             { "逆", Choise::ANTICLOCKWISE }}
                         )))
-        , first_turn_(rand() % 2)
         , map_(option.GET_VALUE(地图) == GameMap::随机 ? GameMap::Members()[rand() % (GameMap::Count() - 1)] : option.GET_VALUE(地图))
         , board_(game_map_initers[map_.ToUInt()](option.ResourceDir()))
         , round_(0)
@@ -264,7 +262,6 @@ class MainStage : public MainGameStage<>
         return CheckoutErrCode::Condition(ShootAndSettle_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
-    const PlayerID first_turn_;
     GameMap map_;
     laser::Board board_;
     uint32_t round_;
