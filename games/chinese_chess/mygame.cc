@@ -165,9 +165,9 @@ class MainStage : public MainGameStage<>
         if (unready_kingdoms.empty()) {
             sender << "您所控制的所有阵营都已经完成行动";
         } else {
-            sender << "您还剩余 " << unready_kingdoms.size() << " 个未完成行动的阵营：\n";
+            sender << "您还剩余 " << unready_kingdoms.size() << " 个未完成行动的阵营：";
             for (const KingdomId id : unready_kingdoms) {
-                sender << id.ToString() << "之国 ";
+                sender << id.ToString() << "色帝国 ";
             }
         }
         return unready_kingdoms.empty();

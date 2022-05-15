@@ -90,7 +90,7 @@ class ChessRule
 class Area
 {
   public:
-    enum class MoveState { FREEZE, MOVABLE, MOVED };
+    enum class MoveState { FREEZE, MOVABLE, MOVED, CANNOT_EAT };
 
     Area() : move_state_(MoveState::MOVABLE) {}
 
@@ -104,7 +104,7 @@ class Area
 
     void Settle(SettleResult& result)
     {
-        if (move_state_ == MoveState::FREEZE) {
+        if (move_state_ == MoveState::FREEZE || move_state_ == MoveState::CANNOT_EAT) {
             move_state_ = MoveState::MOVABLE;
         } else if (move_state_ == MoveState::MOVED) {
             // keep MOVED state for one round to draw images
@@ -120,25 +120,23 @@ class Area
         } else if (!chesses_moved_here_.empty()) {
             if (chess_.has_value()) {
                 result.eat_results_.emplace_back(chesses_moved_here_[0], *chess_);
+                move_state_ = MoveState::FREEZE;
+            } else {
+                move_state_ = MoveState::CANNOT_EAT;
             }
             chess_ = chesses_moved_here_[0];
-            move_state_ = MoveState::FREEZE;
         }
         chesses_moved_here_.clear();
     }
 
     auto move_state() const { return move_state_; }
 
-    static std::string Move(Area& src, Area& dst, ChessRule* const chess_rule = nullptr)
+    static void Move(Area& src, Area& dst, ChessRule* const chess_rule = nullptr)
     {
         assert(src.chess_.has_value());
-        if (src.move_state_ == MoveState::FREEZE) {
-            return "您无法连续两回合移动同一棋子";
-        }
         src.move_state_ = MoveState::MOVED;
         dst.chesses_moved_here_.emplace_back(chess_rule == nullptr ? src.chess_->chess_rule_ : chess_rule,
                 src.chess_->kingdom_id_);
-        return "";
     }
 
   private:
@@ -718,17 +716,22 @@ std::string HalfBoard::Move(const uint32_t player_id, const Coor& src, const Coo
         return "该国棋子已经行动过了";
     }
     if (!src_area.GetChess()->chess_rule_->CanMove(*this, src, dst)) {
-        return "您无法移动棋子到目标位置";
+        return "该棋子无法移动到目标位置";
     }
-    if (dst_area.GetChess().has_value() && dst_area.GetChess()->kingdom_id_ == src_area.GetChess()->kingdom_id_) {
-        return "您无法吃掉本方棋子";
+    if (src_area.move_state() == Area::MoveState::FREEZE) {
+        return "同一棋子无法连续两回合移动";
+    }
+    if (dst_area.GetChess().has_value()) {
+        if (dst_area.GetChess()->kingdom_id_ == src_area.GetChess()->kingdom_id_) {
+            return "无法吃掉本国棋子";
+        }
+        if (src_area.move_state() == Area::MoveState::CANNOT_EAT) {
+            return "上一回合移动的棋子无法吃子";
+        }
     }
     const bool need_promote_zu = src_area.GetChess()->chess_rule_->Type() == ChessType::ZU &&
              ((src.m_ == 4 && dst.m_ == 5) || (src.m_ == 5 && dst.m_ == 4));
-    if (const auto errstr = Area::Move(src_area, dst_area, need_promote_zu ? &PromotedZuChessRule::Singleton() : nullptr);
-            !errstr.empty()) {
-        return errstr;
-    }
+    Area::Move(src_area, dst_area, need_promote_zu ? &PromotedZuChessRule::Singleton() : nullptr);
     kingdom.state_ = KingdomInfo::State::MOVED;
     return "";
 }

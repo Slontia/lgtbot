@@ -233,21 +233,46 @@ TEST(TestChineseChess, eat_other_chess)
     ASSERT_EQ(15, board.GetScore(1));
 }
 
-TEST(TestChineseChess, cannot_continuously_move_same_chess)
+TEST(TestChineseChess, can_continuously_move_same_chess_if_not_eat)
 {
     BoardMgr board(2, 1);
     ASSERT_SUCC(board.Move(0, 0, Coor{0, 0}, Coor{1, 0}));
     board.Settle();
-    ASSERT_FAIL(board.Move(0, 0, Coor{1, 0}, Coor{2, 0}));
+    ASSERT_SUCC(board.Move(0, 0, Coor{1, 0}, Coor{2, 0}));
 }
 
-TEST(TestChineseChess, can_move_same_chess_skip_one_round)
+TEST(TestChineseChess, cannot_continuously_move_same_chess_if_eat)
 {
     BoardMgr board(2, 1);
-    ASSERT_SUCC(board.Move(0, 0, Coor{0, 0}, Coor{1, 0}));
+    ASSERT_SUCC(board.Move(0, 0, Coor{2, 1}, Coor{9, 1}));
+    board.Settle();
+    ASSERT_FAIL(board.Move(0, 0, Coor{9, 1}, Coor{8, 1}));
+}
+
+TEST(TestChineseChess, can_move_same_chess_skip_one_round_if_eat)
+{
+    BoardMgr board(2, 1);
+    ASSERT_SUCC(board.Move(0, 0, Coor{2, 1}, Coor{9, 1}));
     board.Settle();
     board.Settle();
-    ASSERT_SUCC(board.Move(0, 0, Coor{1, 0}, Coor{0, 0}));
+    ASSERT_SUCC(board.Move(0, 0, Coor{9, 1}, Coor{8, 1}));
+}
+
+TEST(TestChineseChess, just_moved_chess_cannot_eat)
+{
+    BoardMgr board(2, 1);
+    ASSERT_SUCC(board.Move(0, 0, Coor{2, 1}, Coor{1, 1}));
+    board.Settle();
+    ASSERT_FAIL(board.Move(0, 0, Coor{1, 1}, Coor{9, 1}));
+}
+
+TEST(TestChineseChess, just_moved_chess_can_eat_skip_one_round)
+{
+    BoardMgr board(2, 1);
+    ASSERT_SUCC(board.Move(0, 0, Coor{2, 1}, Coor{1, 1}));
+    board.Settle();
+    board.Settle();
+    ASSERT_SUCC(board.Move(0, 0, Coor{1, 1}, Coor{9, 1}));
 }
 
 TEST(TestChineseChess, eat_moved_chess_means_eat_failed)
@@ -278,6 +303,7 @@ TEST(TestChineseChess, promote_zu_cannot_move_at_immediately)
 {
     BoardMgr board(2, 1);
     ASSERT_SUCC(board.Move(0, 0, Coor{3, 0}, Coor{4, 0}));
+    ASSERT_SUCC(board.Move(1, 0, Coor{6, 0}, Coor{5, 0}));
     board.Settle();
     board.Settle();
     ASSERT_SUCC(board.Move(0, 0, Coor{4, 0}, Coor{5, 0}));
