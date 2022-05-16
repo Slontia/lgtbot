@@ -134,52 +134,70 @@ LGTBot 本身不提供配置项，但您可以通过配置项更改 glog 输出�
 
 <div align="center">
 
-### LIE
+### 5.1 LIE
 
 双方猜测数字的简单游戏
 
 ![](./images/game_lie.png)
 
-### 投标扑克
+### 5.2 投标波卡
 
-通过投标和拍卖提升扑克牌型的游戏
+通过投标和拍卖提升波卡牌型的游戏
 
 ![](./images/game_bidding_poker.png)
 
-### 二择猜拳
+### 5.3 二择猜拳
 
 伸出两拳，收回一拳的猜拳游戏
 
 ![](./images/game_alter_rps.png)
 
-### 数字蜂巢
+### 5.4 数字蜂巢
 
 通过放置卡牌，让同数字连成直线获得积分，比拼分数高低的游戏
 
 ![](./images/game_numcomb.png)
 
-### 炼金术士
+### 5.5 炼金术士
 
 通过放置卡牌，让卡牌连成直线获得积分，比拼分数高低的游戏
 
 ![](./images/game_alchemist.png)
 
-### 你推我挤
+### 5.6 你推我挤
 
 通过取出并重新放入棋子，先连成五子者获胜的游戏
 
 ![](./images/game_quixo.png)
 
-### 十七步
+### 5.7 十七步
 
 组成满贯听牌牌型，并经历 17 轮切牌的麻将游戏
 
 ![](./images/game_mahjong_17_steps.png)
 
-### 决胜五子
+### 5.8 决胜五子
 
 双方一起落子的五子棋游戏
 
 ![](./images/game_renju.jpg)
+
+### 5.9 镭射象棋
+
+调整镜面，发射激光消灭对方棋子的游戏
+
+![](./images/game_laser_chess.png)
+
+### 5.10 幸运波卡
+
+能够看到各个玩家部分手牌，两阶段下注的比拼大小的游戏
+
+![](./images/game_lucky_poker.png)
+
+### 5.11 群雄象棋
+
+多个帝国共同参与，定时重组棋盘的象棋游戏
+
+![](./images/game_chinese_chess.jpeg)
 
 </div>
