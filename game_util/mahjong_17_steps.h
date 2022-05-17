@@ -562,7 +562,7 @@ class Mahjong17Steps
         html::Table title_table(1, 1); // markdown format image cannot be in <center> block in same line
         title_table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
         //title_table.SetRowStyle(" style=\"min-width:50px; vertical-align: middle;\" ");
-        title_table.Get(0, 0).SetContent(Image_(tile, TileStyle::FORWARD) + "<font size=\"5\"> &nbsp;&nbsp; **" + (
+        title_table.Get(0, 0).SetContent(Image_(tile, TileStyle::FORWARD) + "<font size=\"5\"> <b> &nbsp;&nbsp; " + (
                 counter.score1 == 32000 * 4  ? "四倍役满" :
                 counter.score1 == 32000 * 3  ? "三倍役满" :
                 counter.score1 == 32000 * 2  ? "两倍役满" :
@@ -572,7 +572,7 @@ class Mahjong17Steps
                 counter.score1 == 12000      ? "跳满" :
                 counter.score1 == 8000       ? "满贯" : "") + " " +
                 (counter.fan > 0 ? std::to_string(counter.fu) + " 符 " + std::to_string(counter.fan) + " 番" : "") +
-            " " + std::to_string(counter.score1) + " 点 ** </font>");
+            " " + std::to_string(counter.score1) + " 点 </b> </font>");
         for (const auto& text : texts) {
             title_table.AppendRow();
             title_table.Get(title_table.Row() - 1, 0).SetContent(text);
