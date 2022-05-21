@@ -88,8 +88,6 @@ foreach (GAME_DIR ${GAME_DIRS})
       target_compile_definitions(run_game_${GAME} PUBLIC TEST_BOT)
       add_test(NAME run_game_${GAME} COMMAND run_game_${GAME} --repeat=100)
 
-      include(${GAME_DIR}/option.cmake)
-
       if (CMAKE_SYSTEM_NAME MATCHES "Linux")
         add_dependencies(test_game_${GAME} ${GAME}_rule_binary)
         add_dependencies(run_game_${GAME} ${GAME}_rule_binary)
@@ -97,6 +95,8 @@ foreach (GAME_DIR ${GAME_DIRS})
         target_link_libraries(run_game_${GAME} ${RULE_BINARY})
       endif()
     endif()
+
+    include(${GAME_DIR}/option.cmake)
 
   endif()
 endforeach()
