@@ -270,7 +270,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
     std::lock_guard<std::mutex> l(mutex_);
     const auto it = users_.find(uid);
     if (it == users_.end() && it->second.state_ == ParticipantUser::State::LEFT) {
-        reply() << "[错误] 您未处于游戏中或已经离开";
+        reply() << "[错误] 退出失败：您未处于游戏中或已经离开";
         return EC_MATCH_USER_NOT_IN_MATCH;
     }
     if (state_ == State::IS_OVER) {
@@ -607,7 +607,7 @@ ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool 
     const std::lock_guard<std::mutex> l(mutex_);
     const auto it = users_.find(uid);
     if (it == users_.end() && it->second.state_ == ParticipantUser::State::LEFT) {
-        reply() << "[错误] 您未处于游戏中或已经离开";
+        reply() << "[错误] 中断失败：您未处于游戏中或已经离开";
         return EC_MATCH_USER_NOT_IN_MATCH;
     }
     it->second.want_interrupt_ = !cancel;
