@@ -83,6 +83,9 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, std::optional<
 
 ErrCode Match::CheckMultipleAllowed_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const
 {
+    if (!bot_.db_manager()) {
+        return EC_OK; // always allow when database is not connected
+    }
     const auto required_zero_sum_score = k_zero_sum_score_multi * multiple * 2;
     const auto required_top_score = k_top_score_multi * multiple * 2;
     const auto profit = bot_.db_manager()->GetUserProfile(uid);
