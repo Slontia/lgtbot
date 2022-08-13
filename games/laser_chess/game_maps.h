@@ -259,3 +259,33 @@ inline laser::Board InitGeminiBoard(std::string image_path)
 
     return b;
 }
+
+inline laser::Board InitDaisukeBoard(std::string image_path)
+{
+    using namespace laser;
+    Board b(8, 8, std::move(image_path));
+    b.SetChess(Coor{0, 0}, DoubleMirrorChess<1>(false));
+    b.SetChess(Coor{0, 5}, SingleMirrorChess<1>(RIGHT));
+    b.SetChess(Coor{0, 7}, KingChess<0>());
+    b.SetChess(Coor{1, 1}, ShooterChess<0>(RIGHT, std::bitset<4>().set(UP).set(LEFT).set(DOWN).set(RIGHT)));
+    b.SetChess(Coor{1, 6}, SingleMirrorChess<0>(RIGHT));
+    b.SetChess(Coor{2, 1}, ShieldChess<1>(UP));
+    b.SetChess(Coor{2, 5}, LensedMirrorChess<1>(true));
+    b.SetChess(Coor{2, 7}, SingleMirrorChess<1>(RIGHT));
+    b.SetChess(Coor{3, 1}, SingleMirrorChess<0>(RIGHT));
+    b.SetChess(Coor{3, 3}, SingleMirrorChess<0>(DOWN));
+    b.SetChess(Coor{3, 4}, SingleMirrorChess<1>(LEFT));
+    b.SetChess(Coor{4, 3}, SingleMirrorChess<0>(RIGHT));
+    b.SetChess(Coor{4, 4}, SingleMirrorChess<1>(UP));
+    b.SetChess(Coor{4, 6}, SingleMirrorChess<1>(LEFT));
+    b.SetChess(Coor{5, 0}, SingleMirrorChess<0>(LEFT));
+    b.SetChess(Coor{5, 2}, LensedMirrorChess<0>(true));
+    b.SetChess(Coor{5, 6}, ShieldChess<0>(DOWN));
+    b.SetChess(Coor{6, 1}, SingleMirrorChess<1>(LEFT));
+    b.SetChess(Coor{6, 6}, ShooterChess<1>(LEFT, std::bitset<4>().set(UP).set(LEFT).set(DOWN).set(RIGHT)));
+    b.SetChess(Coor{7, 0}, KingChess<1>());
+    b.SetChess(Coor{7, 2}, SingleMirrorChess<0>(LEFT));
+    b.SetChess(Coor{7, 7}, DoubleMirrorChess<0>(false));
+
+    return b;
+}

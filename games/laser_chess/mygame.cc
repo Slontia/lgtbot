@@ -49,7 +49,7 @@ static std::ostream& operator<<(std::ostream& os, const Coor& coor) { return os 
 
 // function order should be same as enum order
 std::array<Board(*)(std::string), GameMap::Count() - 1> game_map_initers =
-    {InitAceBoard, InitCuriosityBoard, InitGrailBoard, InitMercuryBoard, InitSophieBoard, InitGeniusBoard, InitRefractionBoard, InitGeminiBoard};
+    {InitAceBoard, InitCuriosityBoard, InitGrailBoard, InitMercuryBoard, InitSophieBoard, InitGeniusBoard, InitRefractionBoard, InitGeminiBoard, InitDaisukeBoard};
 
 class MainStage : public MainGameStage<>
 {
