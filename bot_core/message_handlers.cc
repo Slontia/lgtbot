@@ -421,7 +421,7 @@ static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<
     }
     if (!bot.db_manager()->Suicide(uid, k_required_match_num)) {
         reply() << "[错误] 重来失败：清除战绩，需最近三局比赛均取得正零和分的收益";
-        return EC_USER_IS_EMPTY;
+        return EC_USER_SUICIDE_FAILED;
     }
     reply() << GetUserName(uid, gid.has_value() ? &(gid->Get()) : nullptr) << "，凋零！";
     return EC_OK;
@@ -514,7 +514,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
 };
 
 static ErrCode interrupt_game(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                                 MsgSenderBase& reply, const std::optional<MatchID> mid)
+        MsgSenderBase& reply, const std::optional<MatchID> mid)
 {
     std::shared_ptr<Match> match;
     if (mid.has_value() && !(match = bot.match_manager().GetMatch(*mid))) {
@@ -533,7 +533,7 @@ static ErrCode interrupt_game(BotCtx& bot, const UserID uid, const std::optional
 }
 
 static ErrCode set_game_default_multiple(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                                 MsgSenderBase& reply, const std::string& gamename, const uint32_t multiple)
+        MsgSenderBase& reply, const std::string& gamename, const uint32_t multiple)
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
@@ -546,9 +546,25 @@ static ErrCode set_game_default_multiple(BotCtx& bot, const UserID uid, const st
 }
 
 static ErrCode show_others_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                            MsgSenderBase& reply, const uint64_t others_uid)
+        MsgSenderBase& reply, const uint64_t others_uid)
 {
     return show_profile(bot, others_uid, gid, reply);
+}
+
+static ErrCode clear_others_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+        MsgSenderBase& reply, const uint64_t others_uid, const std::string& reason)
+{
+    if (!bot.db_manager()) {
+        reply() << "[错误] 清除失败：未连接数据库";
+        return EC_DB_NOT_CONNECTED;
+    }
+    if (!bot.db_manager()->Suicide(UserID{others_uid}, 0)) {
+        reply() << "[错误] 清除失败：未知原因";
+        return EC_USER_SUICIDE_FAILED;
+    }
+    MsgSender{UserID{others_uid}}() << "非常抱歉，您的战绩已被强制清空，理由为「" << reason << "」\n如有疑问，请联系管理员";
+    reply() << "战绩删除成功，且已通知该玩家！";
+    return EC_OK;
 }
 
 const std::vector<MetaCommandGroup> admin_cmds = {
@@ -564,7 +580,10 @@ const std::vector<MetaCommandGroup> admin_cmds = {
                         OptionalChecker<BasicChecker<MatchID>>("私密比赛编号")),
             make_command("设置游戏默认属性", set_game_default_multiple, VoidChecker("%默认倍率"),
                         AnyArg("游戏名称", "猜拳游戏"), ArithChecker<uint32_t>(0, 3, "倍率")),
-            make_command("查看他人战绩", show_others_profile, VoidChecker("%战绩"), ArithChecker<uint64_t>(0, 10000000000UL, "用户 ID")),
+            make_command("查看他人战绩", show_others_profile, VoidChecker("%战绩"),
+                        ArithChecker<uint64_t>(0, 10000000000UL, "用户 ID")),
+            make_command("清除他人战绩，并通知其具体理由", clear_others_profile, VoidChecker("%清除战绩"),
+                        ArithChecker<uint64_t>(0, 10000000000UL, "用户 ID"), AnyArg("理由", "恶意刷分")),
         }
     },
 };
