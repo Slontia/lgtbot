@@ -285,7 +285,7 @@ class MsgArgChecker<void> final
    public:
     typedef void arg_type;
     /* const_arg cannot contain spaces or be empty */
-    MsgArgChecker(std::string&& const_arg) : const_arg_(const_arg) {}
+    MsgArgChecker(std::string const_arg) : const_arg_(std::move(const_arg)) {}
     ~MsgArgChecker() {}
     bool Check(MsgReader& reader) const
     {

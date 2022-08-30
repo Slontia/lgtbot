@@ -270,9 +270,7 @@ class GameStage<GameOption, MainStage, SubStages...>
 
     virtual ~GameStage() {}
 
-    virtual VariantSubStage OnStageBegin() = 0;
-
-    virtual void HandleStageBegin()
+    virtual void HandleStageBegin() override
     {
         sub_stage_ = OnStageBegin();
         std::visit(
@@ -374,6 +372,7 @@ class GameStage<GameOption, MainStage, SubStages...>
   private:
     using StageBase::Over;
 
+    virtual VariantSubStage OnStageBegin() = 0;
     // CompStage cannot checkout by itself so return type is void
     virtual void OnPlayerLeave(const PlayerID pid) {}
     virtual CompReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::OK; }
@@ -407,8 +406,8 @@ class GameStage<GameOption, MainStage>
     GameStage(Args&& ...args) : Base(std::forward<Args>(args)...) {}
 
     virtual ~GameStage() { Base::match_.StopTimer(); }
-    virtual void OnStageBegin() {}
-    virtual void HandleStageBegin()
+
+    virtual void HandleStageBegin() override
     {
         if constexpr (!std::is_void_v<MainStage>) {
             Base::Boardcast() << "【当前阶段】\n" << Base::main_stage().StageInfo();
@@ -465,28 +464,18 @@ class GameStage<GameOption, MainStage>
     const GameOption& option() const { return static_cast<const GameOption&>(Base::option_); }
 
   protected:
+    virtual void OnStageBegin() {}
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CONTINUE; }
     virtual CheckoutErrCode OnTimeout() { return StageErrCode::CHECKOUT; }
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::READY; }
     // User can use ClearReady to unset masker. In this case, stage will not checkout.
     virtual void OnAllPlayerReady() {}
 
-    static void TimerCallback(void* const p, const uint64_t alert_sec)
-    {
-        auto& stage = *static_cast<GameStage*>(p);
-        stage.Boardcast() << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) << "秒";
-        for (PlayerID pid = 0; pid < stage.option().PlayerNum(); ++pid) {
-            if (stage.masker().Get(pid) == Masker::State::UNSET) {
-                stage.Tell(pid) << "您还未选择，要抓紧了，机会不等人";
-            }
-        }
-    }
-
     void StartTimer(const uint64_t sec)
     {
         finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
         // cannot pass substage pointer because substage may has been released when alert
-        Base::match_.StartTimer(sec, this, TimerCallback);
+        Base::match_.StartTimer(sec, this, TimerCallback_);
     }
 
     void StopTimer()
@@ -500,6 +489,17 @@ class GameStage<GameOption, MainStage>
     bool IsReady(const PlayerID pid) { return Base::masker().Get(pid) == Masker::State::SET; }
 
    private:
+    static void TimerCallback_(void* const p, const uint64_t alert_sec)
+    {
+        auto& stage = *static_cast<GameStage*>(p);
+        stage.Boardcast() << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) << "秒";
+        for (PlayerID pid = 0; pid < stage.option().PlayerNum(); ++pid) {
+            if (stage.masker().Get(pid) == Masker::State::UNSET) {
+                stage.Tell(pid) << "您还未选择，要抓紧了，机会不等人";
+            }
+        }
+    }
+
     StageErrCode Handle_(StageErrCode rc)
     {
         if (rc != StageErrCode::CHECKOUT && Base::masker().IsReady()) {

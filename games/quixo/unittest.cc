@@ -191,7 +191,7 @@ GAME_TEST(2, cur_player_leave_lose)
         first_hand = 0;
         ASSERT_ERRCODE(StageErrCode::CONTINUE, ret);
     }
-    ASSERT_LEAVE(StageErrCode::CHECKOUT, first_hand);
+    ASSERT_LEAVE(CHECKOUT, first_hand);
     if (first_hand == 0) {
         ASSERT_SCORE(0, 1);
     } else {
@@ -211,7 +211,7 @@ GAME_TEST(2, non_cur_player_leave_lose)
         first_hand = 0;
         ASSERT_ERRCODE(StageErrCode::CONTINUE, ret);
     }
-    ASSERT_LEAVE(StageErrCode::CHECKOUT, 1 - first_hand);
+    ASSERT_LEAVE(CHECKOUT, 1 - first_hand);
     if (first_hand == 0) {
         ASSERT_SCORE(1, 0);
     } else {
