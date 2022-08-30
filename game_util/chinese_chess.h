@@ -28,6 +28,7 @@ ENUM_END(KingdomId)
 #include <vector>
 #include <cassert>
 #include <random>
+#include <algorithm>
 
 #include "utility/html.h"
 

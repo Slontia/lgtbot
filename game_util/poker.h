@@ -57,6 +57,8 @@ ENUM_END(PatternType)
 #include <cassert>
 #include <random>
 #include <sstream>
+#include <utility> // g++12 has a bug which will cause 'exchange' is not a member of 'std'
+#include <algorithm>
 
 #include "utility/html.h"
 

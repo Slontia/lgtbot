@@ -9,6 +9,7 @@
 #include <ranges>
 #include <variant>
 #include <random>
+#include <algorithm>
 
 #include "Mahjong/Table.h"
 #include "Mahjong/Rule.h"

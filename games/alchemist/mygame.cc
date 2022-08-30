@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 #include <random>
+#include <algorithm>
 
 #include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"

@@ -11,6 +11,7 @@
 #include <array>
 #include <bitset>
 #include <iostream>
+#include <utility> // g++12 has a bug which will cause 'exchange' is not a member of 'std'
 
 #include "utility/html.h"
 
