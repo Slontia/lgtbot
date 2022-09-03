@@ -97,7 +97,7 @@ class MainStage : public MainGameStage<RoundStage>
   private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        reply() << "这里输出当前游戏情况";
+        reply() << "当前游戏情况：未设置";
         // Returning |OK| means the game stage
         return StageErrCode::OK;
     }
@@ -226,8 +226,9 @@ class RoundStage : public SubGameStage<>
         std::string x="<tr>";
         for(int i=0;i<option().PlayerNum();i++)
         {
-            if(i%2) x+="<td>";
-            else x+="<td bgcolor=\"#DCDCDC\">";
+//            if(i%2)
+                x+="<td>";
+//            else x+="<td bgcolor=\"#DCDCDC\">";
 
             if(main_stage().player_eli_[i]==1)
             {
@@ -245,8 +246,10 @@ class RoundStage : public SubGameStage<>
         x+="<tr>";
         for(int i=0;i<option().PlayerNum();i++)
         {
-            if(i%2) x+="<td>";
-            else x+="<td bgcolor=\"#DCDCDC\">";
+//            if(i%2)
+//                x+="<td>";
+//            else
+                x+="<td bgcolor=\"#DCDCDC\">";
 
             if(main_stage().player_eli_[i]==0)
             {
@@ -265,12 +268,12 @@ class RoundStage : public SubGameStage<>
         {
             maxHP=std::max(maxHP,(int)main_stage().player_hp_[i]);
         }
+
         main_stage().alive_=0;
         for(int i=0;i<option().PlayerNum();i++)
         {
             if(main_stage().player_hp_[i]<=0)
             {
-                main_stage().player_scores_[i]=0;
                 main_stage().player_select_[i]=' ';
 
                 if(main_stage().player_eli_[i]==0)
@@ -282,8 +285,7 @@ class RoundStage : public SubGameStage<>
             else
             {
                 main_stage().alive_++;
-                if(main_stage().player_hp_[i]==maxHP) main_stage().player_scores_[i]=1;
-                else main_stage().player_scores_[i]=0;
+                main_stage().player_scores_[i]++;
             }
         }
     }
@@ -361,8 +363,10 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     Pic+="<tr>";
     for(int i=0;i<option().PlayerNum();i++)
     {
-        if(i%2) Pic+="<th>";
-        else Pic+="<th bgcolor=\"#DCDCDC\">";
+//        if(i%2)
+            Pic+="<th>";
+//        else
+//            Pic+="<th bgcolor=\"#DCDCDC\">";
         Pic+=std::to_string(i+1);
         Pic+="</th>";
     }
@@ -370,8 +374,10 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     Pic+="<tr>";
     for(int i=0;i<option().PlayerNum();i++)
     {
-        if(i%2) Pic+="<td>";
-        else Pic+="<td bgcolor=\"#DCDCDC\">";
+//        if(i%2)
+            Pic+="<td>";
+//        else
+//            Pic+="<td bgcolor=\"#DCDCDC\">";
         Pic+=PlayerName(i);
         Pic+="</td>";
     }
@@ -379,8 +385,10 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     Pic+="<tr>";
     for(int i=0;i<option().PlayerNum();i++)
     {
-        if(i%2) Pic+="<td>";
-        else Pic+="<td bgcolor=\"#DCDCDC\">";
+//        if(i%2)
+//            Pic+="<td>";
+//        else
+            Pic+="<td bgcolor=\"#DCDCDC\">";
         Pic+="10";
         Pic+="</td>";
     }
@@ -396,6 +404,18 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
         return std::make_unique<RoundStage>(*this, round_);
     }
 //    Boardcast() << "游戏结束";
+    int maxHP=0;
+    for(int i=0;i<option().PlayerNum();i++)
+    {
+        maxHP=std::max(maxHP,(int)player_hp_[i]);
+    }
+    for(int i=0;i<option().PlayerNum();i++)
+    {
+        if(maxHP==player_hp_[i])
+        {
+            player_scores_[i]++;
+        }
+    }
     // Returning empty variant means the game will be over.
     return {};
 }
