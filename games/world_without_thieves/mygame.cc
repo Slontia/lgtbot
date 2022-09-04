@@ -138,6 +138,20 @@ class RoundStage : public SubGameStage<>
     virtual CheckoutErrCode OnTimeout() override
     {
         Boardcast() << name() << "超时结束";
+
+        for(int i=0;i<option().PlayerNum();i++)
+        {
+             Boardcast()<<std::to_string(IsReady(i))<<std::to_string(main_stage().player_eli_[i]);
+             if(IsReady(i) == false && !main_stage().player_eli_[i])
+             {
+                 Boardcast() << "玩家 "<<main_stage().PlayerName(i)<<" 超时仍未行动，已被淘汰";
+                 main_stage().player_hp_[i]=0;
+                 main_stage().player_select_[i]='N';
+                 main_stage().player_target_[i]=0;
+             }
+        }
+
+
         RoundStage::calc();
         // Returning |CHECKOUT| means the current stage will be over.
         return StageErrCode::CHECKOUT;
@@ -145,7 +159,11 @@ class RoundStage : public SubGameStage<>
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
-        Boardcast() << PlayerName(pid) << "退出游戏";
+        int i=pid;
+        Boardcast() << PlayerName(i) << "退出游戏";
+        main_stage().player_hp_[i]=0;
+        main_stage().player_select_[i]='N';
+        main_stage().player_target_[i]=0;
         // Returning |CONTINUE| means the current stage will be continued.
         return StageErrCode::CONTINUE;
     }
