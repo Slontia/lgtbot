@@ -132,16 +132,16 @@ class RoundStage : public SubGameStage<>
     {
         StartTimer(option().GET_VALUE(时限));
 
-        Boardcast() << name() << "开始";
+        Boardcast() << name() << "，请玩家私信选择身份。";
     }
 
     virtual CheckoutErrCode OnTimeout() override
     {
-        Boardcast() << name() << "超时结束";
+//        Boardcast() << name() << "超时结束";
 
         for(int i=0;i<option().PlayerNum();i++)
         {
-             Boardcast()<<std::to_string(IsReady(i))<<std::to_string(main_stage().player_eli_[i]);
+//             Boardcast()<<std::to_string(IsReady(i))<<std::to_string(main_stage().player_eli_[i]);
              if(IsReady(i) == false && !main_stage().player_eli_[i])
              {
                  Boardcast() << "玩家 "<<main_stage().PlayerName(i)<<" 超时仍未行动，已被淘汰";
@@ -175,7 +175,7 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnAllPlayerReady() override
     {
-        Boardcast() << "所有玩家选择完成。";
+        Boardcast() << "所有玩家选择完成，下面公布赛况。";
         RoundStage::calc();
     }
 
@@ -245,8 +245,9 @@ class RoundStage : public SubGameStage<>
         for(int i=0;i<option().PlayerNum();i++)
         {
 //            if(i%2)
-                x+="<td>";
-//            else x+="<td bgcolor=\"#DCDCDC\">";
+//                x+="<td>";
+//            else
+                x+="<td bgcolor=\"#DCDCDC\">";
 
             if(main_stage().player_eli_[i]==1)
             {
@@ -265,9 +266,9 @@ class RoundStage : public SubGameStage<>
         for(int i=0;i<option().PlayerNum();i++)
         {
 //            if(i%2)
-//                x+="<td>";
+                x+="<td>";
 //            else
-                x+="<td bgcolor=\"#DCDCDC\">";
+//                x+="<td bgcolor=\"#DCDCDC\">";
 
             if(main_stage().player_eli_[i]==0)
             {
@@ -382,13 +383,32 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     for(int i=0;i<option().PlayerNum();i++)
     {
 //        if(i%2)
-            Pic+="<th>";
+//            Pic+="<th>";
 //        else
-//            Pic+="<th bgcolor=\"#DCDCDC\">";
-        Pic+=std::to_string(i+1);
+            Pic+="<th bgcolor=\"#FFE4C4\">";
+
+        //Please note that this is not 2 spaces but a special symbol.
+        Pic+="　"+std::to_string(i+1)+" 号　";
         Pic+="</th>";
     }
     Pic+="</tr>";
+
+
+    //due to some strange bugs, the markdown can't write english name correctly.
+    /*
+    Pic+="<tr>";
+    for(int i=0;i<option().PlayerNum();i++)
+    {
+        if(i%2)
+            Pic+="<td>";
+        else
+            Pic+="<td bgcolor=\"#DCDCDC\">";
+        Pic+=PlayerName(i);
+        Pic+="</td>";
+    }
+    Pic+="</tr>";
+    */
+
     Pic+="<tr>";
     for(int i=0;i<option().PlayerNum();i++)
     {
@@ -396,21 +416,25 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
             Pic+="<td>";
 //        else
 //            Pic+="<td bgcolor=\"#DCDCDC\">";
-        Pic+=PlayerName(i);
-        Pic+="</td>";
-    }
-    Pic+="</tr>";
-    Pic+="<tr>";
-    for(int i=0;i<option().PlayerNum();i++)
-    {
-//        if(i%2)
-//            Pic+="<td>";
-//        else
-            Pic+="<td bgcolor=\"#DCDCDC\">";
+
         Pic+="10";
         Pic+="</td>";
     }
     Pic+="</tr>";
+
+    std::string PreBoard="";
+    PreBoard+="本局玩家序号如下：\n";
+    for(int i=0;i<option().PlayerNum();i++)
+    {
+        PreBoard+=std::to_string(i+1)+" 号："+PlayerName(i);
+
+        if(i!=(int)option().PlayerNum()-1)
+        {
+            PreBoard+="\n";
+        }
+    }
+
+    Boardcast() << PreBoard;
 
     return std::make_unique<RoundStage>(*this, ++round_);
 }
