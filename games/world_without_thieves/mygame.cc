@@ -14,8 +14,8 @@
 #include "utility/html.h"
 
 const std::string k_game_name = "天下无贼"; // the game name which should be unique among all the games
-const uint64_t k_max_player = 99; // 0 indicates no max-player limits
-const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game,
+const uint64_t k_max_player = 0; // 0 indicates no max-player limits
+const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game,
 //1 for a formal game, 2 or 3 for a long formal game
 
 std::string str(int x)
@@ -416,6 +416,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
             Pic+="<td>";
 //        else
 //            Pic+="<td bgcolor=\"#DCDCDC\">";
+
         Pic+="10";
         Pic+="</td>";
     }
