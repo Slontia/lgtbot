@@ -207,11 +207,7 @@ class RoundStage : public SubGameStage<>
   private:
     CheckoutErrCode OnTimeout()
     {
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            if (!IsReady(pid)) {
-                Hook(pid);
-            }
-        }
+        HookUnreadyPlayers();
         return StageErrCode::CHECKOUT;
     }
 

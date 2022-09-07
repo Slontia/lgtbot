@@ -65,7 +65,7 @@ class Masker
         return false;
     }
 
-    State Get(const size_t index) { return recorder_[index]; }
+    State Get(const size_t index) const { return recorder_[index]; }
 
     void Clear()
     {
@@ -486,7 +486,16 @@ class GameStage<GameOption, MainStage>
     void ClearReady() { Base::masker().Clear(); }
     void ClearReady(const PlayerID pid) { Base::masker().Unset(pid); }
     void SetReady(const PlayerID pid) { Base::masker().Set(pid, true); }
-    bool IsReady(const PlayerID pid) { return Base::masker().Get(pid) == Masker::State::SET; }
+    bool IsReady(const PlayerID pid) const { return Base::masker().Get(pid) == Masker::State::SET; }
+
+    void HookUnreadyPlayers() const
+    {
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            if (!IsReady(pid)) {
+                Base::Hook(pid);
+            }
+        }
+    }
 
    private:
     static void TimerCallback_(void* const p, const uint64_t alert_sec)

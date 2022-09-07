@@ -216,11 +216,7 @@ class MainStage : public MainGameStage<>
 
     CheckoutErrCode OnTimeout()
     {
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            if (!IsReady(pid)) {
-                Hook(pid);
-            }
-        }
+        HookUnreadyPlayers();
         if (!SetToBoard_(BoardcastMsgSender())) {
             ClearReady();
             StartTimer(option().GET_VALUE(时限));

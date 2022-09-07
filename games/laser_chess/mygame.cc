@@ -214,11 +214,7 @@ class MainStage : public MainGameStage<>
     {
         bool finish = true;
         ++round_;
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            if (!IsReady(pid)) {
-                Hook(pid);
-            }
-        }
+        HookUnreadyPlayers();
 
         const auto settle_ret = board_.Settle();
         board_html_ = settle_ret.html_;
