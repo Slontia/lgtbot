@@ -114,6 +114,9 @@ class MainStage : public MainGameStage<RoundStage>
                 mdBoard += "&emsp;";
                 while(i+1 < len && roundBoard[i+1] == ' ') i++;
             }
+            else if(roundBoard[i] == '|'){
+                mdBoard += "";
+            }
             else{
                 mdBoard += roundBoard[i];
             }
@@ -208,17 +211,17 @@ class RoundStage : public SubGameStage<>
         main_stage().roundBoard+=
                 "\n"
                 + std::to_string(main_stage().player_wins_[0])
-                + "    "
+                + " |   "
                 + myToStrL(main_stage().player_coins_[0])
-                + "   "
+                + "    "
                 + myToStrL(main_stage().player_now_[0])
                 + " "
                 + symbolW
                 + " "
                 + myToStrR(main_stage().player_now_[1])
-                + "   "
-                + myToStrR(main_stage().player_coins_[1])
                 + "    "
+                + myToStrR(main_stage().player_coins_[1])
+                + "   | "
                 + std::to_string(main_stage().player_wins_[1])
                 ;
 

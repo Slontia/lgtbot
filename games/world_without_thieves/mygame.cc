@@ -195,7 +195,7 @@ class RoundStage : public SubGameStage<>
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
         int i=pid;
-        Boardcast() << PlayerName(i) << "退出游戏";
+//        Boardcast() << PlayerName(i) << "退出游戏";
         main_stage().player_hp_[i]=0;
         main_stage().player_select_[i]='N';
         main_stage().player_target_[i]=0;
@@ -247,7 +247,7 @@ class RoundStage : public SubGameStage<>
                 else
                 {
                     // Now the P will gains 1 hp when someone steal him
-                    main_stage().player_hp_[tar]-=2;
+                    main_stage().player_hp_[tar]+=1;
                     main_stage().player_hp_[i]=0;
 
                     // Police success. P get 1 score.
