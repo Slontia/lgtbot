@@ -14,8 +14,8 @@
 #include "utility/html.h"
 
 const std::string k_game_name = "天下无贼"; // the game name which should be unique among all the games
-const uint64_t k_max_player = 0; // 0 indicates no max-player limits
-const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game,
+const uint64_t k_max_player = 99; // 0 indicates no max-player limits
+const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game,
 //1 for a formal game, 2 or 3 for a long formal game
 
 std::string str(int x)
@@ -97,7 +97,42 @@ class MainStage : public MainGameStage<RoundStage>
   private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        reply() << "当前游戏情况：未设置";
+//        reply() << "当前游戏情况：未设置";
+
+        std::string PreBoard="";
+        PreBoard+="本局玩家序号如下：\n";
+        for(int i=0;i<option().PlayerNum();i++)
+        {
+            PreBoard+=std::to_string(i+1)+" 号："+PlayerName(i);
+
+            if(i!=(int)option().PlayerNum()-1)
+            {
+                PreBoard+="\n";
+            }
+        }
+
+        Boardcast() << PreBoard;
+
+        std::string WordSitu="";
+        WordSitu+="当前玩家状态如下：\n";
+        for(int i=0;i<option().PlayerNum();i++)
+        {
+            WordSitu+=std::to_string(i+1)+" 号：";
+
+            WordSitu+=std::to_string(player_hp_[i])+"生命 ";
+            if(player_select_[i]=='N') WordSitu+="民";
+            if(player_select_[i]=='S') WordSitu+="贼  "+str(player_target_[i]);
+            if(player_select_[i]=='P') WordSitu+="警  "+str(player_target_[i]);
+
+
+            if(i!=(int)option().PlayerNum()-1)
+            {
+                WordSitu+="\n";
+            }
+        }
+
+        Boardcast() << WordSitu;
+
         // Returning |OK| means the game stage
         return StageErrCode::OK;
     }
@@ -196,15 +231,27 @@ class RoundStage : public SubGameStage<>
         {
             if(main_stage().player_select_[i]=='S')
             {
+
+                // S gains 1 hp
                 main_stage().player_hp_[i]+=1;
                 int tar=main_stage().player_target_[i]-1;
+
+
                 if(main_stage().player_select_[tar]!='P')
                 {
                     main_stage().player_hp_[tar]-=2;
+
+                    // Steal success. S get 1 score.
+                    main_stage().player_scores_[i]+=1;
                 }
                 else
                 {
+                    // Now the P will gains 1 hp when someone steal him
+                    main_stage().player_hp_[tar]-=2;
                     main_stage().player_hp_[i]=0;
+
+                    // Police success. P get 1 score.
+                    main_stage().player_scores_[tar]+=1;
                 }
             }
         }
@@ -216,10 +263,17 @@ class RoundStage : public SubGameStage<>
             {
                 main_stage().player_hp_[i]-=2;
                 int tar=main_stage().player_target_[i]-1;
+
+
                 if(main_stage().player_select_[tar]=='S')
                 {
+
+                    // OK catch a thief!
                     main_stage().player_hp_[i]+=3;
                     main_stage().player_hp_[tar]=0;
+
+                    // Gain 2 score
+                     main_stage().player_scores_[i]+=2;
                 }
             }
         }
@@ -231,7 +285,7 @@ class RoundStage : public SubGameStage<>
             {
                 if(exist_P==0)
                 {
-                    main_stage().player_hp_[i]-=1;
+                    main_stage().player_hp_[i]-=2;
                 }
             }
         }
@@ -303,6 +357,7 @@ class RoundStage : public SubGameStage<>
             }
             else
             {
+                // Everyone gain 1 score for his survival
                 main_stage().alive_++;
                 main_stage().player_scores_[i]++;
             }
@@ -370,7 +425,7 @@ class RoundStage : public SubGameStage<>
         main_stage().player_select_[pid]=type;
         main_stage().player_target_[pid]=target;
 
-        reply() << "设置成功。";
+//        reply() << "设置成功。";
         // Returning |READY| means the player is ready. The current stage will be over when all surviving players are ready.
         return StageErrCode::READY;
     }
@@ -393,22 +448,6 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     }
     Pic+="</tr>";
 
-
-    //due to some strange bugs, the markdown can't write english name correctly.
-    /*
-    Pic+="<tr>";
-    for(int i=0;i<option().PlayerNum();i++)
-    {
-        if(i%2)
-            Pic+="<td>";
-        else
-            Pic+="<td bgcolor=\"#DCDCDC\">";
-        Pic+=PlayerName(i);
-        Pic+="</td>";
-    }
-    Pic+="</tr>";
-    */
-
     Pic+="<tr>";
     for(int i=0;i<option().PlayerNum();i++)
     {
@@ -416,7 +455,6 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
             Pic+="<td>";
 //        else
 //            Pic+="<td bgcolor=\"#DCDCDC\">";
-
         Pic+="10";
         Pic+="</td>";
     }
@@ -455,7 +493,13 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     {
         if(maxHP==player_hp_[i])
         {
-            player_scores_[i]++;
+            // The last survival gain 5 scores.
+            player_scores_[i]+=5;
+        }
+        else if(player_eli_[i]==0)
+        {
+            // The second last survival
+            player_scores_[i]+=3;
         }
     }
     // Returning empty variant means the game will be over.
