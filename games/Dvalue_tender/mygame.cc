@@ -15,7 +15,7 @@
 
 const std::string k_game_name = "差值投标"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 2; // 0 indicates no max-player limits
-const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 
 
 // a function to give one-digit number two space in its left, in order to align correctly in text broadcast.
