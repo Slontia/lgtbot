@@ -16,9 +16,9 @@ GAME_TEST(5, simple_test)
     START_GAME();
 
     for (int pid = 0; pid < 4; ++pid) {
-        ASSERT_PRI_MSG(OK, pid, "贼 "+std::to_string(pid+2)); // we regard |READY| as |OK| here
+        ASSERT_PRI_MSG(OK, pid, "贼 " + std::to_string(pid + 2)); // we regard |READY| as |OK| here
     }
-    ASSERT_PRI_MSG(OK, 4, "贼 1");
+    ASSERT_PRI_MSG(CHECKOUT, 4, "贼 1");
 
     // The game is over, now we check each player's score.
 }
