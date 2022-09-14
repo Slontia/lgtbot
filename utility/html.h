@@ -85,6 +85,7 @@ class Table
     void MergeDown(const uint32_t row, const uint32_t column, const uint32_t num);
     void MergeRight(const uint32_t row, const uint32_t column, const uint32_t num);
     void MergeRow(const uint32_t row) { MergeRight(row, 0, column_); }
+    void MergeColumn(const uint32_t column) { MergeDown(0, column, row_); }
 
     Box& Get(const uint32_t row, const uint32_t column) { return boxes_[row][column]; }
     const Box& Get(const uint32_t row, const uint32_t column) const { return boxes_[row][column]; }

@@ -15,7 +15,7 @@
 
 const std::string k_game_name = "伊甸园"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 0; // 0 indicates no max-player limits
-const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 
 std::string GameOption::StatusInfo() const
 {
@@ -49,14 +49,47 @@ static const char* AppleTypeStr(const AppleType type)
     return k_apple_type_str[static_cast<int>(type)];
 }
 
+static const char* AppleTypeLightColor(const AppleType type)
+{
+    static const char* k_apple_type_color[] =
+    {
+        [static_cast<int>(AppleType::RED)] = "#FFC1C1",
+        [static_cast<int>(AppleType::GOLD)] = "#FFDEAD",
+        [static_cast<int>(AppleType::SILVER)] = "#DCDCDC",
+    };
+    return k_apple_type_color[static_cast<int>(type)];
+}
+
+static const char* AppleTypeDeepColor(const AppleType type)
+{
+    static const char* k_apple_type_color[] =
+    {
+        [static_cast<int>(AppleType::RED)] = "#B22222",
+        [static_cast<int>(AppleType::GOLD)] = "#DAA520",
+        [static_cast<int>(AppleType::SILVER)] = "#696969",
+    };
+    return k_apple_type_color[static_cast<int>(type)];
+}
+
+static const char* AppleTypeName(const AppleType type)
+{
+    static const char* k_apple_type_name[] =
+    {
+        [static_cast<int>(AppleType::RED)] = "red",
+        [static_cast<int>(AppleType::GOLD)] = "gold",
+        [static_cast<int>(AppleType::SILVER)] = "silver",
+    };
+    return k_apple_type_name[static_cast<int>(type)];
+}
+
 struct Player
 {
     Player(const GameOption& option)
-        : score_(0)
+        : score_(option.GET_VALUE(回合数), 0)
         , remain_golden_(option.GET_VALUE(金苹果))
         , chosen_apples_(option.GET_VALUE(回合数), AppleType::RED) // RED is the default apple
     {}
-    int64_t score_;
+    std::vector<int64_t> score_;
     int32_t remain_golden_;
     std::vector<AppleType> chosen_apples_;
 };
@@ -80,7 +113,7 @@ class MainStage : public MainGameStage<>
         Boardcast() << "第 1 回合开始，请私信裁判选择，时限 " << option().GET_VALUE(时限) << " 秒，超时则默认食用「红苹果」";
     }
 
-    virtual int64_t PlayerScore(const PlayerID pid) const override { return players_[pid].score_; }
+    virtual int64_t PlayerScore(const PlayerID pid) const override { return players_[pid].score_.back(); }
 
     CheckoutErrCode OnTimeout()
     {
@@ -111,6 +144,10 @@ class MainStage : public MainGameStage<>
     }
 
   private:
+    std::string Image_(const AppleType apple_type, const int size) const
+    {
+        return std::string("![](file://") + option().ResourceDir() + "/" + AppleTypeName(apple_type) + "_" + std::to_string(size) + ".png)";
+    }
 
     std::array<int, k_apple_type_num> AppleCounts_() const
     {
@@ -121,7 +158,7 @@ class MainStage : public MainGameStage<>
         return result;
     }
 
-    AppleType WinnerAppleFirstRound_(const std::array<int, k_apple_type_num>& apple_counts, MsgSenderBase::MsgSenderGuard& sender) const
+    AppleType WinnerAppleFirstRound_(const std::array<int, k_apple_type_num>& apple_counts, const char *& hint) const
     {
         const int min_apple_count = *std::min_element(apple_counts.begin(), apple_counts.end());
         std::optional<AppleType> result;
@@ -129,7 +166,7 @@ class MainStage : public MainGameStage<>
             if (apple_counts[static_cast<int>(apple_type)] != min_apple_count) {
                 // do nothing
             } else if (result.has_value()) {
-                sender << "有多种苹果食用数最低，因此";
+                hint = "有多种苹果食用数最低，因此";
                 return AppleType::GOLD;
             } else {
                 result = apple_type;
@@ -138,61 +175,131 @@ class MainStage : public MainGameStage<>
         return *result;
     }
 
-    AppleType WinnerApple_(const std::array<int, k_apple_type_num>& apple_counts, MsgSenderBase::MsgSenderGuard& sender) const
+    AppleType WinnerApple_(const std::array<int, k_apple_type_num>& apple_counts, const char*& hint) const
     {
         const auto is_satisfied_red_apple_requirement = [&](const Player& player)
         {
             return player.chosen_apples_[round_ - 1] != AppleType::RED || player.chosen_apples_[round_] == AppleType::RED;
         };
         if (std::all_of(players_.begin(), players_.end(), is_satisfied_red_apple_requirement)) {
-            sender << "上一回合食用「红苹果」的玩家，本回合依然食用「红苹果」，因此";
+            hint = "上一回合食用「红苹果」的玩家，本回合依然食用「红苹果」，因此";
             return AppleType::RED;
         }
         return apple_counts[static_cast<int>(AppleType::GOLD)] <= apple_counts[static_cast<int>(AppleType::SILVER)] ?
             AppleType::GOLD : AppleType::SILVER;
     }
 
+    std::string Html_(const std::array<int, k_apple_type_num>& apple_counts, const AppleType& winner_apple) const
+    {
+        std::string s = "## 第 " + std::to_string(round_ + 1) + " / " + std::to_string(option().GET_VALUE(回合数)) + " 回合\n\n";
+
+        {
+            html::Table count_table(2, k_apple_type_num);
+            count_table.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
+            for (const auto apple_type : { AppleType::RED, AppleType::GOLD, AppleType::SILVER }) {
+                count_table.Get(0, static_cast<int>(apple_type)).SetContent(Image_(apple_type, 128));
+                if (winner_apple == apple_type) {
+                    count_table.Get(0, static_cast<int>(apple_type)).SetColor(AppleTypeLightColor(apple_type));
+                }
+                count_table.Get(1, static_cast<int>(apple_type)).SetContent("<font size=\"9\" color=" +
+                        std::string(winner_apple == apple_type ? AppleTypeDeepColor(apple_type) : "black") + "> <b> " +
+                        std::to_string(apple_counts[static_cast<int>(apple_type)]) + " </b> </font>");
+            }
+            s += count_table.ToString() + "\n\n";
+        }
+
+        std::vector<PlayerID> sorted_players(option().PlayerNum());
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            sorted_players[pid] = pid;
+        }
+        std::sort(sorted_players.begin(), sorted_players.end(),
+                [&](const PlayerID& _1, const PlayerID& _2) { return players_[_1].score_[round_] > players_[_2].score_[round_]; });
+
+        constexpr const uint32_t k_battery_len = 5;
+        for (const auto& pid : sorted_players) {
+            const auto& player = players_[pid];
+            const int64_t last_score = round_ == 0 ? 0 : player.score_[round_ - 1];
+            const int64_t cur_score = player.score_[round_];
+            const bool is_quit_red_apple = round_ > 0 && player.chosen_apples_[round_ - 1] == AppleType::RED &&
+                player.chosen_apples_[round_] != AppleType::RED;
+            s += "### ";
+            if (is_quit_red_apple) {
+                s += HTML_COLOR_FONT_HEADER(red);
+            }
+            s += PlayerName(pid);
+            if (is_quit_red_apple) {
+                s += HTML_FONT_TAIL;
+            }
+            s += "（" + std::string(player.remain_golden_ == 0 ? HTML_COLOR_FONT_HEADER(#696969) : HTML_COLOR_FONT_HEADER(#DAA520)) + "剩余金苹果：" +
+                std::to_string(player.remain_golden_) + HTML_FONT_TAIL "，得分：" + std::to_string(last_score) + " → ";
+            if (cur_score > last_score) {
+                s += HTML_COLOR_FONT_HEADER(green);
+            } else if (cur_score < last_score) {
+                s += HTML_COLOR_FONT_HEADER(red);
+            } else {
+                s += HTML_COLOR_FONT_HEADER(black);
+            }
+            s += std::to_string(cur_score) + HTML_FONT_TAIL "）\n\n";
+            html::Table table(2, round_ + 1 + round_ / k_battery_len);
+            table.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
+            for (int i = k_battery_len; i < table.Column(); i += 1 + k_battery_len) {
+                table.Get(0, i).SetContent("&nbsp;&nbsp;"); // a gap between each 5 apples
+            }
+            for (int i = 0; i < round_; ++i) {
+                const uint32_t col = i + i / k_battery_len;
+                table.Get(0, col).SetContent(std::to_string(player.score_[i]));
+                table.Get(1, col).SetContent(Image_(player.chosen_apples_[i], 32));
+                if (player.score_[i] > (i == 0 ? 0 : player.score_[i - 1])) {
+                    table.Get(1, col).SetColor(AppleTypeLightColor(player.chosen_apples_[i]));
+                }
+            }
+            table.MergeColumn(table.Column() - 1);
+            table.GetLastColumn(0).SetContent(Image_(player.chosen_apples_[round_], 64));
+            if (cur_score > last_score) {
+                table.GetLastColumn(0).SetColor(AppleTypeLightColor(player.chosen_apples_[round_]));
+            }
+            s += table.ToString() + "\n\n";
+        }
+
+        return s;
+    }
+
     bool Over_()
     {
         const auto apple_counts = AppleCounts_();
+        Boardcast() << "第 " << (round_ + 1) << " 回合结束，下面公布结果";
         {
-            auto sender = Boardcast();
-            sender << "第 " << (round_ + 1) << " 回合结束，下面公布结果\n\n";
-            for (PlayerID pid = 0; pid < players_.size(); ++pid) {
-                sender << At(pid) << " " << AppleTypeStr(players_[pid].chosen_apples_[round_]) << "\n";
-            }
-            sender << "\n红:金:银 = " << apple_counts[static_cast<int>(AppleType::RED)] << ":" << apple_counts[static_cast<int>(AppleType::GOLD)] << ":" << apple_counts[static_cast<int>(AppleType::SILVER)];
-        }
-        {
-            auto sender = Boardcast();
-            if (apple_counts[static_cast<int>(AppleType::RED)] == option().PlayerNum()) {
-                sender << "不得了了，竟然全员都食用了「红苹果」，全员分数因此取反";
+            if (round_ > 0 && apple_counts[static_cast<int>(AppleType::RED)] == option().PlayerNum()) {
                 for (auto& player : players_) {
-                    player.score_ = -player.score_;
+                    player.score_[round_] = -player.score_[round_ - 1];
                 }
+                Boardcast() << Markdown(html_ = Html_(apple_counts, AppleType::RED));
+                Boardcast() << "不得了了，竟然全员都食用了「红苹果」，全员分数因此取反";
             } else {
+                const char* hint = "";
                 const auto winner_apple =
-                    round_ == 0 ? WinnerAppleFirstRound_(apple_counts, sender) : WinnerApple_(apple_counts, sender);
+                    round_ == 0 ? WinnerAppleFirstRound_(apple_counts, hint) : WinnerApple_(apple_counts, hint);
+                for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+                    auto& player = players_[pid];
+                    const int64_t last_score = round_ == 0 ? 0 : player.score_[round_ - 1];
+                    if (player.chosen_apples_[round_] == winner_apple) {
+                        player.score_[round_] = last_score + option().PlayerNum() - apple_counts[static_cast<int>(winner_apple)];
+                    } else {
+                        player.score_[round_] = last_score - apple_counts[static_cast<int>(winner_apple)];
+                    }
+                }
+                Boardcast() << Markdown(html_ = Html_(apple_counts, winner_apple));
                 if (apple_counts[static_cast<int>(winner_apple)] == 0) {
-                    sender << "禁果为无人食用的「" << AppleTypeStr(winner_apple) << "苹果」";
+                    Boardcast() << hint << "禁果为无人食用的「" << AppleTypeStr(winner_apple) << "苹果」";
                 } else {
-                    sender << "禁果为「" << AppleTypeStr(winner_apple) << "苹果」，获胜玩家分别为————\n";
+                    auto sender = Boardcast();
+                    sender << hint << "禁果为「" << AppleTypeStr(winner_apple) << "苹果」，获胜玩家分别为————\n";
                     for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
                         if (players_[pid].chosen_apples_[round_] == winner_apple) {
                             sender << At(pid) << "\n";
-                            players_[pid].score_ += option().PlayerNum() - apple_counts[static_cast<int>(winner_apple)];
-                        } else {
-                            players_[pid].score_ -= apple_counts[static_cast<int>(winner_apple)];
                         }
                     }
                 }
-            }
-        }
-        {
-            auto sender = Boardcast();
-            sender << "公布玩家积分————\n\n";
-            for (PlayerID pid = 0; pid < players_.size(); ++pid) {
-                sender << At(pid) << "(剩余金苹果 " << players_[pid].remain_golden_ << ") 积分 " << players_[pid].score_ << "\n";
             }
         }
         if (++round_ < option().GET_VALUE(回合数)) {
@@ -207,7 +314,11 @@ class MainStage : public MainGameStage<>
 
     AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        reply() << "试玩版暂不支持";
+        if (html_.empty()) {
+            reply() << "暂无赛况";
+            return StageErrCode::OK;
+        }
+        reply() << Markdown(html_);
         return StageErrCode::OK;
     }
 
@@ -235,6 +346,7 @@ class MainStage : public MainGameStage<>
 
     int round_;
     std::vector<Player> players_;
+    std::string html_;
 };
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
