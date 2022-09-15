@@ -254,7 +254,7 @@ class RoundStage : public SubGameStage<>
         if(type == '0') color="#F5FFFA"; // White
         if(type == '1') color="#FAFA7D"; // Yellow
         if(type == '2') color="#ADFF2F"; // Green
-        if(type == '3') color="#999999"; // Black
+        if(type == '3') color="#BBBBBB"; // Grey
 
         now += "<th bgcolor=\"" + color + "\">";
 
@@ -287,6 +287,9 @@ class RoundStage : public SubGameStage<>
         r2 = cmpWordle(s1, g2);
 
         main_stage().UI += "<tr>";
+
+        main_stage().UI += "<td bgcolor=\"#FFFFFF\"><font size=7>　</font></td>";
+
         for(int i = 0; i < l; i++)
         {
             AddUI(g1[i],r1[i]);
@@ -296,6 +299,9 @@ class RoundStage : public SubGameStage<>
         {
             AddUI(g2[i],r2[i]);
         }
+
+        main_stage().UI += "<td bgcolor=\"#FFFFFF\"><font size=7>　</font></td>";
+
         main_stage().UI += "</tr>";
 
         // Boardcast the result. Note that the table need an end mark </table>
@@ -476,15 +482,19 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     UI += "<tr>";
 
+    UI += "<td bgcolor=\"#FFFFFF\"><font size=7>　</font></td>";
+
     for(int i = 0; i < wordLength; i++)
     {
         UI += "<td bgcolor=\"#D2F4F4\"><font size=7>　</font></td>";
     }
-    UI += "<td bgcolor=\"#999999\"><font size=7>　　</font></td>";
+    UI += "<td bgcolor=\"#BBBBBB\"><font size=7>　　</font></td>";
     for(int i = 0; i < wordLength; i++)
     {
         UI += "<td bgcolor=\"#D2F4F4\"><font size=7>　</font></td>";
     }
+
+    UI += "<td bgcolor=\"#FFFFFF\"><font size=7>　</font></td>";
 
     UI += "</tr>";
 
