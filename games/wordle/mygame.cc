@@ -372,7 +372,6 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     // Most init steps are in this function.
 
-
     // 1. Read all words.
     FILE *fp=fopen((string(option().ResourceDir())+("words.txt")).c_str(),"r");
     if(fp==NULL)
@@ -499,6 +498,10 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     UI += "</tr>";
 
 
+    // 4. init variables
+    gameEnd = 0;
+
+    // 5. Boardcast the game start
     Boardcast() << "本局游戏参与玩家： \n" << PlayerName(0) << "\n" << PlayerName(1);
     Boardcast() << "本局游戏双方单词长度： " + to_string(wordLength);
 
