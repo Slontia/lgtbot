@@ -9,6 +9,7 @@
 
 #include <string>
 #include <stdlib.h>
+#include <cstring>
 
 #include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
@@ -376,7 +377,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     }
 
     char word[50];
-    while(fscanf(fp, "%s", &word) != EOF)
+    while(fscanf(fp, "%s", word) != EOF)
     {
         string addS = "";
         int len = strlen(word);
