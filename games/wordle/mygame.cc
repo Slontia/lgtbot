@@ -329,12 +329,8 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
 
-        int l = main_stage().wordLength;
 
-        if(l != submission.length()) {
-            reply() << "[错误] 单词长度不正确。";
-            return StageErrCode::FAILED;
-        }
+        int l = main_stage().wordLength;
 
         for(int i = 0; i < l; i++)
         {
@@ -343,6 +339,27 @@ class RoundStage : public SubGameStage<>
                 submission[i] = submission[i] - 'A' + 'a';
             }
         }
+
+        // When single game, the game can end whenever the player want
+        // These codes were temporary annotated because I can't find a way to check whether it is a single game.
+//        if(submission == "end" && option().PlayerNum() == 1)
+//        {
+//            main_stage().gameEnd = 1;
+
+//            string temp="";
+//            for(int i = 0; i < l; i++)
+//            {
+//                temp += " ";
+//            }
+//            return SubmitInternal_(pid, reply, temp);
+//        }
+
+
+        if(l != submission.length()) {
+            reply() << "[错误] 单词长度不正确。";
+            return StageErrCode::FAILED;
+        }
+
 
         if(main_stage().wordList[l].find(submission) == main_stage().wordList[l].end()) {
             reply() << "[错误] 这不是一个有效的单词。";
@@ -543,7 +560,6 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
         return make_unique<RoundStage>(*this, round_);
     }
 
-    Boardcast() << "本局游戏参与玩家： \n" << PlayerName(0) << "\n" << PlayerName(1);
     Boardcast() << "本局游戏双方单词: \n"
                 << PlayerName(0) << ":" << player_word_[0] << "\n"
                 << PlayerName(1) << ":" << player_word_[1];
