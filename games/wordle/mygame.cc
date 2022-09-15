@@ -372,11 +372,11 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     // Most init steps are in this function.
 
-    // 1. Read all words.
+    // 1. Read all given words.
     FILE *fp=fopen((string(option().ResourceDir())+("words.txt")).c_str(),"r");
     if(fp==NULL)
     {
-        Boardcast() << "[错误] 单词列表不存在。";
+        Boardcast() << "[错误] 单词列表不存在。(W)";
         gameEnd=1;
         return make_unique<RoundStage>(*this, ++round_);
     }
@@ -423,7 +423,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         int r1,r2,n2;
         r1=rand()%wordList[l].size();
 
-
+        // random select a word or player 0
         for(auto v:wordList[l])
         {
             if(r1==0)
@@ -451,7 +451,6 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
             continue;
         }
 
-
         // find a correct s2 for s1
         r2 = rand()%n2;
         r2++;
@@ -461,7 +460,6 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
             if(same > 0 && same != l)
             {
                 r2--;
-
                 if(r2 == 0)
                 {
                     s2 = v;
@@ -469,20 +467,16 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
                 }
             }
         }
-
         player_word_[0] = s1;
         player_word_[1] = s2;
-
         fin = 0;
     }
 
     // 3. init UI
+
     UI = "<table style=\"text-align:center\"><tbody>";
-
     UI += "<tr>";
-
     UI += "<td bgcolor=\"#FFFFFF\"><font size=7>　</font></td>";
-
     for(int i = 0; i < wordLength; i++)
     {
         UI += "<td bgcolor=\"#D2F4F4\"><font size=7>　</font></td>";
@@ -492,14 +486,42 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     {
         UI += "<td bgcolor=\"#D2F4F4\"><font size=7>　</font></td>";
     }
-
     UI += "<td bgcolor=\"#FFFFFF\"><font size=7>　</font></td>";
-
     UI += "</tr>";
+
 
 
     // 4. init variables
     gameEnd = 0;
+
+
+
+    // 5. extend wordlist
+    fp=fopen((string(option().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
+    if(fp==NULL)
+    {
+        Boardcast() << "[错误] 单词列表不存在。(G)";
+        gameEnd=1;
+        return make_unique<RoundStage>(*this, ++round_);
+    }
+
+//    char word[50];
+    while(fscanf(fp, "%s", word) != EOF)
+    {
+        string addS = "";
+        int len = strlen(word);
+
+        if(len < 4 || len > 8) continue;
+
+        for(int i = 0; i < len; i++)
+        {
+            addS += word[i];
+        }
+
+        wordList[len].insert(addS);
+    }
+
+
 
     // 5. Boardcast the game start
     Boardcast() << "本局游戏参与玩家： \n" << PlayerName(0) << "\n" << PlayerName(1);
