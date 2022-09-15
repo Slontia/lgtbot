@@ -543,6 +543,11 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
         return make_unique<RoundStage>(*this, round_);
     }
 
+    Boardcast() << "本局游戏参与玩家： \n" << PlayerName(0) << "\n" << PlayerName(1);
+    Boardcast() << "本局游戏双方单词: \n"
+                << PlayerName(0) << ":" << player_word_[0] << "\n"
+                << PlayerName(1) << ":" << player_word_[1];
+
     return {};
 }
 
