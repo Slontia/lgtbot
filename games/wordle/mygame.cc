@@ -413,15 +413,12 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
         wordList[len].insert(addS);
     }
-
     fclose(fp);
 
-//    Boardcast()<<"OK wordList correct count="+to_string(wordList[4].size());
-
-    srand((unsigned int)time(NULL));
 
 
     // 2. Choose random words for players
+    srand((unsigned int)time(NULL));
     int fin = 1;
     while(fin != 0 && fin < 100)
     {
@@ -537,6 +534,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
         wordList[len].insert(addS);
     }
+    fclose(fp);
 
 
 
