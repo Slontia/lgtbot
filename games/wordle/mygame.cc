@@ -39,6 +39,7 @@ int cmpString(string a,string b)
     return ret;
 }
 
+// Give it two srtrings, it returns you the wordle result. E.g. abcd and acbe returns 2110.
 string cmpWordle(string a,string b)
 {
 
@@ -124,7 +125,7 @@ class MainStage : public MainGameStage<RoundStage>
     // The standard score
     vector<int64_t> player_scores_;
 
-    // player words
+    // player word
     vector<string> player_word_;
 
     // player guess
@@ -229,7 +230,12 @@ class RoundStage : public SubGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        return SubmitInternal_(pid, reply, "");
+        string s="";
+        for(int j = 0; j < main_stage().wordLength; j++)
+        {
+            s+=" ";
+        }
+        return SubmitInternal_(pid, reply, s);
     }
 
     virtual void OnAllPlayerReady() override
@@ -239,6 +245,7 @@ class RoundStage : public SubGameStage<>
         RoundStage::calc();
     }
 
+    // Add a letter to UI.
     void AddUI(char x, char type)
     {
         string now = main_stage().UI;
@@ -253,6 +260,8 @@ class RoundStage : public SubGameStage<>
         if(x <= 'z' && x >= 'a')
             x = x - 'a' + 'A';
 
+
+
         now += "<font size=6>";
         now += x;
         now += "</font>";
@@ -263,7 +272,7 @@ class RoundStage : public SubGameStage<>
         main_stage().UI = now;
     }
 
-
+    // calc() is where the code calculate results after players made their choice.
     void calc()
     {
         // s->string g->guess r->result
@@ -288,6 +297,7 @@ class RoundStage : public SubGameStage<>
         }
         main_stage().UI += "</tr>";
 
+        // Boardcast the result. Note that the table need an end mark </table>
         Boardcast() << Markdown(main_stage().UI + "</table>");
 
         if(s2 == g1)
@@ -352,7 +362,11 @@ class RoundStage : public SubGameStage<>
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
-//    Boardcast()<<option().ResourceDir();
+
+    // Most init steps are in this function.
+
+
+    // 1. Read all words.
     FILE *fp=fopen((string(option().ResourceDir())+("words.txt")).c_str(),"r");
     if(fp==NULL)
     {
@@ -379,10 +393,12 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     fclose(fp);
 
-    Boardcast()<<"OK wordList correct count="+to_string(wordList[4].size());
+//    Boardcast()<<"OK wordList correct count="+to_string(wordList[4].size());
 
     srand((unsigned int)time(NULL));
 
+
+    // 2. Choose random words for players
     int fin = 1;
     while(fin != 0 && fin < 100)
     {
@@ -454,7 +470,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         fin = 0;
     }
 
-    // init UI
+    // 3. init UI
     UI = "<table style=\"text-align:center\"><tbody>";
 
     UI += "<tr>";
