@@ -429,9 +429,9 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         // len : 5 -> 8
         int r = rand() % 100;
         if(r <= -1);
-        else if(r <= 50) wordLength = 5;
-        else if(r <= 75) wordLength = 6;
-        else if(r <= 90) wordLength = 7;
+        else if(r <= 45) wordLength = 5;
+        else if(r <= 60) wordLength = 6;
+        else if(r <= 83) wordLength = 7;
         else if(r <= 100) wordLength = 8;
         // l=length
         int l = wordLength;
