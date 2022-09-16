@@ -484,6 +484,15 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
                 }
             }
         }
+
+        if(rand() % 2 == 0)
+        {
+            string temp;
+            temp = s1;
+            s1 = s2;
+            s2 = temp;
+        }
+
         player_word_[0] = s1;
         player_word_[1] = s2;
         fin = 0;
