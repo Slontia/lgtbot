@@ -1,4 +1,4 @@
-// Copyright (c) 2018-present, Chang Liu <github.com/slontia>. All rights reserved.
+// Copyright (c) 2018-present, mustuki <github.com/jeffxzy>. All rights reserved.
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
@@ -389,12 +389,15 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     // Most init steps are in this function.
 
+    // 0. init vars in case unexpected seg error happens.
+    wordLength = 5;
+
     // 1. Read all given words.
     FILE *fp=fopen((string(option().ResourceDir())+("words.txt")).c_str(),"r");
-    if(fp==NULL)
+    if(fp == NULL)
     {
         Boardcast() << "[错误] 单词列表不存在。(W)";
-        gameEnd=1;
+        gameEnd = 1;
         return make_unique<RoundStage>(*this, ++round_);
     }
 
@@ -511,11 +514,11 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
 
     // 5. extend wordlist
-    fp=fopen((string(option().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
-    if(fp==NULL)
+    fp = fopen((string(option().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
+    if(fp == NULL)
     {
         Boardcast() << "[错误] 单词列表不存在。(G)";
-        gameEnd=1;
+        gameEnd = 1;
         return make_unique<RoundStage>(*this, ++round_);
     }
 
