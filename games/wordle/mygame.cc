@@ -115,6 +115,7 @@ class MainStage : public MainGameStage<RoundStage>
         , player_scores_(option.PlayerNum(), 0)
         , player_word_(option.PlayerNum(), "")
         , player_now_(option.PlayerNum(), "")
+        , player_used_(option.PlayerNum(), "")
     {
     }
 
@@ -131,6 +132,9 @@ class MainStage : public MainGameStage<RoundStage>
 
     // player guess
     vector<string> player_now_;
+
+    // player used
+    vector<string> player_used_;
 
 
     /*
@@ -246,15 +250,102 @@ class RoundStage : public SubGameStage<>
         RoundStage::calc();
     }
 
+
+    string AddKeyLetter(int player, char now)
+    {
+        if(player == -1)
+        {
+            string ret = "";
+            string A;
+            if(now == 'X') A = "　";
+            ret += "<th bgcolor=\"#FFFFFF\"><font size=5 color=\"#FFFFFF\">" + A + "</font></th>";
+            return ret;
+        }
+
+        string color;
+        char x = main_stage().player_used_[player][now - 'a'];
+        if(x == '0') color = "#EEEEEE";
+        if(x == '-') color = "#F8F8F8";
+
+        string ret = "";
+        ret += "<th bgcolor=\"" + color + "\">";
+
+        ret += "<font size=5>";
+        if(x == '0')
+            ret += now - 'a' + 'A';
+        ret += "</font>";
+
+        ret += "</th>";
+        return ret;
+    }
+
+    // draw keyboard
+    string AddKeyboard(string s1, string s2, string g1, string g2)
+    {
+        int l = main_stage().wordLength;
+        for(int i = 0; i < l; i++)
+        {
+            if(g1[i] == '0')
+            {
+                if(s1[i] <= 'z' && s1[i] >= 'a')
+                {
+                    main_stage().player_used_[0][s1[i] - 'a'] = '-';
+                }
+            }
+            if(g2[i] == '0')
+            {
+                if(s2[i] <= 'z' && s2[i] >= 'a')
+                {
+                    main_stage().player_used_[1][s2[i] - 'a'] = '-';
+                }
+            }
+        }
+
+        string k1,k2,k3; int l1,l2,l3;
+        k1 = "qwertyuiop"; l1=k1.length();
+        k2 = "asdfghjkl"; l2=k2.length();
+        k3 = "zxcvbnm"; l3=k3.length();
+
+        string ret =" ";
+
+        ret += "</table>";
+
+        ret += "<br><br>";
+
+        ret += "<table style=\"text-align:center;margin:auto;\"><tbody><tr>";
+        for(int i = 0; i < l1 + 4 + l1; i++) ret += AddKeyLetter(-1, 'X'); ret += "</tr><tr>";
+        for(int i = 0; i < l1; i++) ret += AddKeyLetter(0, k1[i]);
+        for(int i = 0; i < 4; i++) ret += AddKeyLetter(-1, 'X');
+        for(int i = 0; i < l1; i++) ret += AddKeyLetter(1, k1[i]);
+        ret += "</tr></table>";
+
+        ret += "<table style=\"text-align:center;margin:auto;\"><tbody><tr>";
+        for(int i = 0; i < l2 + 5 + l2; i++) ret += AddKeyLetter(-1, 'X'); ret += "</tr><tr>";
+        for(int i = 0; i < l2; i++) ret += AddKeyLetter(0, k2[i]);
+        for(int i = 0; i < 5; i++) ret += AddKeyLetter(-1, 'X');
+        for(int i = 0; i < l2; i++) ret += AddKeyLetter(1, k2[i]);
+        ret += "</tr></table>";
+
+        ret += "<table style=\"text-align:center;margin:auto;\"><tbody><tr>";
+        for(int i = 0; i < l3 + 7 + l3; i++) ret += AddKeyLetter(-1, 'X'); ret += "</tr><tr>";
+        for(int i = 0; i < l3; i++) ret += AddKeyLetter(0, k3[i]);
+        for(int i = 0; i < 7; i++) ret += AddKeyLetter(-1, 'X');
+        for(int i = 0; i < l3; i++) ret += AddKeyLetter(1, k3[i]);
+        ret += "</tr></table>";
+
+        return ret;
+    }
+
     // Add a letter to UI.
     void AddUI(char x, char type)
     {
-        string now = main_stage().UI;
         string color;
         if(type == '0') color="#F5FFFA"; // White
         if(type == '1') color="#FAFA7D"; // Yellow
         if(type == '2') color="#ADFF2F"; // Green
         if(type == '3') color="#BBBBBB"; // Grey
+
+        string now = main_stage().UI;
 
         now += "<th bgcolor=\"" + color + "\">";
 
@@ -304,8 +395,10 @@ class RoundStage : public SubGameStage<>
 
         main_stage().UI += "</tr>";
 
+        string keyboardUI = AddKeyboard(g1, g2, r1, r2);
+
         // Boardcast the result. Note that the table need an end mark </table>
-        Boardcast() << Markdown(main_stage().UI + "</table>");
+        Boardcast() << Markdown(main_stage().UI + keyboardUI);
 
         if(s2 == g1)
         {
@@ -376,7 +469,7 @@ class RoundStage : public SubGameStage<>
 //        auto& player_score = main_stage().player_scores_[pid];
 //        player_score += score;
 
-        main_stage().player_now_[pid]=submission;
+        main_stage().player_now_[pid] = submission;
 
         reply() << "提交成功。";
         // Returning |READY| means the player is ready. The current stage will be over when all surviving players are ready.
@@ -391,6 +484,8 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     // 0. init vars in case unexpected seg error happens.
     wordLength = 5;
+    player_used_[0] = "00000000000000000000000000";
+    player_used_[1] = "00000000000000000000000000";
 
     // 1. Read all given words.
     FILE *fp=fopen((string(option().ResourceDir())+("words.txt")).c_str(),"r");
@@ -429,9 +524,9 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         // len : 5 -> 8
         int r = rand() % 100;
         if(r <= -1);
-        else if(r <= 45) wordLength = 5;
-        else if(r <= 60) wordLength = 6;
-        else if(r <= 83) wordLength = 7;
+        else if(r <= 39) wordLength = 5;
+        else if(r <= 56) wordLength = 6;
+        else if(r <= 82) wordLength = 7;
         else if(r <= 100) wordLength = 8;
         // l=length
         int l = wordLength;
