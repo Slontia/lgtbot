@@ -285,19 +285,32 @@ class RoundStage : public SubGameStage<>
         int l = main_stage().wordLength;
         for(int i = 0; i < l; i++)
         {
-            if(g1[i] == '0')
+            if(g1[i] <= 'z' && g1[i] >= 'a')
             {
-                if(s1[i] <= 'z' && s1[i] >= 'a')
+                int app = 0;
+                for(int j = 0; j < l; j++)
                 {
-                    main_stage().player_used_[0][s1[i] - 'a'] = '-';
+                    if(g1[i] == s2[j])
+                    {
+                        app = 1;
+                    }
                 }
+                if(app == 0)
+                    main_stage().player_used_[0][g1[i] - 'a'] = '-';
             }
-            if(g2[i] == '0')
+
+            if(g2[i] <= 'z' && g2[i] >= 'a')
             {
-                if(s2[i] <= 'z' && s2[i] >= 'a')
+                int app = 0;
+                for(int j = 0; j < l; j++)
                 {
-                    main_stage().player_used_[1][s2[i] - 'a'] = '-';
+                    if(g2[i] == s1[j])
+                    {
+                        app = 1;
+                    }
                 }
+                if(app == 0)
+                    main_stage().player_used_[1][g2[i] - 'a'] = '-';
             }
         }
 
@@ -395,7 +408,7 @@ class RoundStage : public SubGameStage<>
 
         main_stage().UI += "</tr>";
 
-        string keyboardUI = AddKeyboard(g1, g2, r1, r2);
+        string keyboardUI = AddKeyboard(s1, s2, g1, g2);
 
         // Boardcast the result. Note that the table need an end mark </table>
         Boardcast() << Markdown(main_stage().UI + keyboardUI);
