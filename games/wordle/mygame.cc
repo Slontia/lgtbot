@@ -266,12 +266,14 @@ class RoundStage : public SubGameStage<>
         char x = main_stage().player_used_[player][now - 'a'];
         if(x == '0') color = "#EEEEEE";
         if(x == '-') color = "#F8F8F8";
+        if(x == '2') color = "#ADFF2F";
+        if(x == '1') color = "#FAFA7D";
 
         string ret = "";
         ret += "<th bgcolor=\"" + color + "\">";
 
         ret += "<font size=5>";
-        if(x == '0')
+        if(x != '-')
             ret += now - 'a' + 'A';
         ret += "</font>";
 
@@ -280,7 +282,7 @@ class RoundStage : public SubGameStage<>
     }
 
     // draw keyboard
-    string AddKeyboard(string s1, string s2, string g1, string g2)
+    string AddKeyboard(string s1, string s2, string g1, string g2, string r1, string r2)
     {
         int l = main_stage().wordLength;
         for(int i = 0; i < l; i++)
@@ -297,6 +299,12 @@ class RoundStage : public SubGameStage<>
                 }
                 if(app == 0)
                     main_stage().player_used_[0][g1[i] - 'a'] = '-';
+
+
+                if(r1[i] == '2')
+                    main_stage().player_used_[0][g1[i] - 'a'] = '2';
+                if(r1[i] == '1' && main_stage().player_used_[0][g1[i] - 'a'] != '2')
+                    main_stage().player_used_[0][g1[i] - 'a'] = '1';
             }
 
             if(g2[i] <= 'z' && g2[i] >= 'a')
@@ -311,6 +319,11 @@ class RoundStage : public SubGameStage<>
                 }
                 if(app == 0)
                     main_stage().player_used_[1][g2[i] - 'a'] = '-';
+
+                if(r2[i] == '2')
+                    main_stage().player_used_[1][g2[i] - 'a'] = '2';
+                if(r2[i] == '1' && main_stage().player_used_[1][g2[i] - 'a'] != '2')
+                    main_stage().player_used_[1][g2[i] - 'a'] = '1';
             }
         }
 
@@ -408,7 +421,7 @@ class RoundStage : public SubGameStage<>
 
         main_stage().UI += "</tr>";
 
-        string keyboardUI = AddKeyboard(s1, s2, g1, g2);
+        string keyboardUI = AddKeyboard(s1, s2, g1, g2, r1, r2);
 
         // Boardcast the result. Note that the table need an end mark </table>
         Boardcast() << Markdown(main_stage().UI + keyboardUI);
@@ -488,6 +501,7 @@ class RoundStage : public SubGameStage<>
         // Returning |READY| means the player is ready. The current stage will be over when all surviving players are ready.
         return StageErrCode::READY;
     }
+
 };
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
@@ -515,7 +529,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         string addS = "";
         int len = strlen(word);
 
-        if(len < 4 || len > 8) continue;
+        if(len < 5 || len > 8) continue;
 
         for(int i = 0; i < len; i++)
         {
@@ -535,12 +549,18 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     {
 
         // len : 5 -> 8
-        int r = rand() % 100;
-        if(r <= -1);
-        else if(r <= 39) wordLength = 5;
-        else if(r <= 56) wordLength = 6;
-        else if(r <= 82) wordLength = 7;
-        else if(r <= 100) wordLength = 8;
+
+        wordLength = option().GET_VALUE(长度);
+
+        if(wordLength == -1)
+        {
+            int r = rand() % 100;
+            if(r <= -1);
+            else if(r <= 39) wordLength = 5;
+            else if(r <= 56) wordLength = 6;
+            else if(r <= 82) wordLength = 7;
+            else if(r <= 100) wordLength = 8;
+        }
         // l=length
         int l = wordLength;
 
