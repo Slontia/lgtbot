@@ -511,8 +511,8 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     // 0. init vars in case unexpected seg error happens.
     wordLength = 5;
-    player_used_[0] = "00000000000000000000000000";
-    player_used_[1] = "00000000000000000000000000";
+    player_used_[0] = "00000000000000000000000000+";
+    player_used_[1] = "00000000000000000000000000+";
 
     // 1. Read all given words.
     FILE *fp=fopen((string(option().ResourceDir())+("words.txt")).c_str(),"r");
@@ -552,7 +552,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
         wordLength = option().GET_VALUE(长度);
 
-        if(wordLength == -1)
+        if(wordLength == 10)
         {
             int r = rand() % 100;
             if(r <= -1);
