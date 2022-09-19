@@ -1,4 +1,4 @@
-// Copyright (c) 2018-present, mustuki <github.com/jeffxzy>. All rights reserved.
+// Copyright (c) 2018-present, ZhengYang Xu <github.com/jeffxzy>. All rights reserved.
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
@@ -523,6 +523,19 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         return make_unique<RoundStage>(*this, ++round_);
     }
 
+    int hard = option().GET_VALUE(高难);
+    if(hard == 1)
+    {
+        fclose(fp);
+        fp = fopen((string(option().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
+        if(fp == NULL)
+        {
+            Boardcast() << "[错误] 单词列表不存在。(GH)";
+            gameEnd = 1;
+            return make_unique<RoundStage>(*this, ++round_);
+        }
+    }
+
     char word[50];
     while(fscanf(fp, "%s", word) != EOF)
     {
@@ -657,30 +670,33 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
 
     // 5. extend wordlist
-    fp = fopen((string(option().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
-    if(fp == NULL)
+    if(hard == 0)
     {
-        Boardcast() << "[错误] 单词列表不存在。(G)";
-        gameEnd = 1;
-        return make_unique<RoundStage>(*this, ++round_);
-    }
-
-//    char word[50];
-    while(fscanf(fp, "%s", word) != EOF)
-    {
-        string addS = "";
-        int len = strlen(word);
-
-        if(len < 4 || len > 8) continue;
-
-        for(int i = 0; i < len; i++)
+        fp = fopen((string(option().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
+        if(fp == NULL)
         {
-            addS += word[i];
+            Boardcast() << "[错误] 单词列表不存在。(G)";
+            gameEnd = 1;
+            return make_unique<RoundStage>(*this, ++round_);
         }
 
-        wordList[len].insert(addS);
+    //    char word[50];
+        while(fscanf(fp, "%s", word) != EOF)
+        {
+            string addS = "";
+            int len = strlen(word);
+
+            if(len < 4 || len > 8) continue;
+
+            for(int i = 0; i < len; i++)
+            {
+                addS += word[i];
+            }
+
+            wordList[len].insert(addS);
+        }
+        fclose(fp);
     }
-    fclose(fp);
 
 
 
