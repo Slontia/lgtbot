@@ -552,7 +552,8 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
         wordLength = option().GET_VALUE(长度);
 
-        if(wordLength == 10)
+
+        if(wordLength == 0)
         {
             int r = rand() % 100;
             if(r <= -1);
@@ -566,6 +567,11 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
         string s1,s2;
         int r1,r2,n2;
+
+
+        if(wordList[l].size()==0)
+            continue;
+
         r1=rand()%wordList[l].size();
 
         // random select a word or player 0
