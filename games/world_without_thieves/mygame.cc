@@ -93,6 +93,7 @@ class MainStage : public MainGameStage<RoundStage>
 
     int alive_;
     std::string Pic="";
+    std::string GetName(std::string x);
 
   private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
@@ -131,7 +132,10 @@ class MainStage : public MainGameStage<RoundStage>
             }
         }
 
-        Boardcast() << WordSitu;
+//        select is updated unexpectedly, which may cause error, so use Pic instead now.
+//        Boardcast() << WordSitu;
+
+        Boardcast() << Markdown(Pic+"</table>");
 
         // Returning |OK| means the game stage
         return StageErrCode::OK;
@@ -431,8 +435,34 @@ class RoundStage : public SubGameStage<>
     }
 };
 
+std::string MainStage::GetName(std::string x)
+{
+    std::string ret = "";
+    int n = x.length();
+
+    int r = n - 1;
+    while(x[r] != '>' && r >= 0)
+        r--;
+
+    int l = 0;
+    while(x[l] != '<' && l < n)
+        l++;
+
+    for(int i = l; i < r; i++)
+    {
+        ret += x[i];
+    }
+    return ret;
+}
+
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
+    for(int i=0;i<option().PlayerNum();i++)
+    {
+        Pic+="　"+std::to_string(i+1)+" 号： "+GetName(PlayerName(i))+"　";
+    }
+    Pic+="<br>";
+
     Pic+="<table style=\"text-align:center\"><tbody>";
     Pic+="<tr>";
     for(int i=0;i<option().PlayerNum();i++)
@@ -473,6 +503,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     }
 
     Boardcast() << PreBoard;
+    Boardcast() << Markdown(Pic + "</table>");
 
     return std::make_unique<RoundStage>(*this, ++round_);
 }
