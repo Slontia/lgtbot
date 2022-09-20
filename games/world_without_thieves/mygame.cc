@@ -448,7 +448,7 @@ std::string MainStage::GetName(std::string x)
     while(x[l] != '<' && l < n)
         l++;
 
-    for(int i = l; i < r; i++)
+    for(int i = l + 1; i < r; i++)
     {
         ret += x[i];
     }
