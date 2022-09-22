@@ -695,3 +695,38 @@ jumpif i != PlayerNum N3
 
 end
 #
+
+
+-------------------------------------------------------
+19
+#
+选择一项。
+#
++0，然后均分选择 B 选项人数的分数。
++1，然后均分选择 C 选项人数的分数。
++2，然后均分选择 A 选项人数的分数。
+#
+var i
+i = 0
+
+var tmp.0 tmp.1 tmp.2
+
+tmp.0=Select.1/Select.0
+tmp.1=Select.2/Select.1
+tmp.2=Select.0/Select.2
+
+tmp.0=tmp.0+0
+tmp.1=tmp.1+1
+tmp.2=tmp.2+2
+
+var sel
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+
+end
+#
