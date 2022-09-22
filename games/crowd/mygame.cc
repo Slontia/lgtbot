@@ -797,6 +797,7 @@ class RoundStage : public SubGameStage<>
             StartTimer(option().GET_VALUE(时限));
             return;
         }
+
         int count = 0;
         while(now == -1 || main_stage().used.find(now) != main_stage().used.end())
         {
@@ -835,7 +836,7 @@ class RoundStage : public SubGameStage<>
     {
         // Returning |CHECKOUT| means the current stage will be over.
 
-        if(main_stage().questions[main_stage().now].options.size() == 0)
+        if(main_stage().questions.size() == 0)
             return StageErrCode::CHECKOUT;
 
         for(int i=0;i<option().PlayerNum();i++)
@@ -866,7 +867,7 @@ class RoundStage : public SubGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if(main_stage().questions[main_stage().now].options.size() == 0)
+        if(main_stage().questions.size() == 0)
             return SubmitInternal_(pid, reply, "A");
 
         int x = rand() % main_stage().questions[main_stage().now].options.size();
@@ -877,9 +878,8 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnAllPlayerReady() override
     {
-//        Boardcast() << "所有玩家准备完成";
 
-        if(main_stage().questions[main_stage().now].options.size() == 0)
+        if(main_stage().questions.size() == 0)
             return;
 
         if(main_stage().now == -1)
@@ -969,7 +969,8 @@ class RoundStage : public SubGameStage<>
             reply() << "[错误] 请提交选项首字母。";
             return StageErrCode::FAILED;
         }
-        if(submission[0] - 'A' + 1 > main_stage().questions[main_stage().now].options.size())
+        if(main_stage().questions.size() != 0 &&
+                submission[0] - 'A' + 1 > main_stage().questions[main_stage().now].options.size())
         {
             reply() << "[错误] 选项不存在。";
             return StageErrCode::FAILED;
@@ -989,6 +990,13 @@ class RoundStage : public SubGameStage<>
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
+    Player tempP;
+    for(int i = 0; i < option().PlayerNum(); i++)
+    {
+        players.push_back(tempP);
+    }
+
+
     srand((unsigned int)time(NULL));
 
     FILE *fp=fopen((string(option().ResourceDir())+("problems.txt")).c_str(),"r");
@@ -1059,12 +1067,6 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 //        for(auto v:questions[i].options) Boardcast() << v;
 //        for(auto v:questions[i].codes) Boardcast() << v;
 //    }
-
-    Player tempP;
-    for(int i = 0; i < option().PlayerNum(); i++)
-    {
-        players.push_back(tempP);
-    }
 
 
     return make_unique<RoundStage>(*this, ++round_);
