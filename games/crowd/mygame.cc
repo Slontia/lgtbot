@@ -779,6 +779,8 @@ class RoundStage : public SubGameStage<>
         if(main_stage().questions.size() == 0)
         {
             Boardcast() << "[错误] 问题列表不存在(RoundStage -> OnStageBegin -> questions.size())";
+            StartTimer(5);
+            return;
         }
         int count = 0;
         while(now == -1 || main_stage().used.find(now) != main_stage().used.end())
@@ -798,29 +800,66 @@ class RoundStage : public SubGameStage<>
     virtual CheckoutErrCode OnTimeout() override
     {
         // Returning |CHECKOUT| means the current stage will be over.
+
+        if(main_stage().questions[main_stage().now].options.size() == 0)
+            return StageErrCode::CHECKOUT;
+
+        for(int i=0;i<option().PlayerNum();i++)
+        {
+//             Boardcast()<<std::to_string(IsReady(i))<<std::to_string(main_stage().player_eli_[i]);
+             if(IsReady(i) == false)
+             {
+                 int x = rand() % main_stage().questions[main_stage().now].options.size();
+                 main_stage().players[i].nowC = x + 'A';
+                 main_stage().players[i].nowN = x;
+             }
+        }
+
         return StageErrCode::CHECKOUT;
     }
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
         // Returning |CONTINUE| means the current stage will be continued.
+        main_stage().players[pid].nowC = 'A';
+        main_stage().players[pid].nowN = 0;
+
+
+        calc();
 
         return StageErrCode::CONTINUE;
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        return SubmitInternal_(pid, reply, "A");
+        if(main_stage().questions[main_stage().now].options.size() == 0)
+            return SubmitInternal_(pid, reply, "A");
+
+        int x = rand() % main_stage().questions[main_stage().now].options.size();
+        string ret = "A";
+        ret[0] += x;
+        return SubmitInternal_(pid, reply, ret);
     }
 
     virtual void OnAllPlayerReady() override
     {
 //        Boardcast() << "所有玩家准备完成";
+
+        if(main_stage().questions[main_stage().now].options.size() == 0)
+            return;
+
         if(main_stage().now == -1)
         {
             return;
         }
 
+
+        calc();
+    }
+
+    // calc scores
+    void calc()
+    {
         main_stage().questions[main_stage().now].RunCode(main_stage().players, BoardcastMsgSender());
 
         string b = "";
@@ -829,7 +868,9 @@ class RoundStage : public SubGameStage<>
             b += PlayerName(i) + " : " + to_string(main_stage().players[i].score) + " 分\n";
         }
         Boardcast() << b;
+        return;
     }
+
 
   private:
     AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, string submission)
@@ -878,6 +919,8 @@ class RoundStage : public SubGameStage<>
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
+    srand((unsigned int)time(NULL));
+
     FILE *fp=fopen((string(option().ResourceDir())+("problems.txt")).c_str(),"r");
     if(fp == NULL)
     {
