@@ -1,0 +1,32 @@
+#
+选择一项。
+#
+如果选这项的人数最少，+4分。
+如果选这项的人数最多，+2分。
++1分。
+#
+var i
+i = 0
+
+if Now.i==0 else P3
+if MinSelectedNum==Selected.0 else P2
+Score.i=Score.i+4
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==1 else P3
+if MaxSelectedNum==Selected.1 else P2
+Score.i=Score.i+2
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==2 else P3
+//Nothing here
+Score.i=Score.i+1
+i++
+jumpif i != PlayerNum N4
+
+end
+#
