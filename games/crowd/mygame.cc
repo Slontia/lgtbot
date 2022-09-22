@@ -89,8 +89,8 @@
  * Score.i -> the score of player[i]
  * Now.i -> the option player[i] chose this turn
  * MaxScoreNum/MinScoreNum -> the highest/lowest score now
- * Selected.i -> the number of players who chose option[i]
- * MaxSelectedNum/MinSelectedNum -> the hightest/lowest number in Selected.i
+ * Select.i -> the number of players who chose option[i]
+ * MaxSelectNum/MinSelectNum -> the hightest/lowest number in Selected.i
  *
  *
  *
@@ -791,7 +791,7 @@ class RoundStage : public SubGameStage<>
         if(main_stage().questions.size() == 0)
         {
             Boardcast() << "[错误] 问题列表不存在(RoundStage -> OnStageBegin -> questions.size())";
-            StartTimer(5);
+            StartTimer(option().GET_VALUE(时限));
             return;
         }
         int count = 0;
@@ -801,6 +801,25 @@ class RoundStage : public SubGameStage<>
 
             if(count++ > 1000) break;
         }
+
+
+        int TestQ = option().GET_VALUE(测试);
+        if(TestQ != 99999)
+        {
+            if(TestQ < main_stage().questions.size())
+            {
+                now = TestQ;
+            }
+            else
+            {
+                Boardcast() << "[错误] 测试题号不存在(RoundStage -> OnStageBegin)";
+                now = 0;
+                StartTimer(option().GET_VALUE(时限));
+                return;
+            }
+        }
+
+
         main_stage().used.insert(now);
 
         Boardcast() << "题号：" << to_string(now);
@@ -914,7 +933,7 @@ class RoundStage : public SubGameStage<>
         Boardcast() << Markdown(b);
 
 
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::seconds(5));
 
         return;
     }
@@ -1021,6 +1040,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         }
         if(status == 2)
         {
+            if(s == "") continue;
             q.options.push_back(s);
         }
         if(status == 3)
