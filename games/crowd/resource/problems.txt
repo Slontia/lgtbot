@@ -660,3 +660,38 @@ jumpif i != PlayerNum N3
 end
 #
 
+-------------------------------------------------------
+18 guest
+#
+选择一项。
+#
+传谣：若选择人数<=3，+2。否则 -1。
+沉默：+0。
+思考：若选择人数>=5，+1。否则 -2。
+#
+var i
+i = 0
+
+var tmp.0 tmp.1 tmp.2
+
+tmp.0=2
+tmp.1=0
+tmp.2=1
+
+if Select.0>3
+tmp.0=N1
+if Select.2<6
+tmp.2=N2
+
+
+var sel
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+
+end
+#
