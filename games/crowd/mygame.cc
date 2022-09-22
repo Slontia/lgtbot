@@ -126,6 +126,7 @@ class Player
 {
 public:
     Player(){
+        lastscore = 0;
         score = 0;
         nowC = 'A';
         nowN = 0;
@@ -133,6 +134,7 @@ public:
     }
 public:
 
+    int lastscore;
     int score;
     char nowC;
     int nowN;
@@ -815,6 +817,8 @@ class RoundStage : public SubGameStage<>
              }
         }
 
+        calc();
+
         return StageErrCode::CHECKOUT;
     }
 
@@ -824,8 +828,6 @@ class RoundStage : public SubGameStage<>
         main_stage().players[pid].nowC = 'A';
         main_stage().players[pid].nowN = 0;
 
-
-        calc();
 
         return StageErrCode::CONTINUE;
     }
@@ -857,17 +859,49 @@ class RoundStage : public SubGameStage<>
         calc();
     }
 
+    string str(string x)
+    {
+        int l = x.length();
+        for(int i = 0; i < l; i++)
+        {
+            if(x[i] == '<' || x[i] == '>') x[i] = ' ';
+        }
+        return x;
+    }
+
     // calc scores
     void calc()
     {
-        main_stage().questions[main_stage().now].RunCode(main_stage().players, BoardcastMsgSender());
-
-        string b = "";
         for(int i = 0; i < option().PlayerNum(); i++)
         {
-            b += PlayerName(i) + " : " + to_string(main_stage().players[i].score) + " 分\n";
+            main_stage().players[i].lastscore = main_stage().players[i].score;
         }
-        Boardcast() << b;
+
+
+        main_stage().questions[main_stage().now].RunCode(main_stage().players, BoardcastMsgSender());
+
+
+
+        string b = "";
+        b += "<table style=\"text-align:center\"><tbody>";
+        b += "<tr><td><font size=7>　　</font></td><td><font size=7>　　</font></td><td><font size=7>　　</font></td><tr>";
+        for(int i = 0; i < option().PlayerNum(); i++)
+        {
+            string color;
+            if(main_stage().players[i].lastscore < main_stage().players[i].score) color = "bgcolor=\"#90EE90\"";
+            if(main_stage().players[i].lastscore == main_stage().players[i].score) color = "bgcolor=\"#F5DEB3\"";
+            if(main_stage().players[i].lastscore > main_stage().players[i].score) color = "bgcolor=\"#FFA07A\"";
+
+            b += (string)""
+                    + "<tr>"
+                    + "<td bgcolor=\"#D2F4F4\"><font size=7>" + str(PlayerName(i)) + "</font></td>"
+                    + "<td " + color + "><font size=7>" + main_stage().players[i].nowC + "</font></td>"
+                    + "<td " + color + "><font size=7>" + to_string(main_stage().players[i].score) + "</font></td>"
+                    + "</tr>";
+        }
+        b += "</table>";
+
+        Boardcast() << Markdown(b);
         return;
     }
 
