@@ -1,3 +1,6 @@
+
+-------------------------------------------------------
+0
 #
 选择一项。
 #
@@ -30,7 +33,10 @@ jumpif i != PlayerNum N4
 
 end
 #
+
+
 -------------------------------------------------------
+1
 #
 选择一项。
 #
@@ -54,11 +60,12 @@ jumpif i != PlayerNum N4
 end
 #
 -------------------------------------------------------
+2
 #
 选择一项。
 #
 中立：获得 [ 玩家数 / 2 ] 分（向下取整）。
-激进：获得 [ 选择中立的玩家数 ] 分。
+激进：获得 [ 选择 A 选项的玩家个数 ] 分。
 #
 var i
 var tmp
@@ -78,6 +85,7 @@ jumpif i != PlayerNum N3
 end
 #
 -------------------------------------------------------
+3
 #
 选择一项。
 #
@@ -86,7 +94,6 @@ end
 智慧：如果选择这项的人数最少，+4分。
 独行：如果只有一人选择这项，+5分。
 公正：选择这项的人平分6分（下取整）。
-
 #
 var i
 i=0
@@ -126,6 +133,312 @@ jumpif i != PlayerNum N4
 
 end
 #
+-------------------------------------------------------
+4
+#
+选择一项。
+#
+独享：如果只有 1 人选择此项，获得 4 分。
+聚餐：如果有 2 或 3 人选择此项，获得 3 分。
+盛宴：如果有 4 或 5 人选择此项，获得 2 分。
+闭户：获得 1 分。
+#
+var i tmp.0 tmp.1 tmp.2 tmp.3
+if Select.0==1
+tmp.0=4
+if Select.1==2
+tmp.1=3
+if Select.1==3
+tmp.1=3
+if Select.1==4
+tmp.2=2
+if Select.1==5
+tmp.2=2
+tmp.3=1
+
+var t1 t2
+
+i=0
+t1=Now.i
+t2=tmp.t1
+Score.i=Score.i + t2
+i++
+jumpif i != PlayerNum N4
 
 
+end
+#
+
+-------------------------------------------------------
+5
+#
+选择一项。 [ 只有选择人数最多的选项会生效 ]
+#
+破坏：-1，然后使选 B 的玩家 -3
+合作：+2，然后使选 C 的玩家 +1
+平衡：+0。
+#
+var i
+var tmp
+i=0
+if Now.i==0 else P3
+if MaxSelectNum==Select.0 else P2
+Score.i = Score.i - 1
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==1 else P3
+if MaxSelectNum==Select.0 else P2
+Score.i = Score.i - 3
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==1 else P3
+if MaxSelectNum==Select.1 else P2
+Score.i = Score.i + 2
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==2 else P3
+if MaxSelectNum==Select.1 else P2
+Score.i = Score.i + 1
+i++
+jumpif i != PlayerNum N4
+
+end
+#
+
+-------------------------------------------------------
+6
+#
+选择一项。
+#
+均衡：如果有 3 或更多名玩家选择本项，则得分最高的玩家 -2
+观望：+1
+#
+var i
+var tmp
+i=0
+
+if Select.0 > 3 else P10
+if Score.i == MaxScoreNum
+Score.i = Score.i - 2
+i++
+jumpif i != PlayerNum N3
+
+i=0
+if Now.i==1 else P2
+Score.i = Score.i + 1
+i++
+jumpif i != PlayerNum N3
+
+end
+#
+
+
+-------------------------------------------------------
+7
+#
+选择一项。
+#
+均势：选择本项的人平分20分。（下取整）
+幽灵：选择本项的人，按人数+2计算，平分30分。（下取整）
+#
+var i
+var tmp1 tmp2
+
+i=0
+if Now.i==0 else P4
+tmp1=Select.0
+tmp2=20/tmp1
+Score.i = Score.i +tmp2
+i++
+jumpif i != PlayerNum N5
+
+i=0
+if Now.i==1 else P4
+tmp1=Select.1+2
+tmp2=20/tmp1
+Score.i = Score.i +tmp2
+i++
+jumpif i != PlayerNum N5
+end
+#
+
+
+-------------------------------------------------------
+8
+#
+选择一项。
+#
+老师：如果好学生比坏学生多，+3
+好学生：如果比坏学生多，+1
+坏学生：如果比好学生多，老师 -3
+#
+var i
+var tmp
+
+
+i=0
+if Now.i==0 else P3
+if Select.1>Select.2 else P2
+Score.i = Score.i + 2
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==0 else P3
+if Select.1<Select.2 else P2
+Score.i = Score.i - 2
+i++
+jumpif i != PlayerNum N4
+
+
+i=0
+if Now.i==1 else P3
+if Select.1>Select.2 else P2
+Score.i = Score.i + 1
+i++
+jumpif i != PlayerNum N4
+i=0
+
+end
+#
+
+
+-------------------------------------------------------
+9
+#
+选择一项。
+#
+老实人：+2。
+背叛者：-2。如果任何人选择此项，则选 A 的玩家 -6。
+旁观者：-1。
+#
+var i
+var tmp
+
+
+i=0
+if Now.i==0 else P3
+if Select.1==0 else P2
+Score.i = Score.i +2
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==0 else P3
+if Select.1!=0 else P2
+Score.i = Score.i -6
+i++
+jumpif i != PlayerNum N4
+
+
+i=0
+if Now.i==1 else P2
+Score.i = Score.i -2
+i++
+jumpif i != PlayerNum N3
+
+i=0
+if Now.i==2 else P2
+Score.i = Score.i -1
+i++
+jumpif i != PlayerNum N3
+
+end
+#
+
+
+-------------------------------------------------------
+10
+#
+选择一项。
+#
+苦工：+1。
+老板：如果存在苦工，+2。
+高官：如果存在老板，+3。
+制度：如果存在高官，+4。
+#
+var i
+var tmp
+
+
+i=0
+if Now.i==0 else P3
+if Select.0!=0 else P2
+Score.i = Score.i + 1
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==1 else P3
+if Select.0!=0 else P2
+Score.i = Score.i + 2
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==2 else P3
+if Select.1!=0 else P2
+Score.i = Score.i + 3
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==3 else P3
+if Select.2!=0 else P2
+Score.i = Score.i + 4
+i++
+jumpif i != PlayerNum N4
+
+end
+#
+
+-------------------------------------------------------
+11
+#
+选择一项。
+#
+智慧：人数比 B 少则 +4
+体能：人数比 A 多则 +2
+坚持：+1
+好运：如果恰有 5 玩家选择这个选项，+5
+#
+var i
+var tmp
+
+
+i=0
+if Now.i==0 else P3
+if Select.0<Select.1 else P2
+Score.i = Score.i + 4
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==1 else P3
+if Select.0<Select.1 else P2
+Score.i = Score.i + 2
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==2 else P2
+Score.i = Score.i + 1
+i++
+jumpif i != PlayerNum N3
+
+i=0
+if Now.i==3 else P3
+if Select.3==5 else P2
+Score.i = Score.i + 5
+i++
+jumpif i != PlayerNum N4
+
+end
+#
 
