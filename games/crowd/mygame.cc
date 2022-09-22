@@ -448,6 +448,7 @@ void Question::RunLine(vector<Player> &players, map<string,int> &var, string cod
         }
 
     }
+    // [ jump P5 ] goto line +5
     else if(S > 0 && items[0] == "jump")
     {
         if(!checkLength(sender, line, "jump", 2, items.size())) return;
@@ -457,6 +458,7 @@ void Question::RunLine(vector<Player> &players, map<string,int> &var, string cod
         ret.number = getValue(items[1], var);
 
     }
+    // [ if a > b ] if a>b then ... , else skip the next line. [ if a > b P6 ] skip to the 6th line.
     else if(S > 0 && items[0] == "if")
     {
         if(items.size() != 4 && items.size() != 6)
@@ -492,15 +494,18 @@ void Question::RunLine(vector<Player> &players, map<string,int> &var, string cod
 
 
     }
+    // [ // comment ] use // to comment
     else if(S > 0 && items[0].length() >= 2 && items[0][0] == '/' && items[0][1] == '/')
     {
         return;
     }
+    // [ end ] use end to end the code immediately. The code will also end when reach the last line.
     else if(S > 0 && items[0] == "end")
     {
         ret.status = "end";
         return;
     }
+    // No valid code was found.
     else
     {
         sender() << "Error in line " + to_string(line) + " : Invalid code \"" + code + "\" was not declared.";
