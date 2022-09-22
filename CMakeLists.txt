@@ -66,6 +66,8 @@ endif()
 if (WITH_GAMES)
   add_subdirectory(third_party/mahjong)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/mahjong)
+  add_subdirectory(third_party/tinyexpr)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/tinyexpr)
   add_subdirectory(games)
 endif()
 
