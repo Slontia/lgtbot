@@ -48,7 +48,7 @@
  *
  *
  * # let a = b+c
- * a = b c
+ * a = b + c
  *
  * # Tips: [ - * / ] are also the same.
  *
@@ -409,7 +409,15 @@ void Question::RunLine(vector<Player> &players, map<string,int> &var, string cod
         if(!checkVar(sender, line, items[0], var)) return;
         if(!checkValue(sender, line, items[2], var)) return;
         if(!checkValue(sender, line, items[4], var)) return;
-        var[items[0]] = getValue(items[2], var) / getValue(items[4], var);
+
+        if(getValue(items[4], var) == 0)
+        {
+            var[items[0]] = 0;
+        }
+        else
+        {
+            var[items[0]] = getValue(items[2], var) / getValue(items[4], var);
+        }
     }
     // [ a ++ ] to let a = a + 1
     else if(S > 1 && items[1] == "++")
@@ -826,7 +834,7 @@ class RoundStage : public SubGameStage<>
 
         main_stage().used.insert(now);
 
-        Boardcast() << "题号：" << to_string(now);
+//        Boardcast() << "题号：" << to_string(now);
         Boardcast() << Markdown(main_stage().questions[now].getMd());
 
         StartTimer(option().GET_VALUE(时限));
