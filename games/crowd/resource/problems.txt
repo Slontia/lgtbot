@@ -41,7 +41,7 @@ end
 选择一项。
 #
 和平：+2分
-战争：如果恰有两名玩家选择这个选项，则他们+4分。
+战争：如果恰有两名玩家选择这个选项，则+6分。
 #
 var i
 i=0
@@ -438,6 +438,224 @@ if Select.3==5 else P2
 Score.i = Score.i + 5
 i++
 jumpif i != PlayerNum N4
+
+end
+#
+
+-------------------------------------------------------
+12 Dva
+#
+选择一项。
+#
+信任：+3 分
+怀疑：+2 分
+顾虑：-1 分
+背叛：失去等同于选择该选项人数的分数。如果有超过 1 玩家选择本选项，则 A 和 B 的得分改为扣分。
+#
+var i
+var tmp.0 tmp.1 tmp.2 tmp.3
+
+tmp.0=3
+tmp.1=2
+tmp.2=N1
+tmp.3=0-Select.3
+if Select.3>1 else P3
+tmp.0=0-tmp.0
+tmp.1=0-tmp.1
+
+var sel
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+end
+#
+
+
+-------------------------------------------------------
+13 Dva
+#
+选择一项。对于每个选项，如果所选人数小于其数字，则得到该数字的分数。
+#
+1
+2
+3
+4
+#
+
+var i
+var tmp.0 tmp.1 tmp.2 tmp.3
+
+if Select.0<=1
+tmp.0=1
+if Select.1<=2
+tmp.1=2
+if Select.2<=3
+tmp.2=3
+if Select.3<=4
+tmp.3=4
+
+var sel
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+end
+#
+
+-------------------------------------------------------
+14 Guest
+#
+选择一项。
+#
+自负：如若选C的人最多，+2。如若选C的人最少，-1。
+叛逆：如若选C的人最少，+2。如若选C的人最多，-1。
+平凡：+1。
+#
+var i
+var tmp.0 tmp.1 tmp.2
+
+tmp.2=1
+
+if Select.2==MaxSelectNum else P3
+tmp.0=tmp.0+2
+tmp.1=tmp.1-1
+if Select.2==MinSelectNum else P3
+tmp.0=tmp.0-2
+tmp.1=tmp.1+1
+
+var sel
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+end
+#
+
+-------------------------------------------------------
+15 403
+#
+选择一项。
+#
+选择该项的人数比 B 更多，+1分。
+选择该项的人数比 A 更多，+1分。
+如若前两个选项至少有一个无人选择，平分6分。
+#
+var i
+i = 0
+
+var tmp.0 tmp.1 tmp.2
+if Select.0>Select.1
+tmp.0=tmp.0+1
+if Select.1>Select.0
+tmp.1=tmp.1+1
+
+
+if Select.0==0 
+tmp.2 = 6/Select.2
+if Select.1==0
+tmp.2 = 6/Select.2
+
+var sel
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+end
+#
+
+-------------------------------------------------------
+16 guest
+#
+选择一项。
+#
+内卷：+3。如果选择人数大于另外两项之和，改为-3。
+正常：+1。
+摸鱼：-1。如果选择人数小于另外两项之和，改为+2。
+#
+var i
+i = 0
+
+var tmp.0 tmp.1 tmp.2
+var sum12 sum01
+sum12=Select.1+Select.2
+sum01=Select.0+Select.1
+
+tmp.0=3
+tmp.1=1
+tmp.2=N1
+
+if Select.0>sum12
+tmp.0=N3
+if Select.2<sum01
+tmp.2=2
+
+
+var sel
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+
+end
+#
+
+-------------------------------------------------------
+17 dva
+#
+选择一个阵营加入，每个阵营内部平分 4 分，然后战斗力最高的阵营获得平分 8 分（向下取整）
+#
+团结：每有一个加入者，+2战力。
+科技：战力固定为 [ 玩家总人数 / 2 ]。
+经济：战力为 -1 。该阵营有 2 个或更多加入者时，不平分 4 分，而是 8 分。
+#
+var i
+i = 0
+
+var tmp.0 tmp.1 tmp.2 atk.0 atk.1 atk.2 ttmp
+
+atk.0=Select.0*2
+atk.1=PlayerNum
+atk.2=N1
+
+tmp.0=4/Select.0
+tmp.1=4/Select.1
+if Select.2>=2 else P3
+tmp.2=8/Select.2
+jump P2
+tmp.2=4/Select.2
+
+
+if Select.0>=Select.1 else P3
+ttmp=8/Select.0
+tmp.0=tmp.0+ttmp
+if Select.0>=Select.1 else P3
+ttmp=8/Select.1
+tmp.1=tmp.1+ttmp
+
+
+var sel
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
 
 end
 #
