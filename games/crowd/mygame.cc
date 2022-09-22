@@ -699,6 +699,9 @@ void Question::createMarkdown()
     }
     md += "<br>";
     md += "</font>";
+
+    md += "<table><tr><td><font size=6>　　　　　　　　　　　　　　　　　　　　</font></td></tr></table>";
+
     return;
 }
 
