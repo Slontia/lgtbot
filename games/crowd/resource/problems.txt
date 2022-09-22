@@ -9,14 +9,14 @@ var i
 i = 0
 
 if Now.i==0 else P3
-if MinSelectedNum==Selected.0 else P2
+if MinSelectNum==Select.0 else P2
 Score.i=Score.i+4
 i++
 jumpif i != PlayerNum N4
 
 i=0
 if Now.i==1 else P3
-if MaxSelectedNum==Selected.1 else P2
+if MaxSelectNum==Select.1 else P2
 Score.i=Score.i+2
 i++
 jumpif i != PlayerNum N4
@@ -30,3 +30,102 @@ jumpif i != PlayerNum N4
 
 end
 #
+-------------------------------------------------------
+#
+选择一项。
+#
+和平：+2分
+战争：如果恰有两名玩家选择这个选项，则他们+4分。
+#
+var i
+i=0
+if Now.i==0 else P2
+Score.i = Score.i +2
+i++
+jumpif i != PlayerNum N3
+
+i=0
+if Now.i==1 else P3
+if Select.1 == 2 else P2
+Score.i = Score.i +2
+i++
+jumpif i != PlayerNum N4
+
+end
+#
+-------------------------------------------------------
+#
+选择一项。
+#
+中立：获得 [ 玩家数 / 2 ] 分（向下取整）。
+激进：获得 [ 选择中立的玩家数 ] 分。
+#
+var i
+var tmp
+i=0
+if Now.i==0 else P3
+tmp=PlayerNum/2
+Score.i = Score.i +tmp
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==1 else P2
+Score.i = Score.i + Select.0
+i++
+jumpif i != PlayerNum N3
+
+end
+#
+-------------------------------------------------------
+#
+选择一项。
+#
+谨慎：+1分。
+团结：如果选择这项的人数最多，+2分。
+智慧：如果选择这项的人数最少，+4分。
+独行：如果只有一人选择这项，+5分。
+公正：选择这项的人平分6分（下取整）。
+
+#
+var i
+i=0
+if Now.i==0 else P2
+Score.i = Score.i +1
+i++
+jumpif i != PlayerNum N3
+
+i=0
+if Now.i==1 else P3
+if MaxSelectNum==Select.1 else P2
+Score.i = Score.i +2
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==2 else P3
+if MinSelectNum==Select.2 else P2
+Score.i = Score.i +4
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==3 else P3
+if 1==Select.3 else P2
+Score.i = Score.i +5
+i++
+jumpif i != PlayerNum N4
+
+i=0
+var temp
+if Now.i==4 else P3
+temp = 6/Select.4
+Score.i = Score.i +temp
+i++
+jumpif i != PlayerNum N4
+
+end
+#
+
+
+

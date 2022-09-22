@@ -448,6 +448,7 @@ void Question::RunLine(vector<Player> &players, map<string,int> &var, string cod
         }
 
     }
+    // [ jump P5 ] goto line +5
     else if(S > 0 && items[0] == "jump")
     {
         if(!checkLength(sender, line, "jump", 2, items.size())) return;
@@ -457,6 +458,7 @@ void Question::RunLine(vector<Player> &players, map<string,int> &var, string cod
         ret.number = getValue(items[1], var);
 
     }
+    // [ if a > b ] if a>b then ...., else 
     else if(S > 0 && items[0] == "if")
     {
         if(items.size() != 4 && items.size() != 6)
