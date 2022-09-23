@@ -10,6 +10,7 @@
 #include "game_framework/game_main.h"
 #include "game_framework/game_options.h"
 #include "game_framework/game_stage.h"
+#include "nerduel_core.h"
 #include "utility/msg_checker.h"
 
 const std::string k_game_name = "Nerduel";
@@ -67,7 +68,8 @@ class SettingStage : public SubGameStage<> {
  private:
   AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
                       std::string str) {
-    reply() << "收到了字符串：" << str << "\n[错误] 后续阶段尚未实现";
+    reply() << "收到了字符串：" << str << "\n评估结果：" << evaluate(str)
+            << "\n[错误] 后续阶段尚未实现";
     return StageErrCode::FAILED;
   }
 };
@@ -76,8 +78,6 @@ class RoundStage : public SubGameStage<SettingStage> {
  public:
   RoundStage(MainStage& main_stage, const uint64_t round)
       : GameStage(main_stage, "第" + std::to_string(round) + "回合") {}
-
-  PlayerID loser() const { return loser_; }
 
   virtual VariantSubStage OnStageBegin() override {
     return std::make_unique<SettingStage>(main_stage());
@@ -89,10 +89,6 @@ class RoundStage : public SubGameStage<SettingStage> {
   }
 
  private:
-  const PlayerID questioner_;
-  int actual_number_;
-  int lie_number_;
-  PlayerID loser_;
 };
 
 MainStage::MainStage(const GameOption& option, MatchBase& match)
