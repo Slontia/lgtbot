@@ -64,23 +64,24 @@ end
 #
 选择一项。
 #
-中立：获得 [ 玩家数 / 2 ] 分（向下取整）。
-激进：获得 [ 选择 A 选项的玩家个数 ] 分。
+中立：获得 [ 所有玩家数 / 4 ] 分（向下取整）。
+激进：获得 [ 选择 A 选项的玩家个数 / 2 ] 分。
 #
 var i
 var tmp
 i=0
 if Now.i==0 else P3
-tmp=PlayerNum/2
+tmp=PlayerNum/4
 Score.i = Score.i +tmp
 i++
 jumpif i != PlayerNum N4
 
 i=0
-if Now.i==1 else P2
-Score.i = Score.i + Select.0
+if Now.i==1 else P3
+tmp=Select.0/2
+Score.i = Score.i +tmp
 i++
-jumpif i != PlayerNum N3
+jumpif i != PlayerNum N4
 
 end
 #
@@ -150,9 +151,9 @@ if Select.1==2
 tmp.1=3
 if Select.1==3
 tmp.1=3
-if Select.1==4
+if Select.2==4
 tmp.2=2
-if Select.1==5
+if Select.2==5
 tmp.2=2
 tmp.3=1
 
@@ -244,8 +245,8 @@ end
 #
 选择一项。
 #
-均势：选择本项的人平分20分。（下取整）
-幽灵：选择本项的人，按人数+2计算，平分30分。（下取整）
+均势：选择本项的人平分10分。（下取整）
+幽灵：选择本项的人，按人数+3计算，平分20分。（下取整）
 #
 var i
 var tmp1 tmp2
@@ -253,14 +254,14 @@ var tmp1 tmp2
 i=0
 if Now.i==0 else P4
 tmp1=Select.0
-tmp2=20/tmp1
+tmp2=10/tmp1
 Score.i = Score.i +tmp2
 i++
 jumpif i != PlayerNum N5
 
 i=0
 if Now.i==1 else P4
-tmp1=Select.1+2
+tmp1=Select.1+3
 tmp2=20/tmp1
 Score.i = Score.i +tmp2
 i++
@@ -285,14 +286,14 @@ var tmp
 i=0
 if Now.i==0 else P3
 if Select.1>Select.2 else P2
-Score.i = Score.i + 2
+Score.i = Score.i + 3
 i++
 jumpif i != PlayerNum N4
 
 i=0
 if Now.i==0 else P3
 if Select.1<Select.2 else P2
-Score.i = Score.i - 2
+Score.i = Score.i - 3
 i++
 jumpif i != PlayerNum N4
 
@@ -359,9 +360,9 @@ end
 选择一项。
 #
 苦工：+1。
-老板：如果存在苦工，+2。
-高官：如果存在老板，+3。
-制度：如果存在高官，+4。
+老板：如果存在苦工，+2。否则 -1 。
+高官：如果存在老板，+2。
+制度：如果存在高官，+3。
 #
 var i
 var tmp
@@ -376,6 +377,13 @@ jumpif i != PlayerNum N4
 
 i=0
 if Now.i==1 else P3
+if Select.0==0 else P2
+Score.i = Score.i - 1
+i++
+jumpif i != PlayerNum N4
+
+i=0
+if Now.i==1 else P3
 if Select.0!=0 else P2
 Score.i = Score.i + 2
 i++
@@ -384,14 +392,14 @@ jumpif i != PlayerNum N4
 i=0
 if Now.i==2 else P3
 if Select.1!=0 else P2
-Score.i = Score.i + 3
+Score.i = Score.i + 2
 i++
 jumpif i != PlayerNum N4
 
 i=0
 if Now.i==3 else P3
 if Select.2!=0 else P2
-Score.i = Score.i + 4
+Score.i = Score.i + 3
 i++
 jumpif i != PlayerNum N4
 
@@ -477,12 +485,12 @@ end
 -------------------------------------------------------
 13 Dva
 #
-选择一项。对于每个选项，如果所选人数小于其数字，则得到该数字的分数。
+选择一项。对于每个选项，如果所选人数小于等于其人数，则选择该选项的人获得对应分数。
 #
-1
-2
-3
-4
+1人，2分
+2人，1分
+3人，1分
+4人，1分
 #
 
 var i
@@ -514,7 +522,7 @@ end
 选择一项。
 #
 自负：如若选C的人最多，+2。如若选C的人最少，-1。
-叛逆：如若选C的人最少，+2。如若选C的人最多，-1。
+叛逆：如若选C的人最少，+3。如若选C的人最多，-1。
 平凡：+1。
 #
 var i
@@ -526,8 +534,8 @@ if Select.2==MaxSelectNum else P3
 tmp.0=tmp.0+2
 tmp.1=tmp.1-1
 if Select.2==MinSelectNum else P3
-tmp.0=tmp.0-2
-tmp.1=tmp.1+1
+tmp.0=tmp.0-1
+tmp.1=tmp.1+3
 
 var sel
 i=0
@@ -545,24 +553,24 @@ end
 #
 选择一项。
 #
-选择该项的人数比 B 更多，+1分。
-选择该项的人数比 A 更多，+1分。
-如若前两个选项至少有一个无人选择，平分6分。
+如果选择该项的人数比 B 多，-1 分。
+如果选择该项的人数比 A 多，-1 分。
+如若前两个选项都有人选择，+0。否则 -3 。
 #
 var i
 i = 0
 
 var tmp.0 tmp.1 tmp.2
 if Select.0>Select.1
-tmp.0=tmp.0+1
+tmp.0=tmp.0-1
 if Select.1>Select.0
-tmp.1=tmp.1+1
+tmp.1=tmp.1-1
 
 
 if Select.0==0 
-tmp.2 = 6/Select.2
+tmp.2 = N3
 if Select.1==0
-tmp.2 = 6/Select.2
+tmp.2 = N3
 
 var sel
 i=0
@@ -580,9 +588,9 @@ end
 #
 选择一项。
 #
-内卷：+3。如果选择人数大于另外两项之和，改为-3。
-正常：+1。
-摸鱼：-1。如果选择人数小于另外两项之和，改为+2。
+内卷：+3 。如果选择人数大于另外两项之和，改为 -3 。
+正常：+1 。
+摸鱼：-1 。如果选择人数小于另外两项之和，改为 +2 。
 #
 var i
 i = 0
@@ -663,7 +671,7 @@ end
 -------------------------------------------------------
 18 guest
 #
-选择一项。
+面对谣言，你选择
 #
 传谣：若选择人数<=3，+2。否则 -1。
 沉默：+0。
@@ -702,18 +710,22 @@ end
 #
 选择一项。
 #
-+0，然后均分选择 B 选项人数的分数。
-+1，然后均分选择 C 选项人数的分数。
-+2，然后均分选择 A 选项人数的分数。
++0，然后均分 [ 选择 B 选项人数 / 2 ]的分数。
++1，然后均分 [ 选择 C 选项人数 / 3 ]的分数。
++2。
 #
 var i
 i = 0
 
 var tmp.0 tmp.1 tmp.2
 
-tmp.0=Select.1/Select.0
-tmp.1=Select.2/Select.1
-tmp.2=Select.0/Select.2
+var sb sc
+
+sb=Select.1/2
+sc=Select.2/3
+
+tmp.0=sb/Select.0
+tmp.1=sc/Select.1
 
 tmp.0=tmp.0+0
 tmp.1=tmp.1+1
@@ -730,3 +742,4 @@ jumpif i != PlayerNum N3
 
 end
 #
+
