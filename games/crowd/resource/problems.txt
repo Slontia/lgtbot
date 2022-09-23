@@ -780,3 +780,70 @@ jumpif i != PlayerNum N3
 end
 #
 
+
+
+
+-------------------------------------------------------
+21 luna
+#
+负分大转盘，选择一项。
+所选选项最靠后的玩家获胜，获得（1 + 没有选择该选项玩家的数量 / 2）分。
+#
++0
+-1
+-2
+-3
+-( 4 + 玩家数 / 4 )
+#
+var tmp.0 tmp.1 tmp.2 tmp.3 tmp.4
+var chosen.0 chosen.1 chosen.2 chosen.3 chosen.4
+
+tmp.0 = 0
+tmp.1 = N1
+tmp.2 = N2
+tmp.3 = N3
+var xx
+xx = N4
+var yy
+yy = PlayerNum / 4
+var zz
+zz = 0-yy
+tmp.4 = xx+zz
+
+var sel
+var i
+i = 0
+sel = Now.i
+var tmpscore.i
+tmpscore.i = Score.i
+tmpscore.i = tmpscore.i + tmp.sel
+i++
+chosen.sel = chosen.sel + 1
+jumpif i != PlayerNum N6
+
+var j k
+
+j = 4
+if chosen.j == 0 else 3
+j--
+jump N2
+
+var adds
+adds=PlayerNum
+adds=adds-Select.j
+adds=adds/2
+adds=adds+1
+
+tmp.j=tmp.j+adds
+
+
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+#
+
+

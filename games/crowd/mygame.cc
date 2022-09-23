@@ -1077,6 +1077,8 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 //    }
 
 
+    fclose(fp);
+
     return make_unique<RoundStage>(*this, ++round_);
 }
 
