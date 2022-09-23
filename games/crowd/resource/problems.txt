@@ -651,7 +651,7 @@ tmp.2=4/Select.2
 if Select.0>=Select.1 else P3
 ttmp=8/Select.0
 tmp.0=tmp.0+ttmp
-if Select.0>=Select.1 else P3
+if Select.1>=Select.0 else P3
 ttmp=8/Select.1
 tmp.1=tmp.1+ttmp
 
@@ -735,6 +735,43 @@ var sel
 i=0
 sel=Now.i
 Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+
+end
+#
+
+
+-------------------------------------------------------
+20
+#
+选择一项。
+#
+委婉：-2
+强硬：如果所有玩家全部选择该项，则所有玩家分数取反。
+#
+var i
+i = 0
+
+var tmp.0 tmp.1
+
+tmp.0=N2
+tmp.1=0
+
+var sel
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+if Select.1==PlayerNum else P6
+i=0
+sel=Now.i
+Score.i = 0 - Score.i
 i++
 jumpif i != PlayerNum N3
 
