@@ -53,7 +53,7 @@ jumpif i != PlayerNum N3
 i=0
 if Now.i==1 else P3
 if Select.1 == 2 else P2
-Score.i = Score.i +2
+Score.i = Score.i +6
 i++
 jumpif i != PlayerNum N4
 
@@ -710,8 +710,8 @@ end
 #
 选择一项。
 #
-+0，然后均分 [ 选择 B 选项人数 / 2 ]的分数。
-+1，然后均分 [ 选择 C 选项人数 / 3 ]的分数。
++0，然后均分 [ 选择 B 选项人数 ]的分数。
++1，然后均分 [ 选择 C 选项人数 / 2 ]的分数。
 +2。
 #
 var i
@@ -721,8 +721,8 @@ var tmp.0 tmp.1 tmp.2
 
 var sb sc
 
-sb=Select.1/2
-sc=Select.2/3
+sb=Select.1
+sc=Select.2/2
 
 tmp.0=sb/Select.0
 tmp.1=sc/Select.1
