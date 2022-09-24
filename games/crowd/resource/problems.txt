@@ -487,23 +487,23 @@ end
 #
 选择一项。对于每个选项，如果所选人数小于等于其人数，则选择该选项的人获得对应分数。
 #
-1人，2分
-2人，1分
+1人，3分
+2人，2分
 3人，1分
-4人，1分
+4人，2分
 #
 
 var i
 var tmp.0 tmp.1 tmp.2 tmp.3
 
 if Select.0<=1
-tmp.0=1
+tmp.0=3
 if Select.1<=2
 tmp.1=2
 if Select.2<=3
-tmp.2=3
+tmp.2=1
 if Select.3<=4
-tmp.3=4
+tmp.3=2
 
 var sel
 i=0
