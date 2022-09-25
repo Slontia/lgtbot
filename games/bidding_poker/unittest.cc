@@ -280,5 +280,6 @@ GAME_TEST(5, no_bid_return_item)
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
     return RUN_ALL_TESTS();
 }

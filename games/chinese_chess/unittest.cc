@@ -85,5 +85,6 @@ GAME_TEST(2, cannot_double_move)
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
     return RUN_ALL_TESTS();
 }

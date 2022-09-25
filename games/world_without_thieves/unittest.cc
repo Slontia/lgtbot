@@ -27,5 +27,6 @@ GAME_TEST(5, simple_test)
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
     return RUN_ALL_TESTS();
 }

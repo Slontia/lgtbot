@@ -154,5 +154,6 @@ GAME_TEST(5, limit_gold)
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
     return RUN_ALL_TESTS();
 }

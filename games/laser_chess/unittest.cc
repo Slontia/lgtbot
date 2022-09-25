@@ -78,5 +78,6 @@ GAME_TEST(2, keep_pass)
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
     return RUN_ALL_TESTS();
 }

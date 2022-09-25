@@ -5,11 +5,15 @@
 #pragma once
 
 #include <gtest/gtest.h>
+#include <gflags/gflags.h>
 
 #include "game_framework/game_stage.h"
 #include "game_framework/game_options.h"
 #include "game_framework/game_main.h"
 #include "game_framework/mock_match.h"
+
+DEFINE_string(resource_dir, "./resource_dir/", "The path of game image resources");
+DEFINE_bool(gen_image, false, "Whether generate image or not");
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
 
@@ -25,12 +29,9 @@ class TestGame : public MockMatch, public testing::Test
 
     virtual void SetUp()
     {
+        enable_markdown_to_image = FLAGS_gen_image;
         option_.SetPlayerNum(k_player_num);
-#ifdef _WIN32
-        option_.SetResourceDir(L"/resource_dir/");
-#else
-        option_.SetResourceDir("/resource_dir/");
-#endif
+        option_.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").c_str());
     }
 
     bool StartGame()

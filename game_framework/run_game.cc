@@ -13,7 +13,8 @@
 
 DEFINE_uint64(player, 0, "Player number: if set to 0, best player num will be set");
 DEFINE_uint64(repeat, 1, "Repeat times: if set to 0, will run unlimitedly");
-DEFINE_string(resource_dir, "", "The path of game image resources");
+DEFINE_string(resource_dir, "./resource_dir/", "The path of game image resources");
+DEFINE_bool(gen_image, false, "Whether generate image or not");
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
 
@@ -23,12 +24,11 @@ int Run()
 {
     MockMatch match(FLAGS_player);
 
+    enable_markdown_to_image = FLAGS_gen_image;
+
     GameOption option;
     option.SetPlayerNum(FLAGS_player);
-    if (!FLAGS_resource_dir.empty()) {
-        enable_markdown_to_image = true;
-        option.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir).c_str());
-    }
+    option.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").c_str());
 
     MockMsgSender sender;
     std::unique_ptr<MainStageBase> main_stage(MakeMainStage(sender, option, match));

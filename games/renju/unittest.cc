@@ -186,5 +186,6 @@ GAME_TEST(2, timeout_clear_both_ready)
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
     return RUN_ALL_TESTS();
 }
