@@ -8,7 +8,9 @@ extern "C" {
 }
 
 std::pair<int, int> get_a_b(const std::string& guess, const std::string& target) {
-  assert(guess.length() == target.length());
+  if (guess.length() != target.length()) {
+    return {0, 0};
+  }
   char cnt[128] = {0};
   int a = 0, b = 0, len = target.length();
   for (int i = 0; i < len; i++) {

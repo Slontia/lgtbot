@@ -138,9 +138,9 @@ class MainStage : public MainGameStage<RoundStage> {
   bool ended_;
   MyTable table_;
   int turn_;
-  std::array<std::string, 2> target_;
-  std::array<int64_t, 2> score_;
-  std::array<std::string, 2> history_;
+  std::vector<int64_t> score_;
+  std::vector<std::string> target_;
+  std::vector<std::string> history_;
 };
 
 class SettingStage : public SubGameStage<> {
@@ -153,6 +153,12 @@ class SettingStage : public SubGameStage<> {
     Boardcast() << "请双方设置等式。";
     main_stage().table_.SetName(PlayerName(0), PlayerName(1));
     StartTimer(200);
+  }
+
+  virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
+    main_stage().ended_ = true;
+    main_stage().score_[pid] = -1;
+    return StageErrCode::CONTINUE;
   }
 
   virtual CheckoutErrCode OnTimeout() override {
@@ -204,6 +210,12 @@ class GuessingStage : public SubGameStage<> {
     Boardcast() << "请双方做出猜测，本回合时间限制3分钟。"
                 << Markdown(main_stage().table_.ToHtml());
     StartTimer(180);
+  }
+
+  virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
+    main_stage().ended_ = true;
+    main_stage().score_[pid] = -1;
+    return StageErrCode::CONTINUE;
   }
 
  private:
@@ -284,7 +296,13 @@ class RoundStage : public SubGameStage<SettingStage, GuessingStage> {
 };
 
 MainStage::MainStage(const GameOption& option, MatchBase& match)
-    : GameStage(option, match), ended_(false), table_(option), turn_(1) {}
+    : GameStage(option, match),
+      ended_(false),
+      table_(option),
+      turn_(1),
+      score_(2, 0),
+      target_(2),
+      history_(2) {}
 
 MainStage::VariantSubStage MainStage::OnStageBegin() { return std::make_unique<RoundStage>(*this); }
 
