@@ -1,1 +1,1 @@
-add_library(tinyexpr STATIC tinyexpr.c)
+add_library(tinyexpr SHARED tinyexpr.c)
