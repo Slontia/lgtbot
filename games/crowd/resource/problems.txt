@@ -224,7 +224,7 @@ var i
 var tmp
 i=0
 
-if Select.0 > 3 else P10
+if Select.0 >= 3 else P10
 if Score.i == MaxScoreNum
 Score.i = Score.i - 2
 i++
@@ -648,10 +648,10 @@ jump P2
 tmp.2=4/Select.2
 
 
-if Select.0>=Select.1 else P3
+if atk.0>=atk.1 else P3
 ttmp=8/Select.0
 tmp.0=tmp.0+ttmp
-if Select.1>=Select.0 else P3
+if atk.1>=atk.0 else P3
 ttmp=8/Select.1
 tmp.1=tmp.1+ttmp
 
