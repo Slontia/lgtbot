@@ -28,7 +28,6 @@ bool GameOption::ToValid(MsgSenderBase& reply) {
     reply() << "人数不足。";
     return false;
   }
-  reply() << std::to_string(GET_VALUE(等式长度));
   return true;
 }
 
@@ -141,6 +140,7 @@ class MainStage : public MainGameStage<RoundStage> {
   int turn_;
   std::array<std::string, 2> target_;
   std::array<int64_t, 2> score_;
+  std::array<std::string, 2> history_;
 };
 
 class SettingStage : public SubGameStage<> {
@@ -164,6 +164,7 @@ class SettingStage : public SubGameStage<> {
         return StageErrCode::CHECKOUT;
       }
     }
+    return StageErrCode::OK;
   }
 
  private:
@@ -213,6 +214,10 @@ class GuessingStage : public SubGameStage<> {
                      std::to_string(option().GET_VALUE(等式长度));
       return StageErrCode::FAILED;
     }
+    if (IsReady(pid)) {
+      reply() << "你本回合已经做出了猜测。";
+      return StageErrCode::FAILED;
+    }
     std::string err;
     bool valid = check_equation(str, err, option().GET_VALUE(游戏模式));
     if (!valid) {
@@ -222,15 +227,24 @@ class GuessingStage : public SubGameStage<> {
     SetReady(pid);
     auto [a, b] = get_a_b(str, main_stage().target_[pid]);
     main_stage().table_.SetEquation(str, pid, a, b);
+    char tmp[128];
+    sprintf(tmp, "%s %dA%dB\n", str.c_str(), a, b);
+    main_stage().history_[pid] += tmp;
     if (a == option().GET_VALUE(等式长度)) {
       main_stage().ended_ = true;
       main_stage().score_[pid] = 1;
     }
+    reply() << "设置成功。" << err;
     return StageErrCode::OK;
   }
 
   AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply) {
-    reply() << "TODO";
+    std::string response = "等式长度：" + std::to_string(option().GET_VALUE(等式长度)) +
+                           "，游戏模式：" + (option().GET_VALUE(游戏模式) ? "标准" : "狂野");
+    for (int i = 0; i < 2; i++) {
+      response += "\n玩家 " + std::to_string(i) + ": \n" + main_stage().history_[i] + "\n";
+    }
+    reply() << response;
     return StageErrCode::OK;
   }
 };

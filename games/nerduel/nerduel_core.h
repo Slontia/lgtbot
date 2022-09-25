@@ -53,7 +53,7 @@ bool check_equation(const std::string& formula, std::string& error, bool standar
     return false;
   }
   for (int i = 0; i < n - 1; i++) {
-    if ((formula[i] == '+' || formula[i] == '-') &&
+    if ((formula[i] == '+' || formula[i] == '-' || formula[i] == '*' || formula[i] == '/') &&
         (formula[i + 1] == '+' || formula[i + 1] == '-')) {
       error = "符号 " + std::string(1, formula[i]) + formula[i + 1] + " 的连续使用是不被允许的。";
       return false;
@@ -90,11 +90,11 @@ bool check_equation(const std::string& formula, std::string& error, bool standar
     }
   }
   double val_left = evaluate(left), val_right = evaluate(right);
-  if (std::isnan(val_left)) {
+  if (std::isnan(val_left) || std::isinf(val_left)) {
     error = "等式左边无法计算。";
     return false;
   }
-  if (std::isnan(val_right)) {
+  if (std::isnan(val_right) || std::isinf(val_right)) {
     error = "等式右边无法计算。";
     return false;
   }
