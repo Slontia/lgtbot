@@ -138,6 +138,7 @@ class MainStage : public MainGameStage<RoundStage> {
 
   bool ended_;
   MyTable table_;
+  int turn_;
   std::array<std::string, 2> target_;
   std::array<int64_t, 2> score_;
 };
@@ -236,7 +237,8 @@ class GuessingStage : public SubGameStage<> {
 
 class RoundStage : public SubGameStage<SettingStage, GuessingStage> {
  public:
-  RoundStage(MainStage& main_stage) : GameStage(main_stage, "你的回合") {}
+  RoundStage(MainStage& main_stage)
+      : GameStage(main_stage, "第" + std::to_string(main_stage.turn_) + "回合") {}
 
   virtual VariantSubStage OnStageBegin() override {
     return std::make_unique<SettingStage>(main_stage());
@@ -252,6 +254,11 @@ class RoundStage : public SubGameStage<SettingStage, GuessingStage> {
 
   virtual VariantSubStage NextSubStage(GuessingStage& sub_stage,
                                        const CheckoutReason reason) override {
+    if (++main_stage().turn_ > 50) {
+      Boardcast() << "回合数超过上限，游戏结束。";
+      main_stage().ended_ = true;
+      return {};
+    }
     if (main_stage().ended_) {
       return {};
     }
@@ -263,7 +270,7 @@ class RoundStage : public SubGameStage<SettingStage, GuessingStage> {
 };
 
 MainStage::MainStage(const GameOption& option, MatchBase& match)
-    : GameStage(option, match), ended_(false), table_(option) {}
+    : GameStage(option, match), ended_(false), table_(option), turn_(1) {}
 
 MainStage::VariantSubStage MainStage::OnStageBegin() { return std::make_unique<RoundStage>(*this); }
 
