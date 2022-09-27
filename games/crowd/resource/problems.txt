@@ -637,7 +637,7 @@ i = 0
 var tmp.0 tmp.1 tmp.2 atk.0 atk.1 atk.2 ttmp
 
 atk.0=Select.0*2
-atk.1=PlayerNum
+atk.1=PlayerNum/2
 atk.2=N1
 
 tmp.0=4/Select.0
@@ -710,9 +710,9 @@ end
 #
 选择一项。
 #
-+0，然后均分 [ 选择 B 选项人数 ]的分数。
-+1，然后均分 [ 选择 C 选项人数 / 2 ]的分数。
-+2。
++1，然后均分 [ 选择 B 选项人数 ] 的分数。
++0，然后均分 [ 选择 C 选项人数 ] 的分数。
++3。
 #
 var i
 i = 0
@@ -722,14 +722,14 @@ var tmp.0 tmp.1 tmp.2
 var sb sc
 
 sb=Select.1
-sc=Select.2/2
+sc=Select.2
 
 tmp.0=sb/Select.0
 tmp.1=sc/Select.1
 
-tmp.0=tmp.0+0
-tmp.1=tmp.1+1
-tmp.2=tmp.2+2
+tmp.0=tmp.0+1
+tmp.1=tmp.1+0
+tmp.2=tmp.2+3
 
 var sel
 i=0
