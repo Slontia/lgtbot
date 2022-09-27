@@ -4,7 +4,7 @@
 #
 选择一项。
 #
-如果选这项的人数最少，+4分。
+如果选这项的人数最少，+3分。
 如果选这项的人数最多，+2分。
 +1分。
 #
@@ -13,7 +13,7 @@ i = 0
 
 if Now.i==0 else P3
 if MinSelectNum==Select.0 else P2
-Score.i=Score.i+4
+Score.i=Score.i+3
 i++
 jumpif i != PlayerNum N4
 
@@ -217,7 +217,7 @@ end
 #
 选择一项。
 #
-均衡：如果有 3 或更多名玩家选择本项，则得分最高的玩家 -2
+均衡：如果有 3 或更多名玩家选择本项，则得分最高的玩家 -3
 观望：+1
 #
 var i
@@ -226,7 +226,7 @@ i=0
 
 if Select.0 >= 3 else P10
 if Score.i == MaxScoreNum
-Score.i = Score.i - 2
+Score.i = Score.i - 3
 i++
 jumpif i != PlayerNum N3
 
@@ -242,12 +242,12 @@ end
 
 -------------------------------------------------------
 7
-#
+@
 选择一项。
-#
+@
 均势：选择本项的人平分10分。（下取整）
 幽灵：选择本项的人，按人数+3计算，平分20分。（下取整）
-#
+@
 var i
 var tmp1 tmp2
 
@@ -267,7 +267,7 @@ Score.i = Score.i +tmp2
 i++
 jumpif i != PlayerNum N5
 end
-#
+@
 
 
 -------------------------------------------------------
@@ -316,7 +316,7 @@ end
 选择一项。
 #
 老实人：+2。
-背叛者：-2。如果任何人选择此项，则选 A 的玩家 -6。
+背叛者：-2。如果任何人选择此项，则选 A 的玩家改为 -4。
 旁观者：-1。
 #
 var i
@@ -333,7 +333,7 @@ jumpif i != PlayerNum N4
 i=0
 if Now.i==0 else P3
 if Select.1!=0 else P2
-Score.i = Score.i -6
+Score.i = Score.i -4
 i++
 jumpif i != PlayerNum N4
 
@@ -411,7 +411,7 @@ end
 #
 选择一项。
 #
-智慧：人数比 B 少则 +4
+智慧：人数比 B 少则 +3
 体能：人数比 A 多则 +2
 坚持：+1
 好运：如果恰有 5 玩家选择这个选项，+5
@@ -423,7 +423,7 @@ var tmp
 i=0
 if Now.i==0 else P3
 if Select.0<Select.1 else P2
-Score.i = Score.i + 4
+Score.i = Score.i + 3
 i++
 jumpif i != PlayerNum N4
 
@@ -555,7 +555,7 @@ end
 #
 如果选择该项的人数比 B 多，-1 分。
 如果选择该项的人数比 A 多，-1 分。
-如若前两个选项都有人选择，+0。否则 -3 。
+如若前两个选项都有人选择，+0。否则 -4 。
 #
 var i
 i = 0
@@ -568,9 +568,9 @@ tmp.1=tmp.1-1
 
 
 if Select.0==0 
-tmp.2 = N3
+tmp.2 = N4
 if Select.1==0
-tmp.2 = N3
+tmp.2 = N4
 
 var sel
 i=0
@@ -625,34 +625,34 @@ end
 -------------------------------------------------------
 17 dva
 #
-选择一个阵营加入，每个阵营内部平分 4 分，然后战斗力最高的阵营获得平分 8 分（向下取整）
+选择一个阵营加入，每个阵营内部平分 4 分，然后战斗力最高的阵营获得平分 6 分（向下取整）
 #
-团结：每有一个加入者，+2战力。
-科技：战力固定为 [ 玩家总人数 / 2 ]。
-经济：战力为 -1 。该阵营有 2 个或更多加入者时，不平分 4 分，而是 8 分。
+团结：每有一个加入者，+3战力。
+科技：战力固定为 [ 玩家总人数 ]。
+经济：战力为 -1 。该阵营有 2 个或更多加入者时，不平分 4 分，而是 6 分。
 #
 var i
 i = 0
 
 var tmp.0 tmp.1 tmp.2 atk.0 atk.1 atk.2 ttmp
 
-atk.0=Select.0*2
-atk.1=PlayerNum/2
+atk.0=Select.0*3
+atk.1=PlayerNum
 atk.2=N1
 
 tmp.0=4/Select.0
 tmp.1=4/Select.1
 if Select.2>=2 else P3
-tmp.2=8/Select.2
+tmp.2=6/Select.2
 jump P2
 tmp.2=4/Select.2
 
 
 if atk.0>=atk.1 else P3
-ttmp=8/Select.0
+ttmp=6/Select.0
 tmp.0=tmp.0+ttmp
 if atk.1>=atk.0 else P3
-ttmp=8/Select.1
+ttmp=6/Select.1
 tmp.1=tmp.1+ttmp
 
 
