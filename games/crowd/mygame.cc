@@ -710,7 +710,7 @@ void Question::createMarkdown()
     md += "<br>";
     md += "</font>";
 
-    md += "<table><tr><td><font size=6>　　　　　　　　　　　　　　　　　　　　</font></td></tr></table>";
+    md += "<table><tr><td><font size=6>　　　　　　　　　　　　　　　　　　　　　　</font></td></tr></table>";
 
     return;
 }
@@ -927,6 +927,10 @@ class RoundStage : public SubGameStage<>
 
         main_stage().questions[main_stage().now].RunCode(main_stage().players, BoardcastMsgSender());
 
+        for(int i = 0; i < option().PlayerNum(); i++)
+        {
+            main_stage().player_scores_[i] = main_stage().players[i].score;
+        }
 
 
         string b = "";
@@ -951,7 +955,7 @@ class RoundStage : public SubGameStage<>
         Boardcast() << Markdown(b);
 
 
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+//        std::this_thread::sleep_for(std::chrono::seconds(5));
 
         return;
     }
@@ -1014,12 +1018,22 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     srand((unsigned int)time(NULL));
 
-    FILE *fp=fopen((string(option().ResourceDir())+("problems.txt")).c_str(),"r");
+    FILE *fp = fopen((string(option().ResourceDir())+("problems.txt")).c_str(), "r");
+
+    // use magic to unittest
+    if(fp == NULL)
+    {
+        fp = fopen("C:/msys64/home/xuzhe/lgtbot/games/crowd/resource/problems.txt", "r");
+    }
+
     if(fp == NULL)
     {
         Boardcast() << "[错误] 题目列表不存在。(P)";
         return make_unique<RoundStage>(*this, ++round_);
     }
+
+
+
 
     string s = "";
     int status = 0;
@@ -1098,13 +1112,6 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     if ((++round_) <= option().GET_VALUE(回合数)) {
         return make_unique<RoundStage>(*this, round_);
     }
-
-
-    for(int i = 0; i < option().PlayerNum(); i++)
-    {
-        player_scores_[i] = players[i].score;
-    }
-
 
     return {};
 }

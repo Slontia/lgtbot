@@ -256,14 +256,14 @@ end
 
 -------------------------------------------------------
 7
-@
+#
 选择一项。
-@
+#
 均势：选择本项的人平分10分。（下取整）
 幽灵：选择本项的人，按人数+3计算，平分20分。（下取整）
-@
+#
 ab
-@
+#
 var i
 var tmp1 tmp2
 
@@ -283,7 +283,7 @@ Score.i = Score.i +tmp2
 i++
 jumpif i != PlayerNum N5
 end
-@
+#
 
 
 -------------------------------------------------------
@@ -482,7 +482,7 @@ end
 信任：+3 分
 怀疑：+2 分
 顾虑：-1 分
-背叛：失去等同于选择该选项人数的分数。如果有超过 1 玩家选择本选项，则 A 和 B 的得分改为扣分。
+背叛：失去等同于选择该选项人数的分数。如果有超过 1 玩家选择本选项，则 A 改为 -4，B改为 -2 。
 #
 aaaabccccccccccdddd
 #
@@ -494,8 +494,8 @@ tmp.1=2
 tmp.2=N1
 tmp.3=0-Select.3
 if Select.3>1 else P3
-tmp.0=0-tmp.0
-tmp.1=0-tmp.1
+tmp.0=N4
+tmp.1=N3
 
 var sel
 i=0
@@ -725,7 +725,7 @@ tmp.2=1
 
 if Select.0>3
 tmp.0=N1
-if Select.2<6
+if Select.2<5
 tmp.2=N2
 
 
@@ -888,5 +888,149 @@ jumpif i != PlayerNum N3
 
 
 #
+
+
+-------------------------------------------------------
+22 YAMI
+#
+选择一项。
+#
+同化：+2，然后所有选择此项的玩家会均分他们的分数。（下取整）
+排斥：+0。
+#
+aaaaabbb
+#
+var tmp.0 tmp.1 sum ave
+var i sel
+
+i=0
+if Now.i==0
+sum=sum+Score.i
+if Now.i==0
+Score.i=0
+i++
+jumpif i != PlayerNum N5
+
+ave=sum/Select.0
+tmp.0=2+ave
+
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+#
+
+-------------------------------------------------------
+23
+#
+选择一项。只有人数最多的选项会产生效果。
+#
+乞丐：-2。
+慈善家：选 A 或 C 的玩家 +2。
+乞丐：-2。
+路人：-1。
+#
+abbbcddd
+#
+var tmp.0 tmp.1 tmp.2 tmp.3
+var i sel
+
+if Select.0==MaxSelectNum
+tmp.0=N2
+if Select.2==MaxSelectNum
+tmp.2=N2
+if Select.3==MaxSelectNum
+tmp.3=N1
+
+if Select.1==MaxSelectNum else P3
+tmp.0=tmp.0+2
+tmp.2=tmp.2+2
+
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+#
+
+
+-------------------------------------------------------
+24
+#
+选择一项。选择完毕后，会统计所有玩家所选数字的平均值（下取整），然后选择了数字为平均值选项的玩家，获得该数字的分数。
+#
+0
+1
+2
+3
+4
+5
+6
+7
+#
+aabbbbccccccccddddeeeffgh
+#
+var tmp.0 tmp.1 tmp.2 tmp.3 tmp.4 tmp.5 tmp.6 tmp.7
+var i sum avg tmp sel
+
+i=0
+tmp=Select.i*i
+sum=sum+tmp
+i++
+jumpif i != 8 N3
+
+avg=sum/PlayerNum
+tmp.avg=tmp.avg+avg
+
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+#
+
+
+-------------------------------------------------------
+25
+#
+选择一项。超过一半人选择某一选项时，该选项会改为不同的（括号中的）效果。
+#
+拔河：-1 ( +1 )
+独木桥：+1 ( +0 )
+乌篷船：+2 ( -2 )
+#
+aabbbbbccc
+#
+var tmp.0 tmp.1 tmp.2
+var i sum ave tmp sel
+
+tmp.0=N1
+tmp.1=P1
+tmp.2=P2
+
+tmp=PlayerNum/2
+if Select.0>tmp
+tmp.0=P1
+if Select.1>tmp
+tmp.1=0
+if Select.2>tmp
+tmp.2=N2
+
+i=0
+sel=Now.i
+Score.i = Score.i + tmp.sel
+i++
+jumpif i != PlayerNum N3
+
+
+#
+
 
 
