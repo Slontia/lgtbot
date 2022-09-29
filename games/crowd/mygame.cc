@@ -152,11 +152,13 @@ public:
         options.clear();
         codes.clear();
         md = "";
+        expects = "";
     }
 
     vector<string> texts;
     vector<string> options;
     vector<string> codes;
+    string expects;
 
     string md;
     void createMarkdown();
@@ -878,9 +880,14 @@ class RoundStage : public SubGameStage<>
         if(main_stage().questions.size() == 0)
             return SubmitInternal_(pid, reply, "A");
 
-        int x = rand() % main_stage().questions[main_stage().now].options.size();
-        string ret = "A";
-        ret[0] += x;
+        int x = rand() % main_stage().questions[main_stage().now].expects.length();
+
+        string ret = "";
+        ret += main_stage().questions[main_stage().now].expects[x];
+        if(ret[0] <= 'z' && ret[0] >= 'a')
+        {
+            ret[0] = ret[0] - 'a' + 'A';
+        }
         return SubmitInternal_(pid, reply, ret);
     }
 
@@ -944,7 +951,7 @@ class RoundStage : public SubGameStage<>
         Boardcast() << Markdown(b);
 
 
-//        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::this_thread::sleep_for(std::chrono::seconds(5));
 
         return;
     }
@@ -1039,7 +1046,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         if(s.length() != 0 && s[0] == '#')
         {
             status++;
-            if(status == 4)
+            if(status == 5)
             {
                 questions.push_back(q);
                 status = 0;
@@ -1063,6 +1070,10 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
             q.options.push_back(s);
         }
         if(status == 3)
+        {
+            q.expects = s;
+        }
+        if(status == 4)
         {
             q.codes.push_back(s);
         }
