@@ -8,6 +8,8 @@
 如果选这项的人数最多，+2分。
 +1分。
 #
+aabccccc
+#
 var i
 i = 0
 
@@ -43,6 +45,8 @@ end
 和平：+2分
 战争：如果恰有两名玩家选择这个选项，则+6分。
 #
+aaaab
+#
 var i
 i=0
 if Now.i==0 else P2
@@ -66,6 +70,8 @@ end
 #
 中立：获得 [ 所有玩家数 / 4 ] 分（向下取整）。
 激进：获得 [ 选择 A 选项的玩家个数 / 2 ] 分。
+#
+aaaabbbbb
 #
 var i
 var tmp
@@ -95,6 +101,8 @@ end
 智慧：如果选择这项的人数最少，+4分。
 独行：如果只有一人选择这项，+5分。
 公正：选择这项的人平分6分（下取整）。
+#
+abcddddeeeeeeeeeee
 #
 var i
 i=0
@@ -144,6 +152,8 @@ end
 盛宴：如果有 4 或 5 人选择此项，获得 2 分。
 闭户：获得 1 分。
 #
+aabbbbbcccccccccddddd
+#
 var i tmp.0 tmp.1 tmp.2 tmp.3
 if Select.0==1
 tmp.0=4
@@ -178,6 +188,8 @@ end
 破坏：-1，然后使选 B 的玩家 -3
 合作：+2，然后使选 C 的玩家 +1
 平衡：+0。
+#
+aaaaabbbccc
 #
 var i
 var tmp
@@ -220,6 +232,8 @@ end
 均衡：如果有 3 或更多名玩家选择本项，则得分最高的玩家 -3
 观望：+1
 #
+abbb
+#
 var i
 var tmp
 i=0
@@ -247,6 +261,8 @@ end
 @
 均势：选择本项的人平分10分。（下取整）
 幽灵：选择本项的人，按人数+3计算，平分20分。（下取整）
+@
+ab
 @
 var i
 var tmp1 tmp2
@@ -278,6 +294,8 @@ end
 老师：如果好学生比坏学生多，+3
 好学生：如果比坏学生多，+1
 坏学生：如果比好学生多，老师 -3
+#
+aabbbcccc
 #
 var i
 var tmp
@@ -318,6 +336,8 @@ end
 老实人：+2。
 背叛者：-2。如果任何人选择此项，则选 A 的玩家改为 -4。
 旁观者：-1。
+#
+aaabcccccccccc
 #
 var i
 var tmp
@@ -363,6 +383,8 @@ end
 老板：如果存在苦工，+2。否则 -1 。
 高官：如果存在老板，+2。
 制度：如果存在高官，+3。
+#
+aaaabbbcddddddddddddddddddddddd
 #
 var i
 var tmp
@@ -416,6 +438,8 @@ end
 坚持：+1
 好运：如果恰有 5 玩家选择这个选项，+5
 #
+abccccccccccccdddddd
+#
 var i
 var tmp
 
@@ -460,6 +484,8 @@ end
 顾虑：-1 分
 背叛：失去等同于选择该选项人数的分数。如果有超过 1 玩家选择本选项，则 A 和 B 的得分改为扣分。
 #
+aaaabccccccccccdddd
+#
 var i
 var tmp.0 tmp.1 tmp.2 tmp.3
 
@@ -492,7 +518,8 @@ end
 3人，1分
 4人，2分
 #
-
+abbcccdddd
+#
 var i
 var tmp.0 tmp.1 tmp.2 tmp.3
 
@@ -525,6 +552,8 @@ end
 叛逆：如若选C的人最少，+3。如若选C的人最多，-1。
 平凡：+1。
 #
+aaabbcccccc
+#
 var i
 var tmp.0 tmp.1 tmp.2
 
@@ -556,6 +585,8 @@ end
 如果选择该项的人数比 B 多，-1 分。
 如果选择该项的人数比 A 多，-1 分。
 如若前两个选项都有人选择，+0。否则 -4 。
+#
+aabbccccc
 #
 var i
 i = 0
@@ -591,6 +622,8 @@ end
 内卷：+3 。如果选择人数大于另外两项之和，改为 -3 。
 正常：+1 。
 摸鱼：-1 。如果选择人数小于另外两项之和，改为 +2 。
+#
+aaaaabcccc
 #
 var i
 i = 0
@@ -630,6 +663,8 @@ end
 团结：每有一个加入者，+3战力。
 科技：战力固定为 [ 玩家总人数 ]。
 经济：战力为 -1 。该阵营有 2 个或更多加入者时，不平分 4 分，而是 6 分。
+#
+abc
 #
 var i
 i = 0
@@ -677,6 +712,8 @@ end
 沉默：+0。
 思考：若选择人数>=5，+1。否则 -2。
 #
+aaabbbbbbcc
+#
 var i
 i = 0
 
@@ -713,6 +750,8 @@ end
 +1，然后均分 [ 选择 B 选项人数 ] 的分数。
 +0，然后均分 [ 选择 C 选项人数 ] 的分数。
 +3。
+#
+abbbcccccccccccccccccccc
 #
 var i
 i = 0
@@ -751,6 +790,8 @@ end
 #
 委婉：-2
 强硬：如果所有玩家全部选择该项，则所有玩家分数取反。
+#
+abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 #
 var i
 i = 0
@@ -794,6 +835,8 @@ end
 -2
 -3
 -( 4 + 玩家数 / 4 )
+#
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabcdeeeeeeeeeeee
 #
 var tmp.0 tmp.1 tmp.2 tmp.3 tmp.4
 var chosen.0 chosen.1 chosen.2 chosen.3 chosen.4
