@@ -14,12 +14,12 @@
 
 const std::string k_game_name = "Nerduel";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
-const uint64_t k_multiple = 0;
+const uint64_t k_multiple = 1;
 
 std::string GameOption::StatusInfo() const {
   std::stringstream ss;
   ss << "等式长度为" << GET_VALUE(等式长度) << "；游戏模式："
-     << (GET_VALUE(游戏模式) ? "标准" : "狂野");
+     << (GET_VALUE(游戏模式) ? "标准" : "狂野") << "；每回合时间限制：" << GET_VALUE(时限) << "秒";
   return ss.str();
 }
 
@@ -152,7 +152,7 @@ class SettingStage : public SubGameStage<> {
   virtual void OnStageBegin() override {
     Boardcast() << "请双方设置等式。";
     main_stage().table_.SetName(PlayerName(0), PlayerName(1));
-    StartTimer(200);
+    StartTimer(option().GET_VALUE(时限) + 30);
   }
 
   virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
@@ -207,9 +207,15 @@ class GuessingStage : public SubGameStage<> {
             MakeStageCommand("猜测", &GuessingStage::Guess_, AnyArg("等式", "1+2+3=6"))) {}
 
   virtual void OnStageBegin() override {
-    Boardcast() << "请双方做出猜测，本回合时间限制3分钟。"
-                << Markdown(main_stage().table_.ToHtml());
-    StartTimer(180);
+    auto limit = option().GET_VALUE(时限);
+    if (limit % 60 == 0) {
+      Boardcast() << "请双方做出猜测，本回合时间限制" << limit / 60 << "分钟。"
+                  << Markdown(main_stage().table_.ToHtml());
+    } else {
+      Boardcast() << "请双方做出猜测，本回合时间限制" << limit << "秒。"
+                  << Markdown(main_stage().table_.ToHtml());
+    }
+    StartTimer(limit);
   }
 
   virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
