@@ -152,13 +152,13 @@ public:
         options.clear();
         codes.clear();
         md = "";
-        expects = "";
+        expects.clear();
     }
 
     vector<string> texts;
     vector<string> options;
     vector<string> codes;
-    string expects;
+    vector<string> expects;
 
     string md;
     void createMarkdown();
@@ -880,14 +880,47 @@ class RoundStage : public SubGameStage<>
         if(main_stage().questions.size() == 0)
             return SubmitInternal_(pid, reply, "A");
 
-        int x = rand() % main_stage().questions[main_stage().now].expects.length();
+        vector<string> e = main_stage().questions[main_stage().now].expects;
+        vector<int64_t> s = main_stage().player_scores_;
+        int n = option().PlayerNum();
 
+//        for(auto v:e) Boardcast() << v;
+
+        if(e.size() == 0 || e[0].length() == 0) return SubmitInternal_(pid, reply, "A");
+
+        int x = rand() % e[0].length();
         string ret = "";
-        ret += main_stage().questions[main_stage().now].expects[x];
+        ret += e[0][x];
         if(ret[0] <= 'z' && ret[0] >= 'a')
         {
             ret[0] = ret[0] - 'a' + 'A';
         }
+
+        if(e.size() > 1)
+        {
+            if(s.size() != n || e[1].length() == 0) return SubmitInternal_(pid, reply, ret);
+
+
+            int mx = -999, sum = 0, avg = 0;
+            for(int i = 0; i < n; i++)
+            {
+                if(s[i] > mx)
+                    mx = s[i];
+                sum += s[i];
+            }
+            avg = sum / n;
+
+            if(s[pid] == mx && s[pid] > avg + 1)
+            {
+//                Boardcast() << pid;
+
+                ret[0] = e[1][rand() % e[1].length()];
+                if(ret[0] <= 'z' && ret[0] >= 'a') ret[0] = ret[0] - 'a' + 'A';
+//                Boardcast() << e[1];
+//                Boardcast() << ret;
+            }
+        }
+
         return SubmitInternal_(pid, reply, ret);
     }
 
@@ -1073,6 +1106,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
             q.texts.clear();
             q.options.clear();
             q.codes.clear();
+            q.expects.clear();
         }
         if(status == 1)
         {
@@ -1085,7 +1119,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         }
         if(status == 3)
         {
-            q.expects = s;
+            q.expects.push_back(s);
         }
         if(status == 4)
         {
