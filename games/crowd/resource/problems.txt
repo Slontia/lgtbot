@@ -46,6 +46,7 @@ end
 战争：如果恰有两名玩家选择这个选项，则+6分。
 #
 aaaab
+a
 #
 var i
 i=0
@@ -102,7 +103,8 @@ end
 独行：如果只有一人选择这项，+5分。
 公正：选择这项的人平分6分（下取整）。
 #
-abcddddeeeeeeeeeee
+aaaabcddddeeeeeeeeeee
+ae
 #
 var i
 i=0
@@ -153,6 +155,7 @@ end
 闭户：获得 1 分。
 #
 aabbbbbcccccccccddddd
+cd
 #
 var i tmp.0 tmp.1 tmp.2 tmp.3
 if Select.0==1
@@ -189,7 +192,7 @@ end
 合作：+2，然后使选 C 的玩家 +1
 平衡：+0。
 #
-aaaaabbbccc
+aaaaabbbccccc
 #
 var i
 var tmp
@@ -233,6 +236,7 @@ end
 观望：+1
 #
 abbb
+b
 #
 var i
 var tmp
@@ -295,7 +299,7 @@ end
 好学生：如果比坏学生多，+1
 坏学生：如果比好学生多，老师 -3
 #
-aabbbcccc
+aabbbccccc
 #
 var i
 var tmp
@@ -337,7 +341,7 @@ end
 背叛者：-2。如果任何人选择此项，则选 A 的玩家改为 -4。
 旁观者：-1。
 #
-aaabcccccccccc
+aaabbccccccc
 #
 var i
 var tmp
@@ -384,7 +388,7 @@ end
 高官：如果存在老板，+2。
 制度：如果存在高官，+3。
 #
-aaaabbbcddddddddddddddddddddddd
+aaabbbbcddddddddddddddddddddddd
 #
 var i
 var tmp
@@ -482,7 +486,7 @@ end
 信任：+3 分
 怀疑：+2 分
 顾虑：-1 分
-背叛：失去等同于选择该选项人数的分数。如果有超过 1 玩家选择本选项，则 A 改为 -4，B改为 -3 。
+背叛：失去等同于选择该选项人数的分数。如果有超过 1 玩家选择本选项，则 A 改为 -4，B改为 -2 。
 #
 aaaabccccccccccdddd
 #
@@ -751,7 +755,7 @@ end
 +0，然后均分 [ 选择 C 选项人数 ] 的分数。
 +3。
 #
-abbbcccccccccccccccccccc
+abbbbcccccccccccccccccc
 #
 var i
 i = 0
@@ -792,6 +796,7 @@ end
 强硬：如果所有玩家全部选择该项，则所有玩家分数取反。
 #
 abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+aaab
 #
 var i
 i = 0
@@ -836,7 +841,7 @@ end
 -3
 -( 4 + 玩家数 / 4 )
 #
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabcdeeeeeeeeeeee
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbcdeeeeeeeee
 #
 var tmp.0 tmp.1 tmp.2 tmp.3 tmp.4
 var chosen.0 chosen.1 chosen.2 chosen.3 chosen.4
@@ -898,7 +903,8 @@ jumpif i != PlayerNum N3
 同化：+2，然后所有选择此项的玩家会均分他们的分数。（下取整）
 排斥：+0。
 #
-aaaaabbb
+aaaaaaaaaaab
+abbbbbbb
 #
 var tmp.0 tmp.1 sum ave
 var i sel
@@ -973,7 +979,7 @@ jumpif i != PlayerNum N3
 6
 7
 #
-aabbbbccccccccddddeeeffgh
+aabbbbccccccccccccccccccccccddddddddddddddeeeffgh
 #
 var tmp.0 tmp.1 tmp.2 tmp.3 tmp.4 tmp.5 tmp.6 tmp.7
 var i sum avg tmp sel
