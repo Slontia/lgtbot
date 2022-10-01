@@ -10,3 +10,6 @@
 [submodule "third_party/mahjong"]
 	path = third_party/mahjong
 	url = git@github.com:slontia/mahjong
+[submodule "third_party/tiny_expr"]
+	path = third_party/tiny_expr
+	url = git@github.com:codeplea/tinyexpr
