@@ -153,6 +153,9 @@ class MainStage : public MainGameStage<RoundStage>
     // UI
     string UI;
 
+    // game round
+    int round_;
+
 
   private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
@@ -172,7 +175,6 @@ class MainStage : public MainGameStage<RoundStage>
         return StageErrCode::OK;
     }
 
-    int round_;
 
 };
 
@@ -235,11 +237,49 @@ class RoundStage : public SubGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        string s="";
-        for(int j = 0; j < main_stage().wordLength; j++)
+        string s = "";
+        int l = main_stage().wordLength;
+        int r = main_stage().round_;
+        string a = main_stage().player_word_[0];
+
+        for(int i = 0; i < l; i++) s += ' ';
+
+        if(l == 5)
         {
-            s+=" ";
+            if(r == 1) s = "crane";
+            if(r == 2) s = "pilot";
+            if(r == 3) s = "dusky";
+            if(r == 4) s = a;
         }
+        if(l == 6)
+        {
+            if(r == 1) s = "sniper";
+            if(r == 2) s = "fourth";
+            if(r == 3) s = "cymbal";
+            if(r == 4) s = "adzuki";
+            if(r == 5) s = a;
+        }
+        if(l == 7)
+        {
+            if(r == 1) s = "keyword";
+            if(r == 2) s = "implant";
+            if(r == 3) s = "cloughs";
+            if(r == 4) s = "farebox";
+            if(r == 5) s = "aquiver";
+            if(r == 6) s = a;
+        }
+        if(l == 8)
+        {
+            if(r == 1) s = "equation";
+            if(r == 2) s = "abruptly";
+            if(r == 3) s = "biconvex";
+            if(r == 4) s = "goldfish";
+            if(r == 5) s = "waymarks";
+            if(r == 6) s = "jarovize";
+            if(r == 7) s = a;
+        }
+
+
         return SubmitInternal_(pid, reply, s);
     }
 
