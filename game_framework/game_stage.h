@@ -534,6 +534,7 @@ class GameStage<GameOption, MainStage>
 
     virtual void Over() override final
     {
+        Base::match_.StopTimer();
         StageBase::Over();
     }
     // if command return true, the stage will be over

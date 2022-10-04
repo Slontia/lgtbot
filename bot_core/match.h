@@ -194,4 +194,11 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     std::vector<Player> players_; // all players, include computers
 
     const Command<void(MsgSenderBase&)> help_cmd_;
+
+#ifdef TEST_BOT
+  public:
+    std::mutex before_handle_timeout_mutex_;
+    std::condition_variable before_handle_timeout_cv_;
+    bool before_handle_timeout_;
+#endif
 };

@@ -41,6 +41,9 @@ Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, cons
         , bench_to_player_num_(0)
         , multiple_(game_handle.multiple_)
         , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")))
+#ifdef TEST_BOT
+        , before_handle_timeout_(false)
+#endif
 {
     users_.emplace(host_uid, ParticipantUser(host_uid));
 }
@@ -278,6 +281,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
     }
     if (state_ == State::IS_OVER) {
         reply() << "[错误] 退出失败：游戏已经结束";
+        rc = EC_MATCH_ALREADY_OVER;
     } else if (state_ != State::IS_STARTED) {
         match_manager().UnbindMatch(uid);
         users_.erase(uid);
@@ -383,7 +387,7 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
     StopTimer();
     timer_is_over_ = std::make_shared<bool>(false);
     // We must store a timer_is_over because it may be reset to true when new timer begins.
-    const auto timeout_handler = [timer_is_over = timer_is_over_, match_wk = weak_from_this()]()
+    const auto timeout_handler = [this, match_wk = weak_from_this()]()
         {
             // Handle a reference because match may be removed from match_manager if timeout cause game over.
             auto match = match_wk.lock();
@@ -391,11 +395,26 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
                 WarnLog() << "Timer timeout but match is released";
                 return; // match is released
             }
+#ifdef TEST_BOT
+            {
+                std::lock_guard<std::mutex> l(before_handle_timeout_mutex_);
+                before_handle_timeout_ = true;
+            }
+            before_handle_timeout_cv_.notify_all();
+
+#endif
             // Timeout event should not be triggered during request handling, so we need lock here.
             // timer_is_over also should protected in lock. Otherwise, a rquest may be handled after checking timer_is_over and before timeout_timer lock match.
             std::lock_guard<std::mutex> l(match->mutex_);
+
+#ifdef TEST_BOT
+            {
+                std::lock_guard<std::mutex> l(before_handle_timeout_mutex_);
+                before_handle_timeout_ = false;
+            }
+#endif
             // If stage has been finished by other request, timeout event should not be triggered again, so we check stage_is_over_ here.
-            if (!*timer_is_over) {
+            if (!*timer_is_over_) {
                 DebugLog() << "Timer timeout mid=" << match->mid();
                 match->main_stage_->HandleTimeout();
                 match->Routine_();

@@ -16,6 +16,7 @@
 #include "bot_core/game_handle.h"
 #include "bot_core/db_manager.h"
 #include "bot_core/score_calculation.h"
+#include "bot_core/match.h"
 
 static_assert(TEST_BOT);
 
@@ -135,6 +136,16 @@ static std::mutex substage_blocked_mutex_;
 static std::condition_variable substage_block_request_cv_;
 static std::atomic<bool> substage_blocked_;
 
+static void BlockStage()
+{
+    std::unique_lock<std::mutex> l(substage_blocked_mutex_);
+    if (substage_blocked_.exchange(true) == true) {
+        throw std::runtime_error("a substage has ready been blocked");
+    }
+    substage_block_request_cv_.wait(l);
+    substage_blocked_ = false;
+}
+
 class GameOption : public GameOptionBase
 {
   public:
@@ -174,6 +185,7 @@ class SubStage : public SubGameStage<>
         , computer_act_count_(0)
         , to_reset_timer_(false)
         , to_reset_ready_(0)
+        , is_over_(false)
     {}
 
     virtual void OnStageBegin() override
@@ -184,6 +196,7 @@ class SubStage : public SubGameStage<>
 
     virtual CheckoutErrCode OnTimeout() override
     {
+        EXPECT_FALSE(is_over_);
         if (to_reset_timer_) {
             to_reset_timer_ = false;
             StartTimer(option().timeout_sec_);
@@ -220,6 +233,7 @@ class SubStage : public SubGameStage<>
 
     AtomReqErrCode Over_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
+        is_over_ = true;
         return StageErrCode::CHECKOUT;
     }
 
@@ -244,18 +258,14 @@ class SubStage : public SubGameStage<>
 
     AtomReqErrCode Block_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        std::unique_lock<std::mutex> l(substage_blocked_mutex_);
-        if (substage_blocked_.exchange(true) == true) {
-            throw std::runtime_error("a substage has ready been blocked");
-        }
-        substage_block_request_cv_.wait(l);
-        substage_blocked_ = false;
+        BlockStage();
         return StageErrCode::OK;
     }
 
     AtomReqErrCode BlockAndOver_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         Block_(pid, is_public, reply);
+        is_over_ = true;
         return StageErrCode::CHECKOUT;
     }
 
@@ -277,6 +287,7 @@ class SubStage : public SubGameStage<>
     bool to_reset_timer_;
     uint32_t to_reset_ready_;
     std::map<PlayerID, uint32_t> to_computer_failed_;
+    bool is_over_;
 };
 
 class MainStage : public MainGameStage<SubStage>
@@ -325,6 +336,40 @@ class MainStage : public MainGameStage<SubStage>
     std::vector<int64_t> scores_;
 };
 
+class AtomMainStage : public MainGameStage<>
+{
+  public:
+    AtomMainStage(const GameOption& option, MatchBase& match)
+        : GameStage(option, match,
+                MakeStageCommand("阻塞并结束", &AtomMainStage::BlockAndOver_, VoidChecker("阻塞并结束")))
+        , is_over_(false)
+    {}
+
+    virtual void OnStageBegin() override
+    {
+        Boardcast() << "原子主阶段开始";
+        StartTimer(option().timeout_sec_);
+    }
+
+    virtual int64_t PlayerScore(const PlayerID pid) const override { return 0; };
+
+  private:
+    AtomReqErrCode BlockAndOver_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        BlockStage();
+        is_over_ = true;
+        return StageErrCode::CHECKOUT;
+    }
+
+    virtual CheckoutErrCode OnTimeout() override
+    {
+        EXPECT_FALSE(is_over_);
+        return StageErrCode::CHECKOUT;
+    }
+
+    bool is_over_;
+};
+
 class TestBot : public testing::Test
 {
   public:
@@ -355,6 +400,7 @@ class TestBot : public testing::Test
     MockDBManager& db_manager() { return static_cast<MockDBManager&>(*static_cast<BotCtx*>(bot_)->db_manager()); }
 
   protected:
+    template <class MyMainStage = MainStage>
     void AddGame(const char* const name, const uint64_t max_player, const GameHandle::game_options_allocator new_option)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
@@ -362,12 +408,13 @@ class TestBot : public testing::Test
                     new_option,
                     [](const GameOptionBase* const options) {},
                     [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
-                            -> MainStageBase* { return new MainStage(static_cast<const GameOption&>(option), match); },
+                            -> MainStageBase* { return new MyMainStage(static_cast<const GameOption&>(option), match); },
                     [](const MainStageBase* const main_stage) { delete main_stage; },
                     []() {}
         ));
     }
 
+    template <class MyMainStage = MainStage>
     void AddGame(const char* const name, const uint64_t max_player)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
@@ -375,7 +422,7 @@ class TestBot : public testing::Test
                     []() -> GameOptionBase* { return new GameOption(); },
                     [](const GameOptionBase* const options) { delete options; },
                     [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
-                            -> MainStageBase* { return new MainStage(static_cast<const GameOption&>(option), match); },
+                            -> MainStageBase* { return new MyMainStage(static_cast<const GameOption&>(option), match); },
                     [](const MainStageBase* const main_stage) { delete main_stage; },
                     []() {}
         ));
@@ -392,6 +439,13 @@ class TestBot : public testing::Test
     {
         std::unique_lock<std::mutex> l(Timer::mutex_);
         Timer::remaining_thread_cv_.wait(l, [] { return Timer::remaining_thread_count_ == 0; });
+    }
+
+    void WaitBeforeHandleTimeout(UserID uid)
+    {
+        auto& match = *static_cast<BotCtx*>(bot_)->match_manager().GetMatch(uid);
+        std::unique_lock<std::mutex> l(match.before_handle_timeout_mutex_);
+        match.before_handle_timeout_cv_.wait(l, [&match] { return match.before_handle_timeout_; });
     }
 
     static void BlockTimer()
@@ -1141,21 +1195,41 @@ TEST_F(TestBot, timeout_during_handle_request)
   ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
   ASSERT_PRI_MSG(EC_OK, 1, "#开始");
 
-  auto fut_1 = std::async([this]
+  auto fut = std::async([this]
         {
             ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "阻塞并结束");
         });
   WaitSubStageBlock();
   SkipTimer();
-  auto fut_2 = std::async([this]
-        {
-            WaitTimerThreadFinish();
-        });
+  WaitBeforeHandleTimeout(UserID{1});
   NotifySubStage();
-  fut_1.wait();
-  fut_2.wait();
+  fut.wait();
 
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+
+  WaitTimerThreadFinish();
+}
+
+TEST_F(TestBot, timeout_during_handle_request_atomic_main_stage)
+{
+  AddGame<AtomMainStage>("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+
+  auto fut = std::async([this]
+        {
+            ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 1, "阻塞并结束");
+        });
+  WaitSubStageBlock();
+  SkipTimer();
+  WaitBeforeHandleTimeout(UserID{1});
+  NotifySubStage();
+  fut.wait();
+
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+
+  WaitTimerThreadFinish();
 }
 
 TEST_F(TestBot, leave_during_handle_request)
@@ -1173,7 +1247,7 @@ TEST_F(TestBot, leave_during_handle_request)
   const auto match_use_count = static_cast<BotCtx*>(bot_)->match_manager().GetMatch(UserID(1)).use_count();
   auto fut_2 = std::async([this]
         {
-            ASSERT_PRI_MSG(EC_OK, 1, "#退出 强制");
+            ASSERT_PRI_MSG(EC_MATCH_ALREADY_OVER, 1, "#退出 强制");
         });
   // wait leave command get the match reference count
   while (static_cast<BotCtx*>(bot_)->match_manager().GetMatch(UserID(1)).use_count() == match_use_count);
