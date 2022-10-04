@@ -25,7 +25,7 @@ inline std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path)
     return (std::filesystem::current_path() / ".image"/ rel_path) += ".png";
 }
 
-inline int MarkdownToImage(const std::string& markdown, const std::filesystem::path& rel_path)
+inline int MarkdownToImage(const std::string& markdown, const std::filesystem::path& rel_path, const uint32_t width)
 {
     if (!enable_markdown_to_image) {
         return false;
@@ -36,7 +36,7 @@ inline int MarkdownToImage(const std::string& markdown, const std::filesystem::p
         // return 0;
     }
     std::filesystem::create_directories(abs_path.parent_path());
-    const std::string cmd = k_markdown2image_path.string() + " --output " + abs_path.string() + " --width 600 --nowith_css";
+    const std::string cmd = k_markdown2image_path.string() + " --output " + abs_path.string() + " --width " + std::to_string(width) + " --nowith_css";
     FILE* fp = popen(cmd.c_str(), "w");
     if (fp == nullptr) {
         ErrorLog() << "Draw image failed cmd=\'" << cmd;

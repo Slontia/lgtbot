@@ -31,7 +31,7 @@ class Match;
 template <typename IdType> struct At { IdType id_; };
 template <typename IdType> struct Name { IdType id_; };
 struct Image { std::filesystem::path path_; };
-struct Markdown { std::string_view data_; };
+struct Markdown { std::string_view data_; uint32_t width_ = 600; };
 
 template <typename T> concept CanToString = requires(T&& t) { std::to_string(std::forward<T>(t)); };
 
@@ -87,12 +87,12 @@ class MsgSenderBase
     virtual void SaveUser(const UserID& id, const bool is_at) = 0;
     virtual void SavePlayer(const PlayerID& id, const bool is_at) = 0;
     virtual void SaveImage(const std::filesystem::path::value_type* const path) = 0;
-    virtual void SaveMarkdown(const char* const markdown)
+    virtual void SaveMarkdown(const char* const markdown, const uint32_t width)
     {
         std::stringstream ss;
         ss << std::this_thread::get_id();
         const std::string tmp_image_name = ss.str();
-        MarkdownToImage(markdown, tmp_image_name);
+        MarkdownToImage(markdown, tmp_image_name, width);
         SaveImage(ImageAbsPath(tmp_image_name).c_str());
     }
     virtual void Flush() = 0;
@@ -190,7 +190,7 @@ MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const I
 
 MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const Markdown& markdown_msg)
 {
-    sender_->SaveMarkdown(markdown_msg.data_.data());
+    sender_->SaveMarkdown(markdown_msg.data_.data(), markdown_msg.width_);
     return *this;
 }
 

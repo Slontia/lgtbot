@@ -133,7 +133,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
         }
     } else {
         html::Table table(0, 4);
-        table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"2\" cellspacing=\"1\" ");
+        table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"5\" cellspacing=\"1\" ");
         for (const auto& [name, info] : bot.game_handles()) {
             table.AppendRow();
             table.AppendRow();
@@ -147,7 +147,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
                     ("默认 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(info->multiple_) + "**" HTML_FONT_TAIL " 倍分数"));
             table.Get(table.Row() - 1, 1).SetContent("<font size=\"3\"> " + info->description_ + "</font>");
         }
-        reply() << Markdown("## 游戏列表\n\n" + table.ToString());
+        reply() << Markdown("## 游戏列表\n\n" + table.ToString(), 800);
     }
     return EC_OK;
 }
