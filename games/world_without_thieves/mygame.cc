@@ -14,9 +14,11 @@
 #include "utility/html.h"
 
 const std::string k_game_name = "天下无贼"; // the game name which should be unique among all the games
-const uint64_t k_max_player = 99; // 0 indicates no max-player limits
+const uint64_t k_max_player = 0; // 0 indicates no max-player limits
 const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game,
 //1 for a formal game, 2 or 3 for a long formal game
+const std::string k_developer = "睦月";
+const std::string k_description = "通过在民/警/贼身份中切换，尽可能活到最后的游戏";
 
 std::string str(int x)
 {
@@ -539,16 +541,26 @@ std::string MainStage::GetName(std::string x)
 {
     std::string ret = "";
     int n = x.length();
+    if(n == 0) return ret;
 
+    int l = 0;
     int r = n - 1;
+
+    if(x[0] == '<') l++;
+    if(x[r] == '>')
+    {
+        while(r >= 0 && x[r] != '(') r--;
+        r--;
+    }
+
+
     while(x[r] != '>' && r >= 0)
         r--;
 
-    int l = 0;
     while(x[l] != '<' && l < n)
         l++;
 
-    for(int i = l + 1; i < r; i++)
+    for(int i = l; i <= r; i++)
     {
         ret += x[i];
     }
@@ -560,11 +572,13 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     srand((unsigned int)time(NULL));
     alive_ = option().PlayerNum();
 
+    Pic += "<table><tr>";
     for(int i=0;i<option().PlayerNum();i++)
     {
-        Pic+="　"+std::to_string(i+1)+" 号： "+GetName(PlayerName(i))+"　";
+        Pic+="<th >"+std::to_string(i+1)+" 号： "+GetName(PlayerName(i))+"　</th>";
+        if(i % 4 == 3) Pic += "</tr><tr>";
     }
-    Pic+="<br>";
+    Pic+="</tr><br>";
 
     Pic+="<table style=\"text-align:center\"><tbody>";
     Pic+="<tr>";
