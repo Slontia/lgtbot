@@ -2,6 +2,8 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
+#include <algorithm>
+
 #include "bot_core/message_handlers.h"
 
 #include "utility/msg_checker.h"
@@ -134,12 +136,17 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
     } else {
         html::Table table(0, 4);
         table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"5\" cellspacing=\"1\" ");
-        for (const auto& [name, info] : bot.game_handles()) {
+        const auto game_handles_range = std::views::transform(bot.game_handles(), [](const auto& p) { return &p; });
+        auto game_handles = std::vector(std::ranges::begin(game_handles_range), std::ranges::end(game_handles_range));
+        std::ranges::sort(game_handles, [](const auto& _1, const auto& _2) { return _1->second->activity_ > _2->second->activity_; });
+        for (const auto& p : game_handles) {
+            const auto& name = p->first;
+            const auto& info = p->second;
             table.AppendRow();
             table.AppendRow();
             table.MergeDown(table.Row() - 2, 0, 2);
             table.MergeRight(table.Row() - 1, 1, 3);
-            table.Get(table.Row() - 2, 0).SetContent("<font size=\"5\"> " + name + "</font>\n\n热度：" + std::to_string(info->activity_));
+            table.Get(table.Row() - 2, 0).SetContent("<font size=\"5\"> **" + name + "**</font>\n\n热度：" + std::to_string(info->activity_));
             table.Get(table.Row() - 2, 1).SetContent("开发者：" + info->developer_);
             table.Get(table.Row() - 2, 2).SetContent(info->max_player_ == 0 ? "无玩家数限制" :
                     ("最多 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(info->max_player_) + "**" HTML_FONT_TAIL " 名玩家"));
