@@ -17,8 +17,6 @@ const std::string k_game_name = "天下无贼"; // the game name which should be
 const uint64_t k_max_player = 99; // 0 indicates no max-player limits
 const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game,
 //1 for a formal game, 2 or 3 for a long formal game
-const std::string k_developer = "睦月";
-const std::string k_description = "通过在民/警/贼身份中切换，尽可能活到最后的游戏";
 
 std::string str(int x)
 {
@@ -225,20 +223,20 @@ class RoundStage : public SubGameStage<>
         if(select[now] == 'S')
         {
             int r = rand() % 100 + 1;
-            if(r <= 25) S = 'S';
+            if(r <= 12) S = 'S';
             else if(r <= 100) S = 'N';
         }
         if(select[now] == 'N')
         {
             int r = rand() % 100 + 1;
-            if(r <= 20) S = 'S';
-            else if(r <= 70) S = 'N';
+            if(r <= 15) S = 'S';
+            else if(r <= 85) S = 'N';
             else if(r <= 100) S = 'P';
         }
         if(select[now] == 'P')
         {
             int r = rand() % 100 + 1;
-            if(r <= 75) S = 'N';
+            if(r <= 85) S = 'N';
             else if(r <= 100) S = 'P';
         }
 
@@ -260,8 +258,8 @@ class RoundStage : public SubGameStage<>
                 return Selected_(pid, reply, S, T + 1);
             }
             int r = rand() % 100 + 1;
-            if(r <= 80) to = 0;
-            else if(r <= 95) to = 1;
+            if(r <= 75) to = 0;
+            else if(r <= 90) to = 1;
             else if(r <= 100) to = 2;
 
             if(to == 0 && s[0].size() == 0) to = 1;
@@ -291,7 +289,7 @@ class RoundStage : public SubGameStage<>
             }
 
             int r = rand() % 100 + 1;
-            if(r <= 50) to = 0;
+            if(r <= 30) to = 0;
             else if(r <= 100) to = 1;
 
             if(to == 0 && s[0].size() == 0) to = 1;
