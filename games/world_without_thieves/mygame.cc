@@ -71,6 +71,7 @@ class MainStage : public MainGameStage<RoundStage>
         , player_scores_(option.PlayerNum(), 0)
         , player_hp_(option.PlayerNum(), 10)
         , player_select_(option.PlayerNum(), 'N')
+        , player_last_(option.PlayerNum(), 'N')
         , player_target_(option.PlayerNum(), 0)
         , player_eli_(option.PlayerNum(), 0)
     {
@@ -84,8 +85,10 @@ class MainStage : public MainGameStage<RoundStage>
 
     //生命值
     std::vector<int64_t> player_hp_;
-    //最后选择
+    //选择
     std::vector<char> player_select_;
+    //上次选择
+    std::vector<char> player_last_;
     //选择的玩家
     std::vector<int64_t> player_target_;
     //已经被淘汰
@@ -209,7 +212,106 @@ class RoundStage : public SubGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        return Selected_(pid, reply, 'N', 0);
+        auto select = main_stage().player_last_;
+        auto eli = main_stage().player_eli_;
+        int N = option().PlayerNum();
+
+        char S = 'N';
+        int T = 0;
+
+        int now = pid;
+        if(select[now] == 'S')
+        {
+            int r = rand() % 100 + 1;
+            if(r <= 25) S = 'S';
+            else if(r <= 100) S = 'N';
+        }
+        if(select[now] == 'N')
+        {
+            int r = rand() % 100 + 1;
+            if(r <= 20) S = 'S';
+            else if(r <= 70) S = 'N';
+            else if(r <= 100) S = 'P';
+        }
+        if(select[now] == 'P')
+        {
+            int r = rand() % 100 + 1;
+            if(r <= 75) S = 'N';
+            else if(r <= 100) S = 'P';
+        }
+
+        std::multiset<int> s[3];
+        s[0].clear();s[1].clear();s[2].clear();
+        for(int i = 0; i < N; i++)
+        {
+            if(eli[i] == 1 || i == now) continue;
+            if(select[i] == 'S') s[0].insert(i);
+            if(select[i] == 'N') s[1].insert(i);
+            if(select[i] == 'P') s[2].insert(i);
+        }
+        if(S == 'S')
+        {
+            int to = 0;
+            if(s[0].size() == 0 && s[1].size() == 0)
+            {
+                Boardcast() << "!";
+                S = 'N';
+                return Selected_(pid, reply, S, T + 1);
+            }
+            int r = rand() % 100 + 1;
+            if(r <= 80) to = 0;
+            else if(r <= 95) to = 1;
+            else if(r <= 100) to = 2;
+
+            if(to == 0 && s[0].size() == 0) to = 1;
+            if(to == 1 && s[1].size() == 0) to = 0;
+            if(to == 2 && s[2].size() == 0) return Selected_(pid, reply, S, T + 1);
+            if(s[to].size() == 0)
+            {
+                Boardcast() << "Unexpected error on f -> OnComputerAct -> Select == 'S' -> s[to].size() == 0";
+                S = 'N';
+                return Selected_(pid, reply, S, T + 1);
+            }
+            r = rand() % s[to].size();
+            while(r != 0)
+            {
+                r--;
+                s[to].erase(s[to].find(*s[to].begin()));
+            }
+            T = *s[to].begin();
+        }
+        if(S == 'P')
+        {
+            int to = 0;
+            if(s[0].size() == 0 && s[1].size() == 0)
+            {
+                S = 'N';
+                return Selected_(pid, reply, S, T + 1);
+            }
+
+            int r = rand() % 100 + 1;
+            if(r <= 50) to = 0;
+            else if(r <= 100) to = 1;
+
+            if(to == 0 && s[0].size() == 0) to = 1;
+            if(to == 1 && s[1].size() == 0) to = 0;
+
+            if(s[to].size() == 0)
+            {
+                Boardcast() << "Unexpected error on f -> OnComputerAct -> Select == 'P' -> s[to].size() == 0";
+                S = 'N';
+                return Selected_(pid, reply, S, T + 1);
+            }
+            r = rand() % s[to].size();
+            while(r != 0)
+            {
+                r--;
+                s[to].erase(s[to].find(*s[to].begin()));
+            }
+            T = *s[to].begin();
+        }
+
+        return Selected_(pid, reply, S, T + 1);
     }
 
     virtual void OnAllPlayerReady() override
@@ -339,16 +441,9 @@ class RoundStage : public SubGameStage<>
         main_stage().Pic+=x;
         Boardcast() << Markdown(main_stage().Pic+"</table>");
 
-
-        int maxHP=0;
         for(int i=0;i<option().PlayerNum();i++)
         {
-            maxHP=std::max(maxHP,(int)main_stage().player_hp_[i]);
-        }
 
-        main_stage().alive_=0;
-        for(int i=0;i<option().PlayerNum();i++)
-        {
             if(main_stage().player_hp_[i]<=0)
             {
                 main_stage().player_select_[i]=' ';
@@ -357,15 +452,18 @@ class RoundStage : public SubGameStage<>
                 {
                     main_stage().player_eli_[i]=1;
                     Eliminate(i);
+                    main_stage().alive_--;
                 }
             }
             else
             {
                 // Everyone gain 1 score for his survival
-                main_stage().alive_++;
                 main_stage().player_scores_[i]++;
             }
         }
+
+        for(int i=0;i<option().PlayerNum();i++)
+            main_stage().player_last_[i] = main_stage().player_select_[i];
     }
 
   private:
@@ -426,9 +524,12 @@ class RoundStage : public SubGameStage<>
 
     AtomReqErrCode Selected_(const PlayerID pid, MsgSenderBase& reply, char type, const int64_t target)
     {
-        main_stage().player_select_[pid]=type;
-        main_stage().player_target_[pid]=target;
-
+        if(type != 'S' && type != 'N' && type != 'P')
+        {
+            Boardcast() << "Wrong input on pid = " << std::to_string(pid) << std::to_string(type) << " in f->Selected";
+        }
+        main_stage().player_select_[pid] = type;
+        main_stage().player_target_[pid] = target;
 //        reply() << "设置成功。";
         // Returning |READY| means the player is ready. The current stage will be over when all surviving players are ready.
         return StageErrCode::READY;
@@ -457,6 +558,9 @@ std::string MainStage::GetName(std::string x)
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
+    srand((unsigned int)time(NULL));
+    alive_ = option().PlayerNum();
+
     for(int i=0;i<option().PlayerNum();i++)
     {
         Pic+="　"+std::to_string(i+1)+" 号： "+GetName(PlayerName(i))+"　";
