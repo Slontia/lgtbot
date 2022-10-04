@@ -16,6 +16,8 @@
 const std::string k_game_name = "伊甸园"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 0; // 0 indicates no max-player limits
 const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+const std::string k_developer = "森高";
+const std::string k_description = "吃下禁果，获取分数的游戏";
 
 std::string GameOption::StatusInfo() const
 {

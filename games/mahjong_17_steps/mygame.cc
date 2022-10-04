@@ -18,6 +18,8 @@
 const std::string k_game_name = "十七步";
 const uint64_t k_max_player = 4; /* 0 means no max-player limits */
 const uint64_t k_multiple = 1;
+const std::string k_developer = "森高";
+const std::string k_description = "组成满贯听牌牌型，并经历 17 轮切牌的麻将游戏";
 
 std::string GameOption::StatusInfo() const
 {

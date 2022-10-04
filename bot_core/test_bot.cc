@@ -404,7 +404,7 @@ class TestBot : public testing::Test
     void AddGame(const char* const name, const uint64_t max_player, const GameHandle::game_options_allocator new_option)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
-                    name, name, max_player, "这是规则介绍", 1,
+                    name, name, max_player, "这是规则介绍", 1, "这是开发者", "这是游戏描述",
                     new_option,
                     [](const GameOptionBase* const options) {},
                     [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
@@ -418,7 +418,7 @@ class TestBot : public testing::Test
     void AddGame(const char* const name, const uint64_t max_player)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
-                    name, name, max_player, "这是规则介绍", 1,
+                    name, name, max_player, "这是规则介绍", 1, "这是开发者", "这是游戏描述",
                     []() -> GameOptionBase* { return new GameOption(); },
                     [](const GameOptionBase* const options) { delete options; },
                     [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)

@@ -14,6 +14,8 @@
 const std::string k_game_name = "LIE";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
 const uint64_t k_multiple = 1;
+const std::string k_developer = "森高";
+const std::string k_description = "双方猜测数字的简单游戏";
 
 std::string GameOption::StatusInfo() const
 {

@@ -19,11 +19,11 @@
 
 using namespace std;
 
-
-
 const string k_game_name = "wordle"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 2; // 0 indicates no max-player limits
 const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+const std::string k_developer = "睦月";
+const std::string k_description = "猜测英文单词的游戏";
 
 // Give it 2 strings, returns how many letters are the same.
 int cmpString(string a,string b)

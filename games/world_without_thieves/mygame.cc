@@ -17,6 +17,8 @@ const std::string k_game_name = "天下无贼"; // the game name which should be
 const uint64_t k_max_player = 99; // 0 indicates no max-player limits
 const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game,
 //1 for a formal game, 2 or 3 for a long formal game
+const std::string k_developer = "睦月";
+const std::string k_description = "通过在民/警/贼身份中切换，尽可能活到最后的游戏";
 
 std::string str(int x)
 {

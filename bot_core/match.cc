@@ -17,7 +17,7 @@
 #include "bot_core/match_manager.h"
 #include "bot_core/score_calculation.h"
 
-Match::Match(BotCtx& bot, const MatchID mid, const GameHandle& game_handle, const UserID host_uid,
+Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, const UserID host_uid,
              const std::optional<GroupID> gid)
         : bot_(bot)
         , mid_(mid)
@@ -573,6 +573,7 @@ void Match::OnGameOver_()
             }
         }
     }
+    game_handle_.activity_ += users_.size();
     Terminate_();
 }
 

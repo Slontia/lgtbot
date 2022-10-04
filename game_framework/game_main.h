@@ -45,6 +45,8 @@ struct GameInfo
     const char* rule_;
     uint64_t max_player_;
     uint32_t multiple_;
+    const char* developer_;
+    const char* description_;
 };
 
 class GameOptionBase

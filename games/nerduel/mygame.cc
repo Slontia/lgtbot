@@ -15,6 +15,8 @@
 const std::string k_game_name = "Nerduel";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
 const uint64_t k_multiple = 1;
+const std::string k_developer = "dva";
+const std::string k_description = "猜测对方所设置的算式的游戏";
 
 std::string GameOption::StatusInfo() const {
   std::stringstream ss;

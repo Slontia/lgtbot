@@ -9,7 +9,7 @@
 #include "bot_core/msg_sender.h"
 #include "bot_core/match.h"
 
-std::pair<ErrCode, std::shared_ptr<Match>> MatchManager::NewMatch(const GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
+std::pair<ErrCode, std::shared_ptr<Match>> MatchManager::NewMatch(GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
                                MsgSenderBase& reply)
 {
     std::lock_guard<std::mutex> l(mutex_);

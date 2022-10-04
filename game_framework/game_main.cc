@@ -30,6 +30,8 @@ const bool GetGameInfo(GameInfo* game_info)
     game_info->rule_ = Rule();
     game_info->max_player_ = k_max_player;
     game_info->multiple_ = k_multiple;
+    game_info->developer_ = k_developer.c_str();
+    game_info->description_ = k_description.c_str();
     return true;
 }
 

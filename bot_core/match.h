@@ -69,7 +69,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     enum State { NOT_STARTED = 'N', IS_STARTED = 'S', IS_OVER = 'O' };
     static const uint32_t kAvgScoreOffset = 10;
 
-    Match(BotCtx& bot, const MatchID id, const GameHandle& game_handle, const UserID host_uid,
+    Match(BotCtx& bot, const MatchID id, GameHandle& game_handle, const UserID host_uid,
           const std::optional<GroupID> gid);
     ~Match();
 
@@ -159,7 +159,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     // basic info
     const MatchID mid_;
-    const GameHandle& game_handle_;
+    GameHandle& game_handle_;
     UserID host_uid_;
     const std::optional<GroupID> gid_;
     State state_;

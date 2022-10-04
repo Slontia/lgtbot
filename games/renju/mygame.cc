@@ -18,6 +18,8 @@
 const std::string k_game_name = "决胜五子";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
 const uint64_t k_multiple = 1;
+const std::string k_developer = "森高";
+const std::string k_description = "双方一起落子的五子棋游戏";
 
 using namespace renju;
 

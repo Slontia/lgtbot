@@ -18,6 +18,8 @@
 const std::string k_game_name = "投标波卡";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
 const uint64_t k_multiple = 1;
+const std::string k_developer = "森高";
+const std::string k_description = "通过投标和拍卖提升波卡牌型的游戏";
 
 std::string GameOption::StatusInfo() const
 {

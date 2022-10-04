@@ -115,20 +115,39 @@ ErrCode HandleAdminRequest(BotCtx& bot, const UserID uid, const std::optional<Gr
 }
 
 static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid,
-                             MsgSenderBase& reply)
+                             MsgSenderBase& reply, const bool show_text)
 {
     int i = 0;
     if (bot.game_handles().empty()) {
         reply() << "未载入任何游戏";
         return EC_OK;
     }
-    auto sender = reply();
-    sender << "游戏列表：";
-    for (const auto& [name, info] : bot.game_handles()) {
-        sender << "\n" << (++i) << ". " << name;
-        if (info->multiple_ == 0) {
-            sender << "（试玩）";
+    if (show_text) {
+        auto sender = reply();
+        sender << "游戏列表：";
+        for (const auto& [name, info] : bot.game_handles()) {
+            sender << "\n" << (++i) << ". " << name;
+            if (info->multiple_ == 0) {
+                sender << "（试玩）";
+            }
         }
+    } else {
+        html::Table table(0, 4);
+        table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"2\" cellspacing=\"1\" ");
+        for (const auto& [name, info] : bot.game_handles()) {
+            table.AppendRow();
+            table.AppendRow();
+            table.MergeDown(table.Row() - 2, 0, 2);
+            table.MergeRight(table.Row() - 1, 1, 3);
+            table.Get(table.Row() - 2, 0).SetContent("<font size=\"5\"> " + name + "</font>\n\n热度：" + std::to_string(info->activity_));
+            table.Get(table.Row() - 2, 1).SetContent("开发者：" + info->developer_);
+            table.Get(table.Row() - 2, 2).SetContent(info->max_player_ == 0 ? "无玩家数限制" :
+                    ("最多 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(info->max_player_) + "**" HTML_FONT_TAIL " 名玩家"));
+            table.Get(table.Row() - 2, 3).SetContent(info->multiple_ == 0 ? "不计分" :
+                    ("默认 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(info->multiple_) + "**" HTML_FONT_TAIL " 倍分数"));
+            table.Get(table.Row() - 1, 1).SetContent("<font size=\"3\"> " + info->description_ + "</font>");
+        }
+        reply() << Markdown("## 游戏列表\n\n" + table.ToString());
     }
     return EC_OK;
 }
@@ -472,7 +491,8 @@ const std::vector<MetaCommandGroup> meta_cmds = {
         "信息查看", { // GAME INFO: can be executed at any time
             make_command("查看帮助", help<false>, VoidChecker("#帮助"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
-            make_command("查看游戏列表", show_gamelist, VoidChecker("#游戏列表")),
+            make_command("查看游戏列表", show_gamelist, VoidChecker("#游戏列表"),
+                        OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("查看游戏规则（游戏名称可以通过「#游戏列表」查看）", show_rule, VoidChecker("#规则"),
                         AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("查看已加入，或该房间正在进行的比赛信息", show_match_info, VoidChecker("#游戏信息")),

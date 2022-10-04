@@ -107,6 +107,8 @@ using namespace std;
 const string k_game_name = "乌合之众"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 0; // 0 indicates no max-player limits
 const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+const std::string k_developer = "睦月";
+const std::string k_description = "选择恰当选项，尽可能获取分数的游戏";
 
 
 // a RetCode is a status code for program to know what's happening. e.g: status = "ok" / "failed" / "jump"
