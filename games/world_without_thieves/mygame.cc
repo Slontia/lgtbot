@@ -254,7 +254,6 @@ class RoundStage : public SubGameStage<>
             int to = 0;
             if(s[0].size() == 0 && s[1].size() == 0)
             {
-                Boardcast() << "!";
                 S = 'N';
                 return Selected_(pid, reply, S, T + 1);
             }
