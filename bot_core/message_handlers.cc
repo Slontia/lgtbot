@@ -523,7 +523,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
                         new_game, VoidChecker("#新游戏"), AnyArg("游戏名称", "猜拳游戏"),
                         OptionalDefaultChecker<BoolChecker>(false, "单机", "多人")),
             make_command("房主设置参与游戏的AI数量，使得玩家不低于一定数量（属于配置变更，会使得全部玩家退出游戏）",
-                        set_bench_to, VoidChecker("#替补至"), ArithChecker<uint32_t>(2, 12, "数量")),
+                        set_bench_to, VoidChecker("#替补至"), ArithChecker<uint32_t>(2, 32, "数量")),
             make_command("房主调整分数倍率，0 代表试玩（属于配置变更，会使得全部玩家退出游戏）",
                         set_multiple, VoidChecker("#倍率"), ArithChecker<uint32_t>(0, 3, "倍率")),
             make_command("房主开始游戏", start_game, VoidChecker("#开始")),
