@@ -80,7 +80,7 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, std::optional<
     }
     bench_to_player_num_ = *bench_to_player_num;
     KickForConfigChange_();
-    sender << "设置成功！\n\n" << BriefInfo_();
+    sender << "设置成功！\n\n" << BriefInfo();
     return EC_OK;
 }
 
@@ -188,7 +188,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         return EC_GAME_REQUEST_NOT_FOUND;
     }
     KickForConfigChange_();
-    reply() << "设置成功！目前配置：" << OptionInfo_() << "\n\n" << BriefInfo_();
+    reply() << "设置成功！目前配置：" << OptionInfo_() << "\n\n" << BriefInfo();
     return EC_GAME_REQUEST_OK;
 }
 
@@ -258,7 +258,7 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
     }
     users_.emplace(uid, ParticipantUser(uid));
-    Boardcast() << "玩家 " << At(uid) << " 加入了游戏\n\n" << BriefInfo_();
+    Boardcast() << "玩家 " << At(uid) << " 加入了游戏\n\n" << BriefInfo();
     return EC_OK;
 }
 
@@ -286,7 +286,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
         match_manager().UnbindMatch(uid);
         users_.erase(uid);
         reply() << "退出成功";
-        Boardcast() << "玩家 " << At(uid) << " 退出了游戏\n\n" << BriefInfo_();
+        Boardcast() << "玩家 " << At(uid) << " 退出了游戏\n\n" << BriefInfo();
         if (users_.empty()) {
             Boardcast() << "所有玩家都退出了游戏，游戏解散";
             Unbind_();
@@ -508,9 +508,10 @@ void Match::ShowInfo(const std::optional<GroupID>& gid, MsgSenderBase& reply) co
     }
 }
 
-std::string Match::BriefInfo_() const
+std::string Match::BriefInfo() const
 {
     return "游戏名称：" + game_handle().name_ +
+        "\n- 倍率：" + std::to_string(multiple_) +
         "\n- 当前用户数：" + std::to_string(user_controlled_player_num()) +
         "\n- 当前电脑数：" + std::to_string(com_num());
 }

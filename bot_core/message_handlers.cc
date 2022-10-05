@@ -190,8 +190,7 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
         } else {
             sender << "现在玩家可以通过私信我「#加入 " << match->mid() << "」报名比赛，您也可以通过「帮助」（不带#号）查看所有支持的游戏设置";
         }
-        sender << "\n- 当前用户数：" << match->user_controlled_player_num()
-               << "\n- 当前电脑数：" << match->com_num();
+        sender << match->BriefInfo();
     }
     return EC_OK;
 }

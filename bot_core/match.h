@@ -127,6 +127,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     const uint64_t user_controlled_player_num() const { return users_.size() * player_num_each_user_; }
     const uint64_t com_num() const { return std::max(int64_t(0), static_cast<int64_t>(bench_to_player_num_ - user_controlled_player_num())); }
 
+    std::string BriefInfo() const;
+
    private:
     ErrCode CheckMultipleAllowed_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const;
 
@@ -148,7 +150,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     void KickForConfigChange_();
     void Unbind_();
     void Terminate_();
-    std::string BriefInfo_() const;
     bool AllControlledPlayerEliminted_(const UserID uid) const;
     bool Has_(const UserID uid) const;
 
