@@ -553,13 +553,6 @@ std::string MainStage::GetName(std::string x)
         r--;
     }
 
-
-    while(x[r] != '>' && r >= 0)
-        r--;
-
-    while(x[l] != '<' && l < n)
-        l++;
-
     for(int i = l; i <= r; i++)
     {
         ret += x[i];
