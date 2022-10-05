@@ -148,15 +148,18 @@ class RoundStage : public SubGameStage<> {
                   MakeStageCommand("落子", &RoundStage::Set_, AnyArg("落子位置", "a1b2"))) {}
 
   virtual void OnStageBegin() override {
+    auto current_player = main_stage().side_[main_stage().turn_ % 2];
     Boardcast() << "请" << (main_stage().turn_ % 2 ? "黑方" : "白方")
                 << At(PlayerID(main_stage().side_[main_stage().turn_ % 2])) << "落子。";
+    SetReady(!current_player);
     StartTimer(option().GET_VALUE(时限));
   }
 
   virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
+    Boardcast() << "玩家 " << PlayerName(pid) << " 中途退出，游戏结束。";
     main_stage().ended_ = true;
     main_stage().score_[pid] = -1;
-    return StageErrCode::CONTINUE;
+    return StageErrCode::CHECKOUT;
   }
 
   virtual CheckoutErrCode OnTimeout() override {
