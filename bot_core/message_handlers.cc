@@ -3,6 +3,7 @@
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
 #include <algorithm>
+#include <ranges>
 
 #include "bot_core/message_handlers.h"
 
