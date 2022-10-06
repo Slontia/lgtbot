@@ -92,6 +92,7 @@ class MainStage : public MainGameStage<RoundStage>
     std::vector<int64_t> player_now_;
 
     std::string roundBoard;
+    int round_;
 
   private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
@@ -130,8 +131,6 @@ class MainStage : public MainGameStage<RoundStage>
         return StageErrCode::OK;
     }
 
-    int round_;
-
 
 };
 
@@ -141,7 +140,7 @@ class RoundStage : public SubGameStage<>
   public:
     RoundStage(MainStage& main_stage, const uint64_t round)
         : GameStage(main_stage, "第 " + std::to_string(round) + " 回合",
-                MakeStageCommand("下分", &RoundStage::GiveCoin_, ArithChecker<int64_t>(0, 30, "金币")))
+                MakeStageCommand("下分", &RoundStage::GiveCoin_, ArithChecker<int64_t>(0, 1000000, "金币")))
     {
     }
 
@@ -183,7 +182,80 @@ class RoundStage : public SubGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        return GiveCoinInternal_(pid, reply, 0);
+        int c1 = main_stage().player_coins_[0];
+        int c2 = main_stage().player_coins_[1];
+        int w1 = main_stage().player_wins_[0];
+        int w2 = main_stage().player_wins_[1];
+        int r = main_stage().round_;
+        int f = 0;
+
+
+        if(c1 == 0)
+        {
+            if(c2 == 0) return GiveCoinInternal_(pid, reply, 0);
+            return GiveCoinInternal_(pid, reply, 1);
+        }
+
+        if(r <= 9)
+        {
+            if((c1 + 1) * (10 - r) <= c2)
+            {
+                f = c1 + 1;
+            }
+            else
+            {
+                if(w1 == 0)
+                {
+                    f = rand() % 9;
+                }
+                if(w1 == 1)
+                {
+                    if(rand() % 3) f = rand() % 3 + 3;
+                    else if(rand() % 2) f = rand() % 2 + 9;
+                    else f = 0;
+                }
+                if(w1 == 2)
+                {
+                    if(rand() % 2) f = rand() % 3;
+                    else if(rand() % 2) f = rand() % 2 + 5;
+                    else f = rand() % 2 + 9;
+                }
+                if(w1 == 3)
+                {
+                    if(rand() % 2) f = rand() % 3 + 2;
+                    else f = rand() % 2 + 10;
+                }
+                if(w1 == 4)
+                {
+                    if(rand() % 2)
+                    {
+                        f = 1;
+                        if(rand() % 2) f = 3;
+                    }
+                    else
+                    {
+                        f = c1 + 1;
+                        if(rand() % 2 && c1 > 5) f -= rand() % (c1/2);
+                    }
+                }
+            }
+        }
+        else
+        {
+            if((c1 + 1) * (13 - r) <= c2)
+            {
+                f = c1 + 1;
+            }
+            else
+            {
+                f = rand() % (c2 + 1);
+            }
+        }
+
+        if(f < 0) f = 0;
+        if(f > c2) f = c2;
+
+        return GiveCoinInternal_(pid, reply, f);
     }
 
     virtual void OnAllPlayerReady() override
@@ -245,7 +317,7 @@ class RoundStage : public SubGameStage<>
             reply() << "[错误] 金币数量不够。";
             return StageErrCode::FAILED;
         }
-        if(coins < 0 || coins > 30){
+        if(coins < 0 || coins > option().GET_VALUE(金币)){
             reply() << "[错误] 不合法的金币数。";
             return StageErrCode::FAILED;
         }
@@ -269,6 +341,8 @@ class RoundStage : public SubGameStage<>
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
+    srand((unsigned int)time(NULL));
+
     roundBoard+="当前结果：";
     for(int i = 0; i < option().PlayerNum(); i++){
         player_coins_[i] = option().GET_VALUE(金币);
