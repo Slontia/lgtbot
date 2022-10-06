@@ -67,7 +67,7 @@ struct MyTable {
     content = content +
               "<svg height=\"60px\" width=\"60px\"><circle cx=\"30\" cy=\"30\" "
               "r=\"25\"style=\"stroke:#000;stroke-width: 2;fill:#" +
-              (black ? "000" : "fff") + ";\"/></svg>";
+              (black ? "333343" : "f3f3f3") + ";\"/></svg>";
     content += "</div>";
     table_.Get(i + 2, j + 1).SetContent(content);
   }
