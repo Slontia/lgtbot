@@ -271,7 +271,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 {
     roundBoard+="当前结果：";
     for(int i = 0; i < option().PlayerNum(); i++){
-        player_coins_[i] = 30;
+        player_coins_[i] = option().GET_VALUE(金币);
     }
 
     return std::make_unique<RoundStage>(*this, ++round_);
