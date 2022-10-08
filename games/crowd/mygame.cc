@@ -113,6 +113,8 @@ class RoundStage : public SubGameStage<>
 
         if(option().GET_VALUE(测试) != 0)
             r = option().GET_VALUE(测试);
+        if(r > 26)
+            r = 1;
 
         if(r == 1) q = new Q1();
         if(r == 2) q = new Q2();
@@ -155,13 +157,23 @@ class RoundStage : public SubGameStage<>
     {
         // Returning |CHECKOUT| means the current stage will be over.
 
+        for(int i=0;i<option().PlayerNum();i++)
+        {
+             if(IsReady(i) == false)
+             {
+                 main_stage().players[i].select = 0;
+             }
+        }
+
+        calc();
+
         return StageErrCode::CHECKOUT;
     }
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
         // Returning |CONTINUE| means the current stage will be continued.
-
+        main_stage().players[pid].select = 0;
 
         return StageErrCode::CONTINUE;
     }
