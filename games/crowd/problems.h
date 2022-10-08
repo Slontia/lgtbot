@@ -313,7 +313,7 @@ public:
 	}
 	virtual void initOptions() override
 	{
-		vars["E"] = (int)playerNum / 3;
+		vars["E"] = (int)playerNum / 3 + 1;
 		options.push_back("谨慎：+1分。");
 		options.push_back("团结：如果选择这项的人数最多，+2分。");
 		options.push_back("智慧：如果选择这项的人数最少，+4分。");
@@ -329,7 +329,7 @@ public:
 		tempScore[0] = 1;
 		if(optionCount[1] == maxSelect) tempScore[1] = 2;
 		if(optionCount[2] == minSelect) tempScore[2] = 4;
-		if(optionCount[3] == 1) tempScore[1] = 5;
+		if(optionCount[3] == 1) tempScore[3] = 5;
 		tempScore[4] = vars["E"] / optionCount[4];
 	}
 };
@@ -669,8 +669,8 @@ public:
 	virtual void initOptions() override
 	{
 		vars["A"] = 1;
-		vars["B"] = (int)(playerNum * 2 / 10);
-		vars["C"] = (int)(playerNum * 3 / 10);
+		vars["B"] = (int)(playerNum * 2 / 10) + 1;
+		vars["C"] = (int)(playerNum * 3 / 10) + 1;
 		vars["D"] = (int)(playerNum * 4 / 10);
 		options.push_back(str(vars["A"]) + "人，3分");
 		options.push_back(str(vars["B"]) + "人，2分");
@@ -777,9 +777,9 @@ public:
 	}
 	virtual void initOptions() override
 	{
-		options.push_back("内卷：+3 。如果选择人数大于另外两项之和，改为 -3 。");
-		options.push_back("正常：+1 。");
-		options.push_back("摸鱼：-1 。如果选择人数小于另外两项之和，改为 +2 。");
+		options.push_back("内卷：+3 ，如果选择人数大于另外两项之和，改为 -3");
+		options.push_back("正常：+1");
+		options.push_back("摸鱼：-1 ，如果选择人数小于另外两项之和，改为 +2");
 	}
 	virtual void initExpects() override
 	{
@@ -829,7 +829,7 @@ public:
 		
 		if(optionCount[0] * 3 >= playerNum) tempScore[0] += vars["S2"] / optionCount[0];
 		if(optionCount[0] * 3 <= playerNum) tempScore[1] += vars["S2"] / optionCount[1];
-		if(optionCount[2] >= 2) tempScore[2] = vars["S2"] / optionCount[1];
+		if(optionCount[2] >= 2) tempScore[2] = vars["S2"] / optionCount[2];
 	}
 };
 
@@ -962,7 +962,7 @@ public:
 	}
 	virtual void initExpects() override
 	{
-		expects.push_back("abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+		expects.push_back("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbcccccdddeeeeeeee");
 	}
 	virtual void calc(vector<Player>& players) override
 	{
@@ -1010,7 +1010,10 @@ public:
 		for(int i = 0; i < playerNum; i++)
 		{
 			if(players[i].select == 0)
+			{
 				sum += players[i].score;
+				players[i].score = 0; 
+			}
 		}
 		
 		tempScore[0] = 1 + sum / optionCount[0];
