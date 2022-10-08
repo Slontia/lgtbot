@@ -296,7 +296,7 @@ class RoundStage : public SubGameStage<>
         Boardcast() << Markdown(b);
 
 
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+//        std::this_thread::sleep_for(std::chrono::seconds(5));
 
 
         for(int i = 0; i < option().PlayerNum(); i++)
