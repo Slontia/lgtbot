@@ -105,7 +105,7 @@ class RoundStage : public SubGameStage<>
         int count = 0;
         while(r == -1 || main_stage().used.find(r) != main_stage().used.end())
         {
-            r = rand() % 26 + 1;
+            r = rand() % 30 + 1;
             if(count++ > 1000) break;
         }
         main_stage().used.insert(r);
@@ -113,7 +113,7 @@ class RoundStage : public SubGameStage<>
 
         if(option().GET_VALUE(测试) != 0)
             r = option().GET_VALUE(测试);
-        if(r > 26)
+        if(r > 30)
             r = 1;
 
         if(r == 1) q = new Q1();
@@ -142,6 +142,18 @@ class RoundStage : public SubGameStage<>
         if(r == 24) q = new Q24();
         if(r == 25) q = new Q25();
         if(r == 26) q = new Q26();
+        if(r == 27) q = new Q27();
+        if(r == 28) q = new Q28();
+        if(r == 29) q = new Q29();
+        if(r == 30) q = new Q30();
+
+        if(q == NULL)
+        {
+            Boardcast() << "Q == NULL in RoundStage -> OnStageBegin where r == " + to_string(r);
+            Boardcast() << " 发生了不可预料的错误。请中断游戏。";
+            StartTimer(option().GET_VALUE(时限));
+            return;
+        }
 
         q -> init(main_stage().players);
         q -> initTexts();
@@ -306,6 +318,7 @@ class RoundStage : public SubGameStage<>
 
 
         delete q;
+        q = NULL;
     }
 
 

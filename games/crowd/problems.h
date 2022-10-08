@@ -5,7 +5,6 @@
 
 #include <map>
 #include <vector>
-#include <set>
 #include <string>
 #include <algorithm>
 
@@ -467,7 +466,8 @@ public:
 		vars["B1"] = (int)(playerNum / 4);
 		vars["B2"] = (int)(playerNum * 1.5); 
 		options.push_back("均势：选择本项的人平分" + str(vars["A"]) + "分。");
-		options.push_back("幽灵：选择本项的人，按人数+" + str(vars["B1"]) + "计算，平分" + str(vars["B2"]) + "分。");
+		options.push_back("幽灵：选择本项的人，按人数+" + str(vars["B1"]) + "计算，平分"
+		 + str(vars["B2"]) + "分。");
 	}
 	virtual void initExpects() override
 	{
@@ -595,11 +595,12 @@ public:
 	}
 	virtual void initOptions() override
 	{
-		vars["D"] = (int)(playerNum / 3);
+		vars["D"] = (int)(playerNum / 3) + 2;
 		options.push_back("智慧：人数比 B 少则 +3");
 		options.push_back("体能：人数比 A 多则 +2");
 		options.push_back("坚持：+1");
-		options.push_back("好运：如果恰有 " + str(vars["D"]) + " 玩家选择这个选项，+" + str(vars["D"]));
+		options.push_back("好运：如果恰有 " + str(vars["D"]) + " 玩家选择这个选项，+" + 
+		str(vars["D"]));
 	}
 	virtual void initExpects() override
 	{
@@ -632,7 +633,8 @@ public:
 		options.push_back("信任：+3 分");
 		options.push_back("怀疑：+2 分");
 		options.push_back("顾虑：-1 分");
-		options.push_back("背叛：失去等同于选择该选项人数的分数。如果有超过 1 玩家选择本选项，则 A 改为 -4，B改为 -2 。");
+		options.push_back("背叛：失去等同于选择该选项人数的分数。\
+如果有超过 1 玩家选择本选项，则 A 改为 -4，B改为 -2 。");
 	}
 	virtual void initExpects() override
 	{
@@ -664,7 +666,8 @@ public:
 	
 	virtual void initTexts() override
 	{
-		texts.push_back("选择一项。对于每个选项，如果所选人数小于等于其人数，则选择该选项的人获得对应分数。");
+		texts.push_back("选择一项。对于每个选项，如果所选人数小于等于其人数，\
+则选择该选项的人获得对应分数。");
 	}
 	virtual void initOptions() override
 	{
@@ -809,13 +812,15 @@ public:
 	{
 		vars["S1"] = (int)(playerNum / 3);
 		vars["S2"] = (int)(playerNum / 2);
-		texts.push_back("选择一个阵营加入，每个阵营内部平分 " + str(vars["S1"]) + " 分，然后战斗力最高的阵营平分 " + str(vars["S2"]) + " 分");
+		texts.push_back("选择一个阵营加入，每个阵营内部平分 " + 
+		str(vars["S1"]) + " 分，然后战斗力最高的阵营平分 " + str(vars["S2"]) + " 分");
 	}
 	virtual void initOptions() override
 	{
 		options.push_back("团结：每有一个加入者，+3战力。");
 		options.push_back("科技：战力固定为 " + str(playerNum) + "。");
-		options.push_back("经济：战力为 -1 。该阵营有 2 个或更多加入者时，不平分 " + str(vars["S1"]) + " 分，而是 " + str(vars["S2"]) + " 分。");
+		options.push_back("经济：战力为 -1 。该阵营有 2 个或更多加入者时，不平分 " + 
+		str(vars["S1"]) + " 分，而是 " + str(vars["S2"]) + " 分。");
 	}
 	virtual void initExpects() override
 	{
@@ -848,7 +853,7 @@ public:
 	}
 	virtual void initOptions() override
 	{
-		vars["A"] = (int)(playerNum / 5);
+		vars["A"] = (int)(playerNum / 3);
 		vars["B"] = (int)(playerNum * 3 / 5);
 		options.push_back("传谣：若选择人数<= " + str(vars["A"]) + "，+2。否则 -1。");
 		options.push_back("沉默：+0。");
@@ -865,7 +870,7 @@ public:
 		
 		tempScore[1] = 0;
 		
-		if(optionCount[2] >= vars["B"]) tempScore[0] = 1;
+		if(optionCount[2] >= vars["B"]) tempScore[2] = 1;
 		else tempScore[2] = -2;
 	}
 };
@@ -1048,12 +1053,13 @@ public:
 	virtual void calc(vector<Player>& players) override
 	{
 		if(optionCount[0] == maxSelect) tempScore[0] += -2;
+		if(optionCount[2] == maxSelect) tempScore[2] += -2;
 		if(optionCount[1] == maxSelect)
 		{
 			tempScore[0] += 2;
 			tempScore[2] += 2;
 		}
-		if(optionCount[2] == maxSelect) tempScore[2] += -0.5;
+		if(optionCount[3] == maxSelect) tempScore[3] += -0.5;
 	}
 };
 
@@ -1069,7 +1075,8 @@ public:
 	virtual void initTexts() override
 	{
 		texts.push_back("选择一项。");
-		texts.push_back("选择完毕后，会统计所有玩家所选数字的平均值（下取整）。然后选择了数字为平均值选项的玩家，获得该数字的分数。");
+		texts.push_back("选择完毕后，会统计所有玩家所选数字的平均值（下取整）。\
+然后选择了数字为平均值选项的玩家，获得该数字的分数。");
 	}
 	virtual void initOptions() override
 	{
@@ -1136,3 +1143,205 @@ public:
 	}
 };
 
+class Q27 : public Question
+{
+public:
+	Q27()
+	{
+		id = 27;
+		author = "Saiwei";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("所有玩家被逼上一座危楼，请选择到几层。");
+		texts.push_back("选择人数最高的楼层会垮塌，使得其得分改为 -1。最底层不会垮塌。");
+		texts.push_back("同时，垮塌楼层的下方一层额外 -0.5。");
+	}
+	virtual void initOptions() override
+	{
+		options.push_back("第四层：+2");
+		options.push_back("第三层：+1");
+		options.push_back("第二层：+0");
+		options.push_back("最底层：-1");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abcd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		tempScore[0] = 2;
+		tempScore[1] = 1;
+		tempScore[2] = 0;
+		tempScore[3] = -1;
+		for(int i = 2; i >= 0; i--)
+		{
+			if(optionCount[i] == maxSelect)
+			{
+				tempScore[i] = -1;
+				tempScore[i + 1] -= 0.5;
+			}
+		}
+	}
+};
+
+class Q28 : public Question
+{
+public:
+	Q28()
+	{
+		id = 28;
+		author = "Neverlandre";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("选择一项。选择的人最多的选项，分值变为其相反数");
+	}
+	virtual void initOptions() override
+	{
+		options.push_back("+2");
+		options.push_back("+1");
+		options.push_back("0");
+		options.push_back("-1.5");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abcd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		tempScore[0] = 2;
+		tempScore[1] = 1;
+		tempScore[2] = 0;
+		tempScore[3] = -1.5;
+		for(int i = 0; i <= 3; i++)
+		{
+			if(optionCount[i] == maxSelect)
+			{
+				tempScore[i] = -tempScore[i];
+			}
+		}
+	}
+};
+
+class Q29 : public Question
+{
+public:
+	Q29()
+	{
+		id = 29;
+		author = "Neverlandre";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("请选择一项身份");
+	}
+	virtual void initOptions() override
+	{
+		options.push_back("村民 （+0.5分，若场上外来者数比村民多，则村民变为+1分）");
+		options.push_back("外来者 （+1.5分，若人数最多，改为-0.5分）");
+		options.push_back("爪牙 （+2分，若人数最多，改为-1分）");
+		options.push_back("恶魔（如果爪牙比村民和外来者都多，则+4分，否则+0.5分。\
+若人数最多，则额外失去 [恶魔数量 / 2] 分。）");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abcd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		tempScore[0] = 0.5;
+		if(optionCount[1] > optionCount[0]) tempScore[0] = 1;
+		
+		tempScore[1] = 1.5;
+		if(optionCount[1] == maxSelect) tempScore[1] = -0.5;
+		
+		tempScore[2] = 2;
+		if(optionCount[2] == maxSelect) tempScore[2] = -1;
+		
+		tempScore[3] = 0.5;
+		if(optionCount[2] > optionCount[0] && optionCount[2] > optionCount[1]) tempScore[3] = 4;
+		if(optionCount[3] == maxSelect) tempScore[3] -= optionCount[3] / 2;
+		
+	}
+};
+
+class Q30 : public Question
+{
+public:
+	Q30()
+	{
+		id = 30;
+		author = "Mutsuki";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("请选择一项。");
+		texts.push_back("只有选择人数最多的选项会生效。");
+		texts.push_back("若有多个选项生效，则依次执行。");
+	}
+	virtual void initOptions() override
+	{
+		options.push_back("过去：所有人的得分变为上一回合的得分，然后你 -1");
+		options.push_back("未来：没有选择本项的人 +1");
+		options.push_back("现在：选择本项的人 -0.5");
+		options.push_back("摧毁：所有人得分变为 0 。然后你 -30");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("aaabbbbbbbcccccccccccccd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		if(optionCount[0] == maxSelect)
+		{
+			for(int i = 0; i < playerNum; i++)
+			{
+				players[i].score = players[i].lastScore;
+				if(players[i].select == 0)
+					players[i].score -= 1;
+			}
+		}
+		if(optionCount[1] == maxSelect)
+		{
+			for(int i = 0; i < playerNum; i++)
+			{
+				if(players[i].select != 1)
+					players[i].score += 1;
+			}
+		}
+		if(optionCount[2] == maxSelect)
+		{
+			for(int i = 0; i < playerNum; i++)
+			{
+				if(players[i].select == 2)
+					players[i].score -= 0.5;
+			}
+		}
+		if(optionCount[3] == maxSelect)
+		{
+			for(int i = 0; i < playerNum; i++)
+			{
+				players[i].score = 0;
+				if(players[i].select == 3)
+					players[i].score -= 30;
+			}
+		}
+		
+	}
+};
+
+/*
+
+Neverlandre 2022/10/7 13:35:47
+请任意选择一项：（本题结算顺序固定从刚进入本题时的分数 从高到低结算）
+a:如果你不是分数最低的人并选择了此项，则你免疫b选项受到的影响。
+b:如果你是分数最高的人并选择了此项，则你与最后一名互换分数；如果你不是分数最高的人并选择了此项，则与你的上一名互换分数。
+
+
+
+*/ 
