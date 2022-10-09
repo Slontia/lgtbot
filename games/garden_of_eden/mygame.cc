@@ -342,7 +342,7 @@ class MainStage : public MainGameStage<>
             --players_[pid].remain_golden_;
         }
         players_[pid].chosen_apples_[round_] = type;
-        reply() << "选择「" << AppleTypeStr(type) << "苹果」成功";
+        //reply() << "选择「" << AppleTypeStr(type) << "苹果」成功";
         return StageErrCode::READY;
     }
 
