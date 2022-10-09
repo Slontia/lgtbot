@@ -175,6 +175,7 @@ class SubStage : public SubGameStage<>
                 , MakeStageCommand("时间到时重新计时", &SubStage::ToResetTimer_, VoidChecker("重新计时"))
                 , MakeStageCommand("所有人准备好时重置准备情况", &SubStage::ToResetReady_, VoidChecker("重新准备"), ArithChecker(0, 10))
                 , MakeStageCommand("阻塞", &SubStage::Block_, VoidChecker("阻塞"))
+                , MakeStageCommand("阻塞并准备", &SubStage::BlockAndReady_, VoidChecker("阻塞并准备"))
                 , MakeStageCommand("阻塞并结束", &SubStage::BlockAndOver_, VoidChecker("阻塞并结束"))
                 , MakeStageCommand("准备", &SubStage::Ready_, VoidChecker("准备"))
                 , MakeStageCommand("断言并清除电脑行动次数", &SubStage::CheckComputerActCount_, VoidChecker("电脑行动次数"), ArithChecker<uint64_t>(0, UINT64_MAX))
@@ -222,6 +223,11 @@ class SubStage : public SubGameStage<>
         if (to_reset_ready_ > 0) {
             --to_reset_ready_;
             ClearReady();
+            if (to_reset_timer_) {
+                to_reset_timer_ = false;
+                StartTimer(option().timeout_sec_);
+                Boardcast() << "全员行动完毕，但是回合继续";
+            }
         }
     }
 
@@ -267,6 +273,12 @@ class SubStage : public SubGameStage<>
         Block_(pid, is_public, reply);
         is_over_ = true;
         return StageErrCode::CHECKOUT;
+    }
+
+    AtomReqErrCode BlockAndReady_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        Block_(pid, is_public, reply);
+        return StageErrCode::READY;
     }
 
     AtomReqErrCode CheckComputerActCount_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
@@ -1188,7 +1200,7 @@ TEST_F(TestBot, substage_reset_timer)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 }
 
-TEST_F(TestBot, timeout_during_handle_request)
+TEST_F(TestBot, timeout_during_handle_request_checkout)
 {
   AddGame("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
@@ -1210,7 +1222,7 @@ TEST_F(TestBot, timeout_during_handle_request)
   WaitTimerThreadFinish();
 }
 
-TEST_F(TestBot, timeout_during_handle_request_atomic_main_stage)
+TEST_F(TestBot, timeout_during_handle_request_checkout_atomic_main_stage)
 {
   AddGame<AtomMainStage>("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
@@ -1230,6 +1242,34 @@ TEST_F(TestBot, timeout_during_handle_request_atomic_main_stage)
   ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
 
   WaitTimerThreadFinish();
+}
+
+TEST_F(TestBot, timeout_during_handle_request_all_ready_and_reset_timer)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, 1, "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, 2, "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, 1, "#开始");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "重新准备 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "重新计时");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备");
+
+  auto fut = std::async([this]
+        {
+            ASSERT_PRI_MSG(EC_GAME_REQUEST_CONTINUE, 2, "阻塞并准备");
+        });
+  WaitSubStageBlock();
+  SkipTimer();
+  WaitBeforeHandleTimeout(UserID{1});
+  NotifySubStage();
+  fut.wait();
+  BlockTimer();
+
+  // OnTimeout should not be invoked and game should not be over because timer is reset.
+  // So the player can execute 准备 command
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, 1, "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, 2, "准备");
 }
 
 TEST_F(TestBot, leave_during_handle_request)

@@ -139,6 +139,7 @@ static ErrCode ConverErrCode(const StageErrCode& stage_errcode)
     case StageErrCode::OK: return EC_GAME_REQUEST_OK;
     case StageErrCode::CHECKOUT: return EC_GAME_REQUEST_CHECKOUT;
     case StageErrCode::FAILED: return EC_GAME_REQUEST_FAILED;
+    case StageErrCode::CONTINUE: return EC_GAME_REQUEST_CONTINUE;
     case StageErrCode::NOT_FOUND: return EC_GAME_REQUEST_NOT_FOUND;
     default: return EC_GAME_REQUEST_UNKNOWN;
     }
@@ -387,7 +388,7 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
     StopTimer();
     timer_is_over_ = std::make_shared<bool>(false);
     // We must store a timer_is_over because it may be reset to true when new timer begins.
-    const auto timeout_handler = [this, match_wk = weak_from_this()]()
+    const auto timeout_handler = [this, timer_is_over = timer_is_over_, match_wk = weak_from_this()]()
         {
             // Handle a reference because match may be removed from match_manager if timeout cause game over.
             auto match = match_wk.lock();
@@ -414,7 +415,8 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
             }
 #endif
             // If stage has been finished by other request, timeout event should not be triggered again, so we check stage_is_over_ here.
-            if (!*timer_is_over_) {
+            // Should NOT use this->timer_is_over_ here which may be belong to a new timer.
+            if (!*timer_is_over) {
                 DebugLog() << "Timer timeout mid=" << match->mid();
                 match->main_stage_->HandleTimeout();
                 match->Routine_();
