@@ -20,8 +20,14 @@ public:
 		lastScore = 0;
 		score = 0;
 	}
+	
 	int lastSelect;
 	int select;
+	
+	// the real last score. change after score calc is over.
+	double realLastScore;
+	
+	// not last score. DO NOT use.
 	double lastScore;
 	double score;
 	
@@ -1301,7 +1307,7 @@ public:
 		{
 			for(int i = 0; i < playerNum; i++)
 			{
-				players[i].score = players[i].lastScore;
+				players[i].score = players[i].realLastScore;
 				if(players[i].select == 0)
 					players[i].score -= 1;
 			}

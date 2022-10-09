@@ -270,7 +270,8 @@ class RoundStage : public SubGameStage<>
         Question *& q = main_stage().question;
         vector<Player> & p = main_stage().players;
 
-
+        for(int i = 0; i < option().PlayerNum(); i++)
+            p[i].realLastScore = p[i].lastScore;
         for(int i = 0; i < option().PlayerNum(); i++)
             p[i].lastScore = p[i].score;
 
@@ -315,6 +316,8 @@ class RoundStage : public SubGameStage<>
         {
             main_stage().player_scores_[i] = dec2(p[i].score) * 100;
         }
+
+
 
 
         delete q;
