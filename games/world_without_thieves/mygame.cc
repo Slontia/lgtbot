@@ -188,7 +188,6 @@ class RoundStage : public SubGameStage<>
 //             Boardcast()<<std::to_string(IsReady(i))<<std::to_string(main_stage().player_eli_[i]);
              if(IsReady(i) == false && !main_stage().player_eli_[i])
              {
-                 Boardcast() << "玩家 "<<main_stage().PlayerName(i)<<" 超时仍未行动，已被淘汰";
                  main_stage().player_hp_[i]=0;
                  main_stage().player_select_[i]='N';
                  main_stage().player_target_[i]=0;
@@ -196,6 +195,7 @@ class RoundStage : public SubGameStage<>
         }
 
 
+        Boardcast() << "有玩家超时仍未行动，已被淘汰";
         RoundStage::calc();
         // Returning |CHECKOUT| means the current stage will be over.
         return StageErrCode::CHECKOUT;
