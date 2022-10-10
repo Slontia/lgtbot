@@ -1260,11 +1260,13 @@ TEST_F(TestBot, timeout_during_handle_request_all_ready_and_reset_timer)
             ASSERT_PRI_MSG(EC_GAME_REQUEST_CONTINUE, 2, "阻塞并准备");
         });
   WaitSubStageBlock();
+
   SkipTimer();
   WaitBeforeHandleTimeout(UserID{1});
+  BlockTimer(); // prevent timeout after resetting timer
+
   NotifySubStage();
-  fut.wait();
-  BlockTimer();
+  fut.wait(); // now the timer is reset
 
   // OnTimeout should not be invoked and game should not be over because timer is reset.
   // So the player can execute 准备 command
