@@ -152,7 +152,7 @@ class RoundStage : public SubGameStage<>
         if(q == NULL)
         {
             Boardcast() << "Q == NULL in RoundStage -> OnStageBegin where r == " + to_string(r);
-            Boardcast() << " 发生了不可预料的错误。请中断游戏。";
+            Boardcast() << "发生了不可预料的错误。请中断游戏。";
             StartTimer(option().GET_VALUE(时限));
             return;
         }
@@ -347,7 +347,10 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     }
 
     int specialRule_ = option().GET_VALUE(特殊规则);
-    Boardcast() << specialRule(players, specialRule_, "gameStart");
+    if(specialRule_ != 0)
+    {
+        Boardcast() << specialRule(players, specialRule_, "gameStart");
+    }
 
     return make_unique<RoundStage>(*this, ++round_);
 }
