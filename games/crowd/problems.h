@@ -721,7 +721,7 @@ public:
 	{
 		vars["A"] = 1;
 		vars["B"] = (int)(playerNum * 2 / 10) + 1;
-		vars["C"] = (int)(playerNum * 3 / 10);
+		vars["C"] = (int)(playerNum * 3 / 10) + 1;
 		vars["D"] = (int)(playerNum * 4 / 10);
 		options.push_back(str(vars["A"]) + "人，3分");
 		options.push_back(str(vars["B"]) + "人，2分");
@@ -1221,10 +1221,10 @@ public:
 	}
 	virtual void initOptions() override
 	{
-		options.push_back("第四层：+2");
-		options.push_back("第三层：+1");
-		options.push_back("第二层：+0");
-		options.push_back("最底层：-1");
+		options.push_back("第四层：+1.5");
+		options.push_back("第三层：+0.5");
+		options.push_back("第二层：+1");
+		options.push_back("最底层：+0");
 	}
 	virtual void initExpects() override
 	{
@@ -1232,10 +1232,10 @@ public:
 	}
 	virtual void calc(vector<Player>& players) override
 	{
-		tempScore[0] = 2;
-		tempScore[1] = 1;
-		tempScore[2] = 0;
-		tempScore[3] = -1;
+		tempScore[0] = 1.5;
+		tempScore[1] = 0.5;
+		tempScore[2] = 1;
+		tempScore[3] = 0;
 		for(int i = 2; i >= 0; i--)
 		{
 			if(optionCount[i] == maxSelect)
