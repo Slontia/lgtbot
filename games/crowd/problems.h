@@ -1428,7 +1428,7 @@ public:
 		options.push_back("投资：-1。所有投资者将均分金库中的金币。");
 		options.push_back("储蓄：+0.5，并使金库中金币 +1。");
 		options.push_back("等待：+0，并使金库中金币 -1。");
-		options.push_back("盗窃：-2，并使金库中金币 " + str(vars["del"]));
+		options.push_back("盗窃：-2，并使金库中金币 -" + str(vars["del"]));
 	}
 	virtual void initExpects() override
 	{
