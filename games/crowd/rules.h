@@ -104,7 +104,7 @@ string specialRule(vector<Player>& players, int type, string time)
 			for(int i = 0; i < n; i++)
 			{
 				if(players[i].score == maxScore)
-					players[i].score -= 1;
+					players[i].score -= 2;
 			}
 		}
 	}
