@@ -350,22 +350,22 @@ public:
 	}
 	virtual void initOptions() override
 	{
-		vars["E"] = (int)playerNum / 3 + 1;
+		vars["E"] = (int)playerNum / 2 + 1;
 		options.push_back("谨慎：+1分。");
-		options.push_back("团结：如果选择这项的人数最多，+2分。");
-		options.push_back("智慧：如果选择这项的人数最少，+4分。");
+		options.push_back("团结：如果选择这项的人数最多，+3.5分。");
+		options.push_back("智慧：如果选择这项的人数最少，+3分。");
 		options.push_back("勇敢：如果只有一人选择这项，+5分。");
 		options.push_back("公正：选择这项的人平分 " + str(vars["E"]) + " 分。");
 	}
 	virtual void initExpects() override
 	{
-		expects.push_back("aaaabbccddddeeeeeeeeeee");
+		expects.push_back("aaaabbbbbbbbbbbcccccdddddddeeeeeeeeeeeeeee");
 	}
 	virtual void calc(vector<Player>& players) override
 	{
 		tempScore[0] = 1;
-		if(optionCount[1] == maxSelect) tempScore[1] = 2;
-		if(optionCount[2] == minSelect) tempScore[2] = 4;
+		if(optionCount[1] == maxSelect) tempScore[1] = 3.5;
+		if(optionCount[2] == minSelect) tempScore[2] = 3;
 		if(optionCount[3] == 1) tempScore[3] = 5;
 		tempScore[4] = vars["E"] / optionCount[4];
 	}
@@ -572,20 +572,27 @@ public:
 	}
 	virtual void initOptions() override
 	{
-		options.push_back("老实人：+2。");
+		options.push_back("老实人：+3。");
 		options.push_back("背叛者：-1。如果任何人选择此项，则选 A 的玩家改为 -2。");
 		options.push_back("旁观者：-0.5。");
+		options.push_back("狂热者：-0.6。这个选项有极小的概率变为 +77。");
 	}
 	virtual void initExpects() override
 	{
-		expects.push_back("aabbccccc");
+		expects.push_back("aabbcccccdd");
 	}
 	virtual void calc(vector<Player>& players) override
 	{
-		tempScore[0] += 2;
+		tempScore[0] += 3;
 		tempScore[1] -= 1;
 		tempScore[2] -= 0.5;
 		if(optionCount[1] > 0) tempScore[0] = -2;
+		
+		tempScore[3] -= 0.6;
+		if(rand() % 1000 < 9)
+		{
+			tempScore[3] = 77;
+		} 
 	}
 };
 
@@ -966,7 +973,7 @@ public:
 	Q21()
 	{
 		id = 21;
-		author = "403";
+		author = "Mutsuki";
 		title = "委婉与强硬";
 	}
 	
@@ -1399,6 +1406,188 @@ public:
 	}
 };
 
+class Q31 : public Question
+{
+public:
+	Q31()
+	{
+		id = 31;
+		author = "FishToucher";
+		title = "分金币";
+	}
+	
+	virtual void initTexts() override
+	{
+		vars["coins"] = playerNum * 2.5;
+		vars["del"] = playerNum / 2 + 2;
+		texts.push_back("金库中有" + str(vars["coins"]) + "金币。");
+		texts.push_back("玩家获得的金币将折合成同等的分数。");
+	}
+	virtual void initOptions() override
+	{
+		options.push_back("投资：-1。所有投资者将均分金库中的金币。");
+		options.push_back("储蓄：+0.5，并使金库中金币 +1。");
+		options.push_back("等待：+0，并使金库中金币 -1。");
+		options.push_back("盗窃：-2，并使金库中金币 " + str(vars["del"]));
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abcd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		tempScore[0] = -1;
+		tempScore[1] = 0.5;
+		tempScore[2] = 0;
+		tempScore[3] = -2;
+		
+		int coins = vars["coins"];
+		coins += optionCount[1];
+		coins -= optionCount[2];
+		coins -= optionCount[3] * vars["del"];
+		
+		tempScore[0] += coins / optionCount[0];
+	}
+};
+
+class Q32 : public Question
+{
+public:
+	Q32()
+	{
+		id = 32;
+		author = "FishToucher";
+		title = "排队难题";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("选择一项。");
+		texts.push_back("只有选择人数最多的选项会被执行。");
+		texts.push_back("有多个选项人数最多时，只执行最靠后的选项。");
+	}
+	virtual void initOptions() override
+	{
+		options.push_back("A+1 B+4 C-1 D+1");
+		options.push_back("A+2 B-3 C+2 D+3");
+		options.push_back("A+2 B+3 C+1 D-1");
+		options.push_back("A+1 B+3 C+1 D+0");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abcd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		if(optionCount[0] == maxSelect)
+		{
+			tempScore[0] = 1;
+			tempScore[1] = 4;
+			tempScore[2] = -1;
+			tempScore[3] = 1;
+		}
+		if(optionCount[1] == maxSelect)
+		{
+			tempScore[0] = 2;
+			tempScore[1] = -3;
+			tempScore[2] = 2;
+			tempScore[3] = 3;
+		}
+		if(optionCount[2] == maxSelect)
+		{
+			tempScore[0] = 2;
+			tempScore[1] = 3;
+			tempScore[2] = 1;
+			tempScore[3] = -1;
+		}
+		if(optionCount[3] == maxSelect)
+		{
+			tempScore[0] = 1;
+			tempScore[1] = 3;
+			tempScore[2] = 1;
+			tempScore[3] = 0;
+		}
+	}
+};
+
+class Q33 : public Question
+{
+public:
+	Q33()
+	{
+		id = 33;
+		author = "Mutsuki";
+		title = "均衡联合体";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("选择一项。");
+		texts.push_back("本题目中，将统计人数最多的选项，将其人数记作MAX。同理人数最少的选项为MIN。");
+	}
+	virtual void initOptions() override
+	{
+		vars["D"] = playerNum / 3;
+		options.push_back("分歧：如若 MAX - MIN > " + str(vars["D"]) + " ，+1");
+		options.push_back("秩序：如若 MAX - MIN <= " + str(vars["D"]) + " ，+3");
+		options.push_back("完美：如果 MAX - MIN <= 1， +6");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abc");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		if(maxSelect - minSelect > vars["D"]) tempScore[0] = 1;
+		if(maxSelect - minSelect <= vars["D"]) tempScore[1] = 3;
+		if(maxSelect - minSelect <= 1) tempScore[2] = 6;
+	}
+};
+
+class Q34 : public Question
+{
+public:
+	Q34()
+	{
+		id = 34;
+		author = "Mutsuki";
+		title = "贪心取金";
+	}
+	
+	virtual void initTexts() override
+	{
+		vars["coins"] = playerNum;
+		texts.push_back("选择一项。");
+		texts.push_back("金库中一共有 " + str(vars["coins"]) + " 枚金币。");
+		texts.push_back("从数字最大的选项开始，所有选择了该项的玩家拿去等量的金币，依次执行下去。");
+		texts.push_back("但是，如果金币的数量不够某选项的玩家分，则会跳过这个选项。");
+	}
+	virtual void initOptions() override
+	{
+		options.push_back("拿取 3");
+		options.push_back("拿取 2");
+		options.push_back("拿取 1");
+		options.push_back("拿取 0.5");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("aaaabbbccd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		double need[4] = {3, 2, 1, 0.5};
+		int coins = vars["coins"];
+		for(int i = 0; i < 4; i++)
+		{
+			if(coins >= optionCount[i] * need[i])
+			{
+				coins -= optionCount[i] * need[i];
+				tempScore[i] = need[i];
+			}
+		}
+	}
+};
+
 /*
 
 Neverlandre 2022/10/7 13:35:47
@@ -1408,6 +1597,15 @@ b:如果你是分数最高的人并选择了此项，则你与最后一名互换
 最高的人并选择了此项，则与你的上一名互换分数。
 
 选择一项，然后选择最高的人全部拿分数，顺次拿，除非拿不了。 
+
+FishToucher 
+按照人数最多的一组执行
+A．	乐善好施（本组每人+1分，人数最少的一组每人+3分）
+B．	人人平等（所有人获得1分）
+C．	众志成城（如果本组人数大于等于其他组的总和，每人+3分；否则每人-3分）
+D．	雨露均沾（本组每人+2分，其他组每组平分3分）
+E．	反向赌博（本组每人-5分）
+
 
 */ 
 
