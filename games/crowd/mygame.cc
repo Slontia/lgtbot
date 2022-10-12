@@ -20,6 +20,7 @@
 #include "utility/html.h"
 
 #include "problems.h"
+#include "rules.h"
 
 
 using namespace std;
@@ -75,15 +76,16 @@ class MainStage : public MainGameStage<RoundStage>
 //---------------------------------------------------------------------------//
 
     vector<Player> players;
+    vector<string> finalBoard;
     Question* question;
     set<int> used;
 
+    int round_;
 //---------------------------------------------------------------------------//
 
   private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply){return StageErrCode::OK;}
 
-    int round_;
 };
 
 
@@ -209,62 +211,6 @@ class RoundStage : public SubGameStage<>
         calc();
     }
 
-    string str(double x)
-    {
-        string ret = "";
-        x = dec2(x);
-        string sx = to_string(x);
-        int n = sx.length();
-        for(int i = 0; i < n; i++)
-        {
-            if(sx[i] == '.')
-            {
-                if(i + 2 < n && (sx[i + 1] != '0' || sx[i + 2] != '0'))
-                {
-                    ret += sx[i];
-                    ret += sx[i + 1];
-                    if(sx[i + 2] != '0')
-                        ret += sx[i + 2];
-                }
-                break;
-            }
-            ret += sx[i];
-        }
-        return ret;
-    }
-
-    double dec2(double x)
-    {
-        x = x * 100;
-        if(x > 0) x += 0.5;
-        else x -= 0.5;
-        x = (int) x;
-        x = x / 100;
-
-        return x;
-    }
-
-    string strName(string x)
-    {
-        string ret = "";
-        int n = x.length();
-        if(n == 0) return ret;
-
-        int l = 0;
-        int r = n - 1;
-
-        if(x[0] == '<') l++;
-        if(x[r] == '>')
-        {
-            while(r >= 0 && x[r] != '(')
-                r--;
-            r--;
-        }
-        for(int i = l; i <= r; i++)
-            ret += x[i];
-
-        return ret;
-    }
     void calc()
     {
         Question *& q = main_stage().question;
@@ -281,11 +227,15 @@ class RoundStage : public SubGameStage<>
         q -> quickScore(p);
 
 
+        int specialRule_ = option().GET_VALUE(特殊规则);
+        specialRule(p, specialRule_, "roundEnd");
 
+
+        vector<string> & fb = main_stage().finalBoard;
         string b = "";
         b += "<table style=\"text-align:center\"><tbody>";
         b += "<tr><td><font size=7>　　　　　　　　　　</font></td><td><font size=7>　　</font></td>";
-        b += "<td><font size=7>　　　　</font></td><td><font size=7>　　　　</font></td><tr>";
+        b += "<td><font size=7>　　　　</font></td><td><font size=7>　　　　</font></td></tr>";
         for(int i = 0; i < option().PlayerNum(); i++)
         {
             string color;
@@ -303,10 +253,22 @@ class RoundStage : public SubGameStage<>
                     + "</font></td>"
                     + "<td bgcolor=\"#E1FFFF\"><font size=7>" + str(p[i].score) + "</font></td>"
                     + "</tr>";
+
+
+            fb[i] += (string)""
+                    + "<td " + color + "><font size=7>" + (char)(p[i].select + 'A') + "</font></td>"
+                    + "<td " + color + "><font size=7>"
+                    + (p[i].score >= p[i].lastScore ? "+ " : "- " )
+                    + str(abs(p[i].score - p[i].lastScore))
+                    + "</font></td>";
+
+
         }
         b += "</table>";
 
-        Boardcast() << Markdown(b);
+
+        if(specialRule_ != 1)
+            Boardcast() << Markdown(b);
 
 
 //        std::this_thread::sleep_for(std::chrono::seconds(5));
@@ -376,8 +338,16 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     for(int i = 0; i < option().PlayerNum(); i++)
     {
         players.push_back(tempP);
+        finalBoard.push_back("");
     }
 
+    for(int i = 0; i < players.size(); i++)
+    {
+        finalBoard[i] += (string)"<tr>" + "<td bgcolor=\"#D2F4F4\"><font size=7>" + strName(PlayerName(i)) + "</font></td>";
+    }
+
+    int specialRule_ = option().GET_VALUE(特殊规则);
+    Boardcast() << specialRule(players, specialRule_, "gameStart");
 
     return make_unique<RoundStage>(*this, ++round_);
 }
@@ -387,6 +357,30 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     if ((++round_) <= option().GET_VALUE(回合数)) {
         return make_unique<RoundStage>(*this, round_);
     }
+
+
+    // OK game ends here
+
+    int specialRule_ = option().GET_VALUE(特殊规则);
+    specialRule(players, specialRule_, "gameEnd");
+    for(int i = 0; i < players.size(); i++)
+    {
+        finalBoard[i] += "<td bgcolor=\"#E1FFFF\"><font size=7>" + str(players[i].score) + "</font></td></tr>";
+    }
+
+
+
+    string fb = "<table style=\"text-align:center\"><tbody>";
+    fb += "<tr><td><font size=7>　　　　　　　　　　</font></td>";
+    for(int i = 1; i < round_; i++)
+        fb += "<td><font size=7>　　</font></td><td><font size=7>　　　</font></td>";
+    fb += "<td><font size=7>　　　　</font></td></tr>";
+    for(int i = 0; i < finalBoard.size(); i++)
+    {
+        fb += finalBoard[i];
+    }
+    fb += "</table>";
+    Boardcast() << Markdown(fb);
 
     return {};
 }

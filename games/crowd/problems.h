@@ -8,6 +8,9 @@
 #include <string>
 #include <algorithm>
 
+#ifndef PROBLEMS_
+#define PROBLEMS_
+
 using namespace std;
 
 class Player
@@ -36,6 +39,65 @@ public:
 		return to_string(score);
 	}
 };
+
+
+
+//---------------------------------------------------------------------------//
+double dec2(double x)
+{
+    x = x * 100;
+    if(x > 0) x += 0.5;
+    else x -= 0.5;
+    x = (int) x;
+    x = x / 100;
+
+    return x;
+}
+string str(double x)
+{
+    string ret = "";
+    x = dec2(x);
+    string sx = to_string(x);
+    int n = sx.length();
+    for(int i = 0; i < n; i++)
+    {
+        if(sx[i] == '.')
+        {
+            if(i + 2 < n && (sx[i + 1] != '0' || sx[i + 2] != '0'))
+            {
+                ret += sx[i];
+                ret += sx[i + 1];
+                if(sx[i + 2] != '0')
+                	ret += sx[i + 2];
+            }
+            break;
+        }
+        ret += sx[i];
+    }
+    return ret;
+}
+string strName(string x)
+{
+    string ret = "";
+    int n = x.length();
+    if(n == 0) return ret;
+
+    int l = 0;
+    int r = n - 1;
+
+    if(x[0] == '<') l++;
+    if(x[r] == '>')
+    {
+        while(r >= 0 && x[r] != '(')
+            r--;
+        r--;
+    }
+    for(int i = l; i <= r; i++)
+        ret += x[i];
+
+    return ret;
+}
+//---------------------------------------------------------------------------//
 
 class Question
 {
@@ -76,42 +138,6 @@ public:
 	virtual void initExpects(){}
 	
 	
-	//-----------------------------------------------
-	string str(double x)
-    {
-        string ret = "";
-        x = dec2(x);
-        string sx = to_string(x);
-        int n = sx.length();
-        for(int i = 0; i < n; i++)
-        {
-            if(sx[i] == '.')
-            {
-                if(i + 2 < n && (sx[i + 1] != '0' || sx[i + 2] != '0'))
-                {
-                    ret += sx[i];
-                    ret += sx[i + 1];
-                    if(sx[i + 2] != '0')
-                    	ret += sx[i + 2];
-                }
-                break;
-            }
-            ret += sx[i];
-        }
-        return ret;
-    }
-
-    double dec2(double x)
-    {
-        x = x * 100;
-        if(x > 0) x += 0.5;
-        else x -= 0.5;
-        x = (int) x;
-        x = x / 100;
-
-        return x;
-    }
-	//-----------------------------------------------
 	
 	// init calc before call it.
 	void initCalc(vector<Player>& players)
@@ -1351,3 +1377,6 @@ b:如果你是分数最高的人并选择了此项，则你与最后一名互换
 
 
 */ 
+
+
+#endif
