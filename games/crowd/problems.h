@@ -110,6 +110,7 @@ public:
 	
 	int id;
 	string author;
+	string title; 
 	vector<string> texts;
 	vector<string> options;
 	vector<string> expects;
@@ -215,6 +216,7 @@ public:
 	{
 		id = -1;
 		author = "NULL";
+		title = "测试题目";
 	}
 	
 	virtual void initTexts() override
@@ -245,6 +247,7 @@ public:
 	{
 		id = 1;
 		author = "Mutsuki";
+		title = "A会比B少吗？";
 	}
 	
 	virtual void initTexts() override
@@ -277,6 +280,7 @@ public:
 	{
 		id = 2;
 		author = "ShenHuXiaoDe";
+		title = "和平与战争";
 	}
 	
 	virtual void initTexts() override
@@ -306,6 +310,7 @@ public:
 	{
 		id = 3;
 		author = "Mutsuki";
+		title = "中立与激进";
 	}
 	
 	virtual void initTexts() override
@@ -336,6 +341,7 @@ public:
 	{
 		id = 4;
 		author = "ShenHuXiaoDe";
+		title = "五美德";
 	}
 	
 	virtual void initTexts() override
@@ -372,6 +378,7 @@ public:
 	{
 		id = 5;
 		author = "Mutsuki";
+		title = "就餐时间";
 	}
 	
 	virtual void initTexts() override
@@ -405,6 +412,7 @@ public:
 	{
 		id = 6;
 		author = "Mutsuki";
+		title = "破坏与合作";
 	}
 	
 	virtual void initTexts() override
@@ -448,6 +456,7 @@ public:
 	{
 		id = 7;
 		author = "Mutsuki";
+		title = "均衡-3";
 	}
 	
 	virtual void initTexts() override
@@ -486,6 +495,7 @@ public:
 	{
 		id = 8;
 		author = "Mutsuki";
+		title = "幽灵平分";
 	}
 	
 	virtual void initTexts() override
@@ -519,6 +529,7 @@ public:
 	{
 		id = 9;
 		author = "Mutsuki";
+		title = "好学生";
 	}
 	
 	virtual void initTexts() override
@@ -552,6 +563,7 @@ public:
 	{
 		id = 10;
 		author = "Mutsuki";
+		title = "背叛者";
 	}
 	
 	virtual void initTexts() override
@@ -584,6 +596,7 @@ public:
 	{
 		id = 11;
 		author = "Mutsuki";
+		title = "制度";
 	}
 	
 	virtual void initTexts() override
@@ -619,6 +632,7 @@ public:
 	{
 		id = 12;
 		author = "Mutsuki";
+		title = "好运！";
 	}
 	
 	virtual void initTexts() override
@@ -654,6 +668,7 @@ public:
 	{
 		id = 13;
 		author = "Dva";
+		title = "顾虑与背叛";
 	}
 	
 	virtual void initTexts() override
@@ -694,6 +709,7 @@ public:
 	{
 		id = 14;
 		author = "Dva";
+		title = "抽屉原理";
 	}
 	
 	virtual void initTexts() override
@@ -705,7 +721,7 @@ public:
 	{
 		vars["A"] = 1;
 		vars["B"] = (int)(playerNum * 2 / 10) + 1;
-		vars["C"] = (int)(playerNum * 3 / 10) + 1;
+		vars["C"] = (int)(playerNum * 3 / 10);
 		vars["D"] = (int)(playerNum * 4 / 10);
 		options.push_back(str(vars["A"]) + "人，3分");
 		options.push_back(str(vars["B"]) + "人，2分");
@@ -732,6 +748,7 @@ public:
 	{
 		id = 15;
 		author = "Guest";
+		title = "自负与平庸";
 	}
 	
 	virtual void initTexts() override
@@ -772,6 +789,7 @@ public:
 	{
 		id = 16;
 		author = "403";
+		title = "AB都有吗？";
 	}
 	
 	virtual void initTexts() override
@@ -804,6 +822,7 @@ public:
 	{
 		id = 17;
 		author = "Guest";
+		title = "内卷与摸鱼";
 	}
 	
 	virtual void initTexts() override
@@ -838,6 +857,7 @@ public:
 	{
 		id = 18;
 		author = "Dva";
+		title = "战力平分";
 	}
 	
 	virtual void initTexts() override
@@ -877,6 +897,7 @@ public:
 	{
 		id = 19;
 		author = "Guest";
+		title = "传谣与思考";
 	}
 	
 	virtual void initTexts() override
@@ -914,6 +935,7 @@ public:
 	{
 		id = 20;
 		author = "403";
+		title = "+1，+0，+3";
 	}
 	
 	virtual void initTexts() override
@@ -945,6 +967,7 @@ public:
 	{
 		id = 21;
 		author = "403";
+		title = "委婉与强硬";
 	}
 	
 	virtual void initTexts() override
@@ -981,6 +1004,7 @@ public:
 	{
 		id = 22;
 		author = "luna";
+		title = "负分大转盘";
 	}
 	
 	virtual void initTexts() override
@@ -1026,6 +1050,7 @@ public:
 	{
 		id = 23;
 		author = "YAMI";
+		title = "同化";
 	}
 	
 	virtual void initTexts() override
@@ -1064,6 +1089,7 @@ public:
 	{
 		id = 24;
 		author = "Mutsuki";
+		title = "慈善家";
 	}
 	
 	virtual void initTexts() override
@@ -1102,6 +1128,7 @@ public:
 	{
 		id = 25;
 		author = "Mutsuki";
+		title = "美人投票";
 	}
 	
 	virtual void initTexts() override
@@ -1145,6 +1172,7 @@ public:
 	{
 		id = 26;
 		author = "Mutsuki";
+		title = "过半效果";
 	}
 	
 	virtual void initTexts() override
@@ -1182,6 +1210,7 @@ public:
 	{
 		id = 27;
 		author = "Saiwei";
+		title = "危楼";
 	}
 	
 	virtual void initTexts() override
@@ -1225,6 +1254,7 @@ public:
 	{
 		id = 28;
 		author = "Neverlandre";
+		title = "+2与-1.5";
 	}
 	
 	virtual void initTexts() override
@@ -1265,6 +1295,7 @@ public:
 	{
 		id = 29;
 		author = "Neverlandre";
+		title = "血染钟楼";
 	}
 	
 	virtual void initTexts() override
@@ -1308,6 +1339,7 @@ public:
 	{
 		id = 30;
 		author = "Mutsuki";
+		title = "时光机";
 	}
 	
 	virtual void initTexts() override
@@ -1372,9 +1404,10 @@ public:
 Neverlandre 2022/10/7 13:35:47
 请任意选择一项：（本题结算顺序固定从刚进入本题时的分数 从高到低结算）
 a:如果你不是分数最低的人并选择了此项，则你免疫b选项受到的影响。
-b:如果你是分数最高的人并选择了此项，则你与最后一名互换分数；如果你不是分数最高的人并选择了此项，则与你的上一名互换分数。
+b:如果你是分数最高的人并选择了此项，则你与最后一名互换分数；如果你不是分数
+最高的人并选择了此项，则与你的上一名互换分数。
 
-
+选择一项，然后选择最高的人全部拿分数，顺次拿，除非拿不了。 
 
 */ 
 
