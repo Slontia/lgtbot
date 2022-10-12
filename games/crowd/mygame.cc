@@ -84,7 +84,22 @@ class MainStage : public MainGameStage<RoundStage>
 //---------------------------------------------------------------------------//
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply){return StageErrCode::OK;}
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply){
+
+         string s = "";
+         s += "乌合之众: \n第" + str(round_) + " / " + str(option().GET_VALUE(回合数)) + " 回合\n\n";
+         s += specialRule(players, option().GET_VALUE(特殊规则), "gameStart");
+         if(option().GET_VALUE(特殊规则) == 0) s += "无";
+         s += "\n当前题目\n";
+         s += "题号：" + str(question -> id) + "\n";
+         s += "出题者：" + (question -> author) + "\n";
+         s += "题目：" + (question -> title) + "\n";
+         Boardcast() << s;
+         Boardcast() << Markdown(question -> Markdown());
+
+
+        return StageErrCode::OK;
+    }
 
 };
 
@@ -107,7 +122,7 @@ class RoundStage : public SubGameStage<>
         int count = 0;
         while(r == -1 || main_stage().used.find(r) != main_stage().used.end())
         {
-            r = rand() % 30 + 1;
+            r = rand() % 34 + 1;
             if(count++ > 1000) break;
         }
         main_stage().used.insert(r);
@@ -115,7 +130,7 @@ class RoundStage : public SubGameStage<>
 
         if(option().GET_VALUE(测试) != 0)
             r = option().GET_VALUE(测试);
-        if(r > 30)
+        if(r > 34)
             r = 1;
 
         if(r == 1) q = new Q1();
@@ -148,6 +163,10 @@ class RoundStage : public SubGameStage<>
         if(r == 28) q = new Q28();
         if(r == 29) q = new Q29();
         if(r == 30) q = new Q30();
+        if(r == 31) q = new Q31();
+        if(r == 32) q = new Q32();
+        if(r == 33) q = new Q33();
+        if(r == 34) q = new Q34();
 
         if(q == NULL)
         {
@@ -298,6 +317,7 @@ class RoundStage : public SubGameStage<>
             reply() << "[错误] 您本回合已经选择过了";
             return StageErrCode::FAILED;
         }
+
         if(submission.length() != 1)
         {
             reply() << "[错误] 请提交单个字母。";
