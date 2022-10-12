@@ -1114,7 +1114,7 @@ GAME_TEST(6, Q27_All_D){
     ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 27"); StartGame();
         for(int i = 0; i < 5; i++) ASSERT_PRI_MSG(OK, i, "D");
         ASSERT_PRI_MSG(CHECKOUT, 5, "D");
-        ASSERT_SCORE(-100,-100,-100,-100,-100,-100);}
+        ASSERT_SCORE(0,0,0,0,0,0);}
 
 GAME_TEST(6, Q27_Basic_ABCDDD){
     ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 27"); StartGame();
@@ -1124,7 +1124,7 @@ GAME_TEST(6, Q27_Basic_ABCDDD){
         ASSERT_PRI_MSG(OK, 3, "D");
         ASSERT_PRI_MSG(OK, 4, "D");
         ASSERT_PRI_MSG(CHECKOUT, 5, "D");
-        ASSERT_SCORE(200,100,0,-100,-100,-100);}
+        ASSERT_SCORE(150,50,100,0,0,0);}
 
 GAME_TEST(6, Q27_Basic_AAABBC){
     ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 27"); StartGame();
@@ -1134,7 +1134,7 @@ GAME_TEST(6, Q27_Basic_AAABBC){
         ASSERT_PRI_MSG(OK, 3, "B");
         ASSERT_PRI_MSG(OK, 4, "B");
         ASSERT_PRI_MSG(CHECKOUT, 5, "C");
-        ASSERT_SCORE(-100,-100,-100,50,50,0);}
+        ASSERT_SCORE(-100,-100,-100,0,0,100);}
 
 GAME_TEST(6, Q27_Basic_AABBCC){
     ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 27"); StartGame();
