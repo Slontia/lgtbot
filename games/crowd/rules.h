@@ -52,7 +52,7 @@ string specialRule(vector<Player>& players, int type, string time)
         {
 			ret += "    [ 整型溢出 ]";
             ret += "\n\n";
-            ret += "每个回合结束时，如若某玩家的分数 > 10 ，他 -10。";
+            ret += "每个回合结束时，如若某玩家的分数 > 7 ，他 -7。";
 		}
 		if(type == 7)
         {
@@ -135,8 +135,8 @@ string specialRule(vector<Player>& players, int type, string time)
 		{
 			for(int i = 0; i < n; i++)
 			{
-				if(players[i].score > 10)
-					players[i].score -= 10;
+				if(players[i].score > 7)
+					players[i].score -= 7;
 			}
 		}
 	}
