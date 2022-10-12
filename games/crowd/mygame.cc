@@ -90,7 +90,7 @@ class MainStage : public MainGameStage<RoundStage>
          s += "乌合之众: \n第" + str(round_) + " / " + str(option().GET_VALUE(回合数)) + " 回合\n\n";
          s += specialRule(players, option().GET_VALUE(特殊规则), "gameStart");
          if(option().GET_VALUE(特殊规则) == 0) s += "无";
-         s += "\n当前题目\n";
+         s += "\n\n当前题目\n";
          s += "题号：" + str(question -> id) + "\n";
          s += "出题者：" + (question -> author) + "\n";
          s += "题目：" + (question -> title) + "\n";
@@ -391,8 +391,6 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
         finalBoard[i] += "<td bgcolor=\"#E1FFFF\"><font size=7>" + str(players[i].score) + "</font></td></tr>";
     }
 
-
-
     string fb = "<table style=\"text-align:center\"><tbody>";
     fb += "<tr><td><font size=7>　　　　　　　　　　</font></td>";
     for(int i = 1; i < round_; i++)
@@ -404,6 +402,15 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     }
     fb += "</table>";
     Boardcast() << Markdown(fb);
+
+
+
+
+    for(int i = 0; i < option().PlayerNum(); i++)
+    {
+        player_scores_[i] = dec2(players[i].score) * 100;
+    }
+
 
     return {};
 }
