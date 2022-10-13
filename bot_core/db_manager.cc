@@ -58,7 +58,7 @@ static bool ExecuteTransaction(const DBName& db_name, const Fn& fn)
 uint64_t InsertMatch(sqlite::database& db, const std::string& game_name, const std::optional<GroupID> gid, const UserID host_uid,
         const uint64_t user_count, const uint64_t multiple)
 {
-    db << "INSERT INTO match (game_name, group_id, host_user_id, user_count, multiple) VALUES (?,?,?,?,?);"
+    db << "INSERT INTO match (game_name, finish_time, group_id, host_user_id, user_count, multiple) VALUES (?,datetime(CURRENT_TIMESTAMP, \'localtime\'),?,?,?,?);"
        << game_name
        << gid
        << host_uid.GetStr()
@@ -347,7 +347,7 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::pat
         db << "CREATE TABLE IF NOT EXISTS match("
                 "match_id INTEGER PRIMARY KEY AUTOINCREMENT, "
                 "game_name VARCHAR(100) NOT NULL, "
-                "finish_time DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                "finish_time DATETIME, "
                 "group_id VARCHAR(100), "
                 "host_user_id VARCHAR(100) NOT NULL, "
                 "user_count BIGINT UNSIGNED NOT NULL, "
