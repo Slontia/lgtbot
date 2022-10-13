@@ -33,7 +33,7 @@ BotCtx::BotCtx(const BotOption& option, std::unique_ptr<DBManagerBase> db_manage
     LoadAdmins_(option.admins_);
 }
 
-void BotCtx::LoadAdmins_(const uint64_t* admins)
+void BotCtx::LoadAdmins_(const char* const* admins)
 {
     if (admins == nullptr) {
         return;
@@ -96,7 +96,7 @@ void* /*__cdecl*/ BOT_API::Init(const BotOption* option)
 
 void /*__cdelcl*/ BOT_API::Release(void* const bot) { delete static_cast<BotCtx*>(bot); }
 
-ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const uint64_t uid, const char* const msg)
+ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const char* const uid, const char* const msg)
 {
     if (!bot_p) {
         ErrorLog() << "Handle private request not init failed uid=" << uid << " msg=" << msg;
@@ -122,7 +122,7 @@ class PublicReplyMsgSender : public MsgSender
     const UserID uid_;
 };
 
-ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const uint64_t gid, const uint64_t uid,
+ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const char* const gid, const char* const uid,
                                                  const char* const msg)
 {
     if (!bot_p) {

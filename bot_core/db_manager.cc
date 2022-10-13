@@ -61,7 +61,7 @@ uint64_t InsertMatch(sqlite::database& db, const std::string& game_name, const s
     db << "INSERT INTO match (game_name, group_id, host_user_id, user_count, multiple) VALUES (?,?,?,?,?);"
        << game_name
        << gid
-       << host_uid.Get()
+       << host_uid.GetStr()
        << user_count
        << multiple;
     return db.last_insert_rowid();
@@ -70,7 +70,7 @@ uint64_t InsertMatch(sqlite::database& db, const std::string& game_name, const s
 void InsertUserIfNotExist(sqlite::database& db, const UserID& uid)
 {
     db << "INSERT INTO user (user_id) SELECT ? WHERE NOT EXISTS (SELECT user_id FROM user WHERE user_id = ?);"
-       << uid.Get() << uid.Get();
+       << uid.GetStr() << uid.GetStr();
 }
 
 void InsertUserWithMatch(sqlite::database& db, const uint64_t match_id, const UserID& uid, const uint32_t birth_count,
@@ -78,7 +78,7 @@ void InsertUserWithMatch(sqlite::database& db, const uint64_t match_id, const Us
 {
     db << "INSERT INTO user_with_match (match_id, user_id, birth_count, game_score, zero_sum_score, top_score, level_score) VALUES (?,?,?,?,?,?,?);"
        << match_id
-       << uid.Get()
+       << uid.GetStr()
        << birth_count
        << game_score
        << zero_sum_score
@@ -90,7 +90,7 @@ void UpdateBirthOfUser(sqlite::database& db, const UserID& uid)
 {
     db << "UPDATE user SET birth_time = datetime(CURRENT_TIMESTAMP, \'localtime\'), birth_count = birth_count + 1 "
             "WHERE user_id = ?;"
-        << uid.Get();
+        << uid.GetStr();
 }
 
 auto GetTotalScoreOfUser(sqlite::database& db, const UserID& uid)
@@ -105,7 +105,7 @@ auto GetTotalScoreOfUser(sqlite::database& db, const UserID& uid)
             "WHERE user_with_match.user_id = ? AND "
                 "user_with_match.user_id = user.user_id AND "
                 "user_with_match.birth_count = user.birth_count;"
-        << uid.Get()
+        << uid.GetStr()
         >> std::tie(result.match_count_, result.total_zero_sum_score_, result.total_top_score_);
     return result;
 }
@@ -115,7 +115,7 @@ uint32_t GetMatchCountOfUser(sqlite::database& db, const UserID& uid)
     uint32_t count = 0;
     db << "SELECT COUNT(*) FROM user_with_match "
             "WHERE user_id = ? AND birth_count = (SELECT birth_count FROM user WHERE user_id = ?);"
-        << uid.Get() << uid.Get()
+        << uid.GetStr() << uid.GetStr()
         >> count;
     return count;
 }
@@ -123,7 +123,7 @@ uint32_t GetMatchCountOfUser(sqlite::database& db, const UserID& uid)
 uint32_t GetBirthCountOfUser(sqlite::database& db, const UserID& uid)
 {
     uint32_t birth_count = -1;
-    db << "SELECT birth_count FROM user WHERE user_id = ?;" << uid.Get() >> birth_count;
+    db << "SELECT birth_count FROM user WHERE user_id = ?;" << uid.GetStr() >> birth_count;
     return birth_count;
 }
 
@@ -140,7 +140,7 @@ auto GetGameHistoryOfUser(sqlite::database& db, const UserID& uid, const std::st
                 "user_with_match.birth_count = user.birth_count AND "
                 "user_with_match.match_id = match.match_id AND "
                 "match.game_name = ? "
-        << uid.Get()
+        << uid.GetStr()
         << game_name
         >> std::tie(result.match_count_, result.total_level_score_);
     return result;
@@ -155,7 +155,7 @@ void ForeachTotalLevelScoreOfUser(sqlite::database& db, const UserID& uid, const
                 "user_with_match.birth_count = user.birth_count AND "
                 "user_with_match.match_id = match.match_id "
             "GROUP BY game_name;"
-        << uid.Get()
+        << uid.GetStr()
         >> fn;
 }
 
@@ -170,7 +170,7 @@ void ForeachRecentMatchOfUser(sqlite::database& db, const UserID& uid, const uin
                 "user_with_match.birth_count = user.birth_count AND "
                 "user_with_match.match_id = match.match_id "
             "ORDER BY match.match_id DESC LIMIT ?"
-        << uid.Get() << limit
+        << uid.GetStr() << limit
         >> fn;
 }
 
@@ -307,13 +307,13 @@ RankInfo SQLiteDBManager::GetRank()
     RankInfo info;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            ForeachUserInRank(db, "zero_sum_score", [&](const uint64_t uid, const int64_t score_sum)
+            ForeachUserInRank(db, "zero_sum_score", [&](std::string uid, const int64_t score_sum)
                     {
-                        info.zero_sum_score_rank_.emplace_back(uid, score_sum);
+                        info.zero_sum_score_rank_.emplace_back(std::move(uid), score_sum);
                     });
-            ForeachUserInRank(db, "top_score", [&](const uint64_t uid, const int64_t score_sum)
+            ForeachUserInRank(db, "top_score", [&](std::string uid, const int64_t score_sum)
                     {
-                        info.top_score_rank_.emplace_back(uid, score_sum);
+                        info.top_score_rank_.emplace_back(std::move(uid), score_sum);
                     });
             return true;
         });
@@ -325,9 +325,9 @@ std::vector<std::pair<UserID, double>> SQLiteDBManager::GetLevelScoreRank(const 
     std::vector<std::pair<UserID, double>> vec;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            ForeachUserInGameLevelScoreRank(db, game_name, [&](const uint64_t uid, const double total_level_score)
+            ForeachUserInGameLevelScoreRank(db, game_name, [&](std::string uid, const double total_level_score)
                     {
-                        vec.emplace_back(uid, total_level_score);
+                        vec.emplace_back(std::move(uid), total_level_score);
                     });
             return true;
         });
@@ -348,12 +348,12 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::pat
                 "match_id INTEGER PRIMARY KEY AUTOINCREMENT, "
                 "game_name VARCHAR(100) NOT NULL, "
                 "finish_time DATETIME DEFAULT CURRENT_TIMESTAMP, "
-                "group_id BIGINT UNSIGNED, "
-                "host_user_id BIGINT UNSIGNED NOT NULL, "
+                "group_id VARCHAR(100), "
+                "host_user_id VARCHAR(100) NOT NULL, "
                 "user_count BIGINT UNSIGNED NOT NULL, "
                 "multiple INT UNSIGNED NOT NULL);";
         db << "CREATE TABLE IF NOT EXISTS user_with_match("
-                "user_id BIGINT UNSIGNED NOT NULL, "
+                "user_id VARCHAR(100) NOT NULL, "
                 "birth_count INT UNSIGNED NOT NULL, "
                 "match_id BIGINT UNSIGNED NOT NULL, "
                 "game_score BIGINT NOT NULL, "
@@ -363,7 +363,7 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::pat
                 "PRIMARY KEY (user_id, match_id));";
         db << "CREATE INDEX IF NOT EXISTS user_id_index ON user_with_match(user_id);";
         db << "CREATE TABLE IF NOT EXISTS user("
-                "user_id BIGINT UNSIGNED PRIMARY KEY, "
+                "user_id VARCHAR(100) PRIMARY KEY, "
                 "birth_time DATETIME, "
                 "birth_count INT UNSIGNED DEFAULT 0, "
                 "passwd VARCHAR(100));";
@@ -372,7 +372,7 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::pat
                 "achi_name VARCHAR(100) NOT NULL, "
                 "description VARCHAR(1000));";
         db << "CREATE TABLE IF NOT EXISTS user_with_achievement("
-                "user_id BIGINT UNSIGNED NOT NULL, "
+                "user_id VARCHAR(100) NOT NULL, "
                 "achi_id BIGINT UNSIGNED NOT NULL);";
         return std::unique_ptr<DBManagerBase>(new SQLiteDBManager(db_name_str));
     } catch (const sqlite::sqlite_exception& e) {

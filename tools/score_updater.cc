@@ -55,17 +55,17 @@ class UserHistoryInfo
 };
 
 std::vector<UserInfoForCalScore> LoadMatch(sqlite::database& db, const uint64_t match_id, const std::string game_name,
-        std::map<uint64_t, UserHistoryInfo>& user_history_infos)
+        std::map<UserID, UserHistoryInfo>& user_history_infos)
 {
     std::vector<UserInfoForCalScore> user_infos;
     db << "SELECT user_id, birth_count, game_score FROM user_with_match WHERE match_id = ?;" << match_id
-       >> [&](const uint64_t user_id, const uint64_t birth_count, const int64_t game_score)
+       >> [&](std::string user_id, const uint64_t birth_count, const int64_t game_score)
             {
                 auto& user_history_info = user_history_infos[user_id];
                 user_history_info.TryRebirth(birth_count);
                 const auto& game_history_info = user_history_info.GetGameHistory(game_name);
                 user_infos.emplace_back(
-                        user_id, game_score, game_history_info.count_, game_history_info.level_score_sum_);
+                        std::move(user_id), game_score, game_history_info.count_, game_history_info.level_score_sum_);
             };
     return user_infos;
 }
@@ -81,7 +81,7 @@ void UpdateMatchScore(sqlite::database& db, const uint64_t match_id, const std::
 }
 
 void UpdateUserHistoryInfo(const std::string& game_name, const std::vector<ScoreInfo>& score_infos,
-        std::map<uint64_t, UserHistoryInfo>& user_history_infos)
+        std::map<UserID, UserHistoryInfo>& user_history_infos)
 {
     for (auto& info : score_infos) {
         user_history_infos[info.uid_].Record(game_name, info.level_score_);
@@ -96,7 +96,7 @@ int main(int argc, char** argv)
         return 1;
     }
     try {
-        std::map<uint64_t, UserHistoryInfo> user_history_infos;
+        std::map<UserID, UserHistoryInfo> user_history_infos;
         sqlite::database db(FLAGS_db_path);
         db << "BEGIN;";
         db << "SELECT match_id, game_name, multiple from match;"

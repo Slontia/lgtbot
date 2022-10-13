@@ -104,10 +104,10 @@ inline const char* errcode2str(const ErrCode errcode)
 
 struct BotOption
 {
-    uint64_t this_uid_ = 0;
-    const char* game_path_ = nullptr;
-    const char* image_path_ = nullptr;
-    const uint64_t* admins_ = nullptr;
+    const char* this_uid_ = nullptr; // the user id of the robot, should not be null
+    const char* game_path_ = nullptr; // should not be null
+    const char* image_path_ = nullptr; // shuold not be null
+    const char* const* admins_ = nullptr; // an array for admin user id, should not be null
     const std::filesystem::path::value_type* db_path_ = nullptr;
 };
 
@@ -116,8 +116,8 @@ class BOT_API
    public:
     static DLLEXPORT(void*) Init(const BotOption* option);
     static DLLEXPORT(void) Release(void* bot);
-    static DLLEXPORT(ErrCode) HandlePrivateRequest(void* bot, const uint64_t uid, const char* const msg);
-    static DLLEXPORT(ErrCode) HandlePublicRequest(void* bot, const uint64_t gid, const uint64_t uid, const char* const msg);
+    static DLLEXPORT(ErrCode) HandlePrivateRequest(void* bot, const char* uid, const char* msg);
+    static DLLEXPORT(ErrCode) HandlePublicRequest(void* bot, const char* gid, const char* uid, const char* msg);
 };
 
 #undef DLLEXPORT

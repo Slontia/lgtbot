@@ -16,13 +16,15 @@
 
 std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path);
 
-void* OpenMessager(uint64_t id, bool is_uid);
+void* OpenMessager(const char* id, bool is_uid);
 void MessagerPostText(void* p, const char* data, uint64_t len);
-void MessagerPostUser(void* p, uint64_t uid, bool is_at);
+void MessagerPostUser(void* p, const char* uid, bool is_at);
 void MessagerPostImage(void* p, const std::filesystem::path::value_type* path);
 void MessagerFlush(void* p);
 void CloseMessager(void* p);
-const char* GetUserName(uint64_t uid, const uint64_t* group_id);
+// |uid| should NOT be null
+// |gid| is null means to get the nickname of the user, otherwise, getting the group nickname of the user
+const char* GetUserName(const char* uid, const char* group_id);
 class PlayerID;
 class UserID;
 class GroupID;
@@ -137,7 +139,7 @@ class MsgSender : public MsgSenderBase
 
   protected:
     virtual void SaveText(const char* const data, const uint64_t len) override { MessagerPostText(sender_, data, len); }
-    virtual void SaveUser(const UserID& uid, const bool is_at) override { MessagerPostUser(sender_, uid, is_at); }
+    virtual void SaveUser(const UserID& uid, const bool is_at) override { MessagerPostUser(sender_, uid.GetCStr(), is_at); }
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override;
     virtual void SaveImage(const std::filesystem::path::value_type* const path) override { MessagerPostImage(sender_, path); }
     virtual void Flush() override { MessagerFlush(sender_); }
@@ -145,8 +147,8 @@ class MsgSender : public MsgSenderBase
     friend class MsgSenderBatch;
 
   private:
-    static void* Open_(const UserID& uid) { return OpenMessager(uid, true); }
-    static void* Open_(const GroupID& gid) { return OpenMessager(gid, false); }
+    static void* Open_(const UserID& uid) { return OpenMessager(uid.GetCStr(), true); }
+    static void* Open_(const GroupID& gid) { return OpenMessager(gid.GetCStr(), false); }
     void* sender_;
     const Match* match_;
 };
@@ -213,7 +215,7 @@ class MsgSenderBatch : public MsgSenderBase
 
     virtual void SaveUser(const UserID& uid, const bool is_at) override
     {
-        fn_([&](MsgSender& sender) { sender.SaveUser(uid, is_at); });
+        fn_([&](MsgSender& sender) { sender.SaveUser(uid.GetCStr(), is_at); });
     }
 
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override

@@ -378,7 +378,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
             return s;
         };
 
-    std::string html = std::string("## ") + GetUserName(uid, gid.has_value() ? &(gid->Get()) : nullptr) + "\n";
+    std::string html = std::string("## ") + GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) + "\n";
     html += "\n- **游戏局数**：" + std::to_string(profile.match_count_);
     html += "\n- **零和总分**：" + colored_text(profile.total_zero_sum_score_, std::to_string(profile.total_zero_sum_score_));
     html += "\n- **头名总分**：" + colored_text(profile.total_top_score_, std::to_string(profile.total_top_score_));
@@ -449,7 +449,7 @@ static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<
         reply() << "[错误] 重来失败：清除战绩，需最近三局比赛均取得正零和分的收益";
         return EC_USER_SUICIDE_FAILED;
     }
-    reply() << GetUserName(uid, gid.has_value() ? &(gid->Get()) : nullptr) << "，凋零！";
+    reply() << GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) << "，凋零！";
     return EC_OK;
 }
 
@@ -459,7 +459,7 @@ static std::string print_score(const V& vec, const std::optional<GroupID> gid)
     std::string s;
     for (uint64_t i = 0; i < vec.size(); ++i) {
         s += "\n" + std::to_string(i + 1) + "位：" +
-                GetUserName(vec[i].first, gid.has_value() ? &(gid->Get()) : nullptr) +
+                GetUserName(vec[i].first.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) +
                 "【" + std::to_string(vec[i].second) + "分】";
     }
     return s;
@@ -573,13 +573,13 @@ static ErrCode set_game_default_multiple(BotCtx& bot, const UserID uid, const st
 }
 
 static ErrCode show_others_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const uint64_t others_uid)
+        MsgSenderBase& reply, const std::string& others_uid)
 {
     return show_profile(bot, others_uid, gid, reply);
 }
 
 static ErrCode clear_others_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const uint64_t others_uid, const std::string& reason)
+        MsgSenderBase& reply, const std::string& others_uid, const std::string& reason)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 清除失败：未连接数据库";
@@ -607,10 +607,9 @@ const std::vector<MetaCommandGroup> admin_cmds = {
                         OptionalChecker<BasicChecker<MatchID>>("私密比赛编号")),
             make_command("设置游戏默认属性", set_game_default_multiple, VoidChecker("%默认倍率"),
                         AnyArg("游戏名称", "猜拳游戏"), ArithChecker<uint32_t>(0, 3, "倍率")),
-            make_command("查看他人战绩", show_others_profile, VoidChecker("%战绩"),
-                        ArithChecker<uint64_t>(0, 10000000000UL, "用户 ID")),
+            make_command("查看他人战绩", show_others_profile, VoidChecker("%战绩"), AnyArg("用户 ID", "123456789")),
             make_command("清除他人战绩，并通知其具体理由", clear_others_profile, VoidChecker("%清除战绩"),
-                        ArithChecker<uint64_t>(0, 10000000000UL, "用户 ID"), AnyArg("理由", "恶意刷分")),
+                        AnyArg("用户 ID", "123456789"), AnyArg("理由", "恶意刷分")),
         }
     },
 };

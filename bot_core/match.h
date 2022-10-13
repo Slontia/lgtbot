@@ -94,10 +94,9 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
             return (str = "机器人" + std::to_string(*pval) + "号").c_str();
         }
         if (!gid().has_value()) {
-            return GetUserName(std::get<UserID>(id), nullptr);
+            return GetUserName(std::get<UserID>(id).GetCStr(), nullptr);
         }
-        const uint64_t gid_value = *gid();
-        return GetUserName(std::get<UserID>(id), &gid_value);
+        return GetUserName(std::get<UserID>(id).GetCStr(), gid().has_value() ? gid()->GetCStr() : nullptr);
     }
     MsgSenderBase::MsgSenderGuard Boardcast() { return BoardcastMsgSender()(); }
     MsgSenderBase::MsgSenderGuard BoardcastAtAll();
@@ -152,6 +151,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     void Terminate_();
     bool AllControlledPlayerEliminted_(const UserID uid) const;
     bool Has_(const UserID uid) const;
+    const char* HostUserName_() const { return GetUserName(host_uid_.GetCStr(), gid_.has_value() ? gid_->GetCStr() : nullptr); }
 
     mutable std::mutex mutex_;
 

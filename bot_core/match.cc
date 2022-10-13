@@ -67,7 +67,7 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, std::optional<
     }
     std::lock_guard<std::mutex> l(mutex_);
     if (uid != host_uid_) {
-        reply() << "[错误] 您并非房主，没有变更游戏设置的权限";
+        reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
     }
     auto sender = reply();
@@ -113,7 +113,7 @@ ErrCode Match::SetMultiple(const UserID uid, MsgSenderBase& reply, const uint32_
 {
     std::lock_guard<std::mutex> l(mutex_);
     if (uid != host_uid_) {
-        reply() << "[错误] 您并非房主，没有变更游戏设置的权限";
+        reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
     }
     if (multiple == multiple_) {
@@ -180,7 +180,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         return ConverErrCode(stage_rc);
     }
     if (uid != host_uid_) {
-        reply() << "[错误] 您并非房主，没有变更游戏设置的权限";
+        reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
     }
     if (!options_->SetOption(msg.c_str())) {
@@ -201,7 +201,7 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         return EC_MATCH_ALREADY_BEGIN;
     }
     if (uid != host_uid_) {
-        reply() << "[错误] 您并非房主，没有变更游戏设置的权限";
+        reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
     }
     const uint64_t player_num = std::max(user_controlled_player_num(), bench_to_player_num_);
@@ -564,7 +564,7 @@ void Match::OnGameOver_()
                     bot_.db_manager()->RecordMatch(game_handle_.name_, gid_, host_uid_, multiple_, user_game_scores);
                 score_info.empty()) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
-            ErrorLog() << "Save database failed mid=" << mid_ << " host_uid=" << host_uid_ << " gid=" << (gid_.has_value() ? gid_->Get() : 0);
+            ErrorLog() << "Save database failed mid=" << mid_ << " host_uid=" << host_uid_ << " gid=" << (gid_.has_value() ? gid_->GetStr() : "");
         } else {
             assert(score_info.size() == users_.size());
             sender << "\n\n游戏结果写入数据库成功：";

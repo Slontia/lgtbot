@@ -21,8 +21,8 @@
 DEFINE_string(game_path, "plugins", "The path of game modules");
 DEFINE_string(history_filename, ".simulator_history.txt", "The file saving history commands");
 DEFINE_bool(color, true, "Enable color");
-DEFINE_uint64(bot_uid, 114514, "The UserID of bot");
-DEFINE_uint64(admin_uid, 1, "The UserID of administor");
+DEFINE_string(bot_uid, "this_bot", "The UserID of bot");
+DEFINE_string(admin_uid, "admin", "The UserID of administor");
 
 #ifdef WITH_SQLITE
 DEFINE_string(db_path, "simulator.db", "Name of database");
@@ -55,24 +55,24 @@ std::ostream& Log() { return std::clog << Blue() << "[LOG] " << Default(); }
 
 struct Messager
 {
-    Messager(const uint64_t id, const bool is_uid) : id_(id), is_uid_(is_uid) {}
-    const uint64_t id_;
+    Messager(const char* const id, const bool is_uid) : id_(id), is_uid_(is_uid) {}
+    const std::string id_;
     const bool is_uid_;
     std::stringstream ss_;
 };
 
-void* OpenMessager(const uint64_t id, const bool is_uid)
+void* OpenMessager(const char* const id, const bool is_uid)
 {
     return new Messager(id, is_uid);
 }
 
-void MessagerPostText(void* p, const char* data, uint64_t len)
+void MessagerPostText(void* const p, const char* const data, const uint64_t len)
 {
     Messager* const messager = static_cast<Messager*>(p);
     messager->ss_ << std::string_view(data, len);
 }
 
-void MessagerPostUser(void* p, uint64_t uid, bool is_at)
+void MessagerPostUser(void* const p, const char* const uid, const bool is_at)
 {
     Messager* const messager = static_cast<Messager*>(p);
     messager->ss_ << LightPink();
@@ -110,63 +110,47 @@ void CloseMessager(void* p)
     delete messager;
 }
 
-const char* GetUserName(const uint64_t uid, const uint64_t* const group_id)
+const char* GetUserName(const char* uid, const char* const group_id)
 {
     thread_local static std::string str;
     if (group_id == nullptr) {
-        str = std::to_string(uid);
+        str = uid;
     } else {
-        str = std::to_string(uid) + "(gid=" + std::to_string(*group_id) + ")";
+        str = std::string(uid) + "(gid=" + std::string(group_id) + ")";
     }
     return str.c_str();
 }
 
 auto init_bot(int argc, char** argv) { const char* errmsg = nullptr; }
 
-std::pair<std::string_view, std::string_view> cut(const std::string_view line)
+std::pair<std::string, std::string> cut(const std::string_view line)
 {
     if (const auto start_pos = line.find_first_not_of(' '); start_pos == std::string_view::npos) {
-        return {std::string_view(), std::string_view()};
+        return {std::string(), std::string()};
     } else if (const auto end_pos = line.find_first_of(' ', start_pos); end_pos == std::string_view::npos) {
-        return {line.substr(start_pos), std::string_view()};
+        return {std::string(line.substr(start_pos)), std::string()};
     } else {
-        return {line.substr(start_pos, end_pos - start_pos), line.substr(end_pos)};
+        return {std::string(line.substr(start_pos, end_pos - start_pos)), std::string(line.substr(end_pos))};
     }
 };
 
 bool handle_request(void* bot, const std::string_view line)
 {
-    const auto [gid_s, gid_remain_s] = cut(line);
-    const auto [uid_s, request_s] = cut(gid_remain_s);
+    const auto [gid, gid_remain_s] = cut(line);
+    const auto [uid, request_s] = cut(gid_remain_s);
 
-    if (gid_s.empty() || uid_s.empty() || request_s.empty()) {
+    if (gid.empty() || uid.empty() || request_s.empty()) {
         Error() << "Invalid request format" << std::endl;
         return false;
     }
 
-    std::optional<uint64_t> gid;
-    uint64_t uid = 0;
-
-    try {
-        if (gid_s != "-") {
-            gid = std::stoull(gid_s.data());
-        }
-    } catch (const std::invalid_argument& e) {
-        Error() << "Invalid GroupID \'" << gid_s << "\', can only be integer or \'-\' (which means send private message)" << std::endl;
-        ;
+    if (uid == "-") {
+        Error() << "Invalid UserID, should not be \"-\"" << std::endl;
         return false;
     }
 
-    try {
-        uid = std::stoull(uid_s.data());
-    } catch (const std::invalid_argument& e) {
-        Error() << "Invalid UserID \'" << uid_s << "\', can only be integer" << std::endl;
-        ;
-        return false;
-    }
-
-    ErrCode rc = gid.has_value() ? BOT_API::HandlePublicRequest(bot, gid.value(), uid, request_s.data())
-                                 : BOT_API::HandlePrivateRequest(bot, uid, request_s.data());
+    ErrCode rc = gid != "-" ? BOT_API::HandlePublicRequest(bot, gid.data(), uid.data(), request_s.data())
+                            : BOT_API::HandlePrivateRequest(bot, uid.data(), request_s.data());
     std::cout << ErrCodeColor(rc) << "Error Code: " << errcode2str(rc) << Default() << std::endl;
 
     return true;
@@ -176,12 +160,12 @@ int main(int argc, char** argv)
 {
     //std::locale::global(std::locale("")); // this line can make number with comma
     gflags::ParseCommandLineFlags(&argc, &argv, true);
-    const uint64_t admins[2] = { FLAGS_admin_uid, 0 };
+    const char* admins[2] = { FLAGS_admin_uid.c_str(), 0 };
 #ifdef WITH_SQLITE
     const auto db_path = std::filesystem::path(FLAGS_db_path);
 #endif
     const BotOption option {
-        .this_uid_ = FLAGS_bot_uid,
+        .this_uid_ = FLAGS_bot_uid.c_str(),
         .game_path_ = FLAGS_game_path.c_str(),
         .image_path_ = "/image_path/",
         .admins_ = admins,

@@ -41,7 +41,7 @@ class TestDB : public testing::Test
 #define ASSERT_USER_PROFILE(uid, zero_sum, top, match_count, recent_count) \
 [&]() -> UserProfile { \
     const auto user_profile = db_manager_->GetUserProfile(uid); \
-    EXPECT_EQ((uid).Get(), user_profile.uid_.Get()); \
+    EXPECT_EQ((uid).GetStr(), user_profile.uid_.GetStr()); \
     EXPECT_EQ((zero_sum), user_profile.total_zero_sum_score_); \
     EXPECT_EQ((top), user_profile.total_top_score_); \
     EXPECT_EQ((match_count), user_profile.match_count_); \
@@ -73,27 +73,27 @@ void RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
 TEST_F(TestDB, get_user_profile_empty)
 {
     ASSERT_TRUE(UseDB_());
-    ASSERT_USER_PROFILE(UserID(1), 0, 0, 0, 0);
+    ASSERT_USER_PROFILE(UserID("1"), 0, 0, 0, 0);
 }
 
 TEST_F(TestDB, get_user_profile_one_match)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("mygame", std::nullopt, 1, 1,
-            std::vector<ScoreInfo>{ScoreInfo(UserID(2), 30, 40, 50), ScoreInfo(UserID(3), 10, 10, 10)});
-    ASSERT_USER_PROFILE(UserID(1), 0, 0, 0, 0);
-    const auto profile_2 = ASSERT_USER_PROFILE(UserID(2), 40, 50, 1, 1);
+    RecordMatch("mygame", std::nullopt, "1", 1,
+            std::vector<ScoreInfo>{ScoreInfo(UserID("2"), 30, 40, 50), ScoreInfo(UserID("3"), 10, 10, 10)});
+    ASSERT_USER_PROFILE(UserID("1"), 0, 0, 0, 0);
+    const auto profile_2 = ASSERT_USER_PROFILE(UserID("2"), 40, 50, 1, 1);
     ASSERT_MATCH_PROFILE(profile_2.recent_matches_[0], "mygame", 2, 30, 40, 50);
-    const auto profile_3 = ASSERT_USER_PROFILE(UserID(3), 10, 10, 1, 1);
+    const auto profile_3 = ASSERT_USER_PROFILE(UserID("3"), 10, 10, 1, 1);
     ASSERT_MATCH_PROFILE(profile_3.recent_matches_[0], "mygame", 2, 10, 10, 10);
 }
 
 TEST_F(TestDB, get_user_profile_two_matches)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 30, 40, 50)});
-    RecordMatch("g2", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), -20, -10, 0)});
-    const auto profile = ASSERT_USER_PROFILE(UserID(1), 30, 50, 2, 2);
+    RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 30, 40, 50)});
+    RecordMatch("g2", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), -20, -10, 0)});
+    const auto profile = ASSERT_USER_PROFILE(UserID("1"), 30, 50, 2, 2);
     ASSERT_MATCH_PROFILE(profile.recent_matches_[0], "g2", 1, -20, -10, 0);
     ASSERT_MATCH_PROFILE(profile.recent_matches_[1], "g1", 1, 30, 40, 50);
 }
@@ -102,9 +102,9 @@ TEST_F(TestDB, get_user_profile_more_than_ten_matches)
 {
     ASSERT_TRUE(UseDB_());
     for (int i = 0; i < 15; ++i) {
-        RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
+        RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
     }
-    const auto profile = ASSERT_USER_PROFILE(UserID(1), 150, 150, 15, 10);
+    const auto profile = ASSERT_USER_PROFILE(UserID("1"), 150, 150, 15, 10);
     for (int i = 0; i < 10; ++i) {
         ASSERT_MATCH_PROFILE(profile.recent_matches_[i], "g1", 1, 10, 10, 10);
     }
@@ -113,47 +113,47 @@ TEST_F(TestDB, get_user_profile_more_than_ten_matches)
 TEST_F(TestDB, cannot_suicide_at_first)
 {
     ASSERT_TRUE(UseDB_());
-    ASSERT_FALSE(db_manager_->Suicide(UserID(1), 1));
+    ASSERT_FALSE(db_manager_->Suicide(UserID("1"), 1));
 }
 
 TEST_F(TestDB, suicide_only_achieve_required_match_num)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
-    ASSERT_FALSE(db_manager_->Suicide(UserID(1), 2));
-    RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
-    ASSERT_TRUE(db_manager_->Suicide(UserID(1), 2));
+    RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
+    ASSERT_FALSE(db_manager_->Suicide(UserID("1"), 2));
+    RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
+    ASSERT_TRUE(db_manager_->Suicide(UserID("1"), 2));
 }
 
 TEST_F(TestDB, cannot_suicide_repeatedly)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 10, 10, 10)});
-    ASSERT_TRUE(db_manager_->Suicide(UserID(1), 1));
-    ASSERT_FALSE(db_manager_->Suicide(UserID(1), 1));
+    RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
+    ASSERT_TRUE(db_manager_->Suicide(UserID("1"), 1));
+    ASSERT_FALSE(db_manager_->Suicide(UserID("1"), 1));
 }
 
 TEST_F(TestDB, check_suicide)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("g1", std::nullopt, 1, 1, std::vector<ScoreInfo>{ScoreInfo(UserID(1), 99, 99, 99)});
-    ASSERT_TRUE(db_manager_->Suicide(UserID(1), 1));
-    ASSERT_USER_PROFILE(UserID(1), 0, 0, 0, 0);
+    RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 99, 99, 99)});
+    ASSERT_TRUE(db_manager_->Suicide(UserID("1"), 1));
+    ASSERT_USER_PROFILE(UserID("1"), 0, 0, 0, 0);
 }
 
 TEST_F(TestDB, reopen_db)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("mygame", std::nullopt, 1, 1,
-            std::vector<ScoreInfo>{ScoreInfo(UserID(2), 30, 40, 50), ScoreInfo(UserID(3), 10, 10, 10)});
+    RecordMatch("mygame", std::nullopt, "1", 1,
+            std::vector<ScoreInfo>{ScoreInfo(UserID("2"), 30, 40, 50), ScoreInfo(UserID("3"), 10, 10, 10)});
 
     db_manager_.reset();
     ASSERT_TRUE(UseDB_());
 
-    ASSERT_USER_PROFILE(UserID(1), 0, 0, 0, 0);
-    const auto profile_2 = ASSERT_USER_PROFILE(UserID(2), 40, 50, 1, 1);
+    ASSERT_USER_PROFILE(UserID("1"), 0, 0, 0, 0);
+    const auto profile_2 = ASSERT_USER_PROFILE(UserID("2"), 40, 50, 1, 1);
     ASSERT_MATCH_PROFILE(profile_2.recent_matches_[0], "mygame", 2, 30, 40, 50);
-    const auto profile_3 = ASSERT_USER_PROFILE(UserID(3), 10, 10, 1, 1);
+    const auto profile_3 = ASSERT_USER_PROFILE(UserID("3"), 10, 10, 1, 1);
     ASSERT_MATCH_PROFILE(profile_3.recent_matches_[0], "mygame", 2, 10, 10, 10);
 }
 
