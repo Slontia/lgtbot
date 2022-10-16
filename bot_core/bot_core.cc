@@ -7,7 +7,9 @@
 #include <fstream>
 #include <filesystem>
 
+#if WITH_GLOG
 #include <glog/logging.h>
+#endif
 
 #include "utility/msg_checker.h"
 #include "utility/log.h"
@@ -33,14 +35,26 @@ BotCtx::BotCtx(const BotOption& option, std::unique_ptr<DBManagerBase> db_manage
     LoadAdmins_(option.admins_);
 }
 
-void BotCtx::LoadAdmins_(const char* const* admins)
+void BotCtx::LoadAdmins_(const std::string_view& admins_str)
 {
-    if (admins == nullptr) {
+    if (admins_str.empty()) {
         return;
     }
-    for (; *admins != 0; ++admins) {
-        InfoLog() << "New administor: " << *admins;
-        admins_.emplace(*admins);
+    std::string::size_type begin = 0;
+    while (true) {
+        if (begin == admins_str.size()) {
+            break;
+        }
+        const auto end = admins_str.find_first_of(',', begin);
+        if (end == std::string::npos) {
+            admins_.emplace(admins_str.substr(begin));
+            break;
+        }
+        admins_.emplace(admins_str.substr(begin, end - begin));
+        begin = end + 1;
+    }
+    for (const auto& admin : admins_) {
+        InfoLog() << "Load administor: " << admin;
     }
 }
 

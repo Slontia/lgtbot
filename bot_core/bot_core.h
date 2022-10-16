@@ -107,7 +107,7 @@ struct BotOption
     const char* this_uid_ = nullptr; // the user id of the robot, should not be null
     const char* game_path_ = nullptr; // should not be null
     const char* image_path_ = nullptr; // shuold not be null
-    const char* const* admins_ = nullptr; // an array for admin user id, should not be null
+    const char* admins_ = nullptr; // an list for admin user id, split by ',', should not be null
     const std::filesystem::path::value_type* db_path_ = nullptr;
 };
 

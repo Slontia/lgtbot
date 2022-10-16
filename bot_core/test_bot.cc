@@ -388,12 +388,11 @@ class TestBot : public testing::Test
     virtual void SetUp() override
     {
         Timer::skip_timer_ = false;
-        const char* admins[2] = { k_admin_qq, nullptr };
         const BotOption option {
             .this_uid_ = k_this_qq,
             .game_path_ = "/game_path/",
             .image_path_ = "/image_path/",
-            .admins_ = admins,
+            .admins_ = k_admin_qq,
 #ifdef _WIN32
             .db_path_ = L":memory:",
 #else

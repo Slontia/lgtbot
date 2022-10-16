@@ -104,7 +104,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     virtual void StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t)) override;
     virtual void StopTimer() override;
     virtual void Eliminate(const PlayerID pid) override;
-    void ShowInfo(const std::optional<GroupID>&, MsgSenderBase& reply) const;
+    void ShowInfo(MsgSenderBase& reply) const;
 
     bool SwitchHost();
 

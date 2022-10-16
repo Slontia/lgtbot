@@ -471,7 +471,7 @@ void Match::Eliminate(const PlayerID pid)
     Tell(pid) << "很遗憾，您被淘汰了，可以通过「#退出」以退出游戏";
 }
 
-void Match::ShowInfo(const std::optional<GroupID>& gid, MsgSenderBase& reply) const
+void Match::ShowInfo(MsgSenderBase& reply) const
 {
     reply.SetMatch(this);
     std::lock_guard<std::mutex> l(mutex_);
@@ -484,10 +484,9 @@ void Match::ShowInfo(const std::optional<GroupID>& gid, MsgSenderBase& reply) co
            << "\n";
     sender << "房间号：";
     if (gid_.has_value()) {
-        sender << *gid << "\n";
+        sender << *gid_ << "\n";
     } else {
-        sender << "私密游戏"
-               << "\n";
+        sender << "私密游戏" << "\n";
     }
     sender << "最多可参加人数：";
     if (game_handle().max_player_ == 0) {

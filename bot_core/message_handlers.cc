@@ -313,7 +313,7 @@ static ErrCode show_match_info(BotCtx& bot, const UserID uid, const std::optiona
         reply() << "[错误] 查看失败：该房间未进行游戏";
         return EC_MATCH_GROUP_NOT_IN_MATCH;
     }
-    match->ShowInfo(gid, reply);
+    match->ShowInfo(reply);
     return EC_OK;
 }
 
