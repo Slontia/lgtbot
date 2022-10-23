@@ -5,14 +5,14 @@
 ![image](https://img.shields.io/badge/author-slontia-blue.svg) ![image](https://img.shields.io/badge/language-c++20-green.svg)
 
 </div>
-	
+
 ## 1 项目简介
 
 LGTBot 是一个基于 C++ 实现的，用于在 **聊天室** 或 **其它通讯软件** 中，实现多人 **文字推理游戏** 的裁判机器人库。
 
 - 提供了通用的 **聊天信息交互接口**，需要由已实现好的机器人框架调用使用
 - 支持 **群组公开游戏** 和 **私密游戏** 两种方式，无需在群组内也可以进行游戏
-- 内置了 7 种已实现好的游戏，同时提供了通用的**游戏框架**，便于后续开发新游戏
+- 内置了 19 种已实现好的游戏，同时提供了通用的**游戏框架**，便于后续开发新游戏
 - 基于 CMake 编译，支持跨平台
 
 其中，「LGT」源自日本漫画家甲斐谷忍创作的《Liar Game》中的虚构组织「**L**iar **G**ame **T**ournament事务所」。
@@ -130,74 +130,3 @@ LGTBot 本身不提供配置项，但您可以通过配置项更改 glog 输出�
 - `game_path`：游戏所在路径，默认为 "./plugins"
 - `history_filename`：历史命令保存路径，默认为 `./.simulator_history.txt`
 
-## 5 游戏展示
-
-<div align="center">
-
-### 5.1 LIE
-
-双方猜测数字的简单游戏
-
-![](./images/game_lie.png)
-
-### 5.2 投标波卡
-
-通过投标和拍卖提升波卡牌型的游戏
-
-![](./images/game_bidding_poker.png)
-
-### 5.3 二择猜拳
-
-伸出两拳，收回一拳的猜拳游戏
-
-![](./images/game_alter_rps.png)
-
-### 5.4 数字蜂巢
-
-通过放置卡牌，让同数字连成直线获得积分，比拼分数高低的游戏
-
-![](./images/game_numcomb.png)
-
-### 5.5 炼金术士
-
-通过放置卡牌，让卡牌连成直线获得积分，比拼分数高低的游戏
-
-![](./images/game_alchemist.png)
-
-### 5.6 你推我挤
-
-通过取出并重新放入棋子，先连成五子者获胜的游戏
-
-![](./images/game_quixo.png)
-
-### 5.7 十七步
-
-组成满贯听牌牌型，并经历 17 轮切牌的麻将游戏
-
-![](./images/game_mahjong_17_steps.png)
-
-### 5.8 决胜五子
-
-双方一起落子的五子棋游戏
-
-![](./images/game_renju.jpg)
-
-### 5.9 镭射象棋
-
-调整镜面，发射激光消灭对方棋子的游戏
-
-![](./images/game_laser_chess.png)
-
-### 5.10 幸运波卡
-
-能够看到各个玩家部分手牌，两阶段下注的比拼大小的游戏
-
-![](./images/game_lucky_poker.png)
-
-### 5.11 群雄象棋
-
-多个帝国共同参与，定时重组棋盘的象棋游戏
-
-![](./images/game_chinese_chess.jpeg)
-
-</div>
