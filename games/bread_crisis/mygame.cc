@@ -133,7 +133,7 @@ class RoundStage : public SubGameStage<> {
   virtual void OnStageBegin() override {
     StartTimer(option().GET_VALUE(时限));
 
-    Boardcast() << name() << "，请玩家私信选择身份。";
+    Boardcast() << name() << "，请玩家私信选择行动。";
   }
 
   virtual CheckoutErrCode OnTimeout() override {
@@ -169,7 +169,7 @@ class RoundStage : public SubGameStage<> {
   virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override {
     int i = pid;
     main_stage().player_select_[i] = 'N';
-    main_stage().player_number_[i] = rand() % 3 + 3;
+    main_stage().player_number_[i] = rand() % 4 + 2;
     main_stage().player_target_[i] = 0;
 
     return StageErrCode::READY;
