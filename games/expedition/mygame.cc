@@ -22,6 +22,13 @@ const std::string k_developer = "dva";
 const std::string k_description = "通过计算和放置数字，争取分数的游戏";
 
 const std::map<int, char> op_char = {{0, '+'}, {1, '-'}, {2, '*'}, {3, '>'}, {4, '<'}};
+std::map<std::string, int> char_op = {
+  {"+", 0}, {"＋", 0}, {"加", 0},
+  {"-", 1}, {"－", 1}, {"–", 1}, {"减", 1},
+  {"*", 2}, {"＊", 2}, {"乘", 2}, {"×", 2},
+  {">", 3}, {"＞", 3}, {"大", 3},
+  {"<", 4}, {"＜", 4}, {"小", 4},
+};
 
 std::string GameOption::StatusInfo() const {
   std::stringstream ss;
@@ -40,6 +47,7 @@ int n, m, turn = 1;
 char lines[128][32], lx[128][32], ly[128][32];
 int line_cnt;
 int random_seed;
+int num_1, num_2;
 struct board {
   int score;
   int opcnt[7];
@@ -48,23 +56,51 @@ struct board {
 };
 
 void generate_two_num(int& a, int& b, int* c) {
-  int x = rand() % 100;
-  if (x < 2) {
+  bool no_small = a<=2 && b<=3; // 伪随机机制：如果上次的数很小，这次一定相对大一些，不然玩的不爽
+  int x = rand() % 128;
+  if (x ==1) {
+    a = 2, b = 11;
+  } else if(x==2){
     a = 2, b = 13;
-  } else if (x < 4) {
+    }else if (x == 3) {
     a = 2, b = 17;
-  } else if (x < 6) {
+  } else if (x == 4) {
     a = 2, b = 18;
-  } else if (x < 8) {
+  } else if(x == 5){
+    a = 2, b = 15;
+  } else if (x == 6) {
+    a = 3, b = 9;
+  } else if (x == 7) {
+    a = 3, b = 10;
+  } else if (x == 8) {
     a = 3, b = 11;
-  } else if (x < 10) {
+  } else if (x == 9) {
     a = 3, b = 12;
+  } else if (x == 10) {
+    a = 4, b = 8;
+  } else if(x == 11) {
+    a = 4, b = 9;
+  } else if(x == 12) {
+    if(rand() % 2 == 0) {
+      a = 9, b = 25;
+    } else {
+      a = 10, b = 24;
+    }
+  } else if(x == 13) {
+    if(rand() % 2 == 0) {
+      a = 13, b = 17;
+    } else {
+      a = 11, b = 19;
+    }
   } else {
     a = rand() % 6 + 1;
     b = rand() % 6 + 1;
-    if (a == b && (rand() % 2 == 1)) {
+    if (a <= 3 && b <= 3 && (rand() % 2 == 1)) {
+      a = rand() % 6 + 1;
       b = 7;
-    } else if (a > b) {
+    }
+    if(no_small) a+=rand()%2, b+=rand()%3;
+    if (a > b) {
       std::swap(a, b);
     }
   }
@@ -218,7 +254,8 @@ struct MyUI {
 
   void SetBoard(int index, const board& bd) {
     std::stringstream html;
-    html << "<p>" + names[index] + " 当前分数： " << bd.score << "</p>";
+    html << "<p>" << names[index] << "</p>";
+    html << "<p>" << "当前分数： " << bd.score << "</p>";
     for (int i = 1; i <= n; i++) {
       html << R"(<div style="display:inline-flex;margin-left:)" << (40 - 20 * i) << R"(px;">)";
       for (int j = 1; j <= m && map[i][j]; j++) {
@@ -243,8 +280,8 @@ struct MyUI {
     std::stringstream html;
     html
         << R"(<style>p{text-align: center;}.block{width: 40px; height: 36px; display: flex; justify-content: center; align-items: center; font-size: 20px;})"
-        << R"(.border{outline: 2px solid #666; outline-offset: -1px; background-color: #fefeee;}.purple{background-color: #f6f6f6;}</style>)"
-        << R"(<div style="width: 700px; display: flex; flex-wrap: wrap; justify-content: space-between; overflow: hidden;">)";
+        << R"(.border{outline: 2px solid #666; outline-offset: -1px; background-color: #fefeee;}.purple{background-color: #eeeefe;}</style>)"
+        << R"(<div style="width: 690px; display: flex; flex-wrap: wrap; justify-content: space-between; overflow: hidden;">)";
     for (int i = 0; i < player_num_; i++) {
       html << R"(<div style="width: 300px; background-color: #ebfcfd; padding: 15px;">)"
            << boards[i] << R"(</div>)";
@@ -255,7 +292,17 @@ struct MyUI {
     return result;
   }
 
-  void SetName(int index, const std::string& name) { names[index] = name.substr(0, 24); }
+  void SetName(int index, const std::string& name) {
+    std::string tmp = "";
+    for(auto c: name) {
+      if(c == '>') tmp += "&gt;";
+      else if(c == '<') tmp += "&lt;";
+      else if(c == '&') tmp += "&amp;";
+      else tmp += c;
+    }
+    std::cout << name << " " << tmp << std::endl;
+    names[index] = tmp;
+  }
 
  private:
   int player_num_;
@@ -289,15 +336,16 @@ class RoundStage : public SubGameStage<> {
       : GameStage(main_stage, "第" + std::to_string(++main_stage.turn_) + "回合",
                   MakeStageCommand(
                       "设置数字", &RoundStage::Set_, AnyArg("位置", "a"),
-                      AlterChecker<int>({{"+", 0}, {"-", 1}, {"*", 2}, {">", 3}, {"<", 4}}))) {}
+                      AlterChecker<int>(char_op)),
+                  MakeStageCommand("跳过", &RoundStage::Pass_, VoidChecker("pass"))) {}
 
   virtual void OnStageBegin() override {
     generate_two_num(num_1, num_2, number);
     for (int i = 0; i < main_stage().num_player_; i++) {
-      main_stage().ui_.SetBoard(i, main_stage().boards_[i]);
       main_stage().ui_.SetName(i, PlayerName(i));
+      main_stage().ui_.SetBoard(i, main_stage().boards_[i]);
     }
-    Boardcast() << Markdown(main_stage().ui_.ToHtml(), 700);
+    Boardcast() << Markdown(main_stage().ui_.ToHtml(), 720);
     Boardcast() << ("本回合数字：" + std::to_string(num_1) + " " + std::to_string(num_2));
     StartTimer(option().GET_VALUE(时限));
   }
@@ -310,8 +358,7 @@ class RoundStage : public SubGameStage<> {
   virtual CheckoutErrCode OnTimeout() override {
     for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
       if (!IsReady(pid)) {
-        Boardcast() << At(pid) << "超时未做选择被淘汰，谢谢你垫底侠";
-        Eliminate(pid);
+        Boardcast() << At(pid) << "超时未做选择，跳过回合";
       }
     }
     return StageErrCode::CHECKOUT;
@@ -319,6 +366,16 @@ class RoundStage : public SubGameStage<> {
 
   virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override {
     return StageErrCode::READY;
+  }
+
+  AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+  {
+      if (IsReady(pid)) {
+          reply() << "跳过失败：您已经完成落子，无法跳过";
+          return StageErrCode::FAILED;
+      }
+      reply() << "跳过成功";
+      return StageErrCode::READY;
   }
 
   AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
@@ -362,7 +419,6 @@ class RoundStage : public SubGameStage<> {
   }
 
  private:
-  int num_1, num_2;
   int number[7];
 };
 
