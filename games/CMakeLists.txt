@@ -49,9 +49,14 @@ foreach (GAME_DIR ${GAME_DIRS})
     #   set(RULE_IMAGE ${LIBRARY_OUTPUT_PATH}/${GAME}_rule.png)
 
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+      execute_process(
+        COMMAND bash -c "cd ${GAME_DIR} && printf 0x%x `stat -c %s rule.md | awk '{print $1 + 16}'`"
+        OUTPUT_VARIABLE RULE_SIZE)
+      message(STATUS "game_dir=${GAME_DIR}")
+      message(STATUS "rule_size=${RULE_SIZE}")
       add_custom_target(${GAME}_rule_binary ALL
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMAND cd ${GAME_DIR} && objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA rule.md ${RULE_BINARY}
+        COMMAND cd ${GAME_DIR} && objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA --pad-to ${RULE_SIZE} rule.md ${RULE_BINARY}
         COMMENT "Build rule binary"
       )
     endif()
