@@ -1,0 +1,6 @@
+64 afms 1 17
+..a
+.bcde
+fghjklm
+..npqr
+....s

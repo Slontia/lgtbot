@@ -1,0 +1,6 @@
+40 _ 1 19
+ab
+cde
+.fgh.jkm
+.npqrs
+..tuvw

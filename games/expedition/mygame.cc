@@ -17,22 +17,26 @@
 
 const std::string k_game_name = "远足";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
-const uint64_t k_multiple = 0;
+const uint64_t k_multiple = 1;
 const std::string k_developer = "dva";
 const std::string k_description = "通过计算和放置数字，争取分数的游戏";
+const std::array<const char*, 5> map_files = {"random", "wang_guo_bian_jing.txt",
+                                              "feng_chao_zhi_xue.txt", "crystal_cave.txt",
+                                              "fu_rao_zhi_di.txt"};
+const std::array<const char*, 5> map_names = {"随机", "王国边境", "蜂巢之血", "水晶洞穴",
+                                              "富饶之地"};
 
 const std::map<int, char> op_char = {{0, '+'}, {1, '-'}, {2, '*'}, {3, '>'}, {4, '<'}};
 std::map<std::string, int> char_op = {
-  {"+", 0}, {"＋", 0}, {"加", 0},
-  {"-", 1}, {"－", 1}, {"–", 1}, {"减", 1},
-  {"*", 2}, {"＊", 2}, {"乘", 2}, {"×", 2},
-  {">", 3}, {"＞", 3}, {"大", 3},
-  {"<", 4}, {"＜", 4}, {"小", 4},
+    {"+", 0},  {"＋", 0}, {"加", 0}, {"-", 1},  {"－", 1}, {"–", 1},
+    {"减", 1}, {"*", 2},  {"＊", 2}, {"乘", 2}, {"×", 2},  {">", 3},
+    {"＞", 3}, {"大", 3}, {"<", 4},  {"＜", 4}, {"小", 4},
 };
 
 std::string GameOption::StatusInfo() const {
   std::stringstream ss;
-  ss << "每回合时间限制：" << GET_VALUE(时限) << "秒";
+  ss << "每回合时间限制：" << GET_VALUE(时限) << "秒\n";
+  ss << "游戏地图：" << map_names[GET_VALUE(地图)];
   return ss.str();
 }
 
@@ -43,8 +47,9 @@ uint64_t GameOption::BestPlayerNum() const { return 6; }
 // ========== GameLogic ==========
 
 char map[32][32], mappx[255], mappy[255];
-int n, m, turn = 1;
+int n, m;
 char lines[128][32], lx[128][32], ly[128][32];
+char zero_x, zero_y;
 int line_cnt;
 int random_seed;
 int num_1, num_2;
@@ -54,20 +59,24 @@ struct board {
   int num[32][32];
   board() {}
 };
+std::string map_name;
+int offset, initial_random_cnt, turn;
+std::string three_pos;
 
 void generate_two_num(int& a, int& b, int* c) {
-  bool no_small = a<=2 && b<=3; // 伪随机机制：如果上次的数很小，这次一定相对大一些，不然玩的不爽
-  int x = rand() % 128;
-  if (x ==1) {
+  int x = rand() % 180;
+  if (x == 0) {
+    a = 2, b = 9;
+  } else if (x == 1) {
     a = 2, b = 11;
-  } else if(x==2){
+  } else if (x == 2) {
     a = 2, b = 13;
-    }else if (x == 3) {
+  } else if (x == 3) {
     a = 2, b = 17;
   } else if (x == 4) {
     a = 2, b = 18;
-  } else if(x == 5){
-    a = 2, b = 15;
+  } else if (x == 5) {
+    a = 2, b = 10 + rand() % 10;
   } else if (x == 6) {
     a = 3, b = 9;
   } else if (x == 7) {
@@ -78,28 +87,31 @@ void generate_two_num(int& a, int& b, int* c) {
     a = 3, b = 12;
   } else if (x == 10) {
     a = 4, b = 8;
-  } else if(x == 11) {
+  } else if (x == 11) {
     a = 4, b = 9;
-  } else if(x == 12) {
-    if(rand() % 2 == 0) {
+  } else if (x == 12) {
+    if (rand() % 2 == 0) {
       a = 9, b = 25;
     } else {
       a = 10, b = 24;
     }
-  } else if(x == 13) {
-    if(rand() % 2 == 0) {
-      a = 13, b = 17;
+  } else if (x == 13) {
+    if (rand() % 2 == 0) {
+      a = 13, b = 16 + rand() % 2;
     } else {
-      a = 11, b = 19;
+      a = 11, b = 18 + rand() % 2;
     }
+  } else if (x == 14) {
+    a = 5, b = 8;
+  } else if (x <= 20) {
+    a = 1, b = x - 7;
   } else {
     a = rand() % 6 + 1;
     b = rand() % 6 + 1;
-    if (a <= 3 && b <= 3 && (rand() % 2 == 1)) {
-      a = rand() % 6 + 1;
-      b = 7;
+    if (rand() % 2 == 1) {
+      a += rand() % 2;
+      b += rand() % 2 + 1;
     }
-    if(no_small) a+=rand()%2, b+=rand()%3;
     if (a > b) {
       std::swap(a, b);
     }
@@ -113,13 +125,15 @@ void generate_two_num(int& a, int& b, int* c) {
 
 void readMap(const std::string& path) {
   std::ifstream fin(path);
-  turn = 0;
+  zero_x = zero_y = -1;
   for (int i = 0; i < 31; i++) {
     for (int j = 0; j < 31; j++) {
       map[i][j] = '.';
     }
     map[i][31] = 0;
   }
+  fin >> offset >> three_pos >> initial_random_cnt >> turn;
+  fin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
   for (int i = 1; i < 32; i++) {
     int _m = 0;
     map[i][0] = '.';
@@ -136,8 +150,10 @@ void readMap(const std::string& path) {
         map[i][j] = '.';
         break;
       }
-      if (map[i][j] != '.') {
-        turn++;
+      if (map[i][j] == '0') {
+        zero_x = i;
+        zero_y = j;
+      } else if (map[i][j] != '.') {
         if (map[i][j] >= 'A' && map[i][j] <= 'Z')
           map[i][j] -= 'A' - 'a';
         else if (map[i][j] < 'a' || map[i][j] > 'z') {
@@ -192,13 +208,19 @@ void initBoard(board& b) {
       b.num[i][j] = -99;
     }
   }
+  if (zero_x != -1) {
+    b.num[zero_x][zero_y] = 0;
+  }
   for (int i = 0; i < 5; i++) {
     b.opcnt[i] = 5;
   }
+
   b.score = 0;
 }
 
-int calc(const board& b) {
+bool is_three_point(char pos) { return three_pos.find(pos) != std::string::npos; }
+
+int calc_inner(board& b) {
   auto& num = b.num;
   int sum = 0;
   for (int i = 1; i <= n; i++) {
@@ -211,7 +233,7 @@ int calc(const board& b) {
           (map[i + 1][j] != '.' && num[i + 1][j] == num[i][j]) ||
           (map[i][j + 1] != '.' && num[i][j + 1] == num[i][j]) ||
           (map[i + 1][j + 1] != '.' && num[i + 1][j + 1] == num[i][j])) {
-        sum += num[i][j];
+        sum += is_three_point(map[i][j]) ? 3 * num[i][j] : num[i][j];
       }
     }
   }
@@ -220,7 +242,8 @@ int calc(const board& b) {
     if (len < 2) continue;
     // check if this line is arthematic sequence
     int max = std::max(0, num[lx[i][0]][ly[i][0]]),
-        d = num[lx[i][1]][ly[i][1]] - num[lx[i][0]][ly[i][0]];
+        d = num[lx[i][1]][ly[i][1]] - num[lx[i][0]][ly[i][0]],
+        multiple = is_three_point(map[lx[i][0]][ly[i][0]]) ? 3 : 1;
     if (d == 1 || d == -1) {
       for (int j = 1; j < len; j++) {
         if (num[lx[i][j]][ly[i][j]] == -99 ||
@@ -229,12 +252,30 @@ int calc(const board& b) {
           break;
         }
         max = std::max(max, num[lx[i][j]][ly[i][j]]);
+        if (is_three_point(map[lx[i][j]][ly[i][j]])) multiple *= 3;
       }
-      sum += max * len;
+      if (max > 0) {
+        sum += multiple * max * len;
+      }
     }
     // std::cout << lines[i] << " " << max << " " << len << " " << sum << std::endl;
   }
   return sum;
+}
+
+int calc(board& b) {
+  if (zero_x == -1) return calc_inner(b);
+  int max_score = 0, pos = 0;
+  for (int i = 0; i <= 32; i++) {
+    b.num[zero_x][zero_y] = i;
+    int score = calc_inner(b);
+    if (score > max_score) {
+      max_score = score;
+      pos = i;
+    }
+  }
+  b.num[zero_x][zero_y] = pos;
+  return max_score;
 }
 
 void initGame(const std::string& map_path, std::optional<int> seed = std::nullopt) {
@@ -255,16 +296,28 @@ struct MyUI {
   void SetBoard(int index, const board& bd) {
     std::stringstream html;
     html << "<p>" << names[index] << "</p>";
-    html << "<p>" << "当前分数： " << bd.score << "</p>";
+    html << "<p>"
+         << "当前分数： " << bd.score << "</p>";
     for (int i = 1; i <= n; i++) {
-      html << R"(<div style="display:inline-flex;margin-left:)" << (40 - 20 * i) << R"(px;">)";
+      html << R"(<div style="display:inline-flex;margin-left:)" << (offset - 20 * i) << R"(px;">)";
       for (int j = 1; j <= m && map[i][j]; j++) {
         if (map[i][j] == '.') {
           html << R"(<div class="block"></div>)";
+        } else if (map[i][j] == '0') {
+          html << R"(<div class="block border purple"><span class="colorful">)" << bd.num[i][j]
+               << R"(</span></div>)";
         } else if (bd.num[i][j] == -99) {
-          html << R"(<div class="block border">)" << map[i][j] << R"(</div>)";
+          if (is_three_point(map[i][j])) {
+            html << R"(<div class="block border red">)" << map[i][j] << R"(</div>)";
+          } else {
+            html << R"(<div class="block border">)" << map[i][j] << R"(</div>)";
+          }
         } else {
-          html << R"(<div class="block border purple">)" << bd.num[i][j] << R"(</div>)";
+          if (is_three_point(map[i][j])) {
+            html << R"(<div class="block border red">)" << bd.num[i][j] << R"(</div>)";
+          } else {
+            html << R"(<div class="block border purple">)" << bd.num[i][j] << R"(</div>)";
+          }
         }
       }
       html << R"(</div>)";
@@ -277,11 +330,16 @@ struct MyUI {
   }
 
   std::string ToHtml() {
+    const short width = player_num_ == 1 ? 328 : 688;
     std::stringstream html;
     html
-        << R"(<style>p{text-align: center;}.block{width: 40px; height: 36px; display: flex; justify-content: center; align-items: center; font-size: 20px;})"
-        << R"(.border{outline: 2px solid #666; outline-offset: -1px; background-color: #fefeee;}.purple{background-color: #eeeefe;}</style>)"
-        << R"(<div style="width: 690px; display: flex; flex-wrap: wrap; justify-content: space-between; overflow: hidden;">)";
+        << R"(<style>.colorful{background-image: linear-gradient(to top, yellow, orange, red, green, blue, purple); -webkit-background-clip: text; -moz-background-clip: text; background-clip: text; color: transparent; })"
+        << R"(p{text-align: center;}.block{width: 40px; height: 36px; display: flex; justify-content: center; align-items: center; font-size: 20px;})"
+        << R"(.border{outline: 2px solid #666; outline-offset: -1px; background-color: #fefeee;}.purple{background-color: #eeeefe;}.red{background-color: #fdedec;}</style>)"
+        << R"(<p style="width: )" << width
+        << R"(px;font-size: 30px;font-weight: bold;letter-spacing: 5px;">)" << map_name << "</p>"
+        << R"(<div style="width: )" << width
+        << R"(px; display: flex; flex-wrap: wrap; justify-content: space-between; overflow: hidden;">)";
     for (int i = 0; i < player_num_; i++) {
       html << R"(<div style="width: 300px; background-color: #ebfcfd; padding: 15px;">)"
            << boards[i] << R"(</div>)";
@@ -294,13 +352,16 @@ struct MyUI {
 
   void SetName(int index, const std::string& name) {
     std::string tmp = "";
-    for(auto c: name) {
-      if(c == '>') tmp += "&gt;";
-      else if(c == '<') tmp += "&lt;";
-      else if(c == '&') tmp += "&amp;";
-      else tmp += c;
+    for (auto c : name) {
+      if (c == '>')
+        tmp += "&gt;";
+      else if (c == '<')
+        tmp += "&lt;";
+      else if (c == '&')
+        tmp += "&amp;";
+      else
+        tmp += c;
     }
-    std::cout << name << " " << tmp << std::endl;
     names[index] = tmp;
   }
 
@@ -321,6 +382,7 @@ class MainStage : public MainGameStage<RoundStage> {
   int64_t PlayerScore(const PlayerID pid) const;
 
   bool JudgeOver();
+  void Print();
 
   MyUI ui_;
   int turn_;
@@ -334,9 +396,8 @@ class RoundStage : public SubGameStage<> {
  public:
   RoundStage(MainStage& main_stage)
       : GameStage(main_stage, "第" + std::to_string(++main_stage.turn_) + "回合",
-                  MakeStageCommand(
-                      "设置数字", &RoundStage::Set_, AnyArg("位置", "a"),
-                      AlterChecker<int>(char_op)),
+                  MakeStageCommand("设置数字", &RoundStage::Set_, AnyArg("位置", "a"),
+                                   AlterChecker<int>(char_op)),
                   MakeStageCommand("跳过", &RoundStage::Pass_, VoidChecker("pass"))) {}
 
   virtual void OnStageBegin() override {
@@ -345,7 +406,7 @@ class RoundStage : public SubGameStage<> {
       main_stage().ui_.SetName(i, PlayerName(i));
       main_stage().ui_.SetBoard(i, main_stage().boards_[i]);
     }
-    Boardcast() << Markdown(main_stage().ui_.ToHtml(), 720);
+    main_stage().Print();
     Boardcast() << ("本回合数字：" + std::to_string(num_1) + " " + std::to_string(num_2));
     StartTimer(option().GET_VALUE(时限));
   }
@@ -368,14 +429,13 @@ class RoundStage : public SubGameStage<> {
     return StageErrCode::READY;
   }
 
-  AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
-  {
-      if (IsReady(pid)) {
-          reply() << "跳过失败：您已经完成落子，无法跳过";
-          return StageErrCode::FAILED;
-      }
-      reply() << "跳过成功";
-      return StageErrCode::READY;
+  AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply) {
+    if (IsReady(pid)) {
+      reply() << "跳过失败：您已经完成落子，无法跳过";
+      return StageErrCode::FAILED;
+    }
+    reply() << "跳过成功";
+    return StageErrCode::READY;
   }
 
   AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
@@ -424,11 +484,28 @@ class RoundStage : public SubGameStage<> {
 
 MainStage::MainStage(const GameOption& option, MatchBase& match)
     : GameStage(option, match), ui_(option.PlayerNum()), turn_(0), num_player_(option.PlayerNum()) {
-  initGame(std::string(option.ResourceDir()) + "/map.txt");
+  auto map_file = map_files[option.GET_VALUE(地图)];
+  map_name = map_names[option.GET_VALUE(地图)];
+  if (map_file == "random") {
+    int index = rand() % (map_files.size() - 1) + 1;
+    map_file = map_files[index];
+    map_name = map_names[index];
+  }
+  initGame(std::string(option.ResourceDir()) + "/" + map_file);
   boards_.resize(option.PlayerNum());
   score_.resize(option.PlayerNum(), 0);
   for (int i = 0; i < option.PlayerNum(); i++) {
     initBoard(boards_[i]);
+  }
+  for (int i = 0; i < initial_random_cnt; i++) {
+    int val = 3 + rand() % 10;
+    int x = 1 + rand() % n, y = 1 + rand() % m;
+    if ('a' <= map[x][y] && map[x][y] <= 'z') {
+      for (int i = 0; i < option.PlayerNum(); i++) {
+        boards_[i].num[x][y] = val;
+      }
+    } else
+      i--;
   }
 }
 
@@ -444,9 +521,11 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage,
 
 int64_t MainStage::PlayerScore(const PlayerID pid) const { return score_.at(pid); }
 
-bool MainStage::JudgeOver() {
-  // Boardcast() << Markdown(ui_.ToHtml(), 700);
-  return turn_ >= ::turn;
+bool MainStage::JudgeOver() { return turn_ >= ::turn; }
+
+void MainStage::Print() {
+  const int width = option().PlayerNum() == 1 ? 400 : 700;
+  Boardcast() << Markdown(ui_.ToHtml(), width);
 }
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match) {
