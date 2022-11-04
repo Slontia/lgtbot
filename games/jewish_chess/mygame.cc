@@ -119,11 +119,6 @@ bool check_input(std::string input, int n, std::string& err, int& x1, int& x2, i
   }
   for (auto& c : input)
     if (c >= 'A' && c <= 'Z') c = (char)(c - ('A' - 'a'));
-  for (auto& c : input)
-    if (!('1' <= c && c < '1' + n) && !('a' <= c && c < 'a' + n)) {
-      err = "发现不合法字符。注意指令中不需要空格或分隔符，示例：a1b2";
-      return false;
-    }
   if (input.length() == 2) {
     x1 = x2 = input[0] - 'a';
     y1 = y2 = input[1] - '1';
@@ -136,6 +131,10 @@ bool check_input(std::string input, int n, std::string& err, int& x1, int& x2, i
       err = "移动方向不正确，只能横向、纵向、对角线方向移动。";
       return false;
     }
+  }
+  if (x1 < 0 || x1 >= n || y1 < 0 || y1 >= n || x2 < 0 || x2 >= n || y2 < 0 || y2 >= n) {
+    err = "发现不合法字符。注意指令中不需要空格或分隔符，示例：a1b2";
+    return false;
   }
   return true;
 }
