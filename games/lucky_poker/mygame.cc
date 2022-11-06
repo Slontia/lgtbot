@@ -385,7 +385,7 @@ class BetStage : public SubGameStage<>
 
     void OnStageBegin()
     {
-        StartTimer(option().GET_VALUE(下注时间));
+        StartTimer(GET_OPTION_VALUE(option(), 下注时间));
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
@@ -475,8 +475,8 @@ class BetStage : public SubGameStage<>
         if (!hand_id.has_value()) {
             return StageErrCode::FAILED;
         }
-        const auto avg_coins_each_hand = is_first_ ? option().GET_VALUE(首轮筹码) : option().GET_VALUE(次轮筹码);
-        const auto fold_score = is_first_ ? option().GET_VALUE(首轮弃牌得分) : option().GET_VALUE(次轮弃牌得分);
+        const auto avg_coins_each_hand = is_first_ ? GET_OPTION_VALUE(option(), 首轮筹码) : GET_OPTION_VALUE(option(), 次轮筹码);
+        const auto fold_score = is_first_ ? GET_OPTION_VALUE(option(), 首轮弃牌得分) : GET_OPTION_VALUE(option(), 次轮弃牌得分);
         if (const auto errmsg = player_round_infos_[pid].Fold(*hand_id, avg_coins_each_hand - fold_score, fold_score, true); !errmsg.empty()) {
             reply() << "[错误] 弃牌失败：" << errmsg;
             return StageErrCode::FAILED;
@@ -533,7 +533,7 @@ class RoundStage : public SubGameStage<BetStage>
                 MakeStageCommand("通过图片查看各玩家手牌及金币情况", &RoundStage::Status_, VoidChecker("赛况")))
         , is_first_(true), player_htmls_(option().PlayerNum())
     {
-        const auto shuffled_pokers = poker::ShuffledPokers(option().GET_VALUE(种子).empty() ? "" : option().GET_VALUE(种子) + std::to_string(round));
+        const auto shuffled_pokers = poker::ShuffledPokers(GET_OPTION_VALUE(option(), 种子).empty() ? "" : GET_OPTION_VALUE(option(), 种子) + std::to_string(round));
         const auto player_num = option().PlayerNum();
         const uint32_t player_hand_num = PlayerHandNum(player_num);
         auto it = shuffled_pokers.cbegin();
@@ -543,7 +543,7 @@ class RoundStage : public SubGameStage<BetStage>
             }
             player_round_infos_.emplace_back(pid, PlayerName(pid), main_stage.PlayerScore(pid), hands_);
         }
-        for (uint64_t i = 0; i < option().GET_VALUE(公共牌数); ++i) {
+        for (uint64_t i = 0; i < GET_OPTION_VALUE(option(), 公共牌数); ++i) {
             public_pokers_.emplace_back(*it++);
         }
     }
@@ -551,7 +551,7 @@ class RoundStage : public SubGameStage<BetStage>
     virtual VariantSubStage OnStageBegin() override
     {
         for (auto& info : player_round_infos_) {
-            info.SetRemainCoins(option().GET_VALUE(首轮筹码) * PlayerHandNum(option().PlayerNum()));
+            info.SetRemainCoins(GET_OPTION_VALUE(option(), 首轮筹码) * PlayerHandNum(option().PlayerNum()));
         }
         SavePlayerHtmls_();
         Group() << Markdown(MiddleHtml_(true));
@@ -587,15 +587,15 @@ class RoundStage : public SubGameStage<BetStage>
         if (is_first_) {
             is_first_ = false;
             for (auto& info : player_round_infos_) {
-                info.SetRemainCoins(option().GET_VALUE(次轮筹码) * PlayerHandNum(option().PlayerNum()));
+                info.SetRemainCoins(GET_OPTION_VALUE(option(), 次轮筹码) * PlayerHandNum(option().PlayerNum()));
             }
             SavePlayerHtmls_();
             for (auto& hand : hands_) {
                 if (hand.discard_idx_ == PlayerHand::DISCARD_ALL) {
                     player_round_infos_[hand.pid_].Fold(
                             hand.id_,
-                            option().GET_VALUE(次轮筹码) - option().GET_VALUE(次轮弃牌得分),
-                            option().GET_VALUE(次轮弃牌得分),
+                            GET_OPTION_VALUE(option(), 次轮筹码) - GET_OPTION_VALUE(option(), 次轮弃牌得分),
+                            GET_OPTION_VALUE(option(), 次轮弃牌得分),
                             false /* is_mutable */);
                 }
             }
@@ -642,7 +642,7 @@ class RoundStage : public SubGameStage<BetStage>
     void SavePlayerHtmls_()
     {
         for (const PlayerRoundInfo& info : player_round_infos_) {
-            player_htmls_[info.pid_] = info.ToHtml(false, option().GET_VALUE(模式) == k_mode_show_max_poker_each_hand, {});
+            player_htmls_[info.pid_] = info.ToHtml(false, GET_OPTION_VALUE(option(), 模式) == k_mode_show_max_poker_each_hand, {});
         }
     }
 
@@ -657,7 +657,7 @@ class RoundStage : public SubGameStage<BetStage>
 
     std::string EndHtml_() const
     {
-        std::string s = HeadHtml_(option().GET_VALUE(公共牌数), false) + "\n\n";
+        std::string s = HeadHtml_(GET_OPTION_VALUE(option(), 公共牌数), false) + "\n\n";
         for (const auto& info : player_round_infos_) {
             s += info.ToHtml(false, true, public_pokers_) + "\n\n";
         }
@@ -679,8 +679,8 @@ class RoundStage : public SubGameStage<BetStage>
     std::string MiddleHeadHtml_(const bool is_first) const
     {
         const uint32_t show_public_num =
-            option().GET_VALUE(模式) != k_mode_show_some_public_pokers ? (is_first ? 0 : 1) : (is_first ? 2 : 3);
-        return HeadHtml_(show_public_num, option().GET_VALUE(模式) == k_mode_show_hiden_pokers_group) + "\n\n";
+            GET_OPTION_VALUE(option(), 模式) != k_mode_show_some_public_pokers ? (is_first ? 0 : 1) : (is_first ? 2 : 3);
+        return HeadHtml_(show_public_num, GET_OPTION_VALUE(option(), 模式) == k_mode_show_hiden_pokers_group) + "\n\n";
     }
 
     std::string HeadHtml_(const uint32_t show_public_num, const bool show_hiden_pokers) const
@@ -755,7 +755,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
 {
-    if ((++round_) < option().GET_VALUE(轮数)) {
+    if ((++round_) < GET_OPTION_VALUE(option(), 轮数)) {
         return std::make_unique<RoundStage>(*this, round_);
     }
     return {};

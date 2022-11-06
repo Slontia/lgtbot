@@ -40,8 +40,8 @@ uint64_t GameOption::BestPlayerNum() const { return 2; }
 struct MyTable {
   MyTable(const GameOption& option)
       : option_(option),
-        len(option.GET_VALUE(等式长度)),
-        table_(1, option.GET_VALUE(等式长度) * 2 + 9) {
+        len(GET_OPTION_VALUE(option, 等式长度)),
+        table_(1, GET_OPTION_VALUE(option, 等式长度) * 2 + 9) {
     table_.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
     table_.MergeRight(0, 0, len + 4);
     table_.Get(0, 0).SetColor("#eee");
@@ -154,7 +154,7 @@ class SettingStage : public SubGameStage<> {
   virtual void OnStageBegin() override {
     Boardcast() << "请双方设置等式。";
     main_stage().table_.SetName(PlayerName(0), PlayerName(1));
-    StartTimer(option().GET_VALUE(时限) + 30);
+    StartTimer(GET_OPTION_VALUE(option(), 时限) + 30);
   }
 
   virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
@@ -182,13 +182,13 @@ class SettingStage : public SubGameStage<> {
       reply() << "请私信设置等式。";
       return StageErrCode::FAILED;
     }
-    if (str.length() != option().GET_VALUE(等式长度)) {
+    if (str.length() != GET_OPTION_VALUE(option(), 等式长度)) {
       reply() << "输入长度不正确。本局游戏设定的等式长度为：" +
-                     std::to_string(option().GET_VALUE(等式长度));
+                     std::to_string(GET_OPTION_VALUE(option(), 等式长度));
       return StageErrCode::FAILED;
     }
     std::string err;
-    bool valid = check_equation(str, err, option().GET_VALUE(游戏模式));
+    bool valid = check_equation(str, err, GET_OPTION_VALUE(option(), 游戏模式));
     if (!valid) {
       reply() << "设置失败：" << err;
       return StageErrCode::FAILED;
@@ -209,7 +209,7 @@ class GuessingStage : public SubGameStage<> {
             MakeStageCommand("猜测", &GuessingStage::Guess_, AnyArg("等式", "1+2+3=6"))) {}
 
   virtual void OnStageBegin() override {
-    auto limit = option().GET_VALUE(时限);
+    auto limit = GET_OPTION_VALUE(option(), 时限);
     if (limit % 60 == 0) {
       Boardcast() << "请双方做出猜测，本回合时间限制" << limit / 60 << "分钟。"
                   << Markdown(main_stage().table_.ToHtml());
@@ -229,9 +229,9 @@ class GuessingStage : public SubGameStage<> {
  private:
   AtomReqErrCode Guess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
                         std::string str) {
-    if (str.length() != option().GET_VALUE(等式长度)) {
+    if (str.length() != GET_OPTION_VALUE(option(), 等式长度)) {
       reply() << "输入长度不正确。本局游戏设定的等式长度为：" +
-                     std::to_string(option().GET_VALUE(等式长度));
+                     std::to_string(GET_OPTION_VALUE(option(), 等式长度));
       return StageErrCode::FAILED;
     }
     if (IsReady(pid)) {
@@ -239,7 +239,7 @@ class GuessingStage : public SubGameStage<> {
       return StageErrCode::FAILED;
     }
     std::string err;
-    bool valid = check_equation(str, err, option().GET_VALUE(游戏模式));
+    bool valid = check_equation(str, err, GET_OPTION_VALUE(option(), 游戏模式));
     if (!valid) {
       reply() << "猜测失败：" << err;
       return StageErrCode::FAILED;
@@ -250,7 +250,7 @@ class GuessingStage : public SubGameStage<> {
     char tmp[128];
     sprintf(tmp, "%s %dA%dB\n", str.c_str(), a, b);
     main_stage().history_[pid] += tmp;
-    if (a == option().GET_VALUE(等式长度)) {
+    if (a == GET_OPTION_VALUE(option(), 等式长度)) {
       main_stage().ended_ = true;
       main_stage().score_[pid] = 1;
     }
@@ -259,8 +259,8 @@ class GuessingStage : public SubGameStage<> {
   }
 
   AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply) {
-    std::string response = "等式长度：" + std::to_string(option().GET_VALUE(等式长度)) +
-                           "，游戏模式：" + (option().GET_VALUE(游戏模式) ? "标准" : "狂野");
+    std::string response = "等式长度：" + std::to_string(GET_OPTION_VALUE(option(), 等式长度)) +
+                           "，游戏模式：" + (GET_OPTION_VALUE(option(), 游戏模式) ? "标准" : "狂野");
     for (int i = 0; i < 2; i++) {
       response += "\n玩家 " + std::to_string(i) + ": \n" + main_stage().history_[i] + "\n";
     }

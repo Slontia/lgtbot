@@ -49,6 +49,11 @@ struct GameInfo
     const char* description_;
 };
 
+struct GlobalGameOption
+{
+    bool public_timer_alert_ = false;
+};
+
 class GameOptionBase
 {
   public:
@@ -69,6 +74,8 @@ class GameOptionBase
     virtual const char* Info(const uint64_t index) const = 0;
     virtual const char* ColoredInfo(const uint64_t index) const = 0;
     virtual const char* Status() const = 0;
+
+    GlobalGameOption global_options_;
 
   private:
     const uint64_t size_;

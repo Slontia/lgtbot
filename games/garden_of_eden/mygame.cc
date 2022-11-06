@@ -87,9 +87,9 @@ static const char* AppleTypeName(const AppleType type)
 struct Player
 {
     Player(const GameOption& option)
-        : score_(option.GET_VALUE(回合数), 0)
-        , remain_golden_(option.GET_VALUE(金苹果))
-        , chosen_apples_(option.GET_VALUE(回合数), AppleType::RED) // RED is the default apple
+        : score_(GET_OPTION_VALUE(option, 回合数), 0)
+        , remain_golden_(GET_OPTION_VALUE(option, 金苹果))
+        , chosen_apples_(GET_OPTION_VALUE(option, 回合数), AppleType::RED) // RED is the default apple
     {}
     std::vector<int64_t> score_;
     int32_t remain_golden_;
@@ -111,8 +111,8 @@ class MainStage : public MainGameStage<>
 
     virtual void OnStageBegin() override
     {
-        StartTimer(option().GET_VALUE(时限));
-        Boardcast() << "第 1 回合开始，请私信裁判选择，时限 " << option().GET_VALUE(时限) << " 秒，超时则默认食用「红苹果」";
+        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Boardcast() << "第 1 回合开始，请私信裁判选择，时限 " << GET_OPTION_VALUE(option(), 时限) << " 秒，超时则默认食用「红苹果」";
     }
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return players_[pid].score_.back(); }
@@ -193,7 +193,7 @@ class MainStage : public MainGameStage<>
 
     std::string Html_(const std::array<int, k_apple_type_num>& apple_counts, const AppleType& winner_apple) const
     {
-        std::string s = "## 第 " + std::to_string(round_ + 1) + " / " + std::to_string(option().GET_VALUE(回合数)) + " 回合\n\n";
+        std::string s = "## 第 " + std::to_string(round_ + 1) + " / " + std::to_string(GET_OPTION_VALUE(option(), 回合数)) + " 回合\n\n";
 
         {
             html::Table count_table(2, k_apple_type_num);
@@ -304,10 +304,10 @@ class MainStage : public MainGameStage<>
                 }
             }
         }
-        if (++round_ < option().GET_VALUE(回合数)) {
+        if (++round_ < GET_OPTION_VALUE(option(), 回合数)) {
             ClearReady();
-            StartTimer(option().GET_VALUE(时限));
-            Boardcast() << "第 " << (round_ + 1) << " 回合开始，请私信裁判选择，时限 " << option().GET_VALUE(时限)
+            StartTimer(GET_OPTION_VALUE(option(), 时限));
+            Boardcast() << "第 " << (round_ + 1) << " 回合开始，请私信裁判选择，时限 " << GET_OPTION_VALUE(option(), 时限)
                 << " 秒，超时则默认食用「红苹果」";
             return false;
         }

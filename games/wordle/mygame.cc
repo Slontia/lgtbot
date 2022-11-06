@@ -190,7 +190,7 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        StartTimer(option().GET_VALUE(时限));
+        StartTimer(GET_OPTION_VALUE(option(), 时限));
 //        Boardcast() << name() << "开始";
     }
 
@@ -563,7 +563,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         return make_unique<RoundStage>(*this, ++round_);
     }
 
-    int hard = option().GET_VALUE(高难);
+    int hard = GET_OPTION_VALUE(option(), 高难);
     if(hard == 1)
     {
         fclose(fp);
@@ -603,7 +603,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
         // len : 5 -> 8
 
-        wordLength = option().GET_VALUE(长度);
+        wordLength = GET_OPTION_VALUE(option(), 长度);
 
 
         if(wordLength == 0)
@@ -756,7 +756,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 //    Boardcast()<<to_string(round_)<<to_string(player_wins_[0])<<to_string(player_wins_[1]);
 
-    if (round_ < option().GET_VALUE(回合数) && !gameEnd ) {
+    if (round_ < GET_OPTION_VALUE(option(), 回合数) && !gameEnd ) {
         return make_unique<RoundStage>(*this, round_);
     }
 

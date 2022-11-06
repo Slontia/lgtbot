@@ -40,8 +40,8 @@ uint64_t GameOption::BestPlayerNum() const { return 2; }
 struct MyTable {
   MyTable(const GameOption& option)
       : option_(option),
-        len(option.GET_VALUE(棋盘大小)),
-        table_(option.GET_VALUE(棋盘大小) + 4, 2 + option.GET_VALUE(棋盘大小)) {
+        len(GET_OPTION_VALUE(option, 棋盘大小)),
+        table_(GET_OPTION_VALUE(option, 棋盘大小) + 4, 2 + GET_OPTION_VALUE(option, 棋盘大小)) {
     table_.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\"");
     table_.MergeRight(0, 1, len);
     table_.Get(0, 1).SetColor("#eee");
@@ -151,7 +151,7 @@ class RoundStage : public SubGameStage<> {
     Boardcast() << "请" << (main_stage().turn_ % 2 ? "黑方" : "白方")
                 << At(PlayerID(main_stage().side_[main_stage().turn_ % 2])) << "落子。";
     SetReady(!current_player);
-    StartTimer(option().GET_VALUE(时限));
+    StartTimer(GET_OPTION_VALUE(option(), 时限));
   }
 
   virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
@@ -198,7 +198,7 @@ class RoundStage : public SubGameStage<> {
     }
     std::string err;
     int x1, x2, y1, y2;
-    int n = option().GET_VALUE(棋盘大小);
+    int n = GET_OPTION_VALUE(option(), 棋盘大小);
     bool valid = check_input(str, n, err, x1, x2, y1, y2);
     if (!valid) {
       reply() << "落子失败：" << err;

@@ -50,16 +50,16 @@ class MyTable
 
     MyTable(const GameOption& option)
         : option_(option)
-        , table_(option.GET_VALUE(失败数量) * 2 + 3, option.GET_VALUE(数字种类))
-        , player_nums_{std::vector<int>(option.GET_VALUE(数字种类), 0),
-                        std::vector<int>(option.GET_VALUE(数字种类), 0)}
+        , table_(GET_OPTION_VALUE(option, 失败数量) * 2 + 3, GET_OPTION_VALUE(option, 数字种类))
+        , player_nums_{std::vector<int>(GET_OPTION_VALUE(option, 数字种类), 0),
+                        std::vector<int>(GET_OPTION_VALUE(option, 数字种类), 0)}
     {
         table_.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
-        table_.MergeRight(0, 0, option.GET_VALUE(数字种类));
-        table_.MergeRight(table_.Row() - 1, 0, option.GET_VALUE(数字种类));
-        const auto mid_row = option.GET_VALUE(失败数量) + 1;
-        for (uint32_t col = 0; col < option.GET_VALUE(数字种类); ++col) {
-            for (uint32_t i = 1; i <= option.GET_VALUE(失败数量); ++i) {
+        table_.MergeRight(0, 0, GET_OPTION_VALUE(option, 数字种类));
+        table_.MergeRight(table_.Row() - 1, 0, GET_OPTION_VALUE(option, 数字种类));
+        const auto mid_row = GET_OPTION_VALUE(option, 失败数量) + 1;
+        for (uint32_t col = 0; col < GET_OPTION_VALUE(option, 数字种类); ++col) {
+            for (uint32_t i = 1; i <= GET_OPTION_VALUE(option, 失败数量); ++i) {
                 table_.Get(mid_row + i, col).SetContent(Image_("blank"));
                 table_.Get(mid_row - i, col).SetContent(Image_("blank"));
             }
@@ -85,11 +85,11 @@ class MyTable
     bool CheckOver(const PlayerID questioner)
     {
         bool has_all_num = true;
-        for (uint32_t num_idx = 0; num_idx < option_.GET_VALUE(数字种类); ++ num_idx) {
+        for (uint32_t num_idx = 0; num_idx < GET_OPTION_VALUE(option_, 数字种类); ++ num_idx) {
             const int count = player_nums_[static_cast<uint64_t>(questioner)][num_idx];
-            if (count >= option_.GET_VALUE(失败数量)) {
+            if (count >= GET_OPTION_VALUE(option_, 失败数量)) {
                 for (int i = 0; i < count; ++i) {
-                    table_.Get(option_.GET_VALUE(失败数量) + 1 + (questioner == 1 ? 1 : -1) * (i + 1), num_idx)
+                    table_.Get(GET_OPTION_VALUE(option_, 失败数量) + 1 + (questioner == 1 ? 1 : -1) * (i + 1), num_idx)
                           .SetContent(Image_("death"));
                 }
                 return true;
@@ -98,8 +98,8 @@ class MyTable
             }
         }
         if (has_all_num) {
-            for (uint32_t num_idx = 0; num_idx < option_.GET_VALUE(数字种类); ++ num_idx) {
-                table_.Get(option_.GET_VALUE(失败数量) + 1 + (questioner == 1 ? 1 : -1), num_idx)
+            for (uint32_t num_idx = 0; num_idx < GET_OPTION_VALUE(option_, 数字种类); ++ num_idx) {
+                table_.Get(GET_OPTION_VALUE(option_, 失败数量) + 1 + (questioner == 1 ? 1 : -1), num_idx)
                       .SetContent(Image_("death"));
             }
         }
@@ -130,10 +130,10 @@ class MyTable
         const int32_t offset = player_nums_[last_result_->loser_][last_result_->actual_number_ - 1];
         const char color = last_result_->questioner_ == 1 ? 'r' : 'b';
         const char* const lie = last_result_->is_lie_ ? "lie_" : "truth_";
-        table_.Get(option_.GET_VALUE(失败数量) + 1 + direct * offset, last_result_->actual_number_ - 1)
+        table_.Get(GET_OPTION_VALUE(option_, 失败数量) + 1 + direct * offset, last_result_->actual_number_ - 1)
               .SetContent(Image_(std::string(with_light ? "light_" : "") + lie + color));
-        for (uint32_t col = 0; col < option_.GET_VALUE(数字种类); ++col) {
-            table_.Get(option_.GET_VALUE(失败数量) + 1, col)
+        for (uint32_t col = 0; col < GET_OPTION_VALUE(option_, 数字种类); ++col) {
+            table_.Get(GET_OPTION_VALUE(option_, 失败数量) + 1, col)
                   .SetContent(Image_("point_" + std::to_string(col + 1) + (last_result_->loser_ == 1 ? "_r" : "_b")));
         }
     }
@@ -174,8 +174,8 @@ class NumberStage : public SubGameStage<>
     NumberStage(MainStage& main_stage, const PlayerID questioner, int& actual_number, int& lie_number)
             : GameStage(main_stage, "设置数字阶段",
                     MakeStageCommand("设置数字", &NumberStage::Number_,
-                        ArithChecker<int>(1, main_stage.option().GET_VALUE(数字种类), "实际数字"),
-                        ArithChecker<int>(1, main_stage.option().GET_VALUE(数字种类), "提问数字")))
+                        ArithChecker<int>(1, GET_OPTION_VALUE(main_stage.option(), 数字种类), "实际数字"),
+                        ArithChecker<int>(1, GET_OPTION_VALUE(main_stage.option(), 数字种类), "提问数字")))
             , questioner_(questioner)
             , actual_number_(actual_number)
             , lie_number_(lie_number)
@@ -191,8 +191,8 @@ class NumberStage : public SubGameStage<>
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         if (questioner_ == pid) {
-            actual_number_ = std::rand() % option().GET_VALUE(数字种类) + 1;
-            lie_number_ = std::rand() % 5 >= 2 ? std::rand() % option().GET_VALUE(数字种类) + 1
+            actual_number_ = std::rand() % GET_OPTION_VALUE(option(), 数字种类) + 1;
+            lie_number_ = std::rand() % 5 >= 2 ? std::rand() % GET_OPTION_VALUE(option(), 数字种类) + 1
                                                : actual_number_; // 50% same
             return StageErrCode::READY;
         }

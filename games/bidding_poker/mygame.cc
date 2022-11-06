@@ -72,7 +72,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
         , round_(0)
     {
         for (PlayerID pid = 0; pid < option.PlayerNum(); ++pid) {
-            players_.emplace_back(pid, option.GET_VALUE(初始金币数));
+            players_.emplace_back(pid, GET_OPTION_VALUE(option, 初始金币数));
         }
     }
 
@@ -118,7 +118,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
         // decrease coins
         const auto decrese_coins = [&](const PlayerID pid)
         {
-            const auto lost_coins = get_percent(players_[pid].coins_, option().GET_VALUE(惩罚比例));
+            const auto lost_coins = get_percent(players_[pid].coins_, GET_OPTION_VALUE(option(), 惩罚比例));
             bonus_coins += lost_coins;
             players_[pid].bonus_coins_ -= lost_coins;
         };
@@ -130,7 +130,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
             }
         }
 
-	// const double increase_scale = static_cast<double>(option().GET_VALUE(奖励比例)) / 100;
+	// const double increase_scale = static_cast<double>(GET_OPTION_VALUE(option(), 奖励比例)) / 100;
         // const double logical_sum = (std::pow(increase_scale, best_deck.size()) - 1) / (increase_scale - 1);
 	// std::cout << "logical: " << logical_sum << std::endl;
 	// auto remains_bonus_coins = bonus_coins;
@@ -251,7 +251,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
     {
         const std::string round_info =
             round_ == 0                         ? "开局" :
-            round_ > option().GET_VALUE(回合数) ? "终局" : "第 " + std::to_string(round_) + " 回合";
+            round_ > GET_OPTION_VALUE(option(), 回合数) ? "终局" : "第 " + std::to_string(round_) + " 回合";
         return "<center>\n\n## " + round_info +
             "\n\n</center>\n\n<center>\n\n**奖池金币数：" + std::to_string(BonusCoins_()) + "**</center>\n\n";
     }
@@ -270,7 +270,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
 
     uint32_t BonusCoins_() const
     {
-        return std::accumulate(players_.begin(), players_.end(), option().GET_VALUE(初始金币数) * option().PlayerNum(),
+        return std::accumulate(players_.begin(), players_.end(), GET_OPTION_VALUE(option(), 初始金币数) * option().PlayerNum(),
                 [](const uint32_t _1, const Player& _2) { return _1 - _2.coins_; });
     }
 
@@ -284,7 +284,7 @@ class BidStage : public SubGameStage<>
   public:
     BidStage(MainStage& main_stage, std::string&& name, const std::optional<PlayerID>& discarder, std::set<poker::Poker>& pokers)
         : GameStage(main_stage, std::move(name),
-                MakeStageCommand("投标", &BidStage::Bid_, ArithChecker<uint32_t>(0, main_stage.players().size() * main_stage.option().GET_VALUE(初始金币数), "金币数")),
+                MakeStageCommand("投标", &BidStage::Bid_, ArithChecker<uint32_t>(0, main_stage.players().size() * GET_OPTION_VALUE(main_stage.option(), 初始金币数), "金币数")),
                 MakeStageCommand("跳过本轮投标", &BidStage::Cancel_, VoidChecker("pass"))),
         discarder_(discarder), pokers_(pokers), bidding_manager_(main_stage.players().size()), bid_count_(0)
     {}
@@ -309,7 +309,7 @@ class BidStage : public SubGameStage<>
             }
         }
         sender << "\n投标开始，请私信裁判进行投标";
-        StartTimer(option().GET_VALUE(投标时间));
+        StartTimer(GET_OPTION_VALUE(option(), 投标时间));
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
@@ -357,7 +357,7 @@ class BidStage : public SubGameStage<>
             Boardcast() << "恭喜" << At(ret.second[0]) << "中标";
             main_stage().UpdatePlayerScore();
             return true;
-        } else if ((++bid_count_) == option().GET_VALUE(投标轮数)) {
+        } else if ((++bid_count_) == GET_OPTION_VALUE(option(), 投标轮数)) {
             Boardcast() << "投标轮数达到最大值，本商品流标";
             return_item();
             return true;
@@ -369,10 +369,10 @@ class BidStage : public SubGameStage<>
                 ClearReady(winner);
             }
             sender << "\n开始新的一轮投标，这些玩家可在此轮中重新投标（投标额不得少于上一轮）";
-            if (bid_count_ + 1 == option().GET_VALUE(投标轮数)) {
+            if (bid_count_ + 1 == GET_OPTION_VALUE(option(), 投标轮数)) {
                 sender << "\n注意：若本轮仍未能决出中标者，则商品流标";
             }
-            StartTimer(option().GET_VALUE(投标时间));
+            StartTimer(GET_OPTION_VALUE(option(), 投标时间));
             return false;
         }
     }
@@ -501,7 +501,7 @@ class DiscardStage : public SubGameStage<>
         Boardcast() << Markdown(InfoHtml_());
         Boardcast() << "弃牌阶段开始，请一次性私信裁判**所有的**弃牌，当到达时间限制，或所有玩家皆选择完毕后，回合结束。"
                        "\n回合结束前您可以随意更改您的选择。";
-        StartTimer(option().GET_VALUE(弃牌时间));
+        StartTimer(GET_OPTION_VALUE(option(), 弃牌时间));
         for (const auto& player : main_stage().players()) {
             if (player.hand_.Empty()) {
                 SetReady(player.pid_); // need not discard
@@ -642,7 +642,7 @@ class RoundStage : public SubGameStage<DiscardStage, MainBidStage>
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
-    const auto shuffled_pokers = poker::ShuffledPokers(option().GET_VALUE(种子));
+    const auto shuffled_pokers = poker::ShuffledPokers(GET_OPTION_VALUE(option(), 种子));
     assert(shuffled_pokers.size() == 40);
     poker_items_.emplace_back(std::nullopt, std::set<poker::Poker>(shuffled_pokers.begin() + 0, shuffled_pokers.begin() + 5));
     poker_items_.emplace_back(std::nullopt, std::set<poker::Poker>(shuffled_pokers.begin() + 5, shuffled_pokers.begin() + 10));
@@ -662,7 +662,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(MainBidStage& sub_stage, cons
 
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
 {
-    if ((++round_) <= option().GET_VALUE(回合数)) {
+    if ((++round_) <= GET_OPTION_VALUE(option(), 回合数)) {
         return std::make_unique<RoundStage>(*this, round_);
     }
     Boardcast() << Markdown(TitleHtml() + "\n\n" + PlayerInfoHtml());

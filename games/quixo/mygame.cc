@@ -59,9 +59,9 @@ class MainStage : public MainGameStage<>
     virtual void OnStageBegin()
     {
         SetReady(1 - cur_pid());
-        StartTimer(option().GET_VALUE(局时));
+        StartTimer(GET_OPTION_VALUE(option(), 局时));
         Boardcast() << Markdown(ShowInfo_());
-        Boardcast() << "请" << At(cur_pid()) << "行动，" << option().GET_VALUE(局时)
+        Boardcast() << "请" << At(cur_pid()) << "行动，" << GET_OPTION_VALUE(option(), 局时)
                     << "秒未行动自动判负\n格式：移动前位置 移动后位置";
     }
 
@@ -157,7 +157,7 @@ class MainStage : public MainGameStage<>
             Boardcast() << Markdown(ShowInfo_());
             Boardcast() << At(cur_pid()) << "达成了直线，于是，赢得了比赛";
             scores_[cur_pid()] = 1;
-        } else if ((++round_) / 2 >= option().GET_VALUE(回合数)) {
+        } else if ((++round_) / 2 >= GET_OPTION_VALUE(option(), 回合数)) {
             Boardcast() << Markdown(ShowInfo_());
             const auto chess_counts = ChessCounts_();
             if (chess_counts[0] == chess_counts[1]) {
@@ -176,8 +176,8 @@ class MainStage : public MainGameStage<>
         } else {
             Boardcast() << Markdown(ShowInfo_());
             ClearReady(cur_pid());
-            StartTimer(option().GET_VALUE(局时));
-            Boardcast() << "请" << At(cur_pid()) << "行动，" << option().GET_VALUE(局时)
+            StartTimer(GET_OPTION_VALUE(option(), 局时));
+            Boardcast() << "请" << At(cur_pid()) << "行动，" << GET_OPTION_VALUE(option(), 局时)
                         << "秒未行动自动判负\n格式：取出位置 推入位置";
         }
     }
@@ -200,7 +200,7 @@ class MainStage : public MainGameStage<>
     quixo::Type cur_type() const
     {
         static const std::array<quixo::Type, 4> types{quixo::Type::O1, quixo::Type::X1, quixo::Type::O2, quixo::Type::X2};
-        return types[round_ % (option().GET_VALUE(模式) ? 2 : 4)];
+        return types[round_ % (GET_OPTION_VALUE(option(), 模式) ? 2 : 4)];
     }
     quixo::Symbol cur_symbol() const { return round_ % 2 ? quixo::Symbol::X : quixo::Symbol::O; }
 

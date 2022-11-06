@@ -408,7 +408,7 @@ class RoundStage : public SubGameStage<> {
     }
     main_stage().Print();
     Boardcast() << ("本回合数字：" + std::to_string(num_1) + " " + std::to_string(num_2));
-    StartTimer(option().GET_VALUE(时限));
+    StartTimer(GET_OPTION_VALUE(option(), 时限));
   }
 
   virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
@@ -484,8 +484,8 @@ class RoundStage : public SubGameStage<> {
 
 MainStage::MainStage(const GameOption& option, MatchBase& match)
     : GameStage(option, match), ui_(option.PlayerNum()), turn_(0), num_player_(option.PlayerNum()) {
-  auto map_file = map_files[option.GET_VALUE(地图)];
-  map_name = map_names[option.GET_VALUE(地图)];
+  auto map_file = map_files[GET_OPTION_VALUE(option, 地图)];
+  map_name = map_names[GET_OPTION_VALUE(option, 地图)];
   if (map_file == "random") {
     int index = rand() % (map_files.size() - 1) + 1;
     map_file = map_files[index];

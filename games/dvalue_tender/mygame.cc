@@ -146,7 +146,7 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        StartTimer(option().GET_VALUE(时限));
+        StartTimer(GET_OPTION_VALUE(option(), 时限));
 //        Boardcast() << name() << "开始";
     }
 
@@ -317,7 +317,7 @@ class RoundStage : public SubGameStage<>
             reply() << "[错误] 金币数量不够。";
             return StageErrCode::FAILED;
         }
-        if(coins < 0 || coins > option().GET_VALUE(金币)){
+        if(coins < 0 || coins > GET_OPTION_VALUE(option(), 金币)){
             reply() << "[错误] 不合法的金币数。";
             return StageErrCode::FAILED;
         }
@@ -345,7 +345,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     roundBoard+="当前结果：";
     for(int i = 0; i < option().PlayerNum(); i++){
-        player_coins_[i] = option().GET_VALUE(金币);
+        player_coins_[i] = GET_OPTION_VALUE(option(), 金币);
     }
 
     return std::make_unique<RoundStage>(*this, ++round_);

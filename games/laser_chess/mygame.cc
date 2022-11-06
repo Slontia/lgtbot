@@ -73,7 +73,7 @@ class MainStage : public MainGameStage<>
                             { "顺", Choise::CLOCKWISE },
                             { "逆", Choise::ANTICLOCKWISE }}
                         )))
-        , map_(option.GET_VALUE(地图) == GameMap::随机 ? GameMap::Members()[rand() % (GameMap::Count() - 1)] : option.GET_VALUE(地图))
+        , map_(GET_OPTION_VALUE(option, 地图) == GameMap::随机 ? GameMap::Members()[rand() % (GameMap::Count() - 1)] : GET_OPTION_VALUE(option, 地图))
         , board_(game_map_initers[map_.ToUInt()](option.ResourceDir()))
         , round_(0)
         , scores_{0}
@@ -82,10 +82,10 @@ class MainStage : public MainGameStage<>
 
     virtual void OnStageBegin()
     {
-        StartTimer(option().GET_VALUE(局时));
+        StartTimer(GET_OPTION_VALUE(option(), 局时));
         board_html_ = board_.ToHtml();
         Boardcast() << Markdown(ShowInfo_());
-        Boardcast() << "请双方行动，" << option().GET_VALUE(局时)
+        Boardcast() << "请双方行动，" << GET_OPTION_VALUE(option(), 局时)
                     << "秒未行动自动 pass\n格式：棋子位置 行动方式";
     }
 
@@ -184,7 +184,7 @@ class MainStage : public MainGameStage<>
 
     std::string ShowInfo_() const
     {
-        std::string str = "## 第 " + std::to_string(round_) + " / " + std::to_string(option().GET_VALUE(回合数)) + " 回合\n\n";
+        std::string str = "## 第 " + std::to_string(round_) + " / " + std::to_string(GET_OPTION_VALUE(option(), 回合数)) + " 回合\n\n";
         html::Table player_table(2, 4);
         player_table.MergeDown(0, 0, 2);
         player_table.MergeDown(0, 2, 2);
@@ -232,7 +232,7 @@ class MainStage : public MainGameStage<>
         } else if (settle_ret.king_alive_num_[1] == 0) {
             Boardcast() << "玩家" << At(PlayerID{1}) << "的王被命中，输掉了比赛";
             scores_[0] = 1;
-        } else if (round_ >= option().GET_VALUE(回合数)) {
+        } else if (round_ >= GET_OPTION_VALUE(option(), 回合数)) {
             Boardcast() << "达到最大回合数，根据剩余棋子数量计算胜负";
             scores_[0] = board_.ChessCount(0);
             scores_[1] = board_.ChessCount(1);
@@ -249,8 +249,8 @@ class MainStage : public MainGameStage<>
             }
             finish = false;
             ClearReady();
-            StartTimer(option().GET_VALUE(局时));
-            sender << "请双方行动，" << option().GET_VALUE(局时) << "秒未行动默认 pass\n格式：棋子位置 行动方式";
+            StartTimer(GET_OPTION_VALUE(option(), 局时));
+            sender << "请双方行动，" << GET_OPTION_VALUE(option(), 局时) << "秒未行动默认 pass\n格式：棋子位置 行动方式";
         }
         return finish;
     }

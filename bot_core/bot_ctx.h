@@ -12,6 +12,7 @@
 #include "bot_core/match_manager.h"
 #include "bot_core/id.h"
 #include "bot_core/db_manager.h"
+#include "bot_core/options.h"
 
 #include <dirent.h>
 
@@ -39,6 +40,9 @@ class BotCtx
 
     const UserID this_uid() const { return this_uid_; }
 
+    auto& option() { return mutable_bot_options_; }
+    const auto& options() const { return mutable_bot_options_; }
+
   private:
     void LoadGameModules_(const char* const games_path);
     void LoadAdmins_(const std::string_view& admins);
@@ -52,4 +56,5 @@ class BotCtx
 #ifdef WITH_SQLITE
     std::unique_ptr<DBManagerBase> db_manager_;
 #endif
+    MutableBotOption mutable_bot_options_;
 };

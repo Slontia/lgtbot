@@ -475,7 +475,8 @@ class GameStage<GameOption, MainStage>
     {
         finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
         // cannot pass substage pointer because substage may has been released when alert
-        Base::match_.StartTimer(sec, this, TimerCallback_);
+        Base::match_.StartTimer(sec, this,
+                option().global_options_.public_timer_alert_ ? TimerCallbackPublic_ : TimerCallbackPrivate_);
     }
 
     void StopTimer()
@@ -498,7 +499,20 @@ class GameStage<GameOption, MainStage>
     }
 
    private:
-    static void TimerCallback_(void* const p, const uint64_t alert_sec)
+    static void TimerCallbackPublic_(void* const p, const uint64_t alert_sec)
+    {
+        auto& stage = *static_cast<GameStage*>(p);
+        auto sender = stage.Boardcast();
+        sender << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) <<
+            "秒\n\n以下玩家还未选择，要抓紧了，机会不等人\n";
+        for (PlayerID pid = 0; pid < stage.option().PlayerNum(); ++pid) {
+            if (stage.masker().Get(pid) == Masker::State::UNSET) {
+                sender << At(pid);
+            }
+        }
+    }
+
+    static void TimerCallbackPrivate_(void* const p, const uint64_t alert_sec)
     {
         auto& stage = *static_cast<GameStage*>(p);
         stage.Boardcast() << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) << "秒";

@@ -67,6 +67,7 @@ TEST_F(TestMsgChecker, any_checker)
     ASSERT_ARG(checker, "  abc def", "abc");
     ASSERT_ARG(checker, "  中文测试 表现不错", "中文测试");
     ASSERT_ARG(checker, "Test\ttab", "Test");
+    ASSERT_EQ("abc", checker.ArgString("abc"));
 }
 
 TEST_F(TestMsgChecker, test_bool_checker)
@@ -82,6 +83,8 @@ TEST_F(TestMsgChecker, test_bool_checker)
     ASSERT_ARG(checker_1, "false", false);
     ASSERT_ARG(checker_1, "true invlid", true);
     ASSERT_ARG(checker_1, "false invlid", false);
+    ASSERT_EQ("true", checker_1.ArgString(true));
+    ASSERT_EQ("false", checker_1.ArgString(false));
 
     BoolChecker checker_2("true invalid", " ");
     ASSERT_FAIL(checker_2, "");
@@ -116,6 +119,7 @@ TEST_F(TestMsgChecker, test_alter_checker)
     ASSERT_FAIL(checker, " 7");
     ASSERT_ARG(checker, " 5", 5);
     ASSERT_ARG(checker, " 5 other", 5);
+    ASSERT_EQ("5", checker.ArgString(5));
 }
 
 TEST_F(TestMsgChecker, test_arith_checker)
@@ -133,6 +137,7 @@ TEST_F(TestMsgChecker, test_arith_checker)
     ASSERT_ARG(checker, "0", 0);
     ASSERT_ARG(checker, "-0", 0);
     ASSERT_ARG(checker, "1", 1);
+    ASSERT_EQ("0", checker.ArgString(0));
 }
 
 struct Obj
@@ -147,6 +152,7 @@ struct Obj
     }
     friend std::ostream& operator<<(std::ostream& os, const Obj& obj)
     {
+        os << obj.v_ - 1;
         return os;
     }
 };
@@ -166,6 +172,7 @@ TEST_F(TestMsgChecker, test_basic_checker)
     ASSERT_ARG(checker, "+0", Obj{1});
     ASSERT_ARG(checker, "1", Obj{2});
     ASSERT_ARG(checker, "+1", Obj{2});
+    ASSERT_EQ("1", checker.ArgString(Obj{2}));
 }
 
 TEST_F(TestMsgChecker, test_void_checker)
@@ -202,6 +209,33 @@ TEST_F(TestMsgChecker, test_repeatable_normal_checker)
     ASSERT_ARG(checker, "1 0", (std::vector<int>{1, 0}));
     ASSERT_ARG(checker, "1 -0", (std::vector<int>{1, 0}));
     ASSERT_ARG(checker, "1 1", (std::vector<int>{1, 1}));
+    ASSERT_EQ("1 2", checker.ArgString(std::vector<int>{1, 2}));
+    ASSERT_EQ("1", checker.ArgString(std::vector<int>{1}));
+    ASSERT_EQ("", checker.ArgString(std::vector<int>{}));
+}
+
+TEST_F(TestMsgChecker, test_optional_checker)
+{
+    OptionalChecker<ArithChecker<int>> checker(-1, 1);
+    ASSERT_FAIL(checker, "-2");
+    ASSERT_FAIL(checker, "2");
+    ASSERT_FAIL(checker, "zero");
+    ASSERT_ARG(checker, "", std::nullopt);
+    ASSERT_ARG(checker, "-1", -1);
+    ASSERT_EQ("-1", checker.ArgString(-1));
+    ASSERT_EQ("", checker.ArgString(std::nullopt));
+}
+
+TEST_F(TestMsgChecker, test_optional_default_checker)
+{
+    OptionalDefaultChecker<ArithChecker<int>> checker(0, -1, 1);
+    ASSERT_FAIL(checker, "-2");
+    ASSERT_FAIL(checker, "2");
+    ASSERT_FAIL(checker, "zero");
+    ASSERT_ARG(checker, "", 0);
+    ASSERT_ARG(checker, "-1", -1);
+    ASSERT_EQ("-1", checker.ArgString(-1));
+    ASSERT_EQ("0", checker.ArgString(0));
 }
 
 TEST_F(TestMsgChecker, test_flags_checker)
@@ -221,6 +255,9 @@ TEST_F(TestMsgChecker, test_flags_checker)
     ASSERT_ARG(checker, "two three", 0b110);
     ASSERT_ARG(checker, "three one one", 0b101);
     ASSERT_ARG(checker, "three one two", 0b111);
+    ASSERT_EQ("one three", checker.ArgString(0b101));
+    ASSERT_EQ("one", checker.ArgString(0b001));
+    ASSERT_EQ("", checker.ArgString(0b000));
 }
 
 int main(int argc, char** argv)

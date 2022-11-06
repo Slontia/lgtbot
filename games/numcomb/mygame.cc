@@ -77,10 +77,10 @@ class MainStage : public MainGameStage<RoundStage>
                 }
             }
         }
-        for (uint32_t i = 0; i < option.GET_VALUE(癞子); ++i) {
+        for (uint32_t i = 0; i < GET_OPTION_VALUE(option, 癞子); ++i) {
             cards_.emplace_back();
         }
-        const std::string& seed_str = option.GET_VALUE(种子);
+        const std::string& seed_str = GET_OPTION_VALUE(option, 种子);
         if (seed_str.empty()) {
             std::random_device rd;
             std::mt19937 g(rd());
@@ -92,9 +92,9 @@ class MainStage : public MainGameStage<RoundStage>
         }
 
         it_ = cards_.begin();
-        if (std::all_of(cards_.begin(), cards_.begin() + option.GET_VALUE(跳过非癞子),
+        if (std::all_of(cards_.begin(), cards_.begin() + GET_OPTION_VALUE(option, 跳过非癞子),
                 [](const comb::AreaCard& card) { return !card.IsWild(); })) {
-            it_ += option.GET_VALUE(跳过非癞子);
+            it_ += GET_OPTION_VALUE(option, 跳过非癞子);
         }
     }
 
@@ -146,7 +146,7 @@ class RoundStage : public SubGameStage<>
     {
         Boardcast() << "本回合砖块如下，请公屏或私信裁判设置数字：";
         SendInfo(BoardcastMsgSender());
-        StartTimer(option().GET_VALUE(局时));
+        StartTimer(GET_OPTION_VALUE(option(), 局时));
     }
 
   private:
@@ -212,7 +212,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
 {
-    if (round_ == option().GET_VALUE(回合数)) {
+    if (round_ == GET_OPTION_VALUE(option(), 回合数)) {
         Boardcast() << Markdown(CombHtml("## 终局"));
         return {};
     }

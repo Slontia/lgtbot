@@ -71,9 +71,9 @@ class MainStage : public MainGameStage<>
                     AlterChecker(KingdomId::ParseMap()),
                     VoidChecker("pass")),
                 MakeStageCommand("移动棋子", &MainStage::Move_,
-                    ArithChecker<uint32_t>(0, option.PlayerNum() * option.GET_VALUE(阵营), "棋盘编号"),
+                    ArithChecker<uint32_t>(0, option.PlayerNum() * GET_OPTION_VALUE(option, 阵营), "棋盘编号"),
                     AnyArg("移动前位置", "A1"), AnyArg("移动后位置", "B1")))
-        , board_(option.PlayerNum(), option.GET_VALUE(阵营))
+        , board_(option.PlayerNum(), GET_OPTION_VALUE(option, 阵营))
         , round_(0)
     {}
 
@@ -191,8 +191,8 @@ class MainStage : public MainGameStage<>
         // do settle and switch
         const auto ret = board_.Settle();
         ++round_;
-        if (round_ % option().GET_VALUE(切换回合) == 0) {
-            Boardcast() << "棋盘发生切换，" << option().GET_VALUE(切换回合) << " 回合后再次切换";
+        if (round_ % GET_OPTION_VALUE(option(), 切换回合) == 0) {
+            Boardcast() << "棋盘发生切换，" << GET_OPTION_VALUE(option(), 切换回合) << " 回合后再次切换";
             board_.Switch();
         }
 
@@ -225,17 +225,17 @@ class MainStage : public MainGameStage<>
         if (!ret.eat_results_.empty() || !ret.crashed_chesses_.empty()) {
             peace_round_count_ = 0;
             sender << "\n";
-        } else if (round_ <= option().GET_VALUE(最小回合限制)) {
+        } else if (round_ <= GET_OPTION_VALUE(option(), 最小回合限制)) {
             // do nothing
-        } else if (++peace_round_count_ >= option().GET_VALUE(和平回合限制)) {
-            sender << "已经连续 " << option().GET_VALUE(和平回合限制) << " 回合没有发生吃子或碰撞，游戏结束";
+        } else if (++peace_round_count_ >= GET_OPTION_VALUE(option(), 和平回合限制)) {
+            sender << "已经连续 " << GET_OPTION_VALUE(option(), 和平回合限制) << " 回合没有发生吃子或碰撞，游戏结束";
             return true;
         } else {
-            sender << "[注意] 若 " << (option().GET_VALUE(和平回合限制) - peace_round_count_)
+            sender << "[注意] 若 " << (GET_OPTION_VALUE(option(), 和平回合限制) - peace_round_count_)
                 << " 回合结束前仍未发生吃子或碰撞，游戏将结束\n\n";
         }
-        if (round_ == option().GET_VALUE(最小回合限制)) {
-            sender << "[注意] 从下一回合开始，若连续 " << (option().GET_VALUE(和平回合限制) - peace_round_count_)
+        if (round_ == GET_OPTION_VALUE(option(), 最小回合限制)) {
+            sender << "[注意] 从下一回合开始，若连续 " << (GET_OPTION_VALUE(option(), 和平回合限制) - peace_round_count_)
                 << " 回合未发生吃子或碰撞，游戏将结束\n\n";
         }
 
@@ -270,10 +270,10 @@ class MainStage : public MainGameStage<>
     template <typename Sender>
     void ResetTimer_(Sender&& sender)
     {
-        StartTimer(option().GET_VALUE(时限));
-        sender << "请所有玩家行动，" << option().GET_VALUE(时限)
+        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        sender << "请所有玩家行动，" << GET_OPTION_VALUE(option(), 时限)
                << " 秒未行动自动 pass\n格式：棋盘编号 移动前位置 移动后位置\n\n"
-               << (option().GET_VALUE(切换回合) - round_ % option().GET_VALUE(切换回合))
+               << (GET_OPTION_VALUE(option(), 切换回合) - round_ % GET_OPTION_VALUE(option(), 切换回合))
                << " 回合后将切换棋盘";
     }
 

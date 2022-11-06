@@ -63,7 +63,7 @@ class MainStage : public MainGameStage<>
 
     virtual void OnStageBegin()
     {
-        StartTimer(option().GET_VALUE(时限));
+        StartTimer(GET_OPTION_VALUE(option(), 时限));
         Boardcast() << Markdown(HtmlHead_() + board_.ToHtml());
         Boardcast() << "请私信裁判落子位置";
     }
@@ -189,8 +189,8 @@ class MainStage : public MainGameStage<>
     std::string HtmlHead_() const
     {
         std::string str = "## 第 " + std::to_string(round_ + 1);
-        if (option().GET_VALUE(回合上限) > 0) {
-            str += " / " + std::to_string(option().GET_VALUE(回合上限));
+        if (GET_OPTION_VALUE(option(), 回合上限) > 0) {
+            str += " / " + std::to_string(GET_OPTION_VALUE(option(), 回合上限));
         }
         str +=  " 回合\n\n";
         html::Table player_table(1, 4);
@@ -212,7 +212,7 @@ class MainStage : public MainGameStage<>
     {
         if (!SetToBoard_(BoardcastMsgSender())) {
             ClearReady();
-            StartTimer(option().GET_VALUE(时限));
+            StartTimer(GET_OPTION_VALUE(option(), 时限));
         }
     }
 
@@ -221,7 +221,7 @@ class MainStage : public MainGameStage<>
         HookUnreadyPlayers();
         if (!SetToBoard_(BoardcastMsgSender())) {
             ClearReady();
-            StartTimer(option().GET_VALUE(时限));
+            StartTimer(GET_OPTION_VALUE(option(), 时限));
             return StageErrCode::CONTINUE;
         }
         return StageErrCode::CHECKOUT;
@@ -256,8 +256,8 @@ class MainStage : public MainGameStage<>
         } else {
             if (ret == Result::CONTINUE_CRASH) {
                 sender << "双方位置相同，发生碰撞";
-                if (option().GET_VALUE(碰撞上限) > 0 && extended_) {
-                    sender << "，目前已发生 " << ++crash_count_ << " 次碰撞（当发生 " << option().GET_VALUE(碰撞上限)
+                if (GET_OPTION_VALUE(option(), 碰撞上限) > 0 && extended_) {
+                    sender << "，目前已发生 " << ++crash_count_ << " 次碰撞（当发生 " << GET_OPTION_VALUE(option(), 碰撞上限)
                            << " 次碰撞时，游戏将平局）";
                 }
             } else if (ret == Result::CONTINUE_OK) {
@@ -269,10 +269,10 @@ class MainStage : public MainGameStage<>
                 abort();
             }
             sender << "\n\n";
-            if (++round_ == option().GET_VALUE(回合上限)) {
+            if (++round_ == GET_OPTION_VALUE(option(), 回合上限)) {
                 sender << "达到回合上限，游戏平局";
                 return true;
-            } else if (crash_count_ > 0 && crash_count_ == option().GET_VALUE(碰撞上限)) {
+            } else if (crash_count_ > 0 && crash_count_ == GET_OPTION_VALUE(option(), 碰撞上限)) {
                 sender << "达到碰撞上限，游戏平局";
                 return true;
             } else {

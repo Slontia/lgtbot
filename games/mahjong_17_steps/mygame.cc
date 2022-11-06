@@ -71,11 +71,11 @@ class MainStage : public MainGameStage<TableStage>
         std::variant<std::random_device, std::seed_seq> rd;
         std::mt19937 g([&]
             {
-                if (option.GET_VALUE(种子).empty()) {
+                if (GET_OPTION_VALUE(option, 种子).empty()) {
                     auto& real_rd = rd.emplace<std::random_device>();
                     return std::mt19937(real_rd());
                 } else {
-                    auto& real_rd = rd.emplace<std::seed_seq>(option.GET_VALUE(种子).begin(), option.GET_VALUE(种子).end());
+                    auto& real_rd = rd.emplace<std::seed_seq>(GET_OPTION_VALUE(option, 种子).begin(), GET_OPTION_VALUE(option, 种子).end());
                     return std::mt19937(real_rd);
                 }
             }());
@@ -131,8 +131,8 @@ class PrepareStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        StartTimer(option().GET_VALUE(配牌时限));
-        Boardcast() << "请私信裁判进行配牌，时限 " << option().GET_VALUE(配牌时限) << " 秒";
+        StartTimer(GET_OPTION_VALUE(option(), 配牌时限));
+        Boardcast() << "请私信裁判进行配牌，时限 " << GET_OPTION_VALUE(option(), 配牌时限) << " 秒";
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             Tell(pid) << Markdown(game_table_.PrepareHtml(pid));
             Tell(pid) << "请配牌，您可通过「帮助」命令查看命令格式";
@@ -215,10 +215,10 @@ class KiriStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        StartTimer(option().GET_VALUE(切牌时限));
-        Boardcast() << "请从牌山中选择一张切出去，时限 " << option().GET_VALUE(切牌时限) << " 秒";
+        StartTimer(GET_OPTION_VALUE(option(), 切牌时限));
+        Boardcast() << "请从牌山中选择一张切出去，时限 " << GET_OPTION_VALUE(option(), 切牌时限) << " 秒";
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            Tell(pid) << "请从牌山中选择一张切出去，时限 " << option().GET_VALUE(切牌时限) << " 秒";
+            Tell(pid) << "请从牌山中选择一张切出去，时限 " << GET_OPTION_VALUE(option(), 切牌时限) << " 秒";
         }
     }
 
@@ -276,12 +276,12 @@ class KiriStage : public SubGameStage<>
         SendInfo_();
         switch (state) {
         case Mahjong17Steps::GameState::CONTINUE:
-            Boardcast() << "全员安全，请继续私信裁判切牌，时限 " << option().GET_VALUE(切牌时限) << " 秒";
+            Boardcast() << "全员安全，请继续私信裁判切牌，时限 " << GET_OPTION_VALUE(option(), 切牌时限) << " 秒";
             for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-                Tell(pid) << "请继续切牌，时限 " << option().GET_VALUE(切牌时限) << " 秒";
+                Tell(pid) << "请继续切牌，时限 " << GET_OPTION_VALUE(option(), 切牌时限) << " 秒";
             }
             ClearReady();
-            StartTimer(option().GET_VALUE(切牌时限));
+            StartTimer(GET_OPTION_VALUE(option(), 切牌时限));
             return false;
         case Mahjong17Steps::GameState::HAS_RON: {
             // FIXME: if timeout, the ready set any_ready is not be set, then the round will not be over
@@ -313,11 +313,11 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
         : GameStage(main_stage, stage_name)
         , game_table_(Mahjong17Steps(Mahjong17StepsOption{
                     .name_ = stage_name,
-                    .with_red_dora_ = main_stage.option().GET_VALUE(赤宝牌),
-                    .with_inner_dora_ = main_stage.option().GET_VALUE(里宝牌),
-                    .dora_num_ = main_stage.option().GET_VALUE(宝牌),
-                    .ron_required_point_ = main_stage.option().GET_VALUE(起和点),
-                    .seed_ = main_stage.option().GET_VALUE(种子).empty() ? "" : main_stage.option().GET_VALUE(种子) + stage_name,
+                    .with_red_dora_ = GET_OPTION_VALUE(main_stage.option(), 赤宝牌),
+                    .with_inner_dora_ = GET_OPTION_VALUE(main_stage.option(), 里宝牌),
+                    .dora_num_ = GET_OPTION_VALUE(main_stage.option(), 宝牌),
+                    .ron_required_point_ = GET_OPTION_VALUE(main_stage.option(), 起和点),
+                    .seed_ = GET_OPTION_VALUE(main_stage.option(), 种子).empty() ? "" : GET_OPTION_VALUE(main_stage.option(), 种子) + stage_name,
                     .image_path_ = main_stage.option().ResourceDir(),
                     .player_descs_ = [&]()
                             {

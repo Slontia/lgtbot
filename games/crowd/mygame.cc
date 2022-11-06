@@ -87,9 +87,9 @@ class MainStage : public MainGameStage<RoundStage>
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply){
 
          string s = "";
-         s += "乌合之众: \n第" + str(round_) + " / " + str(option().GET_VALUE(回合数)) + " 回合\n\n";
-         s += specialRule(players, option().GET_VALUE(特殊规则), "gameStart");
-         if(option().GET_VALUE(特殊规则) == 0) s += "无";
+         s += "乌合之众: \n第" + str(round_) + " / " + str(GET_OPTION_VALUE(option(), 回合数)) + " 回合\n\n";
+         s += specialRule(players, GET_OPTION_VALUE(option(), 特殊规则), "gameStart");
+         if(GET_OPTION_VALUE(option(), 特殊规则) == 0) s += "无";
          s += "\n\n当前题目\n";
          s += "题号：" + str(question -> id) + "\n";
          s += "出题者：" + (question -> author) + "\n";
@@ -128,8 +128,8 @@ class RoundStage : public SubGameStage<>
         main_stage().used.insert(r);
 
 
-        if(option().GET_VALUE(测试) != 0)
-            r = option().GET_VALUE(测试);
+        if(GET_OPTION_VALUE(option(), 测试) != 0)
+            r = GET_OPTION_VALUE(option(), 测试);
         if(r > 34)
             r = 1;
 
@@ -172,7 +172,7 @@ class RoundStage : public SubGameStage<>
         {
             Boardcast() << "Q == NULL in RoundStage -> OnStageBegin where r == " + to_string(r);
             Boardcast() << "发生了不可预料的错误。请中断游戏。";
-            StartTimer(option().GET_VALUE(时限));
+            StartTimer(GET_OPTION_VALUE(option(), 时限));
             return;
         }
 
@@ -183,7 +183,7 @@ class RoundStage : public SubGameStage<>
 
         Boardcast() << Markdown(q -> Markdown());
 
-        StartTimer(option().GET_VALUE(时限));
+        StartTimer(GET_OPTION_VALUE(option(), 时限));
     }
 
     virtual CheckoutErrCode OnTimeout() override
@@ -246,7 +246,7 @@ class RoundStage : public SubGameStage<>
         q -> quickScore(p);
 
 
-        int specialRule_ = option().GET_VALUE(特殊规则);
+        int specialRule_ = GET_OPTION_VALUE(option(), 特殊规则);
         specialRule(p, specialRule_, "roundEnd");
 
 
@@ -366,7 +366,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         finalBoard[i] += (string)"<tr>" + "<td bgcolor=\"#D2F4F4\"><font size=7>" + strName(PlayerName(i)) + "</font></td>";
     }
 
-    int specialRule_ = option().GET_VALUE(特殊规则);
+    int specialRule_ = GET_OPTION_VALUE(option(), 特殊规则);
     if(specialRule_ != 0)
     {
         Boardcast() << specialRule(players, specialRule_, "gameStart");
@@ -377,14 +377,14 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
 {
-    if ((++round_) <= option().GET_VALUE(回合数)) {
+    if ((++round_) <= GET_OPTION_VALUE(option(), 回合数)) {
         return make_unique<RoundStage>(*this, round_);
     }
 
 
     // OK game ends here
 
-    int specialRule_ = option().GET_VALUE(特殊规则);
+    int specialRule_ = GET_OPTION_VALUE(option(), 特殊规则);
     specialRule(players, specialRule_, "gameEnd");
     for(int i = 0; i < players.size(); i++)
     {

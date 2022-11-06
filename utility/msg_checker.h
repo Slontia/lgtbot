@@ -33,6 +33,8 @@ class MsgReader final
         iter_ = args_.begin();
     }
 
+    MsgReader(std::vector<std::string> args) : args_(std::move(args)), iter_(args_.begin()) {}
+
     ~MsgReader() {}
 
     bool HasNext() const { return iter_ != args_.end(); }
@@ -62,6 +64,7 @@ class MsgArgChecker
     virtual std::string ColoredFormatInfo() const = 0;
     virtual std::string ExampleInfo() const = 0;
     virtual std::optional<T> Check(MsgReader& reader) const = 0;
+    virtual std::string ArgString(const T& value) const = 0;
 };
 
 // Require: has next argument
@@ -87,6 +90,7 @@ class AnyArg : public MsgArgChecker<std::string>
         }
         return reader.NextArg();
     }
+    virtual std::string ArgString(const std::string& value) const { return value; }
 
    private:
     const std::string format_info_;
@@ -126,6 +130,7 @@ class BoolChecker : public MsgArgChecker<bool>
             return std::nullopt;
         }
     }
+    virtual std::string ArgString(const bool& value) const { return value ? true_str_ : false_str_; }
 
    private:
     const std::string true_str_;
@@ -162,6 +167,15 @@ class AlterChecker : public MsgArgChecker<T>
         std::string s = reader.NextArg();
         const auto it = arg_map_.find(s);
         return it == arg_map_.end() ? std::optional<T>() : it->second;
+    }
+    virtual std::string ArgString(const T& value) const
+    {
+        for (const auto& [k, v] : arg_map_) {
+            if (v == value) {
+                return k;
+            }
+        }
+        return "(错误，非预期的值)";
     }
 
   private:
@@ -220,6 +234,7 @@ class ArithChecker : public MsgArgChecker<T>
             return {};
         }
     }
+    virtual std::string ArgString(const T& value) const { return std::to_string(value); }
 
   private:
     static std::string FormatInfoInternal_(const std::string& meaning, const T min, const T max)
@@ -266,6 +281,12 @@ class BasicChecker : public MsgArgChecker<T>
         } else {
             return std::nullopt;
         };
+    }
+    virtual std::string ArgString(const T& value) const
+    {
+        std::stringstream ss;
+        ss << value;
+        return ss.str();
     }
 
    private:
@@ -330,6 +351,18 @@ class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg
         }
         return ret;
     }
+    virtual std::string ArgString(const std::vector<typename Checker::arg_type>& value_vec) const
+    {
+        if (value_vec.empty()) {
+            return "";
+        }
+        std::string result = checker_.ArgString(value_vec[0]);
+        for (size_t i = 1; i < value_vec.size(); ++i) {
+            result += " ";
+            result += checker_.ArgString(value_vec[i]);
+        }
+        return result;
+    }
 
   private:
     const Checker checker_;
@@ -362,6 +395,10 @@ class OptionalChecker : public MsgArgChecker<std::optional<typename Checker::arg
         } else {
             return std::nullopt;
         }
+    }
+    virtual std::string ArgString(const std::optional<typename Checker::arg_type>& value) const
+    {
+        return value.has_value() ? checker_.ArgString(*value) : "";
     }
 
   private:
@@ -397,6 +434,7 @@ class OptionalDefaultChecker : public MsgArgChecker<typename Checker::arg_type>
             return std::nullopt;
         }
     }
+    virtual std::string ArgString(const Checker::arg_type& value) const { return checker_.ArgString(value); }
 
   private:
     const Checker::arg_type default_value_;
@@ -439,6 +477,17 @@ class FlagsChecker : public MsgArgChecker<typename Enum::BitSet>
             }
         }
         return ret;
+    }
+    virtual std::string ArgString(const Enum::BitSet& value) const
+    {
+        std::string result;
+        for (const auto e : Enum::Members()) {
+            if (value[e]) {
+                result += e.ToString();
+                result += " ";
+            }
+        }
+        return result.empty() ? "" : result.substr(0, result.size() - 1);
     }
 
   private:

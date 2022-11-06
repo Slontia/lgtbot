@@ -16,6 +16,7 @@
 #include "bot_core/match.h"
 #include "bot_core/match_manager.h"
 #include "bot_core/score_calculation.h"
+#include "bot_core/options.h"
 
 Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, const UserID host_uid,
              const std::optional<GroupID> gid)
@@ -210,6 +211,7 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
     assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
     options_->SetPlayerNum(player_num);
     options_->SetResourceDir(resource_dir.c_str());
+    options_->global_options_.public_timer_alert_ = GET_OPTION_VALUE(bot_.option(), 计时公开提示);
     if (!(main_stage_ = game_handle_.make_main_stage(reply, *options_, *this))) {
         reply() << "[错误] 开始失败：不符合游戏参数的预期";
         return EC_MATCH_UNEXPECTED_CONFIG;

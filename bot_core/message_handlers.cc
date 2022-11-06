@@ -14,6 +14,7 @@
 #include "bot_core/db_manager.h"
 #include "bot_core/match.h"
 #include "bot_core/image.h"
+#include "bot_core/options.h"
 
 // para func can appear only once
 #define RETURN_IF_FAILED(func)                                 \
@@ -594,6 +595,38 @@ static ErrCode clear_others_profile(BotCtx& bot, const UserID uid, const std::op
     return EC_OK;
 }
 
+static ErrCode set_option(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+        MsgSenderBase& reply, const std::vector<std::string>& option_args)
+{
+    if (option_args.empty()) {
+        reply() << "[错误] 配置参数为空";
+        return EC_INVALID_ARGUMENT;
+    }
+    MsgReader reader(option_args);
+    if (!bot.option().SetOption(reader)) {
+        reply() << "[错误] 设置配置项失败，请检查配置项是否存在";
+        return EC_INVALID_ARGUMENT;
+    }
+    reply() << "设置成功";
+    return EC_OK;
+}
+
+static ErrCode read_all_options(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+        MsgSenderBase& reply, const bool text_mode)
+{
+    std::string outstr = "### 全局配置选项";
+    const auto option_size = bot.option().Count();
+    for (uint64_t i = 0; i < option_size; ++i) {
+        outstr += "\n" + std::to_string(i) + ". " + (text_mode ? bot.option().Info(i) : bot.option().ColoredInfo(i));
+    }
+    if (text_mode) {
+        reply() << outstr;
+    } else {
+        reply() << Markdown(outstr);
+    }
+    return EC_OK;
+}
+
 const std::vector<MetaCommandGroup> admin_cmds = {
     {
         "信息查看", {
@@ -610,6 +643,10 @@ const std::vector<MetaCommandGroup> admin_cmds = {
             make_command("查看他人战绩", show_others_profile, VoidChecker("%战绩"), AnyArg("用户 ID", "123456789")),
             make_command("清除他人战绩，并通知其具体理由", clear_others_profile, VoidChecker("%清除战绩"),
                         AnyArg("用户 ID", "123456789"), AnyArg("理由", "恶意刷分")),
+            make_command("查看所有支持的配置项", read_all_options, VoidChecker("%配置列表"),
+                        OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
+            make_command("设置配置项（可通过「%配置列表」查看所有支持的配置）", set_option, VoidChecker("%配置"),
+                        RepeatableChecker<AnyArg>("配置参数", "配置参数")),
         }
     },
 };

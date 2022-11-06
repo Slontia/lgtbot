@@ -131,7 +131,7 @@ class RoundStage : public SubGameStage<> {
                              ArithChecker<int64_t>(1, 5, "面包数量"))) {}
 
   virtual void OnStageBegin() override {
-    StartTimer(option().GET_VALUE(时限));
+    StartTimer(GET_OPTION_VALUE(option(), 时限));
 
     Boardcast() << name() << "，请玩家私信选择行动。";
   }
@@ -386,7 +386,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin() {
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage,
                                                    const CheckoutReason reason) {
   //    Boardcast()<<"alive"<<std::to_string(alive_);
-  if ((++round_) <= option().GET_VALUE(回合数) && alive_ > 1) {
+  if ((++round_) <= GET_OPTION_VALUE(option(), 回合数) && alive_ > 1) {
     return std::make_unique<RoundStage>(*this, round_);
   }
   //    Boardcast() << "游戏结束";
