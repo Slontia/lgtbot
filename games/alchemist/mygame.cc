@@ -166,15 +166,18 @@ class MainStage : public MainGameStage<RoundStage>
 
     std::string BoardHtml(std::string str)
     {
+        html::Table table(players_.size() / 2 + 1, 2);
+        table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\" ");
         for (PlayerID pid = 0; pid < players_.size(); ++pid) {
-            str += "\n\n### ";
-            str += PlayerName(pid);
-            str += "（当前积分：";
-            str += std::to_string(players_[pid].score_);
-            str += " / " + std::to_string(WinScoreThreshold(GET_OPTION_VALUE(option(), 模式))) + "）\n\n";
-            str += players_[pid].board_->ToHtml();
+            table.Get(pid / 2, pid % 2).SetContent("\n\n### " + PlayerName(pid) + "（当前积分：" +
+                    std::to_string(players_[pid].score_) + " / " +
+                    std::to_string(WinScoreThreshold(GET_OPTION_VALUE(option(), 模式))) + "）\n\n" +
+                    players_[pid].board_->ToHtml());
         }
-        return str;
+        if (players_.size() % 2) {
+            table.MergeRight(table.Row() - 1, 0, 2);
+        }
+        return str + table.ToString();
     }
 
 
