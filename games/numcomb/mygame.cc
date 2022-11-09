@@ -107,17 +107,18 @@ class MainStage : public MainGameStage<RoundStage>
         return players_[pid].score_;
     }
 
-    std::string CombHtml(std::string str)
+    std::string CombHtml(const std::string& str)
     {
+        html::Table table(players_.size() / 2 + 1, 2);
+        table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\" ");
         for (PlayerID pid = 0; pid < players_.size(); ++pid) {
-            str += "\n\n### ";
-            str += PlayerName(pid);
-            str += "（当前积分：";
-            str += std::to_string(players_[pid].score_);
-            str += "）\n\n";
-            str += players_[pid].comb_->ToHtml();
+            table.Get(pid / 2, pid % 2).SetContent("### " + PlayerName(pid) + "（当前积分：" +
+                    std::to_string(players_[pid].score_) + "）\n\n" + players_[pid].comb_->ToHtml());
         }
-        return str;
+        if (players_.size() % 2) {
+            table.MergeRight(table.Row() - 1, 0, 2);
+        }
+        return str + table.ToString();
     }
 
 
@@ -139,7 +140,7 @@ class RoundStage : public SubGameStage<>
                 MakeStageCommand("设置数字", &RoundStage::Set_, ArithChecker<uint32_t>(0, 19, "数字")),
                 MakeStageCommand("查看本回合开始时蜂巢情况，可用于图片重发", &RoundStage::Info_, VoidChecker("赛况")))
             , card_(card)
-            , comb_html_(main_stage.CombHtml("## 第" + std::to_string(round) + "回合"))
+            , comb_html_(main_stage.CombHtml("## 第 " + std::to_string(round) + " 回合"))
     {}
 
     virtual void OnStageBegin() override
@@ -190,7 +191,7 @@ class RoundStage : public SubGameStage<>
 
     void SendInfo(MsgSenderBase& sender)
     {
-        sender() << Markdown(comb_html_);
+        sender() << Markdown{comb_html_, };
         sender() << Image(std::string(option().ResourceDir() + card_.ImageName()) + ".png");
     }
 
@@ -213,7 +214,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
 {
     if (round_ == GET_OPTION_VALUE(option(), 回合数)) {
-        Boardcast() << Markdown(CombHtml("## 终局"));
+        Boardcast() << CombHtml("## 终局");
         return {};
     }
     return NewStage_();
