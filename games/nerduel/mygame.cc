@@ -125,13 +125,17 @@ struct MyTable {
 
 // ========== GAME STAGES ==========
 
-class RoundStage;
+class SettingStage;
+class GuessingStage;
 
-class MainStage : public MainGameStage<RoundStage> {
+class MainStage : public MainGameStage<SettingStage, GuessingStage> {
  public:
   MainStage(const GameOption& option, MatchBase& match);
   virtual VariantSubStage OnStageBegin() override;
-  virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
+  virtual VariantSubStage NextSubStage(SettingStage& sub_stage,
+                                       const CheckoutReason reason) override;
+  virtual VariantSubStage NextSubStage(GuessingStage& sub_stage,
+                                       const CheckoutReason reason) override;
   int64_t PlayerScore(const PlayerID pid) const;
 
   bool JudgeOver();
@@ -269,40 +273,6 @@ class GuessingStage : public SubGameStage<> {
   }
 };
 
-class RoundStage : public SubGameStage<SettingStage, GuessingStage> {
- public:
-  RoundStage(MainStage& main_stage)
-      : GameStage(main_stage, "第" + std::to_string(main_stage.turn_) + "回合") {}
-
-  virtual VariantSubStage OnStageBegin() override {
-    return std::make_unique<SettingStage>(main_stage());
-  }
-
-  virtual VariantSubStage NextSubStage(SettingStage& sub_stage,
-                                       const CheckoutReason reason) override {
-    if (main_stage().ended_) {
-      return {};
-    }
-    return std::make_unique<GuessingStage>(main_stage());
-  }
-
-  virtual VariantSubStage NextSubStage(GuessingStage& sub_stage,
-                                       const CheckoutReason reason) override {
-    if (++main_stage().turn_ > 50) {
-      Boardcast() << "回合数超过上限，游戏结束。";
-      main_stage().ended_ = true;
-      return {};
-    }
-    if (main_stage().ended_) {
-      return {};
-    }
-    main_stage().table_.AddLine();
-    return std::make_unique<GuessingStage>(main_stage());
-  }
-
- private:
-};
-
 MainStage::MainStage(const GameOption& option, MatchBase& match)
     : GameStage(option, match),
       ended_(false),
@@ -312,14 +282,30 @@ MainStage::MainStage(const GameOption& option, MatchBase& match)
       target_(2),
       history_(2) {}
 
-MainStage::VariantSubStage MainStage::OnStageBegin() { return std::make_unique<RoundStage>(*this); }
+MainStage::VariantSubStage MainStage::OnStageBegin() {
+  return std::make_unique<SettingStage>(*this);
+}
 
-MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage,
+MainStage::VariantSubStage MainStage::NextSubStage(SettingStage& sub_stage,
                                                    const CheckoutReason reason) {
   if (JudgeOver()) {
     return {};
   }
-  return std::make_unique<RoundStage>(*this);
+  return std::make_unique<GuessingStage>(*this);
+}
+
+MainStage::VariantSubStage MainStage::NextSubStage(GuessingStage& sub_stage,
+                                                   const CheckoutReason reason) {
+  if (++turn_ > 50) {
+    Boardcast() << "回合数超过上限，游戏结束。";
+    ended_ = true;
+    return {};
+  }
+  if (JudgeOver()) {
+    return {};
+  }
+  table_.AddLine();
+  return std::make_unique<GuessingStage>(*this);
 }
 
 int64_t MainStage::PlayerScore(const PlayerID pid) const { return score_.at(pid); }
@@ -327,10 +313,6 @@ int64_t MainStage::PlayerScore(const PlayerID pid) const { return score_.at(pid)
 bool MainStage::JudgeOver() {
   if (ended_) {
     Boardcast() << Markdown(table_.ToHtml());
-    // Boardcast() << "游戏结束。双方的目标等式为：\n";
-    // for (int i = 0; i < 2; i++) {
-    //   Boardcast() << PlayerName(i) << ": " << target_[i] << "\n";
-    // }
     return true;
   }
   Info_();
