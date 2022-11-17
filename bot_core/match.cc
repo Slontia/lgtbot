@@ -351,6 +351,30 @@ MsgSenderBase& Match::GroupMsgSender()
     }
 }
 
+const char* Match::PlayerName(const PlayerID& pid)
+{
+    thread_local static std::string str;
+    const auto& id = ConvertPid(pid);
+    if (const auto pval = std::get_if<ComputerID>(&id)) {
+        return (str = "机器人" + std::to_string(*pval) + "号").c_str();
+    }
+    if (!gid().has_value()) {
+        return GetUserName(std::get<UserID>(id).GetCStr(), nullptr);
+    }
+    return GetUserName(std::get<UserID>(id).GetCStr(), gid().has_value() ? gid()->GetCStr() : nullptr);
+}
+
+const char* Match::PlayerAvatar(const PlayerID& pid, const int32_t size)
+{
+    thread_local static std::string str;
+    const auto& id = ConvertPid(pid);
+    if (const auto pval = std::get_if<ComputerID>(&id)) {
+        return "";
+    }
+    str = GetUserAvatar(std::get<UserID>(id).GetCStr(), size);
+    return str.c_str();
+}
+
 MsgSenderBase::MsgSenderGuard Match::BoardcastAtAll()
 {
     if (gid().has_value()) {

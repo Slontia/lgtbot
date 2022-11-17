@@ -464,7 +464,9 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
             : GameStage(main_stage, "第" + std::to_string(round) + "回合")
     {
         if ((round - 1) % 3 == 0) {
-            main_stage.tables_[(round - 1) / 3].Init(PlayerName(0), PlayerName(1), round);
+            main_stage.tables_[(round - 1) / 3].Init(
+                    PlayerAvatar(0, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + PlayerName(0),
+                    PlayerAvatar(1, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + PlayerName(1), round);
         }
     }
 

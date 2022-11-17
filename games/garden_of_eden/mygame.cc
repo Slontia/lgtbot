@@ -224,7 +224,7 @@ class MainStage : public MainGameStage<>
             const int64_t cur_score = player.score_[round_];
             const bool is_quit_red_apple = round_ > 0 && player.chosen_apples_[round_ - 1] == AppleType::RED &&
                 player.chosen_apples_[round_] != AppleType::RED;
-            s += "### ";
+            s += "### " + PlayerAvatar(pid, 40) + "&nbsp;&nbsp; ";
             if (is_quit_red_apple) {
                 s += HTML_COLOR_FONT_HEADER(red);
             }
@@ -275,7 +275,7 @@ class MainStage : public MainGameStage<>
                 for (auto& player : players_) {
                     player.score_[round_] = -player.score_[round_ - 1];
                 }
-                Boardcast() << Markdown(html_ = Html_(apple_counts, AppleType::RED));
+                Boardcast() << Markdown{html_ = Html_(apple_counts, AppleType::RED), k_markdown_width_};
                 Boardcast() << "不得了了，竟然全员都食用了「红苹果」，全员分数因此取反";
             } else {
                 const char* hint = "";
@@ -290,7 +290,7 @@ class MainStage : public MainGameStage<>
                         player.score_[round_] = last_score - apple_counts[static_cast<int>(winner_apple)];
                     }
                 }
-                Boardcast() << Markdown(html_ = Html_(apple_counts, winner_apple));
+                Boardcast() << Markdown{html_ = Html_(apple_counts, winner_apple), k_markdown_width_};
                 if (apple_counts[static_cast<int>(winner_apple)] == 0) {
                     Boardcast() << hint << "禁果为无人食用的「" << AppleTypeStr(winner_apple) << "苹果」";
                 } else {
@@ -320,7 +320,7 @@ class MainStage : public MainGameStage<>
             reply() << "暂无赛况";
             return StageErrCode::OK;
         }
-        reply() << Markdown(html_);
+        reply() << Markdown{html_, k_markdown_width_};
         return StageErrCode::OK;
     }
 
@@ -342,13 +342,14 @@ class MainStage : public MainGameStage<>
             --players_[pid].remain_golden_;
         }
         players_[pid].chosen_apples_[round_] = type;
-        //reply() << "选择「" << AppleTypeStr(type) << "苹果」成功";
+        reply() << "选择「" << AppleTypeStr(type) << "苹果」成功";
         return StageErrCode::READY;
     }
 
     int round_;
     std::vector<Player> players_;
     std::string html_;
+    static constexpr uint32_t k_markdown_width_ = 650;
 };
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)

@@ -22,7 +22,7 @@ inline const std::filesystem::path k_markdown2image_path = std::filesystem::curr
 
 inline std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path)
 {
-    return (std::filesystem::current_path() / ".image"/ rel_path) += ".png";
+    return (std::filesystem::current_path() / ".image" / "gen" / rel_path) += ".png";
 }
 
 inline int MarkdownToImage(const std::string& markdown, const std::filesystem::path& rel_path, const uint32_t width)

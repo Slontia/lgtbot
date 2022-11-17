@@ -162,6 +162,8 @@ class StageBaseWrapper : virtual public StageBase
 
     std::string PlayerName(const PlayerID pid) const { return match_.PlayerName(pid); }
 
+    std::string PlayerAvatar(const PlayerID pid, const int32_t size) const { return match_.PlayerAvatar(pid, size); }
+
     void Eliminate(const PlayerID pid) const
     {
         masker_.Pin(pid);

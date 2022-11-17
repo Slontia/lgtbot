@@ -121,6 +121,24 @@ const char* GetUserName(const char* uid, const char* const group_id)
     return str.c_str();
 }
 
+bool DownloadUserAvatar(const char* const uid_str, const std::filesystem::path::value_type* const dest_filename)
+{
+    constexpr const int32_t k_width = 200;
+    constexpr const int32_t k_height = 500;
+    char img[k_width * k_height * 3];
+    for (int i = 0; i < k_width * k_height * 3; i++) {
+        img[i] = rand() % 256;
+    }
+    constexpr const int32_t l = (k_width * 3 + 3) / 4 * 4;
+    int bmi[]= {l * k_height + 54, 0, 54, 40, k_width, k_height, 1 | 3 * 8 << 16, 0, l * k_height, 0, 0, 100, 0};
+    FILE *fp = fopen(dest_filename, "wb");
+    fprintf(fp, "BM");
+    fwrite(&bmi, 52, 1, fp);
+    fwrite(img, 1, l * k_height, fp);
+    fclose(fp);
+    return true;
+}
+
 auto init_bot(int argc, char** argv) { const char* errmsg = nullptr; }
 
 std::pair<std::string, std::string> cut(const std::string_view line)

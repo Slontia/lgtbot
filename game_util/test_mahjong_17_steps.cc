@@ -16,10 +16,10 @@ class TestMahjong17Steps : public testing::Test
         : table_(Mahjong17StepsOption{
                 .dora_num_ = 0,
                 .player_descs_{
-                       PlayerDesc{"赤木", Wind::East, 25000},
-                       PlayerDesc{"安冈", Wind::South, 25000},
-                       PlayerDesc{"鹫巢", Wind::West, 25000},
-                       PlayerDesc{"铃木", Wind::North, 25000},
+                       PlayerDesc{"赤木", "", "", Wind::East, 25000},
+                       PlayerDesc{"安冈", "", "", Wind::South, 25000},
+                       PlayerDesc{"鹫巢", "", "", Wind::West, 25000},
+                       PlayerDesc{"铃木", "", "", Wind::North, 25000},
                     }})
     {}
   protected:
@@ -798,8 +798,8 @@ class TestMahjong17StepsPlayer2 : public testing::Test
                 .dora_num_ = 0, // keep zero because we will emplace_back to doras_ directly
                 .ron_required_point_ = 8000,
                 .player_descs_{
-                       PlayerDesc{"赤木", Wind::East, 25000},
-                       PlayerDesc{"鹫巢", Wind::West, 25000},
+                       PlayerDesc{"赤木", "", "", Wind::East, 25000},
+                       PlayerDesc{"鹫巢", "", "", Wind::West, 25000},
                     }})
     {
         table_.doras_.emplace_back(Tile{BaseTile::_6p, 0}, Tile{BaseTile::_7m, 0});
@@ -940,9 +940,9 @@ class TestMahjong17StepsPlayer3 : public testing::Test
                 .dora_num_ = 0, // keep zero because we will emplace_back to doras_ directly
                 .ron_required_point_ = 8000,
                 .player_descs_{
-                       PlayerDesc{"赤木", Wind::East, 25000},
-                       PlayerDesc{"鹫巢", Wind::West, 25000},
-                       PlayerDesc{"福本", Wind::West, 25000},
+                       PlayerDesc{"赤木", "", "", Wind::East, 25000},
+                       PlayerDesc{"鹫巢", "", "", Wind::West, 25000},
+                       PlayerDesc{"福本", "", "", Wind::West, 25000},
                     }})
     {
         table_.doras_.emplace_back(Tile{BaseTile::_6p, 0}, Tile{BaseTile::_7m, 0});
@@ -1044,9 +1044,9 @@ void ShowImage()
     option.name_ = "东四局";
     option.dora_num_ = 1;
     option.ron_required_point_ = 0;
-    option.player_descs_.emplace_back("赤木茂", Wind::East, 31000);
-    option.player_descs_.emplace_back("伊藤开司", Wind::West, 19000);
-    option.player_descs_.emplace_back("天贵史", Wind::South, 25000);
+    option.player_descs_.emplace_back("赤木茂", "", "", Wind::East, 31000);
+    option.player_descs_.emplace_back("伊藤开司", "", "", Wind::West, 19000);
+    option.player_descs_.emplace_back("天贵史", "", "", Wind::South, 25000);
     Mahjong17Steps table(option);
     table.AddToHand(0, "456s4466677p777z");
     table.AddToHand(1, "888m555p222z3366z");

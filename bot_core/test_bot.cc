@@ -3,6 +3,7 @@
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
 #include <future>
+#include <filesystem>
 
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
@@ -129,6 +130,8 @@ const char* GetUserName(const char* const uid, const char* const group_id)
     }
     return str.c_str();
 }
+
+bool DownloadUserAvatar(const char* const uid_str, const std::filesystem::path::value_type* const dest_filename) { return false; }
 
 class TestBot;
 

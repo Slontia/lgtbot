@@ -110,10 +110,11 @@ class MainStage : public MainGameStage<RoundStage>
     std::string CombHtml(const std::string& str)
     {
         html::Table table(players_.size() / 2 + 1, 2);
-        table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\" ");
+        table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\"");
         for (PlayerID pid = 0; pid < players_.size(); ++pid) {
-            table.Get(pid / 2, pid % 2).SetContent("### " + PlayerName(pid) + "（当前积分：" +
-                    std::to_string(players_[pid].score_) + "）\n\n" + players_[pid].comb_->ToHtml());
+            table.Get(pid / 2, pid % 2).SetContent("### " + PlayerAvatar(pid, 40) + "&nbsp;&nbsp; " + PlayerName(pid) +
+                    "\n\n### " HTML_COLOR_FONT_HEADER(green) "当前积分：" + std::to_string(players_[pid].score_) + HTML_FONT_TAIL "\n\n" +
+                    players_[pid].comb_->ToHtml());
         }
         if (players_.size() % 2) {
             table.MergeRight(table.Row() - 1, 0, 2);

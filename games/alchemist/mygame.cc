@@ -92,7 +92,6 @@ class MainStage : public MainGameStage<RoundStage>
         , round_(0)
     {
         for (uint64_t i = 0; i < option.PlayerNum(); ++i) {
-            std::cout << "path: " << option.ResourceDir() << std::endl;
             players_.emplace_back(option.ResourceDir(), GET_OPTION_VALUE(option, 模式));
         }
 
@@ -169,9 +168,10 @@ class MainStage : public MainGameStage<RoundStage>
         html::Table table(players_.size() / 2 + 1, 2);
         table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\" ");
         for (PlayerID pid = 0; pid < players_.size(); ++pid) {
-            table.Get(pid / 2, pid % 2).SetContent("\n\n### " + PlayerName(pid) + "（当前积分：" +
+            table.Get(pid / 2, pid % 2).SetContent("\n\n### " + PlayerAvatar(pid, 40) + "&nbsp;&nbsp; " + PlayerName(pid) +
+                    "\n\n### " HTML_COLOR_FONT_HEADER(green) "当前积分：" +
                     std::to_string(players_[pid].score_) + " / " +
-                    std::to_string(WinScoreThreshold(GET_OPTION_VALUE(option(), 模式))) + "）\n\n" +
+                    std::to_string(WinScoreThreshold(GET_OPTION_VALUE(option(), 模式))) + HTML_FONT_TAIL "\n\n" +
                     players_[pid].board_->ToHtml());
         }
         if (players_.size() % 2) {

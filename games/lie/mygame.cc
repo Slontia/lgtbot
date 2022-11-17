@@ -328,7 +328,8 @@ MainStage::MainStage(const GameOption& option, MatchBase& match)
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
-    table_.SetName(PlayerName(0), PlayerName(1));
+    table_.SetName(PlayerAvatar(0, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + PlayerName(0),
+            PlayerAvatar(1, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + PlayerName(1));
     return std::make_unique<RoundStage>(*this, 1, std::rand() % 2);
 }
 

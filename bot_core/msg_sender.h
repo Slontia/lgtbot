@@ -25,6 +25,9 @@ void CloseMessager(void* p);
 // |uid| should NOT be null
 // |gid| is null means to get the nickname of the user, otherwise, getting the group nickname of the user
 const char* GetUserName(const char* uid, const char* group_id);
+// |uid| should NOT be null
+std::string GetUserAvatar(const char* const uid, const int32_t size);
+
 class PlayerID;
 class UserID;
 class GroupID;

@@ -24,6 +24,8 @@ enum class ErrCode { OK, NOT_HAS, EXCEED_SIZE };
 struct PlayerDesc
 {
     std::string name_;
+    std::string big_avatar_;
+    std::string small_avatar_;
     Wind wind_ = Wind::East;
     int32_t base_point_ = 25000;
 };
@@ -456,8 +458,8 @@ class Mahjong17Steps
         std::string s;
         for (const auto& info : player.ron_infos_) {
             std::vector<std::string> texts = {
-                "<font size=\"4\"> " HTML_COLOR_FONT_HEADER(blue) " **放铳者：" +
-                    option_.player_descs_[info.loser_].name_ + "** " HTML_FONT_TAIL " </font>"
+                "<font size=\"4\"> " HTML_COLOR_FONT_HEADER(blue) " **放铳者：" + option_.player_descs_[pid].small_avatar_ +
+                    "&nbsp;&nbsp; " + option_.player_descs_[info.loser_].name_ + "** " HTML_FONT_TAIL " </font>"
             };
             if (info.counter_.score1 < option_.ron_required_point_) {
                 texts.emplace_back(HTML_COLOR_FONT_HEADER(red) " **点数没有达到起和点 " +
@@ -475,7 +477,7 @@ class Mahjong17Steps
 
     std::string PlayerNameHtml_(const uint64_t pid) const
     {
-        std::string s = "## " + wind2str(option_.player_descs_[pid].wind_) + "家：" + option_.player_descs_[pid].name_ +
+        std::string s = "## " + option_.player_descs_[pid].big_avatar_ + "&nbsp;&nbsp; " + wind2str(option_.player_descs_[pid].wind_) + "家：" + option_.player_descs_[pid].name_ +
             "（" + std::to_string(option_.player_descs_[pid].base_point_);
         if (players_[pid].point_ > 0) {
             s += HTML_COLOR_FONT_HEADER(green) " + " + std::to_string(players_[pid].point_) + HTML_FONT_TAIL;

@@ -19,6 +19,7 @@ void MessagerPostImage(void* p, const std::filesystem::path::value_type* path) {
 void MessagerFlush(void* p) {}
 void CloseMessager(void* p) {}
 const char* GetUserName(const char* uid, const char* gid) { return nullptr; }
+bool DownloadUserAvatar(const char* const uid_str, const std::filesystem::path::value_type* const dest_filename) { return false; }
 
 class TestMatchScore : public testing::Test
 {

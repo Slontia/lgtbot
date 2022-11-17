@@ -182,7 +182,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
             const auto& [discarder_id, pokers] = poker_items_[index];
             s += "<center><font size=\"4\"> " + std::to_string(index + 1) + " 号商品：" + PokersHtml(pokers) + " </font></center>";
             s += "<center>" HTML_COLOR_FONT_HEADER(blue) "\n\n**拍卖人：" +
-                (discarder_id.has_value() ? PlayerName(*discarder_id) : "（无）") + "**\n\n" HTML_FONT_TAIL "</center>";
+                (discarder_id.has_value() ? (PlayerAvatar(*discarder_id, 30) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE + PlayerName(*discarder_id)) : "（无）") + "**\n\n" HTML_FONT_TAIL "</center>";
         }
         s += "\n\n### 剩余商品\n";
         if (++index == poker_items_.size()) {
@@ -193,7 +193,7 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
                 s += "\n- " + std::to_string(index + 1) + " 号商品：" + PokersHtml(pokers);
                 s += "（拍卖人：";
                 if (discarder_id.has_value()) {
-                    s += PlayerName(*discarder_id);
+                    s += PlayerAvatar(*discarder_id, 30) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE + PlayerName(*discarder_id);
                 } else {
                     s += "无";
                 }
@@ -213,8 +213,8 @@ class MainStage : public MainGameStage<MainBidStage, RoundStage>
                 });
         uint32_t rank = 0;
         for (const Player& player : players) {
-            s += "### " + std::to_string(++rank) + " 位：" + PlayerName(player.pid_) + "（预计得分：**" +
-                std::to_string(player.coins_ + player.bonus_coins_) + "**）\n\n";
+            s += "### " + PlayerAvatar(player.pid_, 40) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE + std::to_string(++rank) + " 位：" +
+                PlayerName(player.pid_) + "（预计得分：**" + std::to_string(player.coins_ + player.bonus_coins_) + "**）\n\n";
             s += "<center>\n\n**可用金币：" HTML_COLOR_FONT_HEADER(blue) + std::to_string(player.coins_) +
                  HTML_FONT_TAIL HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE "终局奖惩：";
             if (player.bonus_coins_ > 0) {
