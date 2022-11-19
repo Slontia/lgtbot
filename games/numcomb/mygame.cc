@@ -192,7 +192,7 @@ class RoundStage : public SubGameStage<>
 
     void SendInfo(MsgSenderBase& sender)
     {
-        sender() << Markdown{comb_html_, };
+        sender() << Markdown{comb_html_};
         sender() << Image(std::string(option().ResourceDir() + card_.ImageName()) + ".png");
     }
 
@@ -215,7 +215,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
 {
     if (round_ == GET_OPTION_VALUE(option(), 回合数)) {
-        Boardcast() << CombHtml("## 终局");
+        Boardcast() << Markdown(CombHtml("## 终局"));
         return {};
     }
     return NewStage_();
