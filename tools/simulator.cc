@@ -10,6 +10,7 @@
 #include <vector>
 #include <optional>
 #include <filesystem>
+#include <fstream>
 
 #include "bot_core/bot_core.h"
 #include "bot_core/msg_sender.h"
@@ -123,19 +124,16 @@ const char* GetUserName(const char* uid, const char* const group_id)
 
 bool DownloadUserAvatar(const char* const uid_str, const std::filesystem::path::value_type* const dest_filename)
 {
-    constexpr const int32_t k_width = 200;
-    constexpr const int32_t k_height = 500;
-    char img[k_width * k_height * 3];
-    for (int i = 0; i < k_width * k_height * 3; i++) {
-        img[i] = rand() % 256;
-    }
+    // write a black image here
+    constexpr const int32_t k_width = 1;
+    constexpr const int32_t k_height = 1;
+    char img[k_width * k_height * 3] = {0};
     constexpr const int32_t l = (k_width * 3 + 3) / 4 * 4;
-    int bmi[]= {l * k_height + 54, 0, 54, 40, k_width, k_height, 1 | 3 * 8 << 16, 0, l * k_height, 0, 0, 100, 0};
-    FILE *fp = fopen(dest_filename, "wb");
-    fprintf(fp, "BM");
-    fwrite(&bmi, 52, 1, fp);
-    fwrite(img, 1, l * k_height, fp);
-    fclose(fp);
+    int bmi[] = {l * k_height + 54, 0, 54, 40, k_width, k_height, 1 | 3 * 8 << 16, 0, l * k_height, 0, 0, 100, 0};
+    std::ofstream file(dest_filename, std::ios::binary | std::ios::out);
+    file << "BM";
+    file.write(reinterpret_cast<char*>(&bmi), 52).write(img, l * k_height);
+    file.close();
     return true;
 }
 
