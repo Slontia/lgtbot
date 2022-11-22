@@ -108,7 +108,25 @@ void* /*__cdecl*/ BOT_API::Init(const BotOption* option)
     return new BotCtx(*option, SQLiteDBManager::UseDB(option->db_path_));
 }
 
-void /*__cdelcl*/ BOT_API::Release(void* const bot) { delete static_cast<BotCtx*>(bot); }
+void /*__cdelcl*/ BOT_API::Release(void* const bot_p) { delete static_cast<BotCtx*>(bot_p); }
+
+bool /*__cdelcl*/ BOT_API::ReleaseIfNoProcessingGames(void* const bot_p)
+{
+    if (!bot_p) {
+        ErrorLog() << "Release bot with null pointer";
+        return false;
+    }
+    InfoLog() << "The bot is going to quit";
+    BotCtx& bot = *static_cast<BotCtx*>(bot_p);
+    bot.match_manager().SetAllowNewGame(false);
+    const auto matches = bot.match_manager().Matches();
+    if (std::ranges::any_of(matches, [](const auto& match) { return match->state() == Match::State::IS_STARTED; })) {
+        return false;
+    }
+    std::ranges::for_each(matches, [](const auto& match) { match->Terminate(true); });
+    delete &bot;
+    return true;
+}
 
 ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const char* const uid, const char* const msg)
 {

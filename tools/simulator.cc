@@ -202,12 +202,16 @@ int main(int argc, char** argv)
         const std::string_view line(line_cstr);
         if (line.find_first_not_of(' ') == std::string_view::npos) {
             // do nothing
-        } else if (line == "quit") {
+        } else if (line == "quit" || line == "exit") {
+            if (BOT_API::ReleaseIfNoProcessingGames(bot)) {
+                std::cout << "Bye." << std::endl;
 #if __linux__
-            linenoiseFree(line_cstr);
+                linenoiseFree(line_cstr);
 #endif
-            std::cout << "Bye." << std::endl;
-            break;
+                break;
+            } else {
+                std::cout << "There are processing games, please try again later or quit by Ctrl-C." << std::endl;
+            }
         } else if (handle_request(bot, line)) {
 #if __linux__
             linenoiseHistoryAdd(line_cstr);
@@ -221,7 +225,6 @@ int main(int argc, char** argv)
 #endif
     }
 
-    BOT_API::Release(bot);
 
     return 0;
 }

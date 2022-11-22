@@ -117,6 +117,7 @@ class BOT_API
    public:
     static DLLEXPORT(void*) Init(const BotOption* option);
     static DLLEXPORT(void) Release(void* bot);
+    static DLLEXPORT(bool) ReleaseIfNoProcessingGames(void* bot);
     static DLLEXPORT(ErrCode) HandlePrivateRequest(void* bot, const char* uid, const char* msg);
     static DLLEXPORT(ErrCode) HandlePublicRequest(void* bot, const char* gid, const char* uid, const char* msg);
 };

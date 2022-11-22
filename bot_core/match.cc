@@ -53,6 +53,16 @@ Match::~Match() {}
 
 bool Match::Has_(const UserID uid) const { return users_.find(uid) != users_.end(); }
 
+const char* Match::HostUserName_() const
+{
+    return GetUserName(host_uid_.GetCStr(), gid_.has_value() ? gid_->GetCStr() : nullptr);
+}
+
+uint64_t Match::ComputerNum_() const
+{
+    return std::max(int64_t(0), static_cast<int64_t>(bench_to_player_num_ - user_controlled_player_num()));
+}
+
 Match::VariantID Match::ConvertPid(const PlayerID pid) const
 {
     if (!pid.IsValid()) {
@@ -225,7 +235,7 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         }
         user_info.sender_.SetMatch(this);
     }
-    for (ComputerID cid = 0; cid < com_num(); ++cid) {
+    for (ComputerID cid = 0; cid < ComputerNum_(); ++cid) {
         players_.emplace_back(cid);
     }
     boardcast_private_sender_.SetMatch(this);
@@ -504,7 +514,7 @@ void Match::ShowInfo(MsgSenderBase& reply) const
     auto sender = reply();
     sender << "游戏名称：" << game_handle().name_ << "\n";
     sender << "配置信息：" << OptionInfo_() << "\n";
-    sender << "电脑数量：" << com_num() << "\n";
+    sender << "电脑数量：" << ComputerNum_() << "\n";
     sender << "游戏状态："
            << (state() == Match::State::NOT_STARTED ? "未开始" : "已开始")
            << "\n";
@@ -540,7 +550,7 @@ std::string Match::BriefInfo() const
     return "游戏名称：" + game_handle().name_ +
         "\n- 倍率：" + std::to_string(multiple_) +
         "\n- 当前用户数：" + std::to_string(user_controlled_player_num()) +
-        "\n- 当前电脑数：" + std::to_string(com_num());
+        "\n- 当前电脑数：" + std::to_string(ComputerNum_());
 }
 
 std::string Match::OptionInfo_() const
@@ -554,8 +564,6 @@ void Match::OnGameOver_()
         WarnLog() << "OnGameOver_ but has already been over";
         return;
     }
-    state_ = State::IS_OVER; // is necessary because other thread may own a match reference
-    //end_time_ = std::chrono::system_clock::now();
     {
         std::vector<std::pair<UserID, int64_t>> user_game_scores;
 
@@ -601,6 +609,7 @@ void Match::OnGameOver_()
             }
         }
     }
+    state_ = State::IS_OVER; // is necessary because other thread may own a match reference
     game_handle_.activity_ += users_.size();
     Terminate_();
 }

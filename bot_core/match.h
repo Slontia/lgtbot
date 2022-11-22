@@ -20,8 +20,6 @@
 #include "bot_core/bot_ctx.h"
 #include "bot_core/db_manager.h"
 
-#define INVALID_LOBBY (QQ)0
-
 #define INVALID_MATCH (MatchID)0
 
 inline bool match_is_valid(MatchID id) { return id != INVALID_MATCH; }
@@ -109,12 +107,10 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     MatchID mid() const { return mid_; }
     std::optional<GroupID> gid() const { return gid_; }
     UserID host_uid() const { return host_uid_; }
-    const auto& users() const { return users_; }
     const State state() const { return state_; }
     MatchManager& match_manager() { return bot_.match_manager(); }
 
     const uint64_t user_controlled_player_num() const { return users_.size() * player_num_each_user_; }
-    const uint64_t com_num() const { return std::max(int64_t(0), static_cast<int64_t>(bench_to_player_num_ - user_controlled_player_num())); }
 
     std::string BriefInfo() const;
 
@@ -141,7 +137,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     void Terminate_();
     bool AllControlledPlayerEliminted_(const UserID uid) const;
     bool Has_(const UserID uid) const;
-    const char* HostUserName_() const { return GetUserName(host_uid_.GetCStr(), gid_.has_value() ? gid_->GetCStr() : nullptr); }
+    const char* HostUserName_() const;
+    uint64_t ComputerNum_() const;
 
     mutable std::mutex mutex_;
 
@@ -153,7 +150,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     GameHandle& game_handle_;
     UserID host_uid_;
     const std::optional<GroupID> gid_;
-    State state_;
+    std::atomic<State> state_;
 
     // time info
     std::shared_ptr<bool> timer_is_over_; // must before match because atom stage will call StopTimer
