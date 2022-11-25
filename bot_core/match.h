@@ -92,6 +92,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     virtual void StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t)) override;
     virtual void StopTimer() override;
     virtual void Eliminate(const PlayerID pid) override;
+    virtual bool IsInDeduction() const override { return is_in_deduction_; }
     void ShowInfo(MsgSenderBase& reply) const;
 
     bool SwitchHost();
@@ -189,4 +190,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     std::condition_variable before_handle_timeout_cv_;
     bool before_handle_timeout_;
 #endif
+
+    bool is_in_deduction_;
 };

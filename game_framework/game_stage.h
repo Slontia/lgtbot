@@ -111,15 +111,22 @@ class SubStageCheckoutHelper
     virtual RetType NextSubStage(SubStage& sub_stage, const CheckoutReason reason) = 0;
 };
 
+struct GlobalInfo
+{
+    GlobalInfo(const size_t player_num) : masker_(player_num), is_in_deduction_(false) {}
+    Masker masker_;
+    bool is_in_deduction_;
+};
+
 template <bool IS_ATOM>
 class StageBaseWrapper : virtual public StageBase
 {
   public:
     template <typename String, typename ...Commands>
-    StageBaseWrapper(const GameOptionBase& option, MatchBase& match, Masker& masker, String&& name, Commands&& ...commands)
+    StageBaseWrapper(const GameOptionBase& option, MatchBase& match, GlobalInfo& global_info, String&& name, Commands&& ...commands)
         : option_(option)
         , match_(match)
-        , masker_(masker)
+        , global_info_(global_info)
         , name_(std::forward<String>(name))
         , commands_{std::forward<Commands>(commands)...}
     {}
@@ -148,11 +155,11 @@ class StageBaseWrapper : virtual public StageBase
         return info_.c_str();
     }
 
-    decltype(auto) BoardcastMsgSender() const { return match_.BoardcastMsgSender(); }
+    decltype(auto) BoardcastMsgSender() const { return IsInDeduction() ? EmptyMsgSender::Get() : match_.BoardcastMsgSender(); }
 
-    decltype(auto) TellMsgSender(const PlayerID pid) const { return match_.TellMsgSender(pid); }
+    decltype(auto) TellMsgSender(const PlayerID pid) const { return IsInDeduction() ? EmptyMsgSender::Get() : match_.TellMsgSender(pid); }
 
-    decltype(auto) GroupMsgSender() const { return match_.GroupMsgSender(); }
+    decltype(auto) GroupMsgSender() const { return IsInDeduction() ? EmptyMsgSender::Get() : match_.GroupMsgSender(); }
 
     decltype(auto) Boardcast() const { return BoardcastMsgSender()(); }
 
@@ -166,22 +173,29 @@ class StageBaseWrapper : virtual public StageBase
 
     void Eliminate(const PlayerID pid) const
     {
-        masker_.Pin(pid);
+        global_info_.masker_.Pin(pid);
         match_.Eliminate(pid);
     }
 
     void Hook(const PlayerID pid) const
     {
-        masker_.Pin(pid);
-        Tell(pid) << "您已经进入挂机状态，若其他玩家已经行动完成，裁判将不再继续等待您，执行任意游戏请求可恢复至原状态";
+        if (global_info_.masker_.Get(pid) != Masker::State::PINNED) {
+            global_info_.masker_.Pin(pid);
+            Tell(pid) << "您已经进入挂机状态，若其他玩家已经行动完成，裁判将不再继续等待您，执行任意游戏请求可恢复至原状态";
+        }
     }
 
     const std::string& name() const { return name_; }
 
     MatchBase& match() { return match_; }
 
-    Masker& masker() { return masker_; }
-    const Masker& masker() const { return masker_; }
+    GlobalInfo& global_info() { return global_info_; }
+
+    Masker& masker() { return global_info_.masker_; }
+    const Masker& masker() const { return global_info_.masker_; }
+
+    void SetInDeduction() { global_info_.is_in_deduction_ = true; }
+    bool IsInDeduction() const { return global_info_.is_in_deduction_; }
 
     virtual void HandleStageBegin() override = 0;
     virtual StageErrCode HandleTimeout() = 0;
@@ -215,8 +229,7 @@ class StageBaseWrapper : virtual public StageBase
     const std::string name_;
     const GameOptionBase& option_;
     MatchBase& match_;
-    Masker& masker_;
-
+    GlobalInfo& global_info_;
     std::vector<GameCommand<std::conditional_t<IS_ATOM, AtomReqErrCode, CompReqErrCode>>> commands_;
 };
 
@@ -226,7 +239,7 @@ class SubStageBaseWrapper : public StageBaseWrapper<IS_ATOM>
   public:
     template <typename String, typename ...Commands>
     SubStageBaseWrapper(MainStage& main_stage, String&& name, Commands&& ...commands)
-        : StageBaseWrapper<IS_ATOM>(main_stage.option(), main_stage.match(), main_stage.masker(), std::forward<String>(name), std::forward<Commands>(commands)...)
+        : StageBaseWrapper<IS_ATOM>(main_stage.option(), main_stage.match(), main_stage.global_info(), std::forward<String>(name), std::forward<Commands>(commands)...)
         , main_stage_(main_stage)
     {}
 
@@ -243,14 +256,14 @@ class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_AT
   public:
     template <typename ...Commands>
     MainStageBaseWrapper(const GameOptionBase& option, MatchBase& match, Commands&& ...commands)
-        : StageBaseWrapper<IS_ATOM>(option, match, masker_, "主阶段", std::forward<Commands>(commands)...)
-        , masker_(option.PlayerNum())
+        : StageBaseWrapper<IS_ATOM>(option, match, global_info_, "主阶段", std::forward<Commands>(commands)...)
+        , global_info_(option.PlayerNum())
     {}
 
     virtual int64_t PlayerScore(const PlayerID pid) const = 0;
 
   private:
-    Masker masker_;
+    GlobalInfo global_info_;
 };
 
 template <typename GameOption, typename MainStage, typename... SubStages>
@@ -347,7 +360,9 @@ class GameStage<GameOption, MainStage, SubStages...>
                 },
                 sub_stage_);
 #ifndef TEST_BOT
-        std::this_thread::sleep_for(std::chrono::seconds(1)); // avoid banned by chatting service
+        if (!Base::IsInDeduction()) {
+            std::this_thread::sleep_for(std::chrono::seconds(1)); // avoid banned by chatting service
+        }
 #endif
         Base::masker().Clear();
         std::visit(
@@ -414,18 +429,14 @@ class GameStage<GameOption, MainStage>
         if constexpr (!std::is_void_v<MainStage>) {
             Base::Boardcast() << "【当前阶段】\n" << Base::main_stage().StageInfo();
         }
+        TrySetDeduction_();
         OnStageBegin();
         Handle_(StageErrCode::OK);
     }
 
     virtual StageErrCode HandleTimeout() override final
     {
-        // should not check all players ready
-        const auto rc = OnTimeout();
-        if (rc == StageErrCode::CHECKOUT) {
-            Over();
-        }
-        return rc;
+        return Handle_(OnTimeout());
     }
 
     virtual StageErrCode HandleLeave(const PlayerID pid) override final
@@ -490,6 +501,7 @@ class GameStage<GameOption, MainStage>
     void ClearReady(const PlayerID pid) { Base::masker().Unset(pid); }
     void SetReady(const PlayerID pid) { Base::masker().Set(pid, true); }
     bool IsReady(const PlayerID pid) const { return Base::masker().Get(pid) == Masker::State::SET; }
+    bool IsAllReady() const { return Base::IsInDeduction() || Base::masker().IsReady(); }
 
     void HookUnreadyPlayers() const
     {
@@ -525,13 +537,23 @@ class GameStage<GameOption, MainStage>
         }
     }
 
+    void TrySetDeduction_()
+    {
+        if (!Base::IsInDeduction() && Base::match_.IsInDeduction()) {
+            // Because boardcast will be disabled after |is_in_deduction_|'s being set, we should boardcast at first.
+            Base::Boardcast() << "所有玩家都失去了行动能力，于是游戏将直接推演至终局";
+            Base::SetInDeduction();
+        }
+    }
+
     StageErrCode Handle_(StageErrCode rc)
     {
-        if (rc != StageErrCode::CHECKOUT && Base::masker().IsReady()) {
+        TrySetDeduction_();
+        if (rc != StageErrCode::CHECKOUT && IsAllReady()) {
             // We do not check IsReady only when rc is READY to handle all player force exit.
             OnAllPlayerReady();
-            InfoLog() << "OnAllPlayerReady name=" << Base::name() << " masker_ready=" << Base::masker().IsReady();
-            rc = StageErrCode::Condition(Base::masker().IsReady(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
+            InfoLog() << "OnAllPlayerReady name=" << Base::name() << " masker_ready=" << IsAllReady();
+            rc = StageErrCode::Condition(IsAllReady(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
         }
         if (rc == StageErrCode::CHECKOUT) {
             Over();

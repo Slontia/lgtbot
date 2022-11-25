@@ -8,6 +8,7 @@
 
 #include <filesystem>
 #include <numeric>
+#include <algorithm>
 
 #include "utility/msg_checker.h"
 #include "utility/log.h"
@@ -45,6 +46,7 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, const User
 #ifdef TEST_BOT
         , before_handle_timeout_(false)
 #endif
+        , is_in_deduction_(false)
 {
     users_.emplace(host_uid, ParticipantUser(host_uid));
 }
@@ -280,7 +282,7 @@ bool Match::AllControlledPlayerEliminted_(const UserID uid) const
     const auto it = users_.find(uid);
     assert(it != users_.end());
     auto& user = it->second;
-    return std::all_of(user.pids_.begin(), user.pids_.end(), [this](const auto pid) { return players_[pid].is_eliminated_; });
+    return std::ranges::all_of(user.pids_, [this](const auto pid) { return players_[pid].is_eliminated_; });
 }
 
 ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
@@ -314,8 +316,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
         assert(main_stage_);
         assert(it->second.state_ != ParticipantUser::State::LEFT);
         it->second.state_ = ParticipantUser::State::LEFT;
-        if (std::all_of(users_.begin(), users_.end(),
-                    [](const auto& user) { return user.second.state_ == ParticipantUser::State::LEFT; })) {
+        if (std::ranges::all_of(users_, [](const auto& user) { return user.second.state_ == ParticipantUser::State::LEFT; })) {
             Boardcast() << "所有玩家都强制退出了游戏，那还玩啥玩，游戏解散，结果不会被记录";
             Terminate_();
         } else {
@@ -503,8 +504,11 @@ void Match::StopTimer()
 
 void Match::Eliminate(const PlayerID pid)
 {
-    players_[pid].is_eliminated_ = true;
-    Tell(pid) << "很遗憾，您被淘汰了，可以通过「#退出」以退出游戏";
+    if (std::exchange(players_[pid].is_eliminated_, true) == false) {
+        Tell(pid) << "很遗憾，您被淘汰了，可以通过「#退出」以退出游戏";
+        is_in_deduction_ = std::ranges::all_of(players_,
+                [](const auto& p) { return std::get_if<ComputerID>(&p.id_) || p.is_eliminated_; });
+    }
 }
 
 void Match::ShowInfo(MsgSenderBase& reply) const

@@ -1142,6 +1142,22 @@ TEST_F(TestBot, computer_kick_joined_player)
   ASSERT_PRI_MSG(EC_OK, "1", "#替补至 3");
   ASSERT_PRI_MSG(EC_OK, "2", ("#加入 1"));
 }
+
+TEST_F(TestBot, computer_leave_when_all_users_eliminated)
+{
+  AddGame("测试游戏", 3);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "1", "#替补至 3");
+  ASSERT_PRI_MSG(EC_OK, "2", ("#加入 1"));
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备切换 5");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "淘汰");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "淘汰");
+  // Now all computers leave because all users are eliminated.
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏"); // game is over
+}
+
 // Test Game
 
 TEST_F(TestBot, game_over_by_request)
