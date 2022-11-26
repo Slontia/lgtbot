@@ -51,7 +51,7 @@ class MockDBManager : public DBManagerBase
         }
         auto score_infos = CalScores(user_infos, multiple);
         for (const auto& info : score_infos) {
-            match_profiles_.emplace_back(game_name, score_infos.size(), multiple, info.game_score_, info.zero_sum_score_, info.top_score_);
+            match_profiles_.emplace_back(game_name, "sometime", score_infos.size(), multiple, info.game_score_, info.zero_sum_score_, info.top_score_);
         }
         return score_infos;
     }

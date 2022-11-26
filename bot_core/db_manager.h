@@ -24,6 +24,7 @@ using DBName = std::string;
 struct MatchProfile
 {
     std::string game_name_;
+    std::string finish_time_;
     int64_t user_count_ = 0;
     uint32_t multiple_ = 0;
     int64_t game_score_ = 0;
@@ -34,6 +35,7 @@ struct MatchProfile
 
 struct GameLevelInfo
 {
+    std::string game_name_;
     uint64_t count_ = 0;
     double total_level_score_ = 0;
 };
@@ -44,8 +46,9 @@ struct UserProfile
     int64_t total_zero_sum_score_ = 0;
     int64_t total_top_score_ = 0;
     int64_t match_count_ = 0;
-    std::map<std::string, GameLevelInfo> game_level_infos_;
+    std::vector<GameLevelInfo> game_level_infos_;
     std::vector<MatchProfile> recent_matches_;
+    std::string birth_time_;
 };
 
 struct ScoreInfo

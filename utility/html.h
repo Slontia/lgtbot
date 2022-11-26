@@ -60,6 +60,7 @@ class Table
 {
   public:
     Table(const uint32_t row, const uint32_t column);
+    Table() : Table(0, 0) {}
 
     uint32_t Row() const { return row_; }
     uint32_t Column() const { return column_; }

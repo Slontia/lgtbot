@@ -379,25 +379,44 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
             return s;
         };
 
-    std::string html = std::string("## ") + GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) + "\n";
+    std::string html = std::string("## ") + GetUserAvatar(uid.GetCStr(), 40) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
+        GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) + "\n";
     html += "\n- **游戏局数**：" + std::to_string(profile.match_count_);
     html += "\n- **零和总分**：" + colored_text(profile.total_zero_sum_score_, std::to_string(profile.total_zero_sum_score_));
     html += "\n- **头名总分**：" + colored_text(profile.total_top_score_, std::to_string(profile.total_top_score_));
+    html += "\n- **注册时间**：" + profile.birth_time_;
 
     html += "\n- **各游戏等级总分**：\n\n";
-    html::Table level_score_table(1, 4);
-    level_score_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"0\" cellspacing=\"1\" ");
-    level_score_table.Get(0, 0).SetContent("**游戏名称**");
-    level_score_table.Get(0, 1).SetContent("**参与次数**");
-    level_score_table.Get(0, 2).SetContent("**等级总分**");
-    level_score_table.Get(0, 3).SetContent("**评级**");
-    for (const auto& [game_name, info] : profile.game_level_infos_) {
+    static constexpr const size_t k_level_score_table_num = 2;
+    html::Table level_score_table_outside(1, k_level_score_table_num);
+    level_score_table_outside.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"10\" ");
+    std::array<html::Table, k_level_score_table_num> level_score_table;
+    const size_t game_level_info_num_each_table = (profile.game_level_infos_.size() + k_level_score_table_num - 1) / k_level_score_table_num;
+    for (size_t i = 0; i < k_level_score_table_num; ++i) {
+        auto& table = level_score_table[i];
+        table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" ");
+        table.AppendRow();
+        table.AppendColumn();
+        table.Get(0, 0).SetContent("**序号**");
+        table.AppendColumn();
+        table.Get(0, 1).SetContent("**游戏名称**");
+        table.AppendColumn();
+        table.Get(0, 2).SetContent("**参与次数**");
+        table.AppendColumn();
+        table.Get(0, 3).SetContent("**等级总分**");
+        table.AppendColumn();
+        table.Get(0, 4).SetContent("**评级**");
+    }
+    for (size_t i = 0; i < profile.game_level_infos_.size(); ++i) {
+        const auto& info = profile.game_level_infos_[i];
         const int32_t total_level_score_ = static_cast<int32_t>(info.total_level_score_);
-        level_score_table.AppendRow();
-        level_score_table.GetLastRow(0).SetContent(colored_text(total_level_score_ / 100, game_name));
-        level_score_table.GetLastRow(1).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.count_)));
-        level_score_table.GetLastRow(2).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.total_level_score_)));
-        level_score_table.GetLastRow(3).SetContent(colored_text(total_level_score_ / 100,
+        auto& table = level_score_table[i / game_level_info_num_each_table];
+        table.AppendRow();
+        table.GetLastRow(0).SetContent(colored_text(total_level_score_ / 100,  std::to_string(i + 1)));
+        table.GetLastRow(1).SetContent(colored_text(total_level_score_ / 100, info.game_name_));
+        table.GetLastRow(2).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.count_)));
+        table.GetLastRow(3).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.total_level_score_)));
+        table.GetLastRow(4).SetContent(colored_text(total_level_score_ / 100,
                     info.count_ < k_show_grade_required_match_count ? "/" :
                     total_level_score_ <= -300 ? "E" :
                     total_level_score_ <= -100 ? "D" :
@@ -405,36 +424,41 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
                     total_level_score_ < 300   ? "B" :
                     total_level_score_ < 500   ? "A" : "S"));
     }
-    html += "\n\n" + level_score_table.ToString() + "\n\n";
+    for (size_t i = 0; i < k_level_score_table_num; ++i) {
+        level_score_table_outside.Get(0, i).SetContent(level_score_table[i].ToString());
+    }
+    html += "\n\n" + level_score_table_outside.ToString() + "\n\n";
 
     html += "\n- **近十场游戏记录**：\n\n";
-    html::Table recent_matches_table(1, 8);
-    recent_matches_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"0\" cellspacing=\"1\" ");
+    html::Table recent_matches_table(1, 9);
+    recent_matches_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" ");
     recent_matches_table.Get(0, 0).SetContent("**序号**");
     recent_matches_table.Get(0, 1).SetContent("**游戏名称**");
-    recent_matches_table.Get(0, 2).SetContent("**参与人数**");
-    recent_matches_table.Get(0, 3).SetContent("**倍率**");
-    recent_matches_table.Get(0, 4).SetContent("**游戏得分**");
-    recent_matches_table.Get(0, 5).SetContent("**零和得分**");
-    recent_matches_table.Get(0, 6).SetContent("**头名得分**");
-    recent_matches_table.Get(0, 7).SetContent("**等级得分**");
+    recent_matches_table.Get(0, 2).SetContent("**时间**");
+    recent_matches_table.Get(0, 3).SetContent("**人数**");
+    recent_matches_table.Get(0, 4).SetContent("**倍率**");
+    recent_matches_table.Get(0, 5).SetContent("**游戏得分**");
+    recent_matches_table.Get(0, 6).SetContent("**零和得分**");
+    recent_matches_table.Get(0, 7).SetContent("**头名得分**");
+    recent_matches_table.Get(0, 8).SetContent("**等级得分**");
 
     for (uint32_t i = 0; i < profile.recent_matches_.size(); ++i) {
         recent_matches_table.AppendRow();
         const auto match_profile = profile.recent_matches_[i];
         recent_matches_table.Get(i + 1, 0).SetContent(colored_text(match_profile.top_score_, std::to_string(i + 1)));
         recent_matches_table.Get(i + 1, 1).SetContent(colored_text(match_profile.top_score_, match_profile.game_name_));
-        recent_matches_table.Get(i + 1, 2).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.user_count_)));
-        recent_matches_table.Get(i + 1, 3).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.multiple_)));
-        recent_matches_table.Get(i + 1, 4).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.game_score_)));
-        recent_matches_table.Get(i + 1, 5).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.zero_sum_score_)));
-        recent_matches_table.Get(i + 1, 6).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.top_score_)));
-        recent_matches_table.Get(i + 1, 7).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.level_score_)));
+        recent_matches_table.Get(i + 1, 2).SetContent(colored_text(match_profile.top_score_, match_profile.finish_time_));
+        recent_matches_table.Get(i + 1, 3).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.user_count_)));
+        recent_matches_table.Get(i + 1, 4).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.multiple_)));
+        recent_matches_table.Get(i + 1, 5).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.game_score_)));
+        recent_matches_table.Get(i + 1, 6).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.zero_sum_score_)));
+        recent_matches_table.Get(i + 1, 7).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.top_score_)));
+        recent_matches_table.Get(i + 1, 8).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.level_score_)));
     }
 
     html += "\n\n" + recent_matches_table.ToString();
 
-    reply() << Markdown(html);
+    reply() << Markdown(html, 800);
 
     return EC_OK;
 }

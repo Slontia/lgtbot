@@ -100,13 +100,14 @@ auto GetTotalScoreOfUser(sqlite::database& db, const UserID& uid)
         uint64_t match_count_ = 0;
         int64_t total_zero_sum_score_ = 0;
         int64_t total_top_score_ = 0;
+        std::string birth_time_;
     } result;
-    db << "SELECT COUNT(*), SUM(zero_sum_score), SUM(top_score) FROM user_with_match, user "
+    db << "SELECT COUNT(*), SUM(zero_sum_score), SUM(top_score), birth_time FROM user_with_match, user "
             "WHERE user_with_match.user_id = ? AND "
                 "user_with_match.user_id = user.user_id AND "
                 "user_with_match.birth_count = user.birth_count;"
         << uid.GetStr()
-        >> std::tie(result.match_count_, result.total_zero_sum_score_, result.total_top_score_);
+        >> std::tie(result.match_count_, result.total_zero_sum_score_, result.total_top_score_, result.birth_time_);
     return result;
 }
 
@@ -162,7 +163,7 @@ void ForeachTotalLevelScoreOfUser(sqlite::database& db, const UserID& uid, const
 template <typename Fn>
 void ForeachRecentMatchOfUser(sqlite::database& db, const UserID& uid, const uint32_t limit, const Fn& fn)
 {
-    db << "SELECT match.game_name, match.user_count, match.multiple, user_with_match.game_score, "
+    db << "SELECT match.game_name, match.finish_time, match.user_count, match.multiple, user_with_match.game_score, "
                 "user_with_match.zero_sum_score, user_with_match.top_score, user_with_match.level_score "
             "FROM user_with_match, match, user "
             "WHERE user_with_match.user_id = ? AND "
@@ -256,20 +257,22 @@ UserProfile SQLiteDBManager::GetUserProfile(const UserID uid)
                 profile.match_count_ = result.match_count_;
                 profile.total_zero_sum_score_ = result.total_zero_sum_score_;
                 profile.total_top_score_ = result.total_top_score_;
+                profile.birth_time_ = result.birth_time_;
             }
             ForeachTotalLevelScoreOfUser(db, uid,
                   [&](const std::string& game_name, const uint64_t count, const double total_level_score)
                       {
-                          profile.game_level_infos_.emplace(
-                              game_name, GameLevelInfo{.count_ = count, .total_level_score_ = total_level_score});
+                          profile.game_level_infos_.emplace_back(GameLevelInfo{
+                                  .game_name_ = game_name, .count_ = count, .total_level_score_ = total_level_score});
                       });
             ForeachRecentMatchOfUser(db, uid, 10,
-                  [&](const std::string& game_name, const uint64_t user_count, const uint32_t multiple,
-                              const int64_t game_score, const int64_t zero_sum_score, const int64_t top_score,
-                              const double level_score)
+                  [&](const std::string& game_name, const std::string& finish_time, const uint64_t user_count,
+                              const uint32_t multiple, const int64_t game_score, const int64_t zero_sum_score,
+                              const int64_t top_score, const double level_score)
                       {
                           profile.recent_matches_.emplace_back();
                           profile.recent_matches_.back().game_name_ = game_name;
+                          profile.recent_matches_.back().finish_time_ = finish_time;
                           profile.recent_matches_.back().user_count_ = user_count;
                           profile.recent_matches_.back().multiple_ = multiple;
                           profile.recent_matches_.back().game_score_ = game_score;
@@ -279,6 +282,8 @@ UserProfile SQLiteDBManager::GetUserProfile(const UserID uid)
                       });
             return true;
         });
+    std::ranges::sort(profile.game_level_infos_,
+            [](const auto& _1, const auto& _2) { return _1.total_level_score_ > _2.total_level_score_; });
     return profile;
 }
 
@@ -288,9 +293,9 @@ bool SQLiteDBManager::Suicide(const UserID uid, const uint32_t required_match_nu
         {
             uint32_t posi_score_count = 0;
             ForeachRecentMatchOfUser(db, uid, required_match_num,
-                  [&](const std::string& game_name, const uint64_t user_count, const uint32_t multiple,
-                              const int64_t game_score, const int64_t zero_sum_score, const int64_t top_score,
-                              const double level_score)
+                  [&](const std::string& game_name, const std::string& finish_time, const uint64_t user_count,
+                              const uint32_t multiple, const int64_t game_score, const int64_t zero_sum_score,
+                              const int64_t top_score, const double level_score)
                       {
                           posi_score_count += zero_sum_score > 0;
                       });
