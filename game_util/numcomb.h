@@ -193,6 +193,25 @@ class Comb
         }
     }
 
+    std::pair<uint32_t, int32_t> SeqFill(const AreaCard& card)
+    {
+        const auto img_str = Image_(card.ImageName());
+        if (!areas_[0].card_.has_value()) {
+            areas_[0].box_.SetContent(img_str);
+            areas_[0].card_ = card;
+            return {0, card.PointSum()};
+        }
+        for (uint32_t i = 1; i < areas_.size(); ++i) {
+            auto& area = areas_[i];
+            if (!area.card_.has_value()) {
+                area.box_.SetContent(img_str);
+                area.card_ = card;
+                return {i, Check_(area.coordinate_)};
+            }
+        }
+        return {UINT32_MAX, 0}; // unexpected case
+    }
+
     void Clear(const uint32_t idx);
 
     bool IsFilled(const uint32_t idx) const { return areas_[idx].card_.has_value(); }

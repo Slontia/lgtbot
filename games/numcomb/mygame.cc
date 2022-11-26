@@ -152,15 +152,42 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    CheckoutErrCode OnTimeout()
+    void HandleUnreadyPlayers_()
     {
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             if (!IsReady(pid)) {
-                Boardcast() << At(pid) << "因为超时未做选择，被淘汰";
-                Eliminate(pid);
+                auto& player = main_stage().players_[pid];
+                const auto [idx, point] = player.comb_->SeqFill(card_);
+                auto sender = Boardcast();
+                sender << At(pid) << "因为超时未做选择，自动填入空位置 " << idx;
+                if (point > 0) {
+                    sender << "，意外收获 " << point << " 点积分";
+                }
+                player.score_ += point;
+                Hook(pid);
             }
         }
+    }
+
+    virtual CheckoutErrCode OnTimeout() override
+    {
+        HandleUnreadyPlayers_();
         return StageErrCode::CHECKOUT;
+    }
+
+    virtual void OnAllPlayerReady() override
+    {
+        HandleUnreadyPlayers_();
+    }
+
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    {
+        if (IsReady(pid)) {
+            return StageErrCode::OK;
+        }
+        auto& player = main_stage().players_[pid];
+        player.score_ += player.comb_->SeqFill(card_).second;
+        return StageErrCode::READY;
     }
 
     AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t idx)
@@ -171,14 +198,14 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
         if (player.comb_->IsFilled(idx)) {
-            reply() << "改位置已经被填过了，试试其它位置吧";
+            reply() << "该位置已经被填过了，试试其它位置吧";
             return StageErrCode::FAILED;
         }
         const auto point = player.comb_->Fill(idx, card_);
         auto sender = reply();
-        sender << "设置数字" << idx << "成功";
+        sender << "设置数字 " << idx << " 成功";
         if (point > 0) {
-            sender << "，本次操作收获" << point << "点积分";
+            sender << "，本次操作收获 " << point << " 点积分";
         }
         player.score_ += point;
         return StageErrCode::READY;

@@ -46,9 +46,24 @@ GAME_TEST(2, repeat_selection)
 GAME_TEST(2, timeout_eliminate)
 {
     ASSERT_TRUE(StartGame());
-    ASSERT_PUB_MSG(OK, 0, "1");
+    ASSERT_PUB_MSG(OK, 0, "0");
     ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PUB_MSG(CHECKOUT, 0, "2");
+    ASSERT_PUB_MSG(FAILED, 1, "0"); // is seq filled
+    ASSERT_PUB_MSG(OK, 1, "1");
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_PUB_MSG(FAILED, 0, "1"); // is seq filled
+    ASSERT_PUB_MSG(OK, 0, "2");
+}
+
+GAME_TEST(2, timeout_hook)
+{
+    ASSERT_TRUE(StartGame());
+    ASSERT_PUB_MSG(OK, 0, "0");
+    ASSERT_TIMEOUT(CHECKOUT); // player 1 seq fill 0
+    ASSERT_PUB_MSG(CHECKOUT, 0, "1"); // player 1 is hooked, seq fill 1
+    ASSERT_PUB_MSG(FAILED, 1, "0"); // is seq filled
+    ASSERT_PUB_MSG(FAILED, 1, "1"); // is seq filled
+    ASSERT_PUB_MSG(OK, 1, "2");
 }
 
 int main(int argc, char** argv)
