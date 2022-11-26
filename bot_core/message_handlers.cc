@@ -389,7 +389,8 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
     html += "\n- **各游戏等级总分**：\n\n";
     static constexpr const size_t k_level_score_table_num = 2;
     html::Table level_score_table_outside(1, k_level_score_table_num);
-    level_score_table_outside.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"10\" ");
+    level_score_table_outside.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" width=\"650\" ");
+    level_score_table_outside.SetRowStyle(" valign=\"top\" ");
     std::array<html::Table, k_level_score_table_num> level_score_table;
     const size_t game_level_info_num_each_table = (profile.game_level_infos_.size() + k_level_score_table_num - 1) / k_level_score_table_num;
     for (size_t i = 0; i < k_level_score_table_num; ++i) {
@@ -458,7 +459,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
 
     html += "\n\n" + recent_matches_table.ToString();
 
-    reply() << Markdown(html, 800);
+    reply() << Markdown(html, 700);
 
     return EC_OK;
 }
