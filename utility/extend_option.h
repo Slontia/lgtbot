@@ -37,25 +37,29 @@ class OPTION_CLASSNAME
 
     OPTION_CLASSNAME() : options_
     {
-#define EXTEND_OPTION(_0, _1, checker, default_value) default_value, std::move(checker),
+#define EXTEND_OPTION(_0, _1, checker, default_value) \
+        default_value, std::move(checker),
 #include OPTION_FILENAME
 #undef EXTEND_OPTION
-    }, infos_
+    }, info_funcs_
     {
 #define EXTEND_OPTION(description, name, _0, _1) \
-    [this]() -> std::pair<std::string, std::string> { \
-        const auto format_head = description " \n    - 格式：" #name " "; \
-        const auto example = " \n    - 例如：" #name " " + CHECKER_(name).ExampleInfo(); \
-        const auto cur_value = "\n    - 当前：" + CHECKER_(name).ArgString(VALUE_(name)); \
-        const auto colored_cur_value = "\n    - 当前：" HTML_COLOR_FONT_HEADER(red) + \
-            CHECKER_(name).ArgString(VALUE_(name)) + HTML_FONT_TAIL; \
-        return { format_head + CHECKER_(name).FormatInfo() + example + cur_value, \
-            format_head + CHECKER_(name).ColoredFormatInfo() + example + colored_cur_value }; \
-    }(),
+        [this](const bool with_color) -> std::string { \
+            const auto format_head = description " \n    - 格式：" #name " "; \
+            const auto example = " \n    - 例如：" #name " " + CHECKER_(name).ExampleInfo(); \
+            return format_head + (with_color ? CHECKER_(name).ColoredFormatInfo() : CHECKER_(name).FormatInfo()) + example + "\n    - 当前：" + \
+            (with_color ? HTML_COLOR_FONT_HEADER(red) + CHECKER_(name).ArgString(VALUE_(name)) + HTML_FONT_TAIL \
+                        : CHECKER_(name).ArgString(VALUE_(name))); \
+        },
 #include OPTION_FILENAME
 #undef EXTEND_OPTION
     }
-    {}
+    {
+        for (size_t i = 0; i < Option::MAX_OPTION; ++i) {
+            colored_infos_[i] = info_funcs_[i](true);
+            infos_[i] = info_funcs_[i](false);
+        }
+    }
 
     template <Option op>
     auto& Option2Value()
@@ -73,6 +77,7 @@ class OPTION_CLASSNAME
 
     bool SetOption(MsgReader& msg_reader)
     {
+        // TODO: use std::map to optimize
 #define EXTEND_OPTION(_0, name, _1, _2) \
         static_assert(!std::is_void_v<std::decay<decltype(CHECKER_(name))>::type::arg_type>, \
                     "Checker cannot be void checker"); \
@@ -80,6 +85,8 @@ class OPTION_CLASSNAME
             auto value = CHECKER_(name).Check(msg_reader); \
             if (value.has_value() && !msg_reader.HasNext()) { \
                 VALUE_(name) = *value; \
+                colored_infos_[OPTION_(name)] = info_funcs_[OPTION_(name)](true); \
+                infos_[OPTION_(name)] = info_funcs_[OPTION_(name)](false); \
                 return true; \
             } \
         }
@@ -89,8 +96,8 @@ class OPTION_CLASSNAME
     }
 
     constexpr uint32_t Count() const { return Option::MAX_OPTION; }
-    const char* Info(const uint64_t index) const { return infos_[index].first.c_str(); }
-    const char* ColoredInfo(const uint64_t index) const { return infos_[index].second.c_str(); }
+    const char* Info(const uint64_t index) const { return infos_[index].c_str(); }
+    const char* ColoredInfo(const uint64_t index) const { return colored_infos_[index].c_str(); }
 
   private:
     decltype(std::tuple{
@@ -100,7 +107,9 @@ class OPTION_CLASSNAME
 #undef EXTEND_OPTION
     }) options_;
 
-    std::array<std::pair<std::string, std::string>, Option::MAX_OPTION> infos_;
+    std::array<std::function<std::string(bool)>, Option::MAX_OPTION> info_funcs_;
+    std::array<std::string, Option::MAX_OPTION> infos_;
+    std::array<std::string, Option::MAX_OPTION> colored_infos_;
 };
 
 #undef OPTION_
