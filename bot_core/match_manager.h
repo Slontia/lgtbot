@@ -22,7 +22,7 @@ class MsgSenderBase;
 class MatchManager
 {
    public:
-    MatchManager(BotCtx& bot) : bot_(bot), next_mid_(0), is_allow_new_game_(true) {}
+    MatchManager(BotCtx& bot) : bot_(bot), next_mid_(0) {}
 
     std::pair<ErrCode, std::shared_ptr<Match>> NewMatch(GameHandle& game_handle, const UserID uid, const std::optional<GroupID> gid,
                      MsgSenderBase& reply);
@@ -51,9 +51,6 @@ class MatchManager
     }
 
     bool HasMatch() const;
-
-    void SetAllowNewGame(const bool is_allow) { is_allow_new_game_.store(is_allow); }
-    bool IsAllowNewGame() const { return is_allow_new_game_.load(); }
 
    private:
     void DeleteMatch_(const MatchID id);
@@ -86,5 +83,4 @@ class MatchManager
     template <typename IdType> Id2Map<IdType>& id2match() { return std::get<Id2Map<IdType>>(id2match_); }
     template <typename IdType> const Id2Map<IdType>& id2match() const { return std::get<Id2Map<IdType>>(id2match_); }
     MatchID next_mid_;
-    std::atomic<bool> is_allow_new_game_;
 };

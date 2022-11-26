@@ -121,7 +121,6 @@ bool /*__cdelcl*/ BOT_API::ReleaseIfNoProcessingGames(void* const bot_p)
         return false;
     }
     BotCtx& bot = *static_cast<BotCtx*>(bot_p);
-    bot.match_manager().SetAllowNewGame(false);
     const auto matches = bot.match_manager().Matches();
     if (std::ranges::any_of(matches, [](const auto& match) { return match->state() == Match::State::IS_STARTED; })) {
         InfoLog() << "ReleaseIfNoProcessingGames failed because there are processing games";
