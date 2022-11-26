@@ -106,6 +106,14 @@ class MockMatch : public MatchBase
 
     virtual bool IsInDeduction() const override { return false; }
 
+    virtual uint64_t MatchId() const override
+    {
+        static uint64_t match_id = 0;
+        return ++match_id;
+    }
+
+    virtual const char* GameName() const override { return "测试游戏"; }
+
     bool IsEliminated(const PlayerID pid) const { return is_eliminated_[pid]; }
 
   private:

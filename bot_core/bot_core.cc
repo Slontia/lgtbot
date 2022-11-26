@@ -104,25 +104,30 @@ void* /*__cdecl*/ BOT_API::Init(const BotOption* option)
     if (option == nullptr) {
         return nullptr;
     }
-    InfoLog() << "Init bot succeed";
+    InfoLog() << "Init the bot succeed";
     return new BotCtx(*option, SQLiteDBManager::UseDB(option->db_path_));
 }
 
-void /*__cdelcl*/ BOT_API::Release(void* const bot_p) { delete static_cast<BotCtx*>(bot_p); }
+void /*__cdelcl*/ BOT_API::Release(void* const bot_p)
+{
+    InfoLog() << "Releasing the bot in Release";
+    delete static_cast<BotCtx*>(bot_p);
+}
 
 bool /*__cdelcl*/ BOT_API::ReleaseIfNoProcessingGames(void* const bot_p)
 {
     if (!bot_p) {
-        ErrorLog() << "Release bot with null pointer";
+        ErrorLog() << "Release the bot with null pointer";
         return false;
     }
-    InfoLog() << "The bot is going to quit";
     BotCtx& bot = *static_cast<BotCtx*>(bot_p);
     bot.match_manager().SetAllowNewGame(false);
     const auto matches = bot.match_manager().Matches();
     if (std::ranges::any_of(matches, [](const auto& match) { return match->state() == Match::State::IS_STARTED; })) {
+        InfoLog() << "ReleaseIfNoProcessingGames failed because there are processing games";
         return false;
     }
+    InfoLog() << "Releasing the bot in ReleaseIfNoProcessingGames";
     std::ranges::for_each(matches, [](const auto& match) { match->Terminate(true); });
     delete &bot;
     return true;
@@ -131,10 +136,10 @@ bool /*__cdelcl*/ BOT_API::ReleaseIfNoProcessingGames(void* const bot_p)
 ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const char* const uid, const char* const msg)
 {
     if (!bot_p) {
-        ErrorLog() << "Handle private request not init failed uid=" << uid << " msg=" << msg;
+        ErrorLog() << "Handle private request not init failed uid=" << uid << " msg=\"" << msg << "\"";
         return EC_NOT_INIT;
     }
-    DebugLog() << "Handle private request uid=" << uid << " msg=" << msg;
+    DebugLog() << "Handle private request uid=" << uid << " msg=\"" << msg << "\"";
     BotCtx& bot = *static_cast<BotCtx*>(bot_p);
     MsgSender sender(UserID{uid});
     return HandleRequest(bot, std::nullopt, uid, msg, sender);

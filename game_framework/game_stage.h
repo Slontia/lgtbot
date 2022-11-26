@@ -31,12 +31,13 @@ class Masker
   public:
     enum class State { SET = 'S', UNSET = 'U', PINNED = 'P' };
 
-    Masker(const size_t size) : recorder_(size, State::UNSET), unset_count_(size), any_user_ready_(false) {}
+    Masker(const uint64_t match_id, const char* const game_name, const size_t size)
+        : match_id_(match_id), game_name_(game_name), recorder_(size, State::UNSET), unset_count_(size), any_user_ready_(false) {}
 
     bool Set(const size_t index, const bool is_user)
     {
+        Log_(DebugLog()) << "Set game stage mask is_user=" << Bool2Str(is_user) << " " << ToString_(index);
         if (is_user) {
-            DebugLog() << "Set game stage mask by user index=" << index << " any_user_ready=" << any_user_ready_;
             any_user_ready_ = true;
         }
         return Record_(index, State::SET);
@@ -45,17 +46,20 @@ class Masker
     void Unset(const size_t index)
     {
         // not reset any_ready to prevent players waiting a left player
+        Log_(DebugLog()) << "Unset game stage mask " << ToString_(index);
         Record_(index, State::UNSET);
     }
 
     bool Pin(const size_t index)
     {
+        Log_(DebugLog()) << "Pin game stage mask " << ToString_(index);
         any_user_ready_ = true;
         return Record_(index, State::PINNED);
     }
 
     bool Unpin(const size_t index)
     {
+        Log_(DebugLog()) << "Unpin game stage mask " << ToString_(index);
         auto& state = recorder_[index];
         if (state == State::PINNED) {
             state = State::UNSET;
@@ -76,12 +80,28 @@ class Masker
                 ++unset_count_;
             }
         }
-        DebugLog() << "Clear game stage mask unset_count=" << unset_count_;
+        Log_(DebugLog()) << "Clear game stage mask finish " << ToString_();
     }
 
     bool IsReady() const { return unset_count_ == 0 && any_user_ready_; }
 
   private:
+    std::string ToString_(const size_t index)
+    {
+        return "index=" + std::to_string(index) + " cur_state=" + static_cast<char>(recorder_[index]) + " " + ToString_();
+    }
+
+    std::string ToString_()
+    {
+        return std::string("any_user_ready=") + Bool2Str(any_user_ready_) + " unset_count=" + std::to_string(unset_count_);
+    }
+
+    template <typename Logger>
+    Logger& Log_(Logger&& logger)
+    {
+        return logger << "[mid=" << match_id_ << "] [" << "game=" << game_name_ << "] ";
+    }
+
     bool Record_(const size_t index, const State state)
     {
         const auto old = recorder_[index];
@@ -90,10 +110,12 @@ class Masker
             unset_count_ += (state == State::UNSET);
             unset_count_ -= (old == State::UNSET);
         }
-        DebugLog() << "Record game stage mask index=" << index << " state=" << static_cast<char>(state) << " unset_count=" << unset_count_;
+        Log_(DebugLog()) << "Record game stage mask finish " << ToString_(index);
         return IsReady();
     }
 
+    const uint64_t match_id_;
+    const char* const game_name_;
     std::vector<State> recorder_;
     bool any_user_ready_; // if all players are pinned, IsReady() should return false to prevent substage skipped
     size_t unset_count_;
@@ -113,7 +135,8 @@ class SubStageCheckoutHelper
 
 struct GlobalInfo
 {
-    GlobalInfo(const size_t player_num) : masker_(player_num), is_in_deduction_(false) {}
+    GlobalInfo(const uint64_t match_id, const char* const game_name, const size_t player_num)
+        : masker_(match_id, game_name, player_num), is_in_deduction_(false) {}
     Masker masker_;
     bool is_in_deduction_;
 };
@@ -199,7 +222,7 @@ class StageBaseWrapper : virtual public StageBase
 
     virtual void HandleStageBegin() override = 0;
     virtual StageErrCode HandleTimeout() = 0;
-    virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
+    virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public,
                                        MsgSenderBase& reply) = 0;
     virtual StageErrCode HandleLeave(const PlayerID pid) = 0;
     virtual StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) = 0;
@@ -224,6 +247,12 @@ class StageBaseWrapper : virtual public StageBase
     {
         return GameCommand<RetType>(description, std::bind_front(cb, static_cast<Stage*>(this)),
                 std::forward<Checkers>(checkers)...);
+    }
+
+    template <typename Logger>
+    Logger& StageLog(Logger&& logger) const
+    {
+        return logger << "[mid=" << match_.MatchId() << "] [game=" << match_.GameName() << "] [stage=" << name_ << "] ";
     }
 
     const std::string name_;
@@ -257,7 +286,7 @@ class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_AT
     template <typename ...Commands>
     MainStageBaseWrapper(const GameOptionBase& option, MatchBase& match, Commands&& ...commands)
         : StageBaseWrapper<IS_ATOM>(option, match, global_info_, "主阶段", std::forward<Commands>(commands)...)
-        , global_info_(option.PlayerNum())
+        , global_info_(match.MatchId(), match.GameName(), option.PlayerNum())
     {}
 
     virtual int64_t PlayerScore(const PlayerID pid) const = 0;
@@ -287,39 +316,44 @@ class GameStage<GameOption, MainStage, SubStages...>
 
     virtual void HandleStageBegin() override
     {
+        StageLog_(InfoLog()) << "HandleStageBegin begin";
         sub_stage_ = OnStageBegin();
         std::visit(
                 [this](auto&& sub_stage)
                 {
                     sub_stage->HandleStageBegin();
                     if (sub_stage->IsOver()) {
-                        WarnLog() << "Begin substage skipped name=" << sub_stage->name();
+                        StageLog_(WarnLog()) << "begin substage skipped";
                         this->CheckoutSubStage(CheckoutReason::SKIP);
                     }
                 }, sub_stage_);
     }
 
-    virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t player_id, const bool is_public,
+    virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public,
                                                   MsgSenderBase& reply) override
     {
         for (const auto& cmd : Base::commands_) {
-            if (const auto rc = cmd.CallIfValid(reader, player_id, is_public, reply); rc.has_value()) {
+            if (const auto rc = cmd.CallIfValid(reader, pid, is_public, reply); rc.has_value()) {
+                StageLog_(InfoLog()) << "handle request pid=" << pid << " is_public="
+                    << Bool2Str(is_public) << " rc=" << *rc;
                 return *rc;
             }
         }
         return PassToSubStage_(
-                [&](auto&& sub_stage) { return sub_stage->HandleRequest(reader, player_id, is_public, reply); },
+                [&](auto&& sub_stage) { return sub_stage->HandleRequest(reader, pid, is_public, reply); },
                 CheckoutReason::BY_REQUEST);
     }
 
     virtual StageErrCode HandleTimeout() override
     {
+        StageLog_(InfoLog()) << "HandleTimeout begin";
         return PassToSubStage_([](auto&& sub_stage) { return sub_stage->HandleTimeout(); }, CheckoutReason::BY_TIMEOUT);
     }
 
     virtual StageErrCode HandleLeave(const PlayerID pid) override
     {
         // We must call CompStage's OnPlayerLeave first so that it can deceide whether to finish game when substage is over.
+        StageLog_(InfoLog()) << "HandleLeave begin pid=" << pid;
         this->OnPlayerLeave(pid);
         return PassToSubStage_(
                 [pid](auto&& sub_stage) { return sub_stage->HandleLeave(pid); },
@@ -329,6 +363,7 @@ class GameStage<GameOption, MainStage, SubStages...>
     virtual StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) override
     {
         // For run_game_xxx, the tell msg will be output, so do not use EmptyMsgSender here.
+        StageLog_(InfoLog()) << "HandleComputerAct begin pid=" << pid << " ready_as_user=" << Bool2Str(ready_as_user);
         const auto rc = OnComputerAct(pid, Base::TellMsgSender(pid));
         if (rc != StageErrCode::OK) {
             return rc;
@@ -369,15 +404,15 @@ class GameStage<GameOption, MainStage, SubStages...>
                 [this](auto&& sub_stage)
                 {
                     if (!sub_stage) {
-                        InfoLog() << "Checkout no more substages name=" << Base::name();
+                        StageLog_(InfoLog()) << "checkout no more substages";
                         Over();
                     } else {
                         sub_stage->HandleStageBegin();
                         if (sub_stage->IsOver()) {
-                            WarnLog() << "Checkout substage skipped name=" << sub_stage->name();
+                            StageLog_(WarnLog()) << "checkout substage skipped";
                             this->CheckoutSubStage(CheckoutReason::SKIP);
                         } else {
-                            InfoLog() << "Checkout substage to name=" << sub_stage->name();
+                            StageLog_(InfoLog()) << "checkout substage to \"" << sub_stage->name() << "\"";
                         }
                     }
                 },
@@ -387,12 +422,19 @@ class GameStage<GameOption, MainStage, SubStages...>
     const GameOption& option() const { return static_cast<const GameOption&>(Base::option_); }
 
   private:
-    using StageBase::Over;
+    virtual void Over() override final
+    {
+        StageBase::Over();
+        StageLog_(InfoLog()) << "Over";
+    }
 
     virtual VariantSubStage OnStageBegin() = 0;
     // CompStage cannot checkout by itself so return type is void
     virtual void OnPlayerLeave(const PlayerID pid) {}
     virtual CompReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::OK; }
+
+    template <typename Logger>
+    Logger& StageLog_(Logger&& logger) const { return Base::StageLog(logger) << "[complex_stage] "; }
 
     template <typename Task>
     StageErrCode PassToSubStage_(const Task& internal_task, const CheckoutReason checkout_reason)
@@ -426,6 +468,7 @@ class GameStage<GameOption, MainStage>
 
     virtual void HandleStageBegin() override
     {
+        StageLog_(InfoLog()) << "HandleStageBegin begin";
         if constexpr (!std::is_void_v<MainStage>) {
             Base::Boardcast() << "【当前阶段】\n" << Base::main_stage().StageInfo();
         }
@@ -436,11 +479,13 @@ class GameStage<GameOption, MainStage>
 
     virtual StageErrCode HandleTimeout() override final
     {
+        StageLog_(InfoLog()) << "HandleTimeout begin";
         return Handle_(OnTimeout());
     }
 
     virtual StageErrCode HandleLeave(const PlayerID pid) override final
     {
+        StageLog_(InfoLog()) << "HandleLeave begin pid=" << pid;
         Base::masker().Pin(pid);
         return Handle_(pid, true, OnPlayerLeave(pid));
     }
@@ -450,6 +495,8 @@ class GameStage<GameOption, MainStage>
     {
         for (const auto& cmd : Base::commands_) {
             if (const auto rc = cmd.CallIfValid(reader, pid, is_public, reply); rc.has_value()) {
+                StageLog_(InfoLog()) << "HandleRequest matched pid=" << pid << " is_public="
+                    << Bool2Str(is_public) << " rc=" << *rc;
                 return Handle_(pid, true, *rc);
             }
         }
@@ -459,6 +506,7 @@ class GameStage<GameOption, MainStage>
     virtual StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) override final
     {
         // For run_game_xxx, the tell msg will be output, so do not use EmptyMsgSender here.
+        StageLog_(InfoLog()) << "HandleComputerAct begin pid=" << pid << " ready_as_user=" << Bool2Str(ready_as_user);
         return Handle_(pid, ready_as_user, OnComputerAct(pid, Base::TellMsgSender(pid)));
     }
 
@@ -537,23 +585,28 @@ class GameStage<GameOption, MainStage>
         }
     }
 
+    template <typename Logger>
+    Logger& StageLog_(Logger&& logger) const { return Base::StageLog(logger) << "[atomic_stage] "; }
+
     void TrySetDeduction_()
     {
         if (!Base::IsInDeduction() && Base::match_.IsInDeduction()) {
             // Because boardcast will be disabled after |is_in_deduction_|'s being set, we should boardcast at first.
             Base::Boardcast() << "所有玩家都失去了行动能力，于是游戏将直接推演至终局";
+            StageLog_(WarnLog()) << "Begin deduction";
             Base::SetInDeduction();
         }
     }
 
     StageErrCode Handle_(StageErrCode rc)
     {
+        StageLog_(InfoLog()) << "Handle errcode rc=" << rc << " is_all_ready=" << Bool2Str(IsAllReady());
         TrySetDeduction_();
         if (rc != StageErrCode::CHECKOUT && IsAllReady()) {
             // We do not check IsReady only when rc is READY to handle all player force exit.
             OnAllPlayerReady();
-            InfoLog() << "OnAllPlayerReady name=" << Base::name() << " masker_ready=" << IsAllReady();
             rc = StageErrCode::Condition(IsAllReady(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
+            StageLog_(InfoLog()) << "OnAllPlayerReady finish rc=" << rc;
         }
         if (rc == StageErrCode::CHECKOUT) {
             Over();
@@ -564,6 +617,7 @@ class GameStage<GameOption, MainStage>
     StageErrCode Handle_(const PlayerID pid, const bool is_user, StageErrCode rc)
     {
         if (rc == StageErrCode::READY) {
+            StageLog_(InfoLog()) << "Handle READY pid=" << pid << " is_user=" << Bool2Str(is_user);
             Base::masker().Set(pid, is_user);
             rc = StageErrCode::OK;
         }
@@ -574,6 +628,7 @@ class GameStage<GameOption, MainStage>
     {
         Base::match_.StopTimer();
         StageBase::Over();
+        StageLog_(InfoLog()) << "Over";
     }
     // if command return true, the stage will be over
     std::optional<std::chrono::time_point<std::chrono::steady_clock>> finish_time_;

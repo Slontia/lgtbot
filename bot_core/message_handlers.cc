@@ -189,7 +189,7 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
         if (match->gid().has_value()) {
             sender << "现在玩家可以在群里通过「#加入」报名比赛，房主也可以通过「帮助」（不带#号）查看所有支持的游戏设置";
         } else {
-            sender << "现在玩家可以通过私信我「#加入 " << match->mid() << "」报名比赛，您也可以通过「帮助」（不带#号）查看所有支持的游戏设置";
+            sender << "现在玩家可以通过私信我「#加入 " << match->MatchId() << "」报名比赛，您也可以通过「帮助」（不带#号）查看所有支持的游戏设置";
         }
         sender << match->BriefInfo();
     }
@@ -292,7 +292,7 @@ static ErrCode show_private_matches(BotCtx& bot, const UserID uid, const std::op
         if (match->IsPrivate() && match->state() == Match::State::NOT_STARTED) {
             ++count;
             sender << match->game_handle().name_ << " - [房主ID] " << match->host_uid() << " - [比赛ID] "
-                   << match->mid() << "\n";
+                   << match->MatchId() << "\n";
         }
     }
     if (count == 0) {

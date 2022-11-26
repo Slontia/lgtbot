@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <numeric>
 #include <algorithm>
+#include <utility> // g++12 has a bug which will cause 'exchange' is not a member of 'std'
 
 #include "utility/msg_checker.h"
 #include "utility/log.h"
@@ -168,7 +169,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         return EC_MATCH_USER_NOT_IN_MATCH;
     }
     if (state_ == State::IS_OVER) {
-        WarnLog() << "Match is over but receive request mid=" << mid() << " uid=" << uid << " msg=" << msg;
+        MatchLog(WarnLog()) << "Match is over but receive request uid=" << uid << " msg=" << msg;
         reply() << "[错误] 游戏已经结束";
         return EC_MATCH_ALREADY_OVER;
     }
@@ -318,6 +319,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
         it->second.state_ = ParticipantUser::State::LEFT;
         if (std::ranges::all_of(users_, [](const auto& user) { return user.second.state_ == ParticipantUser::State::LEFT; })) {
             Boardcast() << "所有玩家都强制退出了游戏，那还玩啥玩，游戏解散，结果不会被记录";
+            MatchLog(InfoLog()) << "All users left the game";
             Terminate_();
         } else {
             for (const auto pid : it->second.pids_) {
@@ -405,12 +407,13 @@ MsgSenderBase::MsgSenderGuard Match::BoardcastAtAll()
 bool Match::SwitchHost()
 {
     if (users_.empty()) {
-        InfoLog() << "SwitchHost but no users left mid=" << mid();
+        MatchLog(InfoLog()) << "SwitchHost but no users left";
         return false;
     }
     if (state_ == NOT_STARTED) {
         host_uid_ = users_.begin()->first;
         Boardcast() << At(host_uid_) << "被选为新房主";
+        MatchLog(InfoLog()) << "SwitchHost succeed";
     }
     return true;
 }
@@ -430,7 +433,7 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
             // Handle a reference because match may be removed from match_manager if timeout cause game over.
             auto match = match_wk.lock();
             if (!match) {
-                WarnLog() << "Timer timeout but match is released";
+                MatchLog(WarnLog()) << "Timer timeout but match has been already released";
                 return; // match is released
             }
 #ifdef TEST_BOT
@@ -454,11 +457,11 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
             // If stage has been finished by other request, timeout event should not be triggered again, so we check stage_is_over_ here.
             // Should NOT use this->timer_is_over_ here which may be belong to a new timer.
             if (!*timer_is_over) {
-                DebugLog() << "Timer timeout mid=" << match->mid();
+                MatchLog(DebugLog()) << "Timer timeout";
                 match->main_stage_->HandleTimeout();
                 match->Routine_();
             } else {
-                WarnLog() << "Timer timeout but timer is over mid=" << match->mid();
+                MatchLog(WarnLog()) << "Timer timeout but timer has been already over";
             }
         };
     Timer::TaskSet tasks;
@@ -472,15 +475,15 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
                     {
                         auto match = match_wk.lock();
                         if (!match) {
-                            WarnLog() << "Timer alert but match is released sec=" << alert_sec;
+                            match->MatchLog(WarnLog()) << "Timer alert but match is released sec=" << alert_sec;
                             return; // match is released
                         }
                         std::lock_guard<std::mutex> l(match->mutex_);
                         if (!*timer_is_over) {
-                            DebugLog() << "Timer alert mid=" << match->mid() << " sec=" << alert_sec;
+                            match->MatchLog(DebugLog()) << "Timer alert sec=" << alert_sec;
                             cb(p, alert_sec);
                         } else {
-                            WarnLog() << "Timer alert but timer is over mid=" << match->mid() << " sec=" << alert_sec;
+                            match->MatchLog(WarnLog()) << "Timer alert but timer has been already over sec=" << alert_sec;
                         }
                     });
         }
@@ -494,10 +497,10 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
 void Match::StopTimer()
 {
     if (timer_is_over_ != nullptr) {
-        DebugLog() << "Timer stop mid=" << mid();
+        MatchLog(DebugLog()) << "Timer stop";
         *timer_is_over_ = true;
     } else {
-        WarnLog() << "Timer stop but timer is over mid=" << mid();
+        MatchLog(WarnLog()) << "Timer stop but timer has been already over";
     }
     timer_ = nullptr; // stop timer
 }
@@ -508,6 +511,7 @@ void Match::Eliminate(const PlayerID pid)
         Tell(pid) << "很遗憾，您被淘汰了，可以通过「#退出」以退出游戏";
         is_in_deduction_ = std::ranges::all_of(players_,
                 [](const auto& p) { return std::get_if<ComputerID>(&p.id_) || p.is_eliminated_; });
+        MatchLog(InfoLog()) << "Eliminate player pid=" << pid << " is_in_deduction=" << Bool2Str(is_in_deduction_);
     }
 }
 
@@ -565,7 +569,7 @@ std::string Match::OptionInfo_() const
 void Match::OnGameOver_()
 {
     if (state_ == State::IS_OVER) {
-        WarnLog() << "OnGameOver_ but has already been over";
+        MatchLog(WarnLog()) << "OnGameOver_ but has already been over";
         return;
     }
     {
@@ -601,7 +605,7 @@ void Match::OnGameOver_()
                     bot_.db_manager()->RecordMatch(game_handle_.name_, gid_, host_uid_, multiple_, user_game_scores);
                 score_info.empty()) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
-            ErrorLog() << "Save database failed mid=" << mid_ << " host_uid=" << host_uid_ << " gid=" << (gid_.has_value() ? gid_->GetStr() : "");
+            MatchLog(ErrorLog()) << "Save database failed";
         } else {
             assert(score_info.size() == users_.size());
             sender << "\n\n游戏结果写入数据库成功：";
@@ -615,6 +619,7 @@ void Match::OnGameOver_()
     }
     state_ = State::IS_OVER; // is necessary because other thread may own a match reference
     game_handle_.activity_ += users_.size();
+    MatchLog(InfoLog()) << "Match is over normally";
     Terminate_();
 }
 
@@ -680,6 +685,7 @@ ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool 
     reply() << "中断成功";
     if (remain == 0) {
         BoardcastAtAll() << "全员支持中断游戏，游戏已中断，谢谢大家参与";
+        MatchLog(InfoLog()) << "Match is interrupted by users";
         Terminate_();
     } else {
         Boardcast() << "有玩家" << (cancel ? "取消" : "确定") << "中断游戏，目前 " << remain << " 人尚未确定中止，所有玩家可通过「#中断」命令确定中断游戏，或「#中断 取消」命令取消中断游戏";
@@ -693,6 +699,7 @@ ErrCode Match::Terminate(const bool is_force)
     const std::lock_guard<std::mutex> l(mutex_);
     if (is_force || state_ == State::NOT_STARTED) {
         BoardcastAtAll() << "游戏已解散，谢谢大家参与";
+        MatchLog(InfoLog()) << "Match is terminated outside";
         Terminate_();
         return EC_OK;
     } else {

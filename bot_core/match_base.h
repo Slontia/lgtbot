@@ -23,4 +23,6 @@ class MatchBase
     virtual void StopTimer() = 0;
     virtual void Eliminate(const PlayerID pid) = 0;
     virtual bool IsInDeduction() const = 0;
+    virtual uint64_t MatchId() const = 0;
+    virtual const char* GameName() const = 0;
 };

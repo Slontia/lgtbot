@@ -93,6 +93,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     virtual void StopTimer() override;
     virtual void Eliminate(const PlayerID pid) override;
     virtual bool IsInDeduction() const override { return is_in_deduction_; }
+    virtual uint64_t MatchId() const override { return mid_; }
+    virtual const char* GameName() const override { return game_handle_.name_.c_str(); }
     void ShowInfo(MsgSenderBase& reply) const;
 
     bool SwitchHost();
@@ -105,7 +107,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     ErrCode Terminate(const bool is_force);
 
     const GameHandle& game_handle() const { return game_handle_; }
-    MatchID mid() const { return mid_; }
     std::optional<GroupID> gid() const { return gid_; }
     UserID host_uid() const { return host_uid_; }
     const State state() const { return state_; }
@@ -117,6 +118,19 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
    private:
     ErrCode CheckMultipleAllowed_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const;
+
+    template <typename Logger>
+    Logger& MatchLog(Logger&& logger) const
+    {
+        logger << "[mid=" << MatchId() << "] ";
+        if (gid_.has_value()) {
+            logger << "[gid=" << *gid_ << "] ";
+        } else {
+            logger << "[no gid] ";
+        }
+        logger << "[game=" << GameName() << "] [host_uid=" << host_uid_ << "] ";
+        return logger;
+    }
 
     std::string State2String()
     {
