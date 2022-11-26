@@ -97,7 +97,7 @@ ErrCode HandleRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID
 }
 
 ErrCode HandleMetaRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const std::string& msg,
-                          MsgSender& reply)
+                          MsgSenderBase& reply)
 {
     MsgReader reader(msg);
     const auto ret = HandleRequest(bot, uid, gid, reader, reply, meta_cmds);
@@ -108,7 +108,7 @@ ErrCode HandleMetaRequest(BotCtx& bot, const UserID uid, const std::optional<Gro
 }
 
 ErrCode HandleAdminRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const std::string& msg,
-                           MsgSender& reply)
+                           MsgSenderBase& reply)
 {
     MsgReader reader(msg);
     const auto ret = HandleRequest(bot, uid, gid, reader, reply, admin_cmds);

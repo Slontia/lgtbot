@@ -110,6 +110,7 @@ struct BotOption
     const char* image_path_ = nullptr; // shuold not be null
     const char* admins_ = nullptr; // an list for admin user id, split by ',', should not be null
     const std::filesystem::path::value_type* db_path_ = nullptr;
+    const std::filesystem::path::value_type* conf_path_ = nullptr;
 };
 
 class BOT_API

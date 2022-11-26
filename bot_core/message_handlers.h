@@ -17,7 +17,7 @@ using MetaUserFuncType = ErrCode(BotCtx&, const UserID, const std::optional<Grou
 using MetaCommand = Command<MetaUserFuncType>;
 
 ErrCode HandleMetaRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const std::string& msg,
-                          MsgSender& reply);
+                          MsgSenderBase& reply);
 
 ErrCode HandleAdminRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const std::string& msg,
-                           MsgSender& reply);
+                           MsgSenderBase& reply);
