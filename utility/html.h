@@ -10,6 +10,7 @@
 #include <cassert>
 
 #define HTML_COLOR_FONT_HEADER(color) "<font color=" #color ">"
+#define HTML_SIZE_FONT_HEADER(size) "<font size=\"" #size "\">"
 #define HTML_FONT_TAIL "</font>"
 #define HTML_ESCAPE_LT "&lt;"
 #define HTML_ESCAPE_GT "&gt;"
@@ -99,9 +100,14 @@ class Table
 
     void SetTableStyle(std::string style) { table_style_ = std::move(style); }
     void SetRowStyle(std::string style) { row_style_ = std::move(style); }
+    void SetRowStyle(const uint32_t row, std::string style) { boxes_[row].style_ = std::move(style); }
 
   private:
-    std::vector<std::vector<Box>> boxes_;
+    struct RowDesc : public std::vector<Box> {
+        using std::vector<Box>::vector;
+        std::string style_;
+    };
+    std::vector<RowDesc> boxes_;
     uint32_t row_;
     uint32_t column_;
     std::string table_style_;

@@ -7,7 +7,7 @@
 namespace html {
 
 Table::Table(const uint32_t row, const uint32_t column)
-    : boxes_(row, std::vector<Box>(column))
+    : boxes_(row, RowDesc(column))
     , row_(row)
     , column_(column)
     , table_style_(" align=\"center\" border=\"1px solid #ccc\" cellspacing=\"0\" cellpadding=\"0\" ")
@@ -24,7 +24,7 @@ std::string Table::ToString() const
             if (box.merge_num_ == 0) {
                 continue;
             }
-            outstr += "\n<td " + row_style_;
+            outstr += "\n<td " + (row.style_.empty() ? row_style_ : row.style_);
             if (!box.color_.empty()) {
                 outstr += " bgcolor=\"" + box.color_ + "\"";
             }

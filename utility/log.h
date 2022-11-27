@@ -6,7 +6,7 @@
 
 inline const char* Bool2Str(const bool ret) { return ret ? "true" : "false"; }
 
-#if WITH_GLOG && !TEST_BOT
+#if WITH_GLOG
 
 #ifndef GLOG_NO_ABBREVIATED_SEVERITIES
 #define GLOG_NO_ABBREVIATED_SEVERITIES

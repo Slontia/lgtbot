@@ -79,7 +79,7 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        StartTimer(option().GET_VALUE(时限));
+        StartTimer(GET_OPTION_VALUE(option(), 时限));
         Boardcast() << name() << "开始";
     }
 
@@ -138,7 +138,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
 {
-    if ((++round_) <= option().GET_VALUE(回合数)) {
+    if ((++round_) <= GET_OPTION_VALUE(option(), 回合数)) {
         return std::make_unique<RoundStage>(*this, round_);
     }
     Boardcast() << "游戏结束";

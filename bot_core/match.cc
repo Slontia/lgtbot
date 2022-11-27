@@ -660,7 +660,8 @@ void Match::Routine_()
     const uint64_t computer_num = players_.size() - user_controlled_num;
     uint64_t ok_count = 0;
     for (uint64_t i = 0; !main_stage_->IsOver() && ok_count < computer_num; i = (i + 1) % computer_num) {
-        if (StageErrCode::OK == main_stage_->HandleComputerAct(user_controlled_num + i, false)) {
+        const auto pid = user_controlled_num + i;
+        if (players_[pid].is_eliminated_ || StageErrCode::OK == main_stage_->HandleComputerAct(pid, false)) {
             ++ok_count;
         } else {
             ok_count = 0;

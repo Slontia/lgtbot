@@ -10,6 +10,7 @@
 #include "game_framework/game_options.h"
 #include "game_framework/game_main.h"
 #include "game_framework/mock_match.h"
+#include "utility/gen_image.h"
 
 DEFINE_uint64(player, 0, "Player number: if set to 0, best player num will be set");
 DEFINE_uint64(repeat, 1, "Repeat times: if set to 0, will run unlimitedly");
@@ -20,9 +21,28 @@ MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBas
 
 extern inline bool enable_markdown_to_image;
 
+class RunGameMockMatch : public MockMatch
+{
+  public:
+    using MockMatch::MockMatch;
+
+    virtual const char* PlayerAvatar(const PlayerID& pid, const int32_t size) override
+    {
+        if (!FLAGS_gen_image) {
+            return "";
+        }
+        const auto path = std::filesystem::current_path() / ".image" / "avatar" / "run_game.png";
+        GenBlackImage(path.c_str());
+        thread_local static std::string str;
+        str = "<img src=\"file://" + path.string() + "\" style=\"width:" + std::to_string(size) + "px; height:" +
+            std::to_string(size) + "px; border-radius:50%; vertical-align: middle;\"/>";
+        return str.c_str();
+    }
+};
+
 int Run()
 {
-    MockMatch match(FLAGS_player);
+    RunGameMockMatch match(FLAGS_player);
 
     enable_markdown_to_image = FLAGS_gen_image;
 

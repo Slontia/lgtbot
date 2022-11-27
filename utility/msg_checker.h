@@ -445,6 +445,50 @@ class OptionalDefaultChecker : public MsgArgChecker<typename Checker::arg_type>
 };
 
 template <typename Enum>
+class EnumChecker : public MsgArgChecker<Enum>
+{
+  public:
+    EnumChecker()
+            : format_info_(EnumChecker<Enum>::FormatInfoInternal_())
+            , colored_format_info_(HTML_COLOR_FONT_HEADER(purple) + format_info_ + HTML_FONT_TAIL)
+    {}
+    virtual std::string FormatInfo() const override { return format_info_; }
+    virtual std::string EscapedFormatInfo() const override { return format_info_; }
+    virtual std::string ColoredFormatInfo() const override { return colored_format_info_; }
+    virtual std::string ExampleInfo() const override
+    {
+        return Enum::Members().front().ToString();
+    }
+    virtual std::optional<Enum> Check(MsgReader& reader) const override
+    {
+        std::optional<typename Enum::BitSet> ret(std::in_place);
+        if (!reader.HasNext()) {
+            return std::nullopt;
+        }
+        return Enum::Parse(reader.NextArg());
+    }
+    virtual std::string ArgString(const Enum& value) const { return value.ToString(); }
+
+  private:
+    static std::string FormatInfoInternal_()
+    {
+        if (Enum::Members().empty()) {
+            return "(错误，可选项为空)";
+        }
+        auto it = Enum::Members().cbegin();
+        std::string outstr = (it++)->ToString();
+        for (; it != Enum::Members().cend(); ++it) {
+            outstr += "|";
+            outstr += it->ToString();
+        }
+        return outstr;
+    }
+
+    const std::string format_info_;
+    const std::string colored_format_info_;
+};
+
+template <typename Enum>
 class FlagsChecker : public MsgArgChecker<typename Enum::BitSet>
 {
   public:

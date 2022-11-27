@@ -6,6 +6,9 @@
 
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
+#if WITH_GLOG
+#include <glog/logging.h>
+#endif
 
 #include "game_framework/game_stage.h"
 #include "game_framework/game_options.h"
@@ -17,6 +20,8 @@ DEFINE_bool(gen_image, false, "Whether generate image or not");
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
 
+extern const std::string k_game_name;
+
 template <uint64_t k_player_num>
 class TestGame : public MockMatch, public testing::Test
 {
@@ -27,12 +32,24 @@ class TestGame : public MockMatch, public testing::Test
 
     virtual ~TestGame() {}
 
-    virtual void SetUp()
+    virtual void SetUp() override
     {
+#ifdef WITH_GLOG
+        google::InitGoogleLogging(::testing::UnitTest::GetInstance()->current_test_info()->name());
+#endif
         enable_markdown_to_image = FLAGS_gen_image;
         option_.SetPlayerNum(k_player_num);
         option_.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").c_str());
     }
+
+    virtual void TearDown() override
+    {
+#ifdef WITH_GLOG
+        google::ShutdownGoogleLogging();
+#endif
+    }
+
+    virtual const char* GameName() const override { return k_game_name.c_str(); }
 
     bool StartGame()
     {
@@ -143,11 +160,21 @@ class TestGame : public MockMatch, public testing::Test
 #define ASSERT_TIMEOUT(ret) __ASSERT_ERRCODE_BASE(ret, (Timeout()))
 #define CHECK_TIMEOUT(ret) (StageErrCode::ret == (Timeout()))
 
-#define ASSERT_PUB_MSG(ret, pid, msg) __ASSERT_ERRCODE_BASE(ret, (PublicRequest(pid, msg)))
-#define CHECK_PUB_MSG(ret, pid, msg) (StageErrCode::ret == PublicRequest(pid, msg))
+#define ASSERT_PUB_MSG(ret, pid, msg) \
+    do { \
+        ASSERT_FALSE(IsEliminated(pid)) << "player is eliminated"; \
+        __ASSERT_ERRCODE_BASE(ret, (PublicRequest(pid, msg))); \
+    } while (0)
+#define CHECK_PUB_MSG(ret, pid, msg) \
+    (ASSERT_FALSE(IsEliminated(pid)) << "player is eliminated", StageErrCode::ret == PublicRequest(pid, msg))
 
-#define ASSERT_PRI_MSG(ret, pid, msg) __ASSERT_ERRCODE_BASE(ret, (PrivateRequest(pid, msg)))
-#define CHECK_PRI_MSG(ret, pid, msg) (StageErrCode::ret == PrivateRequest(pid, msg))
+#define ASSERT_PRI_MSG(ret, pid, msg) \
+    do { \
+        ASSERT_FALSE(IsEliminated(pid)) << "player is eliminated"; \
+        __ASSERT_ERRCODE_BASE(ret, (PrivateRequest(pid, msg))); \
+    } while (0)
+#define CHECK_PRI_MSG(ret, pid, msg) \
+    (ASSERT_FALSE(IsEliminated(pid)) << "player is eliminated", StageErrCode::ret == PrivateRequest(pid, msg))
 
 #define ASSERT_LEAVE(ret, pid) __ASSERT_ERRCODE_BASE(ret, Leave(pid))
 #define CHECK_LEAVE(ret, pid) (StageErrCode::ret == Leave(pid))
@@ -158,3 +185,5 @@ class TestGame : public MockMatch, public testing::Test
 #define GAME_TEST(player_num, test_name) \
     using TestGame_##player_num##_##test_name = TestGame<player_num>; \
     TEST_F(TestGame_##player_num##_##test_name, test_name)
+
+#define ASSERT_ELIMINATED(pid) ASSERT_TRUE(IsEliminated(pid))

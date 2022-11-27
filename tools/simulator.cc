@@ -14,6 +14,7 @@
 
 #include "bot_core/bot_core.h"
 #include "bot_core/msg_sender.h"
+#include "utility/gen_image.h"
 
 #if __linux__
 #include "linenoise/linenoise.h"
@@ -125,16 +126,7 @@ const char* GetUserName(const char* uid, const char* const group_id)
 bool DownloadUserAvatar(const char* const uid_str, const std::filesystem::path::value_type* const dest_filename)
 {
     // write a black image here
-    constexpr const int32_t k_width = 1;
-    constexpr const int32_t k_height = 1;
-    char img[k_width * k_height * 3] = {0};
-    constexpr const int32_t l = (k_width * 3 + 3) / 4 * 4;
-    int bmi[] = {l * k_height + 54, 0, 54, 40, k_width, k_height, 1 | 3 * 8 << 16, 0, l * k_height, 0, 0, 100, 0};
-    std::ofstream file(dest_filename, std::ios::binary | std::ios::out);
-    file << "BM";
-    file.write(reinterpret_cast<char*>(&bmi), 52);
-    file.write(img, k_width * k_height * 3);
-    file.close();
+    GenBlackImage(dest_filename);
     return true;
 }
 
