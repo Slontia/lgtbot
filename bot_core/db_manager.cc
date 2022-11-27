@@ -69,7 +69,7 @@ uint64_t InsertMatch(sqlite::database& db, const std::string& game_name, const s
 
 void InsertUserIfNotExist(sqlite::database& db, const UserID& uid)
 {
-    db << "INSERT INTO user (user_id) SELECT ? WHERE NOT EXISTS (SELECT user_id FROM user WHERE user_id = ?);"
+    db << "INSERT INTO user (user_id, birth_time) SELECT ?, datetime(CURRENT_TIMESTAMP, \'localtime\') WHERE NOT EXISTS (SELECT user_id FROM user WHERE user_id = ?);"
        << uid.GetStr() << uid.GetStr();
 }
 
