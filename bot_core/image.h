@@ -48,3 +48,7 @@ inline int MarkdownToImage(const std::string& markdown, const std::filesystem::p
     return 0;
 }
 
+inline int CharToImage(const char ch, const std::filesystem::path& rel_path)
+{
+    return MarkdownToImage(std::string("<style>html,body{color:#fdf3dd; background:#783623;}</style> <p align=\"middle\"><font size=\"6\"><b>") + ch + "</b></font></p>", rel_path, 85);
+}

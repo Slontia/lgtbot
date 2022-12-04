@@ -374,8 +374,8 @@ GAME_TEST(5, killer_cannot_win_when_two_civilians_and_one_traitor_dead)
 }
 
 
+// TODO: game 20 round finish
 
-// print occupation in image
 
 int main(int argc, char** argv)
 {

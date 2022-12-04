@@ -14,7 +14,6 @@
 
 #include "bot_core/bot_core.h"
 #include "bot_core/msg_sender.h"
-#include "utility/gen_image.h"
 
 #if __linux__
 #include "linenoise/linenoise.h"
@@ -123,10 +122,16 @@ const char* GetUserName(const char* uid, const char* const group_id)
     return str.c_str();
 }
 
+inline std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path);
+
 bool DownloadUserAvatar(const char* const uid_str, const std::filesystem::path::value_type* const dest_filename)
 {
-    // write a black image here
-    GenBlackImage(dest_filename);
+    const std::string avatar_filename = std::string("avatar_") + uid_str;
+    if (CharToImage(uid_str[0], avatar_filename) != 0) {
+        std::cerr << "Generate avatar failed for user: " << uid_str << std::endl;
+        return false;
+    }
+    std::filesystem::copy(ImageAbsPath(avatar_filename), dest_filename, std::filesystem::copy_options::update_existing);
     return true;
 }
 
