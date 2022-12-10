@@ -69,9 +69,15 @@ GAME_TEST(5, cannot_hurt_cure_dead_role)
 
 GAME_TEST(5, can_detect_dead_role)
 {
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 侦探 平民 平民");
+    ASSERT_PUB_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 0, "攻击 B 25");
+    ASSERT_PRI_MSG(OK, 2, "侦查 B");
 }
 
-GAME_TEST(5, killer_win)
+GAME_TEST(5, killer_win_by_three_civilian_team_dead)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 替身 杀手 平民 圣女 侦探");
     START_GAME();
@@ -80,6 +86,21 @@ GAME_TEST(5, killer_win)
     for (uint32_t i = 0; i < 4; ++i) {
         ASSERT_PRI_MSG(CONTINUE, 1, "攻击 D 25");
         ASSERT_PRI_MSG(CONTINUE, 1, "攻击 E 25");
+    }
+    ASSERT_PRI_MSG(CONTINUE, 1, "攻击 C 25");
+    ASSERT_PRI_MSG(CONTINUE, 1, "攻击 C 25");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "攻击 C 25");
+    ASSERT_SCORE(1, 1, 0, 0, 0);
+}
+
+GAME_TEST(5, killer_win_by_two_civilian_role_dead)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 替身 杀手 平民 平民 侦探");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "攻击 C 25");
+    ASSERT_TIMEOUT(CONTINUE);
+    for (uint32_t i = 0; i < 4; ++i) {
+        ASSERT_PRI_MSG(CONTINUE, 1, "攻击 D 25");
     }
     ASSERT_PRI_MSG(CONTINUE, 1, "攻击 C 25");
     ASSERT_PRI_MSG(CONTINUE, 1, "攻击 C 25");
@@ -347,6 +368,22 @@ GAME_TEST(5, killer_dead_body_double_cannot_act)
     ASSERT_PRI_MSG(CONTINUE, 2, "pass"); // need not wait body double act
 }
 
+GAME_TEST(6, civilian_lost_cannot_act)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 侦探 圣女 平民 平民 内奸");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    for (uint32_t i = 0; i < 4; ++i) {
+        ASSERT_PRI_MSG(CONTINUE, 0, "攻击 B 25");
+        ASSERT_PRI_MSG(CONTINUE, 0, "攻击 C 25");
+        ASSERT_PRI_MSG(CONTINUE, 0, "攻击 D 25");
+    }
+    ASSERT_ELIMINATED(1);
+    ASSERT_ELIMINATED(2);
+    ASSERT_ELIMINATED(3);
+    ASSERT_ELIMINATED(4);
+}
+
 GAME_TEST(5, traitor_can_heavy_hurt_cure_after_killer_dead)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 平民 内奸");
@@ -362,7 +399,7 @@ GAME_TEST(5, traitor_can_heavy_hurt_cure_after_killer_dead)
 
 GAME_TEST(5, killer_cannot_win_when_two_civilians_and_one_traitor_dead)
 {
-    ASSERT_PUB_MSG(OK, 0, "身份列表 替身 杀手 平民 平民 内奸");
+    ASSERT_PUB_MSG(OK, 0, "身份列表 替身 杀手 圣女 平民 内奸");
     START_GAME();
     ASSERT_TIMEOUT(CONTINUE);
     for (uint32_t i = 0; i < 4; ++i) {
@@ -373,9 +410,108 @@ GAME_TEST(5, killer_cannot_win_when_two_civilians_and_one_traitor_dead)
     ASSERT_FINISHED(false);
 }
 
+GAME_TEST(5, max_round_killer_failed)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 替身 杀手 平民 平民 内奸");
+    ASSERT_PUB_MSG(OK, 0, "回合数 6");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    for (uint32_t i = 0; i < 4; ++i) {
+        ASSERT_PRI_MSG(CONTINUE, 1, "攻击 B 25");
+    }
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(0, 0, 1, 1, 1);
+}
 
-// TODO: game 20 round finish
+GAME_TEST(5, max_round_civilian_failed)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 平民 内奸");
+    ASSERT_PUB_MSG(OK, 0, "回合数 14");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    for (uint32_t i = 0; i < 4; ++i) {
+        ASSERT_PRI_MSG(CONTINUE, 0, "攻击 B 25");
+        ASSERT_PRI_MSG(CONTINUE, 0, "攻击 C 25");
+        ASSERT_PRI_MSG(CONTINUE, 0, "攻击 D 25");
+    }
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(1, 0, 0, 0, 1);
+}
 
+GAME_TEST(5, max_round_traitor_failed)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 平民 内奸");
+    ASSERT_PUB_MSG(OK, 0, "回合数 6");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    for (uint32_t i = 0; i < 4; ++i) {
+        ASSERT_PRI_MSG(CONTINUE, 0, "攻击 E 25");
+    }
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(1, 1, 1, 1, 0);
+}
+
+GAME_TEST(5, ghost_still_limit_cure_after_death)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    for (uint32_t i = 0; i < 4; ++i) {
+        ASSERT_PRI_MSG(CONTINUE, 0, "攻击 E 25");
+    }
+    ASSERT_TIMEOUT(CONTINUE);
+    for (uint32_t i = 0; i < 3; ++i) {
+        ASSERT_PRI_MSG(CONTINUE, 4, "治愈 A 10");
+    }
+    ASSERT_PRI_MSG(FAILED, 4, "治愈 A 10");
+}
+
+GAME_TEST(5, ghost_is_exorcism_after_death_cant_act)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    for (uint32_t i = 0; i < 4; ++i) {
+        ASSERT_PRI_MSG(CONTINUE, 0, "攻击 E 25");
+    }
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 3, "驱灵 E");
+    ASSERT_ELIMINATED(4);
+}
+
+GAME_TEST(5, ghost_is_detected_when_move_after_death_cant_act)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 4, "pass");
+    ASSERT_PRI_MSG(OK, 2, "侦查 E");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 B 15"); // E is alive can still act
+    ASSERT_PRI_MSG(OK, 2, "攻击 E 15"); // E is dead
+    ASSERT_PRI_MSG(CONTINUE, 4, "pass");
+    ASSERT_PRI_MSG(OK, 2, "侦查 E");
+    ASSERT_PRI_MSG(CONTINUE, 4, "pass"); // is not detected action, can still act
+    ASSERT_PRI_MSG(OK, 2, "pass");
+    ASSERT_PRI_MSG(CONTINUE, 4, "pass");
+    ASSERT_PRI_MSG(OK, 2, "侦查 E");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 D 15"); // is detected action so cannot act anymore
+    ASSERT_ELIMINATED(1);
+    ASSERT_ELIMINATED(3);
+    ASSERT_ELIMINATED(4);
+}
+
+GAME_TEST(5, ghost_is_exorcism_when_hurt_sorcerer_cant_act)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 4, "攻击 B 15");
+    ASSERT_PRI_MSG(OK, 3, "驱灵 E");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(OK, 4, "攻击 D 15");
+    ASSERT_PRI_MSG(CONTINUE, 3, "驱灵 E");
+    ASSERT_ELIMINATED(4);
+}
 
 int main(int argc, char** argv)
 {
