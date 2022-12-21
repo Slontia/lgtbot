@@ -208,3 +208,7 @@ CMakeCache.txt
 
 # cscope
 cscope.*
+
+# doxygen
+latex/
+html/

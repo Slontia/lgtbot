@@ -62,6 +62,7 @@ GAME_TEST(2, extend_limit)
 
 GAME_TEST(2, renju_win)
 {
+    ASSERT_PRI_MSG(OK, 0, "pass上限 0");
     ASSERT_TRUE(StartGame());
     ASSERT_PRI_MSG(OK, 0, "F7");
     ASSERT_PRI_MSG(CONTINUE, 1, "pass");
@@ -181,6 +182,36 @@ GAME_TEST(2, timeout_clear_both_ready)
     ASSERT_PRI_MSG(OK, 0, "F7");
     ASSERT_TIMEOUT(CONTINUE);
     ASSERT_PRI_MSG(OK, 1, "F8");
+}
+
+GAME_TEST(2, achieve_pass_limit)
+{
+    ASSERT_PRI_MSG(OK, 0, "pass上限 1");
+    ASSERT_PRI_MSG(OK, 0, "模式 经典");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "F7");
+    ASSERT_SCORE(0, 0);
+}
+
+GAME_TEST(2, achieve_pass_limit_in_competitive_mode)
+{
+    ASSERT_PRI_MSG(OK, 0, "pass上限 1");
+    ASSERT_PRI_MSG(OK, 0, "模式 竞技");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "F7");
+    ASSERT_SCORE(1, 0);
+}
+
+GAME_TEST(2, timeout_is_pass)
+{
+    ASSERT_PRI_MSG(OK, 0, "pass上限 1");
+    ASSERT_PRI_MSG(OK, 0, "模式 竞技");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 1, "F7");
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(1, 0);
 }
 
 int main(int argc, char** argv)

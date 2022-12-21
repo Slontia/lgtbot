@@ -26,8 +26,10 @@ using namespace renju;
 std::string GameOption::StatusInfo() const
 {
     return "每步时限 " + std::to_string(GET_VALUE(时限)) + " 秒，" +
-        (GET_VALUE(碰撞上限) == 0 ? "碰撞不会造成平局" : std::to_string(GET_VALUE(碰撞上限)) + " 次碰撞发生时游戏平局，") +
-        (GET_VALUE(回合上限) == 0 ? "棋盘下满" : "棋盘下满或 " + std::to_string(GET_VALUE(回合上限)) + " 回合结束时游戏平局");
+        (GET_VALUE(碰撞上限) == 0 ? "碰撞不会造成和棋" : std::to_string(GET_VALUE(碰撞上限)) + " 次碰撞发生时和棋") + "，" +
+        (GET_VALUE(回合上限) == 0 ? "没有回合限制" : std::to_string(GET_VALUE(回合上限)) + " 回合结束时和棋") + "，" +
+        (GET_VALUE(pass上限) == 0 ? "pass 不会造成和棋" : "双方共 pass " + std::to_string(GET_VALUE(pass上限)) + " 次时和棋") + "，" +
+        (GET_VALUE(模式) ? "pass 数量不会影响胜负" : "和棋时 pass 数量较多的玩家获胜");
 }
 
 bool GameOption::ToValid(MsgSenderBase& reply)
@@ -58,11 +60,15 @@ class MainStage : public MainGameStage<>
         , round_(0)
         , crash_count_(0)
         , extended_(false)
+        , pass_count_{0, 0}
     {
     }
 
     virtual void OnStageBegin()
     {
+        if (!GET_OPTION_VALUE(option(), 模式)) {
+            Boardcast() << "[注意] 本局为竞技模式，和棋时 pass 次数较多的玩家取得胜利";
+        }
         StartTimer(GET_OPTION_VALUE(option(), 时限));
         Boardcast() << Markdown(HtmlHead_() + board_.ToHtml());
         Boardcast() << "请私信裁判落子位置";
@@ -193,13 +199,15 @@ class MainStage : public MainGameStage<>
             str += " / " + std::to_string(GET_OPTION_VALUE(option(), 回合上限));
         }
         str +=  " 回合\n\n";
-        html::Table player_table(1, 4);
+        html::Table player_table(2, 4);
         player_table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"10\" ");
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(0, 0 + pid * 2).SetContent(
                         std::string("![](file://") + option().ResourceDir() + (pid == 0 ? "c_b.bmp)" : "c_w.bmp)"));
+                player_table.MergeDown(0, 0 + pid * 2, 2);
                 player_table.Get(0, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
+                player_table.Get(1, 1 + pid * 2).SetContent("pass 次数：" + std::to_string(pass_count_[pid]));
             };
         print_player(0);
         print_player(1);
@@ -235,30 +243,30 @@ class MainStage : public MainGameStage<>
             player_pos_[0].has_value() ? board_.Set(player_pos_[0]->first, player_pos_[0]->second, Pid2Type_(0)) :
             player_pos_[1].has_value() ? board_.Set(player_pos_[1]->first, player_pos_[1]->second, Pid2Type_(1)) :
                                          Result::CONTINUE_OK;
-        player_pos_[0].reset();
-        player_pos_[1].reset();
+        pass_count_[0] += !player_pos_[0].has_value();
+        pass_count_[1] += !player_pos_[1].has_value();
         reply() << Markdown(HtmlHead_() + board_.ToHtml());
         auto sender = reply();
+        bool is_over = true;
         if (ret == Result::WIN_BLACK) {
             sender << "黑方连成五子，宣告胜利！";
             winner_ = 0;
-            return true;
         } else if (ret == Result::WIN_WHITE) {
             sender << "白方连成五子，宣告胜利！";
             winner_ = 1;
-            return true;
         } else if (ret == Result::TIE_DOUBLE_WIN) {
-            sender << "双方均连成五子，游戏平局";
-            return true;
+            sender << "双方均连成五子，满足了和棋条件";
         } else if (ret == Result::TIE_FULL_BOARD) {
-            sender << "棋盘上没有可落子位置了，游戏平局";
-            return true;
+            sender << "棋盘上没有可落子位置了，满足了和棋条件";
+        } else if (GET_OPTION_VALUE(option(), pass上限) > 0 &&
+                pass_count_[0] + pass_count_[1] >= GET_OPTION_VALUE(option(), pass上限)) {
+            sender << "双方 pass 总次数达到上限，满足了和棋条件";
         } else {
             if (ret == Result::CONTINUE_CRASH) {
                 sender << "双方位置相同，发生碰撞";
                 if (GET_OPTION_VALUE(option(), 碰撞上限) > 0 && extended_) {
                     sender << "，目前已发生 " << ++crash_count_ << " 次碰撞（当发生 " << GET_OPTION_VALUE(option(), 碰撞上限)
-                           << " 次碰撞时，游戏将平局）";
+                           << " 次碰撞时，将满足和棋条件）";
                 }
             } else if (ret == Result::CONTINUE_OK) {
                 sender << "双方落子成功";
@@ -268,18 +276,35 @@ class MainStage : public MainGameStage<>
             } else {
                 abort();
             }
+            if (GET_OPTION_VALUE(option(), pass上限) > 0 &&
+                    (!player_pos_[0].has_value() || player_pos_[1].has_value())) {
+                sender << "\n\n本回合有玩家选择了 pass（当双方 pass 次数总和达到 "
+                    << GET_OPTION_VALUE(option(), pass上限) << " 次时，将满足和棋条件）";
+            }
             sender << "\n\n";
             if (++round_ == GET_OPTION_VALUE(option(), 回合上限)) {
-                sender << "达到回合上限，游戏平局";
-                return true;
+                sender << "达到回合上限，满足了和棋条件";
             } else if (crash_count_ > 0 && crash_count_ == GET_OPTION_VALUE(option(), 碰撞上限)) {
-                sender << "达到碰撞上限，游戏平局";
-                return true;
+                sender << "达到碰撞上限，满足了和棋条件";
             } else {
                 sender << "游戏继续，请双方继续落子";
-                return false;
+                is_over = false;
             }
         }
+        if (is_over && !winner_.has_value() && GET_OPTION_VALUE(option(), 模式) == false) {
+            if (pass_count_[0] > pass_count_[1]) {
+                sender << "，但由于黑方 pass 次数多于白方，故黑方取得胜利";
+                winner_ = 0;
+            } else if (pass_count_[1] > pass_count_[0]) {
+                sender << "，但由于白方 pass 次数多于黑方，故白方取得胜利";
+                winner_ = 1;
+            } else {
+                sender << "，由于双方 pass 次数相同，游戏平局";
+            }
+        }
+        player_pos_[0].reset();
+        player_pos_[1].reset();
+        return is_over;
     }
 
     static AreaType Pid2Type_(const PlayerID pid) { return pid == 0 ? AreaType::BLACK : AreaType::WHITE; }
@@ -289,6 +314,7 @@ class MainStage : public MainGameStage<>
     uint32_t crash_count_;
     bool extended_;
     std::array<std::optional<std::pair<uint32_t, uint32_t>>, 2> player_pos_;
+    std::array<int32_t, 2> pass_count_;
     std::optional<PlayerID> winner_;
 };
 
