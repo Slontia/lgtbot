@@ -8,6 +8,7 @@
 
 #include <sstream>
 #include <type_traits>
+#include <cmath>
 
 #include "utility/log.h"
 #include "bot_core/match.h"
@@ -188,7 +189,7 @@ void ForeachUserInRank(sqlite::database& db, const std::string& score_name, cons
 template <typename Fn>
 void ForeachUserInGameLevelScoreRank(sqlite::database& db, const std::string& game_name, const Fn& fn)
 {
-    db << "SELECT user_id, total_level_score, match_count FROM ("
+    db << "SELECT user_id, total_level_score FROM ("
                 "SELECT user.user_id AS user_id, "
                     "SUM(user_with_match.level_score) AS total_level_score, "
                     "COUNT(*) AS match_count "
@@ -198,7 +199,26 @@ void ForeachUserInGameLevelScoreRank(sqlite::database& db, const std::string& ga
                     "user_with_match.birth_count = user.birth_count AND "
                     "match.game_name = ? "
                 "GROUP BY user.user_id ORDER BY total_level_score DESC) "
-            "WHERE match_count >= " + std::to_string(k_show_grade_required_match_count) + " LIMIT 10"
+            "LIMIT 10"
+    << game_name
+    >> fn;
+}
+
+template <typename Fn>
+void ForeachUserInGameWeightLevelScoreRank(sqlite::database& db, const std::string& game_name, const Fn& fn)
+{
+    db << "SELECT user_id, weight_level_score FROM ("
+                "SELECT user.user_id AS user_id, "
+                    "SUM(user_with_match.level_score) AS total_level_score, "
+                    "COUNT(*) AS match_count, "
+                    "SUM(user_with_match.level_score) * ABS(SUM(user_with_match.level_score)) * COUNT(*) AS weight_level_score "
+                "FROM user_with_match, user, match "
+                "WHERE user_with_match.user_id = user.user_id AND "
+                    "user_with_match.match_id = match.match_id AND "
+                    "user_with_match.birth_count = user.birth_count AND "
+                    "match.game_name = ? "
+                "GROUP BY user.user_id ORDER BY weight_level_score DESC) "
+            "LIMIT 10"
     << game_name
     >> fn;
 }
@@ -325,18 +345,24 @@ RankInfo SQLiteDBManager::GetRank()
     return info;
 }
 
-std::vector<std::pair<UserID, double>> SQLiteDBManager::GetLevelScoreRank(const std::string& game_name)
+GameRankInfo SQLiteDBManager::GetLevelScoreRank(const std::string& game_name)
 {
-    std::vector<std::pair<UserID, double>> vec;
+    GameRankInfo info;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
             ForeachUserInGameLevelScoreRank(db, game_name, [&](std::string uid, const double total_level_score)
                     {
-                        vec.emplace_back(std::move(uid), total_level_score);
+                        info.level_score_rank_.emplace_back(std::move(uid), total_level_score);
+                    });
+            ForeachUserInGameWeightLevelScoreRank(db, game_name, [&](std::string uid, double weight_level_score)
+                    {
+                        weight_level_score =
+                            (1 - 2 * std::signbit(weight_level_score)) * std::sqrt(std::abs(weight_level_score));
+                        info.weight_level_score_rank_.emplace_back(std::move(uid), weight_level_score);
                     });
             return true;
         });
-    return vec;
+    return info;
 }
 
 std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::path::value_type* const db_name)

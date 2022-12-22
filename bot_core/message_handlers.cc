@@ -418,7 +418,6 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
         table.GetLastRow(2).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.count_)));
         table.GetLastRow(3).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.total_level_score_)));
         table.GetLastRow(4).SetContent(colored_text(total_level_score_ / 100,
-                    info.count_ < k_show_grade_required_match_count ? "/" :
                     total_level_score_ <= -300 ? "E" :
                     total_level_score_ <= -100 ? "D" :
                     total_level_score_ < 100   ? "C" :
@@ -514,8 +513,9 @@ static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional
         reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
-    const auto vec = bot.db_manager()->GetLevelScoreRank(game_name);
-    reply() << "## 等级得分排行（要求至少完成 " << k_show_grade_required_match_count << " 场比赛）：\n" << print_score(vec, gid);
+    const auto info = bot.db_manager()->GetLevelScoreRank(game_name);
+    reply() << "## 等级得分排行：\n" << print_score(info.level_score_rank_, gid);
+    reply() << "## 加权等级得分排行：(参与次数的开方 × 等级得分)\n" << print_score(info.weight_level_score_rank_, gid);
     return EC_OK;
 }
 

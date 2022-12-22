@@ -66,8 +66,13 @@ struct RankInfo
     std::vector<std::pair<UserID, int64_t>> top_score_rank_;
 };
 
+struct GameRankInfo
+{
+    std::vector<std::pair<UserID, double>> level_score_rank_;
+    std::vector<std::pair<UserID, double>> weight_level_score_rank_;
+};
+
 static constexpr const auto k_level_score_initial_value = 1500;
-static constexpr const auto k_show_grade_required_match_count = 3;
 
 class DBManagerBase
 {
@@ -79,7 +84,7 @@ class DBManagerBase
     virtual UserProfile GetUserProfile(const UserID uid) = 0;
     virtual bool Suicide(const UserID uid, const uint32_t required_match_num) = 0;
     virtual RankInfo GetRank() = 0;
-    virtual std::vector<std::pair<UserID, double>> GetLevelScoreRank(const std::string& game_name) = 0;
+    virtual GameRankInfo GetLevelScoreRank(const std::string& game_name) = 0;
 };
 
 #ifdef WITH_SQLITE
@@ -103,7 +108,7 @@ class SQLiteDBManager : public DBManagerBase
     virtual UserProfile GetUserProfile(const UserID uid) override;
     virtual bool Suicide(const UserID uid, const uint32_t required_match_num) override;
     virtual RankInfo GetRank() override;
-    virtual std::vector<std::pair<UserID, double>> GetLevelScoreRank(const std::string& game_name) override;
+    virtual GameRankInfo GetLevelScoreRank(const std::string& game_name) override;
 
   private:
     SQLiteDBManager(const DBName& db_name);
