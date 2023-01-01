@@ -60,6 +60,9 @@ class MainStage : public MainGameStage<>
         , round_(0)
         , crash_count_(0)
         , extended_(false)
+        , last_round_passed_{false, false}
+        , last_round_both_passed_(false)
+        , last_last_round_both_passed_(false)
         , pass_count_{0, 0}
     {
     }
@@ -199,15 +202,25 @@ class MainStage : public MainGameStage<>
             str += " / " + std::to_string(GET_OPTION_VALUE(option(), 回合上限));
         }
         str +=  " 回合\n\n";
-        html::Table player_table(2, 4);
+        html::Table player_table(3, 4);
         player_table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"10\" ");
+        player_table.Get(0, 0).SetContent(
+                "**扩展后碰撞次数：" + std::string(last_round_crashed_ && extended_ ? HTML_COLOR_FONT_HEADER(red) : "") +
+                std::to_string(crash_count_) + std::string(last_round_crashed_ && extended_ ? HTML_FONT_TAIL : "") +
+                " / " + std::to_string(GET_OPTION_VALUE(option(), 碰撞上限)) + "**");
+        player_table.MergeRight(0, 0, 4);
         const auto print_player = [&](const PlayerID pid)
             {
-                player_table.Get(0, 0 + pid * 2).SetContent(
+                player_table.Get(1, 0 + pid * 2).SetContent(
                         std::string("![](file://") + option().ResourceDir() + (pid == 0 ? "c_b.bmp)" : "c_w.bmp)"));
-                player_table.MergeDown(0, 0 + pid * 2, 2);
-                player_table.Get(0, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
-                player_table.Get(1, 1 + pid * 2).SetContent("pass 次数：" + std::to_string(pass_count_[pid]));
+                player_table.MergeDown(1, 0 + pid * 2, 2);
+                player_table.Get(1, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
+                if (last_round_passed_[pid] && !last_last_round_both_passed_) {
+                    player_table.Get(2, 1 + pid * 2).SetContent(
+                            HTML_COLOR_FONT_HEADER(red) "pass 次数：" + std::to_string(pass_count_[pid]) + HTML_FONT_TAIL);
+                } else {
+                    player_table.Get(2, 1 + pid * 2).SetContent("pass 次数：" + std::to_string(pass_count_[pid]));
+                }
             };
         print_player(0);
         print_player(1);
@@ -237,14 +250,19 @@ class MainStage : public MainGameStage<>
 
     bool SetToBoard_(MsgSenderBase& reply)
     {
+        board_.ClearHighlight();
         const auto ret =
             player_pos_[0].has_value() && player_pos_[1].has_value() ?
                 board_.Set(player_pos_[0]->first, player_pos_[0]->second, player_pos_[1]->first, player_pos_[1]->second) :
             player_pos_[0].has_value() ? board_.Set(player_pos_[0]->first, player_pos_[0]->second, Pid2Type_(0)) :
             player_pos_[1].has_value() ? board_.Set(player_pos_[1]->first, player_pos_[1]->second, Pid2Type_(1)) :
                                          Result::CONTINUE_OK;
-        pass_count_[0] += !player_pos_[0].has_value();
-        pass_count_[1] += !player_pos_[1].has_value();
+        for (int i = 0; i < 2; ++i) {
+            pass_count_[i] += (last_round_passed_[i] = !player_pos_[i].has_value()) && !last_round_both_passed_;
+        }
+        last_last_round_both_passed_ = last_round_both_passed_;
+        last_round_both_passed_ = last_round_passed_[0] && last_round_passed_[1];
+        crash_count_ += (last_round_crashed_ = (ret == Result::CONTINUE_CRASH || last_round_both_passed_)) && extended_;
         reply() << Markdown(HtmlHead_() + board_.ToHtml());
         auto sender = reply();
         bool is_over = true;
@@ -262,11 +280,14 @@ class MainStage : public MainGameStage<>
                 pass_count_[0] + pass_count_[1] >= GET_OPTION_VALUE(option(), pass上限)) {
             sender << "双方 pass 总次数达到上限，满足了和棋条件";
         } else {
-            if (ret == Result::CONTINUE_CRASH) {
-                sender << "双方位置相同，发生碰撞";
+            if (last_round_crashed_) {
+                sender << "双方行动相同，发生碰撞";
                 if (GET_OPTION_VALUE(option(), 碰撞上限) > 0 && extended_) {
-                    sender << "，目前已发生 " << ++crash_count_ << " 次碰撞（当发生 " << GET_OPTION_VALUE(option(), 碰撞上限)
+                    sender << "，目前已发生 " << crash_count_ << " 次碰撞（当发生 " << GET_OPTION_VALUE(option(), 碰撞上限)
                            << " 次碰撞时，将满足和棋条件）";
+                }
+                if (last_round_both_passed_) {
+                    sender << "\n\n下一回合允许继续 pass，但不推荐，理由是下回合的 pass 不会记在个人的 pass 数上";
                 }
             } else if (ret == Result::CONTINUE_OK) {
                 sender << "双方落子成功";
@@ -277,7 +298,7 @@ class MainStage : public MainGameStage<>
                 abort();
             }
             if (GET_OPTION_VALUE(option(), pass上限) > 0 &&
-                    (!player_pos_[0].has_value() || player_pos_[1].has_value())) {
+                    (!player_pos_[0].has_value() || !player_pos_[1].has_value())) {
                 sender << "\n\n本回合有玩家选择了 pass（当双方 pass 次数总和达到 "
                     << GET_OPTION_VALUE(option(), pass上限) << " 次时，将满足和棋条件）";
             }
@@ -314,6 +335,10 @@ class MainStage : public MainGameStage<>
     uint32_t crash_count_;
     bool extended_;
     std::array<std::optional<std::pair<uint32_t, uint32_t>>, 2> player_pos_;
+    std::array<bool, 2> last_round_passed_;
+    bool last_round_both_passed_;
+    bool last_last_round_both_passed_;
+    bool last_round_crashed_;
     std::array<int32_t, 2> pass_count_;
     std::optional<PlayerID> winner_;
 };

@@ -108,6 +108,8 @@ GAME_TEST(2, crash_not_count_before_extend)
     ASSERT_TRUE(StartGame());
     ASSERT_PRI_MSG(OK, 0, "F7");
     ASSERT_PRI_MSG(CONTINUE, 1, "F7");
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CONTINUE, 1, "pass");
 }
 
 GAME_TEST(2, crash_limit)
@@ -118,6 +120,30 @@ GAME_TEST(2, crash_limit)
     ASSERT_PRI_MSG(CONTINUE, 1, "F8");
     ASSERT_PRI_MSG(OK, 0, "E7");
     ASSERT_PRI_MSG(CHECKOUT, 1, "E7");
+    ASSERT_SCORE(0, 0);
+}
+
+GAME_TEST(2, crash_limit_for_pass)
+{
+    ASSERT_PUB_MSG(OK, 0, "碰撞上限 1");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "F7");
+    ASSERT_PRI_MSG(CONTINUE, 1, "F8");
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "pass");
+    ASSERT_SCORE(0, 0);
+}
+
+GAME_TEST(2, continuous_pass_also_crash)
+{
+    ASSERT_PUB_MSG(OK, 0, "碰撞上限 2");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "F7");
+    ASSERT_PRI_MSG(CONTINUE, 1, "F8");
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CONTINUE, 1, "pass");
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "pass");
     ASSERT_SCORE(0, 0);
 }
 
@@ -212,6 +238,16 @@ GAME_TEST(2, timeout_is_pass)
     ASSERT_PRI_MSG(OK, 1, "F7");
     ASSERT_TIMEOUT(CHECKOUT);
     ASSERT_SCORE(1, 0);
+}
+
+GAME_TEST(2, pass_after_pass_crash_not_count)
+{
+    ASSERT_PRI_MSG(OK, 0, "pass上限 3");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CONTINUE, 1, "pass");
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CONTINUE, 1, "F7");
 }
 
 int main(int argc, char** argv)

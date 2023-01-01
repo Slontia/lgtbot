@@ -140,7 +140,6 @@ class Board
     // should satisfy CanBeSet
     Result Set(const uint32_t black_row, const uint32_t black_column, const uint32_t white_row, const uint32_t white_column)
     {
-        ClearHighlight_();
         if (black_row == white_row && black_column == white_column) {
             areas_[black_row][black_column] = AreaType::FORBID;
             highlight_flag_[black_row][black_column] = true;
@@ -165,7 +164,6 @@ class Board
     // should satisfy CanBeSet
     Result Set(const uint32_t row, const uint32_t col, const AreaType type)
     {
-        ClearHighlight_();
         const bool renju = SetChess_(row, col, type);
         return (empty_count_ -= 1) == 0         ? Result::TIE_FULL_BOARD  :
                renju && type == AreaType::BLACK ? Result::WIN_BLACK       :
@@ -233,6 +231,8 @@ class Board
         return "<style>html,body{color:#6b421d; background:#d8bf81;}</style>\n" + table.ToString();
     }
 
+    void ClearHighlight() { std::ranges::for_each(highlight_flag_, [](auto& flags) { flags.reset(); }); }
+
   private:
     bool SetChess_(const uint32_t row, const uint32_t col, const AreaType type)
     {
@@ -299,8 +299,6 @@ class Board
     }
 
     std::string Image_(std::string name) const { return "![](file://" + image_path_ + "/" + std::move(name) + ".bmp)"; }
-
-    void ClearHighlight_() { std::ranges::for_each(highlight_flag_, [](auto& flags) { flags.reset(); }); }
 
     const std::string image_path_;
     std::array<std::array<AreaType, k_size_>, k_size_> areas_;
