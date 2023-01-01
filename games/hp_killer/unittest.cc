@@ -513,6 +513,18 @@ GAME_TEST(5, ghost_is_exorcism_when_hurt_sorcerer_cant_act)
     ASSERT_ELIMINATED(4);
 }
 
+GAME_TEST(5, ghost_act_has_effect_when_exocrism)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 4, "攻击 D 15");
+    ASSERT_PRI_MSG(OK, 3, "驱灵 E");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_ELIMINATED(3);
+    ASSERT_ELIMINATED(4);
+}
+
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);

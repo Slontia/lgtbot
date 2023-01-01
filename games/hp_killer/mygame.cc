@@ -150,6 +150,7 @@ class RoleBase
         , team_(team)
         , hp_(option.hp_)
         , can_act_(true)
+        , disable_act_when_refresh_(false)
         , is_alive_(true)
         , is_allowed_heavy_hurt_cure_(false)
         , is_winner_(true)
@@ -197,6 +198,10 @@ class RoleBase
         if (!can_act_) {
             return false;
         }
+        if (disable_act_when_refresh_) {
+            DisableAct();
+            disable_act_when_refresh_ = false;
+        }
         if (std::get_if<CureAction>(&cur_action_) && remain_cure_ > 0) {
             --remain_cure_;
         }
@@ -213,6 +218,7 @@ class RoleBase
     void SetAllowHeavyHurtCure(const bool allow) { is_allowed_heavy_hurt_cure_ = allow; }
     void SetWinner(const bool is_winner) { is_winner_ = is_winner; }
     void DisableAct() { can_act_ = false; }
+    void DisableActWhenRefresh() { disable_act_when_refresh_ = true; }
 
     PlayerID PlayerId() const { return pid_; }
     Token GetToken() const { return token_; }
@@ -236,6 +242,7 @@ class RoleBase
     Team team_;
     int32_t hp_;
     bool can_act_;
+    bool disable_act_when_refresh_;
     bool is_alive_;
     bool is_allowed_heavy_hurt_cure_;
     bool is_winner_;
@@ -584,7 +591,7 @@ class MainStage : public MainGameStage<>
                     sender << "」";
                     if (!detected_role.IsAlive() && (std::get_if<HurtAction>(&detected_role.CurAction()) ||
                                 std::get_if<CureAction>(&detected_role.CurAction()))) {
-                        DisableAct_(detected_role);
+                        DisableAct_(detected_role, true);
                         sender << "，而且你完成了除灵，他已经失去行动能力了！";
                     }
                 } else if (const auto action = std::get_if<ExocrismAction>(&role.CurAction())) {
@@ -599,7 +606,7 @@ class MainStage : public MainGameStage<>
                             sender << "但是他早就已经失去行动能力了";
                         } else if (!exocrism_role.IsAlive() || (hurt_action && hurt_action->token_ == role.GetToken())) {
                             sender << "驱灵成功，他已经失去行动能力了！";
-                            DisableAct_(exocrism_role);
+                            DisableAct_(exocrism_role, true);
                         } else {
                             sender << "但是并没有驱灵成功，他仍可以继续行动";
                         }
@@ -741,9 +748,16 @@ class MainStage : public MainGameStage<>
         return CheckTeamsLost_(sender);
     }
 
-    void DisableAct_(RoleBase& role)
+    void DisableAct_(RoleBase& role, const bool delay_to_refresh = false)
     {
-        role.DisableAct();
+        if (delay_to_refresh) {
+            // Some logic may depend on the value of |role.can_act_| so we cannot modify it immediately.
+            // For example, the ghost will be disabled acting when being exorcismed. If we modify the
+            // |role.can_act_| immediately, the action will not be emplaced into |role.history_status_|.
+            role.DisableActWhenRefresh();
+        } else {
+            role.DisableAct();
+        }
         Tell(role.PlayerId()) << "您失去了行动能力";
         Eliminate(role.PlayerId());
     }
