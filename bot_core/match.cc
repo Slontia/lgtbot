@@ -105,7 +105,7 @@ ErrCode Match::CheckMultipleAllowed_(const UserID uid, MsgSenderBase& reply, con
     }
     const auto required_zero_sum_score = k_zero_sum_score_multi * multiple * 2;
     const auto required_top_score = k_top_score_multi * multiple * 2;
-    const auto profit = bot_.db_manager()->GetUserProfile(uid);
+    const auto profit = bot_.db_manager()->GetUserProfile(uid, "", ""); // get history total score
     if (multiple <= game_handle_.multiple_ || multiple == 1) {
         return EC_OK;
     } else if (required_zero_sum_score > profit.total_zero_sum_score_ || required_top_score > profit.total_top_score_) {

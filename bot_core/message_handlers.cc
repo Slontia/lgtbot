@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <ranges>
+#include <cmath>
 
 #include "bot_core/message_handlers.h"
 
@@ -356,13 +357,14 @@ static ErrCode about(BotCtx& bot, const UserID uid, const std::optional<GroupID>
 }
 
 static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                            MsgSenderBase& reply)
+                            MsgSenderBase& reply, const TimeRange time_range)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 查看失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
-    const auto profile = bot.db_manager()->GetUserProfile(uid);  // TODO: pass sender
+    const auto profile = bot.db_manager()->GetUserProfile(uid,
+            k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()]);  // TODO: pass sender
 
     const auto colored_text = [](const auto score, std::string text)
         {
@@ -381,6 +383,9 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
 
     std::string html = std::string("## ") + GetUserAvatar(uid.GetCStr(), 40) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
         GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) + "\n";
+    html += "\n<h3 align=\"center\">" HTML_COLOR_FONT_HEADER(blue);
+    html += time_range.ToString();
+    html += HTML_FONT_TAIL "赛季</h3>\n";
     html += "\n- **游戏局数**：" + std::to_string(profile.match_count_);
     html += "\n- **零和总分**：" + colored_text(profile.total_zero_sum_score_, std::to_string(profile.total_zero_sum_score_));
     html += "\n- **头名总分**：" + colored_text(profile.total_top_score_, std::to_string(profile.total_top_score_));
@@ -389,7 +394,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
     html += "\n- **各游戏等级总分**：\n\n";
     static constexpr const size_t k_level_score_table_num = 2;
     html::Table level_score_table_outside(1, k_level_score_table_num);
-    level_score_table_outside.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" width=\"650\" ");
+    level_score_table_outside.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" width=\"800\" ");
     level_score_table_outside.SetRowStyle(" valign=\"top\" ");
     std::array<html::Table, k_level_score_table_num> level_score_table;
     const size_t game_level_info_num_each_table = (profile.game_level_infos_.size() + k_level_score_table_num - 1) / k_level_score_table_num;
@@ -402,11 +407,13 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
         table.AppendColumn();
         table.Get(0, 1).SetContent("**游戏名称**");
         table.AppendColumn();
-        table.Get(0, 2).SetContent("**参与次数**");
+        table.Get(0, 2).SetContent("**局数**");
         table.AppendColumn();
         table.Get(0, 3).SetContent("**等级总分**");
         table.AppendColumn();
-        table.Get(0, 4).SetContent("**评级**");
+        table.Get(0, 4).SetContent("**加权等级总分**");
+        table.AppendColumn();
+        table.Get(0, 5).SetContent("**评级**");
     }
     for (size_t i = 0; i < profile.game_level_infos_.size(); ++i) {
         const auto& info = profile.game_level_infos_[i];
@@ -417,7 +424,8 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
         table.GetLastRow(1).SetContent(colored_text(total_level_score_ / 100, info.game_name_));
         table.GetLastRow(2).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.count_)));
         table.GetLastRow(3).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.total_level_score_)));
-        table.GetLastRow(4).SetContent(colored_text(total_level_score_ / 100,
+        table.GetLastRow(4).SetContent(colored_text(total_level_score_ / 100, std::to_string(std::sqrt(info.count_) * info.total_level_score_)));
+        table.GetLastRow(5).SetContent(colored_text(total_level_score_ / 100,
                     total_level_score_ <= -300 ? "E" :
                     total_level_score_ <= -100 ? "D" :
                     total_level_score_ < 100   ? "C" :
@@ -434,7 +442,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
     recent_matches_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" ");
     recent_matches_table.Get(0, 0).SetContent("**序号**");
     recent_matches_table.Get(0, 1).SetContent("**游戏名称**");
-    recent_matches_table.Get(0, 2).SetContent("**时间**");
+    recent_matches_table.Get(0, 2).SetContent("**结束时间**");
     recent_matches_table.Get(0, 3).SetContent("**人数**");
     recent_matches_table.Get(0, 4).SetContent("**倍率**");
     recent_matches_table.Get(0, 5).SetContent("**游戏得分**");
@@ -458,7 +466,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
 
     html += "\n\n" + recent_matches_table.ToString();
 
-    reply() << Markdown(html, 700);
+    reply() << Markdown(html, 850);
 
     return EC_OK;
 }
@@ -499,8 +507,8 @@ static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<Grou
     }
     const auto info = bot.db_manager()->GetRank(
             k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()]);
-    reply() << "## 零和得分排行：\n" << print_score(info.zero_sum_score_rank_, gid);
-    reply() << "## 头名得分排行：\n" << print_score(info.top_score_rank_, gid);
+    reply() << "## 零和得分排行（" << time_range << "赛季）：\n" << print_score(info.zero_sum_score_rank_, gid);
+    reply() << "## 头名得分排行（" << time_range << "赛季）：\n" << print_score(info.top_score_rank_, gid);
     return EC_OK;
 }
 
@@ -518,7 +526,7 @@ static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional
     const auto info = bot.db_manager()->GetLevelScoreRank(
             k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()], game_name);
     reply() << "## 等级得分排行：\n" << print_score(info.level_score_rank_, gid);
-    reply() << "## 加权等级得分排行：(参与次数的开方 × 等级得分)\n" << print_score(info.weight_level_score_rank_, gid);
+    reply() << "## 加权等级得分排行：（参与次数的开方 × 等级得分）\n" << print_score(info.weight_level_score_rank_, gid);
     return EC_OK;
 }
 
@@ -538,7 +546,8 @@ const std::vector<MetaCommandGroup> meta_cmds = {
     },
     {
         "战绩情况", { // SCORE INFO: can be executed at any time
-            make_command("查看个人战绩", show_profile, VoidChecker("#战绩")),
+            make_command("查看个人战绩", show_profile, VoidChecker("#战绩"),
+                    OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::总)),
             make_command("清除个人战绩", clear_profile, VoidChecker("#人生重来算了")),
             make_command("查看排行榜", show_rank, VoidChecker("#排行"),
                     OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年)),
@@ -603,9 +612,9 @@ static ErrCode set_game_default_multiple(BotCtx& bot, const UserID uid, const st
 }
 
 static ErrCode show_others_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const std::string& others_uid)
+        MsgSenderBase& reply, const std::string& others_uid, const TimeRange time_range)
 {
-    return show_profile(bot, others_uid, gid, reply);
+    return show_profile(bot, others_uid, gid, reply, time_range);
 }
 
 static ErrCode clear_others_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
@@ -669,7 +678,8 @@ const std::vector<MetaCommandGroup> admin_cmds = {
                         OptionalChecker<BasicChecker<MatchID>>("私密比赛编号")),
             make_command("设置游戏默认属性", set_game_default_multiple, VoidChecker("%默认倍率"),
                         AnyArg("游戏名称", "猜拳游戏"), ArithChecker<uint32_t>(0, 3, "倍率")),
-            make_command("查看他人战绩", show_others_profile, VoidChecker("%战绩"), AnyArg("用户 ID", "123456789")),
+            make_command("查看他人战绩", show_others_profile, VoidChecker("%战绩"), AnyArg("用户 ID", "123456789"),
+                        OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::总)),
             make_command("清除他人战绩，并通知其具体理由", clear_others_profile, VoidChecker("%清除战绩"),
                         AnyArg("用户 ID", "123456789"), AnyArg("理由", "恶意刷分")),
             make_command("查看所有支持的配置项", read_all_options, VoidChecker("%配置列表"),

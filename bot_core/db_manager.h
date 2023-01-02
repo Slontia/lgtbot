@@ -111,11 +111,12 @@ class DBManagerBase
     virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
             const UserID host_uid, const uint64_t multiple,
             const std::vector<std::pair<UserID, int64_t>>& game_score_infos) = 0;
-    virtual UserProfile GetUserProfile(const UserID uid) = 0;
+    virtual UserProfile GetUserProfile(const UserID uid, const std::string_view& time_range_begin,
+            const std::string_view& time_range_end) = 0;
     virtual bool Suicide(const UserID uid, const uint32_t required_match_num) = 0;
     virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) = 0;
-    virtual GameRankInfo GetLevelScoreRank(const std::string_view& time_range_begin,
-            const std::string_view& time_range_end, const std::string& game_name) = 0;
+    virtual GameRankInfo GetLevelScoreRank(const std::string& game_name, const std::string_view& time_range_begin,
+            const std::string_view& time_range_end) = 0;
 };
 
 #ifdef WITH_SQLITE
@@ -128,11 +129,12 @@ class SQLiteDBManager : public DBManagerBase
     virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
             const UserID host_uid, const uint64_t multiple,
             const std::vector<std::pair<UserID, int64_t>>& game_score_infos) override;
-    virtual UserProfile GetUserProfile(const UserID uid) override;
+    virtual UserProfile GetUserProfile(const UserID uid, const std::string_view& time_range_begin,
+            const std::string_view& time_range_end) override;
     virtual bool Suicide(const UserID uid, const uint32_t required_match_num) override;
     virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) override;
-    virtual GameRankInfo GetLevelScoreRank(const std::string_view& time_range_begin,
-            const std::string_view& time_range_end, const std::string& game_name) override;
+    virtual GameRankInfo GetLevelScoreRank(const std::string& game_name, const std::string_view& time_range_begin,
+            const std::string_view& time_range_end) override;
 
   private:
     SQLiteDBManager(const DBName& db_name);

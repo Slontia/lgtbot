@@ -51,12 +51,17 @@ class MockDBManager : public DBManagerBase
         }
         auto score_infos = CalScores(user_infos, multiple);
         for (const auto& info : score_infos) {
-            match_profiles_.emplace_back(game_name, "sometime", score_infos.size(), multiple, info.game_score_, info.zero_sum_score_, info.top_score_);
+            match_profiles_.emplace_back(game_name, "sometime", score_infos.size(), multiple, info.game_score_,
+                    info.zero_sum_score_, info.top_score_);
         }
         return score_infos;
     }
 
-    virtual UserProfile GetUserProfile(const UserID uid) override { return user_profiles_[uid]; }
+    virtual UserProfile GetUserProfile(const UserID uid, const std::string_view& time_range_begin,
+            const std::string_view& time_range_end) override
+    {
+        return user_profiles_[uid];
+    }
 
     virtual bool Suicide(const UserID uid, const uint32_t required_match_num) override { return true; }
 
@@ -65,8 +70,8 @@ class MockDBManager : public DBManagerBase
         return {};
     }
 
-    virtual GameRankInfo GetLevelScoreRank(const std::string_view& time_range_begin, const std::string_view& time_range_end,
-            const std::string& game_name) override
+    virtual GameRankInfo GetLevelScoreRank(const std::string& game_name, const std::string_view& time_range_begin,
+            const std::string_view& time_range_end) override
     {
         return {};
     }

@@ -40,7 +40,7 @@ class TestDB : public testing::Test
 
 #define ASSERT_USER_PROFILE(uid, zero_sum, top, match_count, recent_count) \
 [&]() -> UserProfile { \
-    const auto user_profile = db_manager_->GetUserProfile(uid); \
+    const auto user_profile = db_manager_->GetUserProfile(uid, "", ""); \
     EXPECT_EQ((uid).GetStr(), user_profile.uid_.GetStr()); \
     EXPECT_EQ((zero_sum), user_profile.total_zero_sum_score_); \
     EXPECT_EQ((top), user_profile.total_top_score_); \
