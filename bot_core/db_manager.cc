@@ -47,15 +47,6 @@ static bool ExecuteTransaction(const DBName& db_name, const Fn& fn)
     return false;
 }
 
-
-#define FAIL_THROW(sql_func, ...)                                                    \
-    do {                                                                             \
-        SQLRETURN ret = sql_func(##__VA_ARGS__);                                     \
-        if (!SQL_SUCCEEDED(ret)) {                                                   \
-            throw(std::stringstream() << #sql_func << " failed ret: " << ret).str(); \
-        }                                                                            \
-    } while (0)
-
 uint64_t InsertMatch(sqlite::database& db, const std::string& game_name, const std::optional<GroupID> gid, const UserID host_uid,
         const uint64_t user_count, const uint64_t multiple)
 {
@@ -176,18 +167,43 @@ void ForeachRecentMatchOfUser(sqlite::database& db, const UserID& uid, const uin
         >> fn;
 }
 
+static std::string ComparationCondition(const std::string_view& column_name, const std::string_view& op,
+        const std::string_view& value)
+{
+    if (value.empty()) {
+        return "TRUE";
+    }
+    return std::string() + column_name.data() + " " + op.data() + " " + value.data();
+}
+
+static std::string TimeRangeLeftCondition(const std::string_view& column_name, const std::string_view& time_range_begin)
+{
+    return ComparationCondition(column_name, ">=", time_range_begin);
+}
+
+static std::string TimeRangeRightCondition(const std::string_view& column_name, const std::string_view& time_range_end)
+{
+    return ComparationCondition(column_name, "<", time_range_end);
+}
+
 template <typename Fn>
-void ForeachUserInRank(sqlite::database& db, const std::string& score_name, const Fn& fn)
+void ForeachUserInRank(sqlite::database& db, const std::string_view& time_range_begin,
+        const std::string_view& time_range_end, const std::string& score_name, const Fn& fn)
 {
     db << "SELECT user.user_id, SUM(user_with_match." + score_name + ") AS sum_score "
-            "FROM user_with_match, user "
-            "WHERE user_with_match.user_id = user.user_id AND user_with_match.birth_count = user.birth_count "
+            "FROM user_with_match, user, match "
+            "WHERE user_with_match.user_id = user.user_id AND "
+                "user_with_match.birth_count = user.birth_count AND "
+                "match.match_id = user_with_match.match_id AND "
+                + TimeRangeLeftCondition("match.finish_time", time_range_begin) + " AND "
+                + TimeRangeRightCondition("match.finish_time", time_range_end) + " "
             "GROUP BY user.user_id ORDER BY sum_score DESC LIMIT 10;"
        >> fn;
 }
 
 template <typename Fn>
-void ForeachUserInGameLevelScoreRank(sqlite::database& db, const std::string& game_name, const Fn& fn)
+void ForeachUserInGameLevelScoreRank(sqlite::database& db, const std::string_view& time_range_begin,
+        const std::string_view& time_range_end, const std::string_view& game_name, const Fn& fn)
 {
     db << "SELECT user_id, total_level_score FROM ("
                 "SELECT user.user_id AS user_id, "
@@ -197,30 +213,53 @@ void ForeachUserInGameLevelScoreRank(sqlite::database& db, const std::string& ga
                 "WHERE user_with_match.user_id = user.user_id AND "
                     "user_with_match.match_id = match.match_id AND "
                     "user_with_match.birth_count = user.birth_count AND "
-                    "match.game_name = ? "
+                    "match.game_name = ? AND "
+                    + TimeRangeRightCondition("match.finish_time", time_range_end) + " "
                 "GROUP BY user.user_id ORDER BY total_level_score DESC) "
             "LIMIT 10"
-    << game_name
+    << game_name.data()
     >> fn;
 }
 
 template <typename Fn>
-void ForeachUserInGameWeightLevelScoreRank(sqlite::database& db, const std::string& game_name, const Fn& fn)
+void ForeachUserInGameWeightLevelScoreRank(sqlite::database& db, const std::string_view& time_range_begin,
+        const std::string_view& time_range_end, const std::string_view& game_name, const Fn& fn)
 {
-    db << "SELECT user_id, weight_level_score FROM ("
+    db << "WITH game_user_match AS ( "
                 "SELECT user.user_id AS user_id, "
-                    "SUM(user_with_match.level_score) AS total_level_score, "
-                    "COUNT(*) AS match_count, "
-                    "SUM(user_with_match.level_score) * ABS(SUM(user_with_match.level_score)) * COUNT(*) AS weight_level_score "
+                    "user_with_match.level_score AS level_score, "
+                    "match.finish_time AS finish_time "
                 "FROM user_with_match, user, match "
                 "WHERE user_with_match.user_id = user.user_id AND "
                     "user_with_match.match_id = match.match_id AND "
                     "user_with_match.birth_count = user.birth_count AND "
                     "match.game_name = ? "
-                "GROUP BY user.user_id ORDER BY weight_level_score DESC) "
+            ") "
+            "SELECT user_id, weight_level_score "
+            "FROM "
+                "( "
+                    "SELECT user_history_total_level_score.user_id AS user_id, "
+                        "history_total_level_score * ABS(history_total_level_score) * time_range_match_count AS weight_level_score "
+                    "FROM "
+                        "( "
+                            "SELECT game_user_match.user_id, SUM(game_user_match.level_score) AS history_total_level_score "
+                            "FROM game_user_match "
+                            "WHERE " + TimeRangeRightCondition("game_user_match.finish_time", time_range_end) + " "
+                            "GROUP BY game_user_match.user_id "
+                        ") AS user_history_total_level_score, "
+                        "( "
+                            "SELECT game_user_match.user_id, COUNT(*) AS time_range_match_count "
+                            "FROM game_user_match "
+                            "WHERE " + TimeRangeLeftCondition("game_user_match.finish_time", time_range_begin) + " AND "
+                                + TimeRangeRightCondition("game_user_match.finish_time", time_range_end) + " "
+                            "GROUP BY game_user_match.user_id "
+                        ") AS user_time_range_match_count "
+                    "WHERE user_history_total_level_score.user_id = user_time_range_match_count.user_id "
+                    "ORDER BY weight_level_score DESC "
+                ") "
             "LIMIT 10"
-    << game_name
-    >> fn;
+       << game_name.data()
+       >> fn;
 }
 
 SQLiteDBManager::SQLiteDBManager(const DBName& db_name) : db_name_(db_name)
@@ -327,16 +366,18 @@ bool SQLiteDBManager::Suicide(const UserID uid, const uint32_t required_match_nu
         });
 }
 
-RankInfo SQLiteDBManager::GetRank()
+RankInfo SQLiteDBManager::GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end)
 {
     RankInfo info;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            ForeachUserInRank(db, "zero_sum_score", [&](std::string uid, const int64_t score_sum)
+            ForeachUserInRank(db, time_range_begin, time_range_end, "zero_sum_score",
+                    [&](std::string uid, const int64_t score_sum)
                     {
                         info.zero_sum_score_rank_.emplace_back(std::move(uid), score_sum);
                     });
-            ForeachUserInRank(db, "top_score", [&](std::string uid, const int64_t score_sum)
+            ForeachUserInRank(db, time_range_begin, time_range_end, "top_score",
+                    [&](std::string uid, const int64_t score_sum)
                     {
                         info.top_score_rank_.emplace_back(std::move(uid), score_sum);
                     });
@@ -345,16 +386,19 @@ RankInfo SQLiteDBManager::GetRank()
     return info;
 }
 
-GameRankInfo SQLiteDBManager::GetLevelScoreRank(const std::string& game_name)
+GameRankInfo SQLiteDBManager::GetLevelScoreRank(const std::string_view& time_range_begin, const std::string_view& time_range_end,
+        const std::string& game_name)
 {
     GameRankInfo info;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            ForeachUserInGameLevelScoreRank(db, game_name, [&](std::string uid, const double total_level_score)
+            ForeachUserInGameLevelScoreRank(db, time_range_begin, time_range_end, game_name,
+                    [&](std::string uid, const double total_level_score)
                     {
                         info.level_score_rank_.emplace_back(std::move(uid), total_level_score);
                     });
-            ForeachUserInGameWeightLevelScoreRank(db, game_name, [&](std::string uid, double weight_level_score)
+            ForeachUserInGameWeightLevelScoreRank(db, time_range_begin, time_range_end, game_name,
+                    [&](std::string uid, double weight_level_score)
                     {
                         weight_level_score =
                             (1 - 2 * std::signbit(weight_level_score)) * std::sqrt(std::abs(weight_level_score));

@@ -490,20 +490,22 @@ static std::string print_score(const V& vec, const std::optional<GroupID> gid)
     return s;
 };
 
-static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
+static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+        const TimeRange time_range)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 查看失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
-    const auto info = bot.db_manager()->GetRank();
+    const auto info = bot.db_manager()->GetRank(
+            k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()]);
     reply() << "## 零和得分排行：\n" << print_score(info.zero_sum_score_rank_, gid);
     reply() << "## 头名得分排行：\n" << print_score(info.top_score_rank_, gid);
     return EC_OK;
 }
 
 static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
-        const std::string& game_name)
+        const std::string& game_name, const TimeRange time_range)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 查看失败：未连接数据库";
@@ -513,7 +515,8 @@ static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional
         reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
-    const auto info = bot.db_manager()->GetLevelScoreRank(game_name);
+    const auto info = bot.db_manager()->GetLevelScoreRank(
+            k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()], game_name);
     reply() << "## 等级得分排行：\n" << print_score(info.level_score_rank_, gid);
     reply() << "## 加权等级得分排行：(参与次数的开方 × 等级得分)\n" << print_score(info.weight_level_score_rank_, gid);
     return EC_OK;
@@ -537,9 +540,10 @@ const std::vector<MetaCommandGroup> meta_cmds = {
         "战绩情况", { // SCORE INFO: can be executed at any time
             make_command("查看个人战绩", show_profile, VoidChecker("#战绩")),
             make_command("清除个人战绩", clear_profile, VoidChecker("#人生重来算了")),
-            make_command("查看排行榜", show_rank, VoidChecker("#排行")),
+            make_command("查看排行榜", show_rank, VoidChecker("#排行"),
+                    OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年)),
             make_command("查看单个游戏等级积分排行榜", show_game_rank, VoidChecker("#排行"),
-                    AnyArg("游戏名称", "猜拳游戏")),
+                    AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年)),
         }
     },
     {

@@ -2,7 +2,22 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
-#pragma once
+#ifdef ENUM_BEGIN
+#ifdef ENUM_MEMBER
+#ifdef ENUM_END
+
+ENUM_BEGIN(TimeRange)
+ENUM_MEMBER(TimeRange, 月)
+ENUM_MEMBER(TimeRange, 年)
+ENUM_MEMBER(TimeRange, 总)
+ENUM_END(TimeRange)
+
+#endif
+#endif
+#endif
+
+#ifndef DB_MANAGER_H
+#define DB_MANAGER_H
 
 #include <sstream>
 #include <type_traits>
@@ -20,6 +35,21 @@ using DBName = std::u16string;
 #else
 using DBName = std::string;
 #endif
+
+#define ENUM_FILE "../bot_core/db_manager.h"
+#include "../utility/extend_enum.h"
+
+inline const char* const k_time_range_begin_datetimes[] = {
+    [TimeRange(TimeRange::月).ToUInt()] = "datetime('now','start of month')",
+    [TimeRange(TimeRange::年).ToUInt()] = "datetime('now','start of year')",
+    [TimeRange(TimeRange::总).ToUInt()] = "",
+};
+
+inline const char* const k_time_range_end_datetimes[] = {
+    [TimeRange(TimeRange::月).ToUInt()] = "datetime('now','start of month', '+1 month')",
+    [TimeRange(TimeRange::年).ToUInt()] = "datetime('now','start of year', '+1 year')",
+    [TimeRange(TimeRange::总).ToUInt()] = "",
+};
 
 struct MatchProfile
 {
@@ -83,19 +113,12 @@ class DBManagerBase
             const std::vector<std::pair<UserID, int64_t>>& game_score_infos) = 0;
     virtual UserProfile GetUserProfile(const UserID uid) = 0;
     virtual bool Suicide(const UserID uid, const uint32_t required_match_num) = 0;
-    virtual RankInfo GetRank() = 0;
-    virtual GameRankInfo GetLevelScoreRank(const std::string& game_name) = 0;
+    virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) = 0;
+    virtual GameRankInfo GetLevelScoreRank(const std::string_view& time_range_begin,
+            const std::string_view& time_range_end, const std::string& game_name) = 0;
 };
 
 #ifdef WITH_SQLITE
-
-#define FAIL_THROW(sql_func, ...)                                                    \
-    do {                                                                             \
-        SQLRETURN ret = sql_func(##__VA_ARGS__);                                     \
-        if (!SQL_SUCCEEDED(ret)) {                                                   \
-            throw(std::stringstream() << #sql_func << " failed ret: " << ret).str(); \
-        }                                                                            \
-    } while (0)
 
 class SQLiteDBManager : public DBManagerBase
 {
@@ -107,8 +130,9 @@ class SQLiteDBManager : public DBManagerBase
             const std::vector<std::pair<UserID, int64_t>>& game_score_infos) override;
     virtual UserProfile GetUserProfile(const UserID uid) override;
     virtual bool Suicide(const UserID uid, const uint32_t required_match_num) override;
-    virtual RankInfo GetRank() override;
-    virtual GameRankInfo GetLevelScoreRank(const std::string& game_name) override;
+    virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) override;
+    virtual GameRankInfo GetLevelScoreRank(const std::string_view& time_range_begin,
+            const std::string_view& time_range_end, const std::string& game_name) override;
 
   private:
     SQLiteDBManager(const DBName& db_name);
@@ -116,4 +140,6 @@ class SQLiteDBManager : public DBManagerBase
     DBName db_name_;
 };
 
-#endif
+#endif // WITH_SQLITE
+
+#endif // DB_MANAGER_H
