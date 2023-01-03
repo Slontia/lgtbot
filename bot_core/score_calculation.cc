@@ -85,7 +85,8 @@ static void CalLevelScore(std::vector<UserInfoForCalScore>& user_infos)
     const auto rank_scores = CalLevelScoreRank(user_infos);
     for (auto& info : user_infos) {
         const double multiple = info.match_count_ > 400 ? 20 : 100 - 0.2 * static_cast<double>(info.match_count_);
-        const double actual_rank_score = double(rank_scores.find(info.game_score_)->second) / user_infos.size() - 1;
+        info.rank_score_ = rank_scores.find(info.game_score_)->second;
+        const double actual_rank_score = double(info.rank_score_) / user_infos.size() - 1;
         const double expected_rank_score = double(1) / (double(1) + std::pow(k_decay_rate_para, (avg_level_score_sum - info.level_score_sum_) / 200)) - 0.5;
         info.level_score_ = multiple * (actual_rank_score - expected_rank_score);
     }
@@ -101,6 +102,7 @@ static std::vector<ScoreInfo> MakeScoreInfo(const std::vector<UserInfoForCalScor
         ret.back().zero_sum_score_ = info.zero_sum_score_ * multiple;
         ret.back().top_score_ = info.top_score_ * multiple;
         ret.back().level_score_ = info.level_score_;
+        ret.back().rank_score_ = info.rank_score_;
     }
     return ret;
 }

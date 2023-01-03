@@ -23,6 +23,7 @@ struct UserInfoForCalScore
         , zero_sum_score_(0)
         , top_score_(0)
         , level_score_(0)
+        , rank_score_(0)
     {}
     UserID uid_;
     int64_t game_score_;
@@ -31,6 +32,7 @@ struct UserInfoForCalScore
     int64_t zero_sum_score_; // to fill
     int64_t top_score_; // to fill
     double level_score_; // to fill
+    int64_t rank_score_; // to fill
 };
 
 std::vector<ScoreInfo> CalScores(std::vector<UserInfoForCalScore>& scores, const uint16_t multiple = 1);

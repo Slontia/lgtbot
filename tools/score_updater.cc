@@ -73,10 +73,15 @@ std::vector<UserInfoForCalScore> LoadMatch(sqlite::database& db, const uint64_t 
 void UpdateMatchScore(sqlite::database& db, const uint64_t match_id, const std::vector<ScoreInfo>& score_infos)
 {
     for (const auto& info : score_infos) {
-        db << "UPDATE user_with_match SET zero_sum_score = ?, top_score = ?, level_score = ? "
+        db << "UPDATE user_with_match SET zero_sum_score = ?, top_score = ?, level_score = ?, rank_score = ? "
               "WHERE match_id = ? AND user_id = ?;"
-           << info.zero_sum_score_ << info.top_score_ << info.level_score_ << match_id << info.uid_;
-        std::cout << "update: " << info.zero_sum_score_ << " " << info.top_score_ << " " << info.level_score_ << " " << match_id << " " << info.uid_ << std::endl;
+           << info.zero_sum_score_ << info.top_score_ << info.level_score_ << info.rank_score_ << match_id << info.uid_;
+        std::cout << "uid=" << info.uid_
+            << "\tmid=" << match_id
+            << "\tzero_sum_score=" << info.zero_sum_score_
+            << "\ttop_score=" << info.top_score_
+            << "\tlevel_score=" << info.level_score_
+            << "\trank_score=" << info.rank_score_ << std::endl;
     }
 }
 

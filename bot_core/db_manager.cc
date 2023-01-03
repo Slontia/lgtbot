@@ -66,16 +66,17 @@ void InsertUserIfNotExist(sqlite::database& db, const UserID& uid)
 }
 
 void InsertUserWithMatch(sqlite::database& db, const uint64_t match_id, const UserID& uid, const uint32_t birth_count,
-        const int64_t game_score, const int64_t zero_sum_score, const int64_t top_score, const double level_score)
+        const int64_t game_score, const int64_t zero_sum_score, const int64_t top_score, const double level_score, const int64_t rank_score)
 {
-    db << "INSERT INTO user_with_match (match_id, user_id, birth_count, game_score, zero_sum_score, top_score, level_score) VALUES (?,?,?,?,?,?,?);"
+    db << "INSERT INTO user_with_match (match_id, user_id, birth_count, game_score, zero_sum_score, top_score, level_score, rank_score) VALUES (?,?,?,?,?,?,?,?);"
        << match_id
        << uid.GetStr()
        << birth_count
        << game_score
        << zero_sum_score
        << top_score
-       << level_score;
+       << level_score
+       << rank_score;
 }
 
 void UpdateBirthOfUser(sqlite::database& db, const UserID& uid)
@@ -198,7 +199,7 @@ template <typename Fn>
 void ForeachRecentMatchOfUser(sqlite::database& db, const UserID& uid, const uint32_t limit, const Fn& fn)
 {
     db << "SELECT match.game_name, match.finish_time, match.user_count, match.multiple, user_with_match.game_score, "
-                "user_with_match.zero_sum_score, user_with_match.top_score, user_with_match.level_score "
+                "user_with_match.zero_sum_score, user_with_match.top_score, user_with_match.level_score, user_with_match.rank_score "
             "FROM user_with_match, match, user "
             "WHERE user_with_match.user_id = ? AND "
                 "user_with_match.user_id = user.user_id AND "
@@ -245,8 +246,8 @@ void ForeachUserInGameLevelScoreRank(sqlite::database& db, const std::string_vie
 }
 
 template <typename Fn>
-void ForeachUserInGameWeightLevelScoreRank(sqlite::database& db, const std::string_view& time_range_begin,
-        const std::string_view& time_range_end, const std::string_view& game_name, const Fn& fn)
+void ForeachUserInGameWeightLevelScoreRank(sqlite::database& db, const std::string_view& game_name,
+        const std::string_view& time_range_begin, const std::string_view& time_range_end, const Fn& fn)
 {
     db << "WITH game_user_match AS ( "
                 "SELECT user.user_id AS user_id, "
@@ -299,7 +300,7 @@ void RecordMatch(sqlite::database& db, const std::string& game_name, const std::
         InsertUserIfNotExist(db, score_info.uid_);
         const auto birth_count = GetBirthCountOfUser(db, score_info.uid_);
         InsertUserWithMatch(db, match_id, score_info.uid_, birth_count, score_info.game_score_,
-                score_info.zero_sum_score_, score_info.top_score_, score_info.level_score_);
+                score_info.zero_sum_score_, score_info.top_score_, score_info.level_score_, score_info.rank_score_);
     }
 }
 
@@ -351,17 +352,19 @@ UserProfile SQLiteDBManager::GetUserProfile(const UserID uid, const std::string_
             ForeachRecentMatchOfUser(db, uid, 10,
                   [&](const std::string& game_name, const std::string& finish_time, const uint64_t user_count,
                               const uint32_t multiple, const int64_t game_score, const int64_t zero_sum_score,
-                              const int64_t top_score, const double level_score)
+                              const int64_t top_score, const double level_score, const int64_t rank_score)
                       {
                           profile.recent_matches_.emplace_back();
-                          profile.recent_matches_.back().game_name_ = game_name;
-                          profile.recent_matches_.back().finish_time_ = finish_time;
-                          profile.recent_matches_.back().user_count_ = user_count;
-                          profile.recent_matches_.back().multiple_ = multiple;
-                          profile.recent_matches_.back().game_score_ = game_score;
-                          profile.recent_matches_.back().zero_sum_score_ = zero_sum_score;
-                          profile.recent_matches_.back().top_score_ = top_score;
-                          profile.recent_matches_.back().level_score_ = level_score;
+                          auto& match_info = profile.recent_matches_.back();
+                          match_info.game_name_ = game_name;
+                          match_info.finish_time_ = finish_time;
+                          match_info.user_count_ = user_count;
+                          match_info.multiple_ = multiple;
+                          match_info.game_score_ = game_score;
+                          match_info.zero_sum_score_ = zero_sum_score;
+                          match_info.top_score_ = top_score;
+                          match_info.level_score_ = level_score;
+                          match_info.rank_score_ = rank_score;
                       });
             return true;
         });
@@ -378,7 +381,7 @@ bool SQLiteDBManager::Suicide(const UserID uid, const uint32_t required_match_nu
             ForeachRecentMatchOfUser(db, uid, required_match_num,
                   [&](const std::string& game_name, const std::string& finish_time, const uint64_t user_count,
                               const uint32_t multiple, const int64_t game_score, const int64_t zero_sum_score,
-                              const int64_t top_score, const double level_score)
+                              const int64_t top_score, const double level_score, const int64_t rank_score)
                       {
                           posi_score_count += zero_sum_score > 0;
                       });
@@ -459,6 +462,7 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::pat
                 "zero_sum_score BIGINT NOT NULL, "
                 "top_score BIGINT NOT NULL, "
                 "level_score DOUBLE NOT NULL, "
+                "rank_score BIGINT NOT NULL, "
                 "PRIMARY KEY (user_id, match_id));";
         db << "CREATE INDEX IF NOT EXISTS user_id_index ON user_with_match(user_id);";
         db << "CREATE TABLE IF NOT EXISTS user("

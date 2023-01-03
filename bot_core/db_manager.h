@@ -61,6 +61,7 @@ struct MatchProfile
     int64_t zero_sum_score_ = 0;
     int64_t top_score_ = 0;
     double level_score_ = 0;
+    int64_t rank_score_ = 0;
 };
 
 struct GameLevelInfo
@@ -88,6 +89,7 @@ struct ScoreInfo
     int64_t zero_sum_score_ = 0;
     int64_t top_score_ = 0;
     double level_score_ = 0;
+    int64_t rank_score_ = 0;
 };
 
 struct RankInfo

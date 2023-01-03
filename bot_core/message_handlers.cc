@@ -439,11 +439,11 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
 
     html += "\n- **近十场游戏记录**：\n\n";
     html::Table recent_matches_table(1, 9);
-    recent_matches_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" ");
+    recent_matches_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" width=\"800\" ");
     recent_matches_table.Get(0, 0).SetContent("**序号**");
     recent_matches_table.Get(0, 1).SetContent("**游戏名称**");
     recent_matches_table.Get(0, 2).SetContent("**结束时间**");
-    recent_matches_table.Get(0, 3).SetContent("**人数**");
+    recent_matches_table.Get(0, 3).SetContent("**等价排名**");
     recent_matches_table.Get(0, 4).SetContent("**倍率**");
     recent_matches_table.Get(0, 5).SetContent("**游戏得分**");
     recent_matches_table.Get(0, 6).SetContent("**零和得分**");
@@ -456,8 +456,14 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
         recent_matches_table.Get(i + 1, 0).SetContent(colored_text(match_profile.top_score_, std::to_string(i + 1)));
         recent_matches_table.Get(i + 1, 1).SetContent(colored_text(match_profile.top_score_, match_profile.game_name_));
         recent_matches_table.Get(i + 1, 2).SetContent(colored_text(match_profile.top_score_, match_profile.finish_time_));
-        recent_matches_table.Get(i + 1, 3).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.user_count_)));
-        recent_matches_table.Get(i + 1, 4).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.multiple_)));
+        recent_matches_table.Get(i + 1, 3).SetContent(colored_text(match_profile.top_score_, [&match_profile]()
+                    {
+                        std::stringstream ss;
+                        ss.precision(2);
+                        ss << (match_profile.user_count_ - float(match_profile.rank_score_) / 2 + 0.5) << " / " << match_profile.user_count_;
+                        return ss.str();
+                    }()));
+        recent_matches_table.Get(i + 1, 4).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.multiple_) + " 倍"));
         recent_matches_table.Get(i + 1, 5).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.game_score_)));
         recent_matches_table.Get(i + 1, 6).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.zero_sum_score_)));
         recent_matches_table.Get(i + 1, 7).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.top_score_)));
@@ -523,8 +529,8 @@ static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional
         reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
-    const auto info = bot.db_manager()->GetLevelScoreRank(
-            k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()], game_name);
+    const auto info = bot.db_manager()->GetLevelScoreRank(game_name, k_time_range_begin_datetimes[time_range.ToUInt()],
+            k_time_range_end_datetimes[time_range.ToUInt()]);
     reply() << "## 等级得分排行：\n" << print_score(info.level_score_rank_, gid);
     reply() << "## 加权等级得分排行：（参与次数的开方 × 等级得分）\n" << print_score(info.weight_level_score_rank_, gid);
     return EC_OK;
