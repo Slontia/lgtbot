@@ -195,7 +195,8 @@ class RoleBase
     // return true if dead in this round
     virtual bool Refresh()
     {
-        if (!can_act_) {
+        if (!can_act_ && hp_ <= 0) {
+            // both action and HP unchange os we need not push to |history_status_|
             return false;
         }
         if (disable_act_when_refresh_) {
@@ -958,7 +959,7 @@ class MainStage : public MainGameStage<>
                     continue;
                 }
                 const auto last_hp = r == 0 ? GET_OPTION_VALUE(option(), 血量) : role.GetHistoryStatus(r - 1)->hp_;
-                if (!with_action && last_hp < 0) { // hind the hp from dead role to protect Ghost's identity
+                if (!with_action && last_hp <= 0) { // hind the hp from dead role to protect Ghost's identity
                     continue;
                 }
                 const auto image = Image_(
