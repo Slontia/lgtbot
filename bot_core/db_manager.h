@@ -96,12 +96,14 @@ struct RankInfo
 {
     std::vector<std::pair<UserID, int64_t>> zero_sum_score_rank_;
     std::vector<std::pair<UserID, int64_t>> top_score_rank_;
+    std::vector<std::pair<UserID, int64_t>> match_count_rank_;
 };
 
 struct GameRankInfo
 {
     std::vector<std::pair<UserID, double>> level_score_rank_;
     std::vector<std::pair<UserID, double>> weight_level_score_rank_;
+    std::vector<std::pair<UserID, int64_t>> match_count_rank_;
 };
 
 static constexpr const auto k_level_score_initial_value = 1500;

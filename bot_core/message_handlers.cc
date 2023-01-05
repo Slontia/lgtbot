@@ -493,13 +493,13 @@ static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<
 }
 
 template <typename V>
-static std::string print_score(const V& vec, const std::optional<GroupID> gid)
+static std::string print_score(const V& vec, const std::optional<GroupID> gid, const std::string_view& unit = "分")
 {
     std::string s;
     for (uint64_t i = 0; i < vec.size(); ++i) {
         s += "\n" + std::to_string(i + 1) + "位：" +
                 GetUserName(vec[i].first.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) +
-                "【" + std::to_string(vec[i].second) + "分】";
+                "【" + std::to_string(vec[i].second) + " " + unit.data() + "】";
     }
     return s;
 };
@@ -515,6 +515,7 @@ static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<Grou
             k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()]);
     reply() << "## 零和得分排行（" << time_range << "赛季）：\n" << print_score(info.zero_sum_score_rank_, gid);
     reply() << "## 头名得分排行（" << time_range << "赛季）：\n" << print_score(info.top_score_rank_, gid);
+    reply() << "## 游戏局数排行（" << time_range << "赛季）：\n" << print_score(info.match_count_rank_, gid, "场");
     return EC_OK;
 }
 
@@ -531,8 +532,9 @@ static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional
     }
     const auto info = bot.db_manager()->GetLevelScoreRank(game_name, k_time_range_begin_datetimes[time_range.ToUInt()],
             k_time_range_end_datetimes[time_range.ToUInt()]);
-    reply() << "## 等级得分排行：\n" << print_score(info.level_score_rank_, gid);
-    reply() << "## 加权等级得分排行：（参与次数的开方 × 等级得分）\n" << print_score(info.weight_level_score_rank_, gid);
+    reply() << "## 等级得分排行（" << time_range << "赛季）：\n" << print_score(info.level_score_rank_, gid);
+    reply() << "## 加权等级得分排行（" << time_range << "赛季）：\n" << print_score(info.weight_level_score_rank_, gid);
+    reply() << "## 游戏局数排行（" << time_range << "赛季）：\n" << print_score(info.match_count_rank_, gid, "场");
     return EC_OK;
 }
 
