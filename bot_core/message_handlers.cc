@@ -504,7 +504,55 @@ static std::string print_score(const V& vec, const std::optional<GroupID> gid, c
     return s;
 };
 
-static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+template <typename V>
+static std::string print_score_in_table(const std::string_view& score_name, const V& vec,
+        const std::optional<GroupID> gid, const std::string_view& unit = "分")
+{
+    html::Table table(2 + vec.size(), 3);
+    table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" width=\"400\"");
+    table.MergeRight(0, 0, 3);
+    table.Get(0, 0).SetContent(std::string("**" HTML_COLOR_FONT_HEADER(blue)) + score_name.data() +
+            HTML_FONT_TAIL "排行**");
+    table.Get(1, 0).SetContent("**排名**");
+    table.Get(1, 1).SetContent("**用户**");
+    table.Get(1, 2).SetContent(std::string("**") + score_name.data() + "**");
+    for (uint64_t i = 0; i < vec.size(); ++i) {
+        const auto uid_cstr = vec[i].first.GetCStr();
+        table.Get(2 + i, 0).SetContent(std::to_string(i + 1) + " 位");
+        table.Get(2 + i, 1).SetContent(
+                "<p align=\"left\">" HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE + GetUserAvatar(uid_cstr, 30) +
+                HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE + GetUserName(uid_cstr, gid.has_value() ? gid->GetCStr() : nullptr) +
+                "</p>");
+        table.Get(2 + i, 2).SetContent(std::to_string(vec[i].second) + " " + unit.data());
+    }
+    return table.ToString();
+};
+
+static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
+{
+    if (!bot.db_manager()) {
+        reply() << "[错误] 查看失败：未连接数据库";
+        return EC_DB_NOT_CONNECTED;
+    }
+    std::string s;
+    for (const auto time_range : TimeRange::Members()) {
+        const auto info = bot.db_manager()->GetRank(
+                k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()]);
+        s += "\n<h2 align=\"center\">" HTML_COLOR_FONT_HEADER(blue);
+        s += time_range.ToString();
+        s += HTML_FONT_TAIL "赛季排行</h2>\n";
+        html::Table table(1, 3);
+        table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" width=\"1250\" ");
+        table.Get(0, 0).SetContent(print_score_in_table("零和总分", info.zero_sum_score_rank_, gid));
+        table.Get(0, 1).SetContent(print_score_in_table("头名总分", info.top_score_rank_, gid));
+        table.Get(0, 2).SetContent(print_score_in_table("游戏局数", info.match_count_rank_, gid, "场"));
+        s += "\n\n" + table.ToString() + "\n\n";
+    }
+    reply() << Markdown(s, 1300);
+    return EC_OK;
+}
+
+static ErrCode show_rank_time_range(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
         const TimeRange time_range)
 {
     if (!bot.db_manager()) {
@@ -520,6 +568,38 @@ static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<Grou
 }
 
 static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+        const std::string& game_name)
+{
+    if (!bot.db_manager()) {
+        reply() << "[错误] 查看失败：未连接数据库";
+        return EC_DB_NOT_CONNECTED;
+    }
+    if (bot.game_handles().find(game_name) == bot.game_handles().end()) {
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        return EC_REQUEST_UNKNOWN_GAME;
+    }
+    std::string s;
+    for (const auto time_range : TimeRange::Members()) {
+        const auto info = bot.db_manager()->GetLevelScoreRank(game_name,
+                k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()]);
+        s += "\n<h2 align=\"center\">" HTML_COLOR_FONT_HEADER(blue);
+        s += time_range.ToString();
+        s += HTML_FONT_TAIL "赛季";
+        s += HTML_COLOR_FONT_HEADER(blue);
+        s += game_name;
+        s += HTML_FONT_TAIL "排行</h2>\n";
+        html::Table table(1, 3);
+        table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" width=\"1250\" ");
+        table.Get(0, 0).SetContent(print_score_in_table("等级总分", info.level_score_rank_, gid));
+        table.Get(0, 1).SetContent(print_score_in_table("加权等级总分", info.weight_level_score_rank_, gid));
+        table.Get(0, 2).SetContent(print_score_in_table("游戏局数", info.match_count_rank_, gid, "场"));
+        s += "\n\n" + table.ToString() + "\n\n";
+    }
+    reply() << Markdown(s, 1300);
+    return EC_OK;
+}
+
+static ErrCode show_game_rank_range_time(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
         const std::string& game_name, const TimeRange time_range)
 {
     if (!bot.db_manager()) {
@@ -557,9 +637,12 @@ const std::vector<MetaCommandGroup> meta_cmds = {
             make_command("查看个人战绩", show_profile, VoidChecker("#战绩"),
                     OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::总)),
             make_command("清除个人战绩", clear_profile, VoidChecker("#人生重来算了")),
-            make_command("查看排行榜", show_rank, VoidChecker("#排行"),
+            make_command("查看排行榜", show_rank, VoidChecker("#排行大图")),
+            make_command("查看某个赛季粒度排行榜", show_rank_time_range, VoidChecker("#排行"),
                     OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年)),
-            make_command("查看单个游戏等级积分排行榜", show_game_rank, VoidChecker("#排行"),
+            make_command("查看单个游戏等级积分排行榜", show_game_rank, VoidChecker("#排行大图"),
+                    AnyArg("游戏名称", "猜拳游戏")),
+            make_command("查看单个游戏某个赛季粒度等级积分排行榜", show_game_rank_range_time, VoidChecker("#排行"),
                     AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年)),
         }
     },
