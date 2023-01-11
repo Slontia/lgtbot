@@ -92,9 +92,11 @@ struct CureAction
     int32_t hp_;
 };
 
-struct ProtectKillerAction
+struct BlockHurtAction
 {
-    std::string ToString() const { return "挡刀"; }
+    std::string ToString() const { return std::string("挡刀") + (token_.has_value() ? std::string(" ") + token_->ToChar() : "杀手"); }
+
+    std::optional<Token> token_;
 };
 
 struct DetectAction
@@ -116,7 +118,7 @@ struct ExocrismAction
     Token token_;
 };
 
-using ActionVariant = std::variant<HurtAction, CureAction, ProtectKillerAction, DetectAction, PassAction, ExocrismAction>;
+using ActionVariant = std::variant<HurtAction, CureAction, BlockHurtAction, DetectAction, PassAction, ExocrismAction>;
 
 class RoleManager;
 
@@ -167,7 +169,7 @@ class RoleBase
 
     virtual bool Act(const CureAction& action, MsgSenderBase& reply);
 
-    virtual bool Act(const ProtectKillerAction& action, MsgSenderBase& reply)
+    virtual bool Act(const BlockHurtAction& action, MsgSenderBase& reply)
     {
         reply() << "侦查失败：您无法执行该类型行动";
         return false;
@@ -265,13 +267,9 @@ struct RoleManager
 
     RoleBase& GetRole(const PlayerID pid)
     {
-        for (auto& role : roles_) {
-            if (role->PlayerId() == pid) {
-                return *role;
-            }
-        }
-        assert(false);
+        return const_cast<RoleBase&>(const_cast<const RoleManager*>(this)->GetRole(pid));
     }
+
     const RoleBase& GetRole(const PlayerID pid) const
     {
         for (auto& role : roles_) {
@@ -281,6 +279,22 @@ struct RoleManager
         }
         assert(false);
     }
+
+    RoleBase* GetRole(const Occupation occupation)
+    {
+        return const_cast<RoleBase*>(const_cast<const RoleManager*>(this)->GetRole(occupation));
+    }
+
+    const RoleBase* GetRole(const Occupation occupation) const
+    {
+        for (auto& role : roles_) {
+            if (role->GetOccupation() == occupation) {
+                return role.get();
+            }
+        }
+        return nullptr;
+    }
+
 
     bool IsValid(const Token token) { return token.id_ < roles_.size(); }
 
@@ -360,9 +374,9 @@ class BodyDoubleRole : public RoleBase
     {
     }
 
-    virtual bool Act(const ProtectKillerAction& action, MsgSenderBase& reply) override
+    virtual bool Act(const BlockHurtAction& action, MsgSenderBase& reply) override
     {
-        reply() << "请做好觉悟，本回合对杀手造成的全部伤害将转移到您身上";
+        reply() << "请做好觉悟，本回合对该角色造成的全部伤害将转移到您身上";
         cur_action_ = action;
         return true;
     }
@@ -415,6 +429,10 @@ class DetectiveRole : public RoleBase
   public:
     virtual bool Act(const DetectAction& action, MsgSenderBase& reply) override
     {
+        if (history_status_.empty()) {
+            reply() << "侦查失败：首回合无法侦查";
+            return false;
+        }
         if (!history_status_.empty() && std::get_if<DetectAction>(&history_status_.back().action_)) {
             reply() << "侦查失败：您无法连续两回合进行侦查";
             return false;
@@ -468,7 +486,8 @@ class MainStage : public MainGameStage<>
                     BoolChecker(std::to_string(k_heavy_cure_hp), std::to_string(k_normal_cure_hp))),
                 MakeStageCommand("检查某名角色上一回合行动", &MainStage::Detect_, VoidChecker("侦查"),
                     BasicChecker<Token>("角色代号", "A")),
-                MakeStageCommand("替杀手承担本回合伤害", &MainStage::ProtectKiller_, VoidChecker("挡刀")),
+                MakeStageCommand("替某名角色承担本回合伤害", &MainStage::BlockHurt_, VoidChecker("挡刀"),
+                    OptionalChecker<BasicChecker<Token>>("角色代号（若为空，则为杀手代号）", "A")),
                 MakeStageCommand("检查某名角色是否为恶灵", &MainStage::Exocrism_, VoidChecker("驱灵"),
                     BasicChecker<Token>("角色代号", "A")),
                 MakeStageCommand("跳过本回合行动", &MainStage::Pass_, VoidChecker("pass")))
@@ -533,7 +552,16 @@ class MainStage : public MainGameStage<>
     std::string PrivateRoleInfo_(const RoleBase& role)
     {
         std::string s = std::string("您的代号是 ") + role.GetToken().ToChar() + "，职业是「" + role.GetOccupation().ToString() + "」";
-        if (role.GetOccupation() == Occupation::替身 || role.GetOccupation() == Occupation::内奸) {
+        if (role.GetOccupation() == Occupation::杀手) {
+            s += "，平民阵营的代号包括";
+            role_manager_.Foreach([&](const auto& role)
+                {
+                    if (role.GetTeam() == Team::平民) {
+                        s += ' ';
+                        s += role.GetToken().ToChar();
+                    }
+                });
+        } else if (role.GetOccupation() == Occupation::替身 || role.GetOccupation() == Occupation::内奸) {
             s += "，杀手的代号是 ";
             role_manager_.Foreach([&](const auto& role)
                 {
@@ -557,13 +585,9 @@ class MainStage : public MainGameStage<>
 
     void SettlementAction_(MsgSenderBase::MsgSenderGuard& sender)
     {
-        RoleBase* killer_protecting = nullptr; // if multi protecting, choose the last one
-        role_manager_.Foreach([&](auto& role)
-            {
-                if (std::get_if<ProtectKillerAction>(&role.CurAction())) {
-                    killer_protecting = &role;
-                }
-            });
+        RoleBase* const hurt_blocker = role_manager_.GetRole(Occupation::替身);
+        const BlockHurtAction* const block_hurt_action =
+            hurt_blocker ? std::get_if<BlockHurtAction>(&hurt_blocker->CurAction()) : nullptr;
 
         role_manager_.Foreach([&](auto& role)
             {
@@ -571,8 +595,10 @@ class MainStage : public MainGameStage<>
                     auto& hurted_role = role_manager_.GetRole(action->token_);
                     if (role.GetOccupation() == Occupation::圣女 && hurted_role.GetTeam() == Team::平民) {
                         // do nothing
-                    } else if (hurted_role.GetOccupation() == Occupation::杀手 && killer_protecting != nullptr) {
-                        killer_protecting->AddHp(-action->hp_);
+                    } else if (block_hurt_action &&
+                            ((!block_hurt_action->token_.has_value() && hurted_role.GetOccupation() == Occupation::杀手) ||
+                             (block_hurt_action->token_.has_value() && hurted_role.GetToken() == *block_hurt_action->token_))) {
+                        hurt_blocker->AddHp(-action->hp_);
                     } else {
                         hurted_role.AddHp(-action->hp_);
                     }
@@ -625,14 +651,7 @@ class MainStage : public MainGameStage<>
                     if (role.GetOccupation() != Occupation::恶灵) {
                         DisableAct_(role);
                     }
-                    if (role.GetOccupation() == Occupation::替身) {
-                        role_manager_.Foreach([&](auto& other_role)
-                            {
-                                if (other_role.GetOccupation() == Occupation::杀手) {
-                                    Tell(other_role.PlayerId()) << "替身 " << role.GetToken().ToChar() << " 死亡";
-                                }
-                            });
-                    } else if (role.GetOccupation() == Occupation::杀手) {
+                    if (role.GetOccupation() == Occupation::杀手) {
                         role_manager_.Foreach([&](auto& other_role)
                             {
                                 if (other_role.GetOccupation() == Occupation::内奸) {
@@ -1046,9 +1065,13 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, DetectAction{.token_ = token});
     }
 
-    AtomReqErrCode ProtectKiller_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode BlockHurt_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::optional<Token>& token)
     {
-        return GenericAct_(pid, is_public, reply, ProtectKillerAction{});
+        if (token.has_value() && !role_manager_.IsValid(*token)) {
+            reply() << "挡刀失败：场上没有该角色";
+            return StageErrCode::FAILED;
+        }
+        return GenericAct_(pid, is_public, reply, BlockHurtAction{token});
     }
 
     AtomReqErrCode Exocrism_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Token token)
