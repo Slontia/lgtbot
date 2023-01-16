@@ -71,17 +71,6 @@ struct GameLevelInfo
     double total_level_score_ = 0;
 };
 
-struct UserProfile
-{
-    UserID uid_;
-    int64_t total_zero_sum_score_ = 0;
-    int64_t total_top_score_ = 0;
-    int64_t match_count_ = 0;
-    std::vector<GameLevelInfo> game_level_infos_;
-    std::vector<MatchProfile> recent_matches_;
-    std::string birth_time_;
-};
-
 struct ScoreInfo
 {
     UserID uid_;
@@ -106,6 +95,26 @@ struct GameRankInfo
     std::vector<std::pair<UserID, int64_t>> match_count_rank_;
 };
 
+struct HonorInfo
+{
+    int32_t id_;
+    std::string description_;
+    UserID uid_;
+    std::string time_;
+};
+
+struct UserProfile
+{
+    UserID uid_;
+    int64_t total_zero_sum_score_ = 0;
+    int64_t total_top_score_ = 0;
+    int64_t match_count_ = 0;
+    std::vector<GameLevelInfo> game_level_infos_;
+    std::vector<MatchProfile> recent_matches_;
+    std::string birth_time_;
+    std::vector<HonorInfo> recent_honors_;
+};
+
 static constexpr const auto k_level_score_initial_value = 1500;
 
 class DBManagerBase
@@ -121,6 +130,9 @@ class DBManagerBase
     virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) = 0;
     virtual GameRankInfo GetLevelScoreRank(const std::string& game_name, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) = 0;
+    virtual std::vector<HonorInfo> GetHonors() = 0;
+    virtual bool AddHonor(const UserID uid, const std::string_view& description) = 0;
+    virtual bool DeleteHonor(const int32_t id) = 0;
 };
 
 #ifdef WITH_SQLITE
@@ -139,6 +151,9 @@ class SQLiteDBManager : public DBManagerBase
     virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) override;
     virtual GameRankInfo GetLevelScoreRank(const std::string& game_name, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) override;
+    virtual std::vector<HonorInfo> GetHonors() override;
+    virtual bool AddHonor(const UserID uid, const std::string_view& description) override;
+    virtual bool DeleteHonor(const int32_t id) override;
 
   private:
     SQLiteDBManager(const DBName& db_name);

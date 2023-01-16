@@ -296,6 +296,33 @@ void ForeachUserInGameMatchCountRank(sqlite::database& db, const std::string_vie
     >> fn;
 }
 
+void AddHonor(sqlite::database& db, const std::string_view& description, const UserID& uid, const uint32_t birth_count)
+{
+    db << "INSERT INTO honor (description, user_id, birth_count, time) VALUES (?, ?, ?, datetime(CURRENT_TIMESTAMP, \'localtime\'))"
+       << description.data() << uid.GetStr() << birth_count;
+}
+
+void DeleteHonor(sqlite::database& db, const int32_t id)
+{
+    db << "DELETE FROM honor WHERE id = ?" << id;
+}
+
+template <typename Fn>
+void ForeachHonor(sqlite::database& db, const Fn& fn)
+{
+    db << "SELECT id, description, user_id, time FROM honor" >> fn;
+}
+
+template <typename Fn>
+void ForeachRecentHonorOfUser(sqlite::database& db, const UserID& uid, const uint32_t limit, const Fn& fn)
+{
+    db << "SELECT honor.id, honor.description, honor.user_id, honor.time FROM honor, user "
+          "WHERE honor.user_id = ? AND honor.user_id = user.user_id AND honor.birth_count = user.birth_count "
+          "ORDER BY honor.id DESC LIMIT ?"
+       << uid << limit
+       >> fn;
+}
+
 SQLiteDBManager::SQLiteDBManager(const DBName& db_name) : db_name_(db_name)
 {
 }
@@ -376,6 +403,11 @@ UserProfile SQLiteDBManager::GetUserProfile(const UserID uid, const std::string_
                           match_info.level_score_ = level_score;
                           match_info.rank_score_ = rank_score;
                       });
+            ForeachRecentHonorOfUser(db, uid, 10,
+                  [&](const int32_t id, std::string description, std::string uid, std::string time)
+                    {
+                        profile.recent_honors_.emplace_back(id, std::move(description), std::move(uid), std::move(time));
+                    });
             return true;
         });
     std::ranges::sort(profile.game_level_infos_,
@@ -456,6 +488,41 @@ GameRankInfo SQLiteDBManager::GetLevelScoreRank(const std::string& game_name, co
     return info;
 }
 
+bool SQLiteDBManager::AddHonor(const UserID uid, const std::string_view& description)
+{
+    return ExecuteTransaction(db_name_, [&](sqlite::database& db)
+        {
+            InsertUserIfNotExist(db, uid);
+            const auto birth_count = GetBirthCountOfUser(db, uid);
+            ::AddHonor(db, description, uid, birth_count);
+            return true;
+        });
+}
+
+bool SQLiteDBManager::DeleteHonor(const int32_t id)
+{
+    return ExecuteTransaction(db_name_, [&](sqlite::database& db)
+        {
+            ::DeleteHonor(db, id);
+            return true;
+        });
+}
+
+std::vector<HonorInfo> SQLiteDBManager::GetHonors()
+{
+    std::vector<HonorInfo> info;
+    ExecuteTransaction(db_name_, [&](sqlite::database& db)
+        {
+            ForeachHonor(db,
+                [&](const int32_t id, std::string description, std::string uid, std::string time)
+                {
+                    info.emplace_back(id, std::move(description), std::move(uid), std::move(time));
+                });
+            return true;
+        });
+    return info;
+}
+
 std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::path::value_type* const db_name)
 {
 #ifdef _WIN32
@@ -490,13 +557,12 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::pat
                 "birth_time DATETIME, "
                 "birth_count INT UNSIGNED DEFAULT 0, "
                 "passwd VARCHAR(100));";
-        db << "CREATE TABLE IF NOT EXISTS achievement("
-                "achi_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, "
-                "achi_name VARCHAR(100) NOT NULL, "
-                "description VARCHAR(1000));";
-        db << "CREATE TABLE IF NOT EXISTS user_with_achievement("
+        db << "CREATE TABLE IF NOT EXISTS honor("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "description VARCHAR(200) NOT NULL, "
                 "user_id VARCHAR(100) NOT NULL, "
-                "achi_id BIGINT UNSIGNED NOT NULL);";
+                "birth_count INT UNSIGNED NOT NULL, "
+                "time DATETIME);";
         return std::unique_ptr<DBManagerBase>(new SQLiteDBManager(db_name_str));
     } catch (const sqlite::sqlite_exception& e) {
         HandleError(e);

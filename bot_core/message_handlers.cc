@@ -383,94 +383,137 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
 
     std::string html = std::string("## ") + GetUserAvatar(uid.GetCStr(), 40) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
         GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) + "\n";
+
+    html += "\n- **注册时间**：" + profile.birth_time_ + "\n";
+
+    // title: season score info
     html += "\n<h3 align=\"center\">" HTML_COLOR_FONT_HEADER(blue);
     html += time_range.ToString();
     html += HTML_FONT_TAIL "赛季</h3>\n";
+
+    // score info
+
     html += "\n- **游戏局数**：" + std::to_string(profile.match_count_);
     html += "\n- **零和总分**：" + colored_text(profile.total_zero_sum_score_, std::to_string(profile.total_zero_sum_score_));
     html += "\n- **头名总分**：" + colored_text(profile.total_top_score_, std::to_string(profile.total_top_score_));
-    html += "\n- **注册时间**：" + profile.birth_time_;
+
+    // game level score info
 
     html += "\n- **各游戏等级总分**：\n\n";
-    static constexpr const size_t k_level_score_table_num = 2;
-    html::Table level_score_table_outside(1, k_level_score_table_num);
-    level_score_table_outside.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" width=\"800\" ");
-    level_score_table_outside.SetRowStyle(" valign=\"top\" ");
-    std::array<html::Table, k_level_score_table_num> level_score_table;
-    const size_t game_level_info_num_each_table = (profile.game_level_infos_.size() + k_level_score_table_num - 1) / k_level_score_table_num;
-    for (size_t i = 0; i < k_level_score_table_num; ++i) {
-        auto& table = level_score_table[i];
-        table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" ");
-        table.AppendRow();
-        table.AppendColumn();
-        table.Get(0, 0).SetContent("**序号**");
-        table.AppendColumn();
-        table.Get(0, 1).SetContent("**游戏名称**");
-        table.AppendColumn();
-        table.Get(0, 2).SetContent("**局数**");
-        table.AppendColumn();
-        table.Get(0, 3).SetContent("**等级总分**");
-        table.AppendColumn();
-        table.Get(0, 4).SetContent("**加权等级总分**");
-        table.AppendColumn();
-        table.Get(0, 5).SetContent("**评级**");
+    if (profile.game_level_infos_.empty()) {
+        html += "<p align=\"center\">您本赛季还没有参与过游戏</p>\n\n";
+    } else {
+        static constexpr const size_t k_level_score_table_num = 2;
+        html::Table level_score_table_outside(1, k_level_score_table_num);
+        level_score_table_outside.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" width=\"800\" ");
+        level_score_table_outside.SetRowStyle(" valign=\"top\" ");
+        std::array<html::Table, k_level_score_table_num> level_score_table;
+        const size_t game_level_info_num_each_table = (profile.game_level_infos_.size() + k_level_score_table_num - 1) / k_level_score_table_num;
+        for (size_t i = 0; i < k_level_score_table_num; ++i) {
+            auto& table = level_score_table[i];
+            table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" ");
+            table.AppendRow();
+            table.AppendColumn();
+            table.Get(0, 0).SetContent("**序号**");
+            table.AppendColumn();
+            table.Get(0, 1).SetContent("**游戏名称**");
+            table.AppendColumn();
+            table.Get(0, 2).SetContent("**局数**");
+            table.AppendColumn();
+            table.Get(0, 3).SetContent("**等级总分**");
+            table.AppendColumn();
+            table.Get(0, 4).SetContent("**加权等级总分**");
+            table.AppendColumn();
+            table.Get(0, 5).SetContent("**评级**");
+        }
+        for (size_t i = 0; i < profile.game_level_infos_.size(); ++i) {
+            const auto& info = profile.game_level_infos_[i];
+            const int32_t total_level_score_ = static_cast<int32_t>(info.total_level_score_);
+            auto& table = level_score_table[i / game_level_info_num_each_table];
+            table.AppendRow();
+            table.GetLastRow(0).SetContent(colored_text(total_level_score_ / 100,  std::to_string(i + 1)));
+            table.GetLastRow(1).SetContent(colored_text(total_level_score_ / 100, info.game_name_));
+            table.GetLastRow(2).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.count_)));
+            table.GetLastRow(3).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.total_level_score_)));
+            table.GetLastRow(4).SetContent(colored_text(total_level_score_ / 100, std::to_string(std::sqrt(info.count_) * info.total_level_score_)));
+            table.GetLastRow(5).SetContent(colored_text(total_level_score_ / 100,
+                        total_level_score_ <= -300 ? "E" :
+                        total_level_score_ <= -100 ? "D" :
+                        total_level_score_ < 100   ? "C" :
+                        total_level_score_ < 300   ? "B" :
+                        total_level_score_ < 500   ? "A" : "S"));
+        }
+        for (size_t i = 0; i < k_level_score_table_num; ++i) {
+            level_score_table_outside.Get(0, i).SetContent(level_score_table[i].ToString());
+        }
+        html += "\n\n" + level_score_table_outside.ToString() + "\n\n";
     }
-    for (size_t i = 0; i < profile.game_level_infos_.size(); ++i) {
-        const auto& info = profile.game_level_infos_[i];
-        const int32_t total_level_score_ = static_cast<int32_t>(info.total_level_score_);
-        auto& table = level_score_table[i / game_level_info_num_each_table];
-        table.AppendRow();
-        table.GetLastRow(0).SetContent(colored_text(total_level_score_ / 100,  std::to_string(i + 1)));
-        table.GetLastRow(1).SetContent(colored_text(total_level_score_ / 100, info.game_name_));
-        table.GetLastRow(2).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.count_)));
-        table.GetLastRow(3).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.total_level_score_)));
-        table.GetLastRow(4).SetContent(colored_text(total_level_score_ / 100, std::to_string(std::sqrt(info.count_) * info.total_level_score_)));
-        table.GetLastRow(5).SetContent(colored_text(total_level_score_ / 100,
-                    total_level_score_ <= -300 ? "E" :
-                    total_level_score_ <= -100 ? "D" :
-                    total_level_score_ < 100   ? "C" :
-                    total_level_score_ < 300   ? "B" :
-                    total_level_score_ < 500   ? "A" : "S"));
-    }
-    for (size_t i = 0; i < k_level_score_table_num; ++i) {
-        level_score_table_outside.Get(0, i).SetContent(level_score_table[i].ToString());
-    }
-    html += "\n\n" + level_score_table_outside.ToString() + "\n\n";
+
+    // title: recent info
+
+    html += "\n<h3 align=\"center\">近期战绩</h3>\n";
+
+    // show recent matches
 
     html += "\n- **近十场游戏记录**：\n\n";
-    html::Table recent_matches_table(1, 9);
-    recent_matches_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" width=\"800\" ");
-    recent_matches_table.Get(0, 0).SetContent("**序号**");
-    recent_matches_table.Get(0, 1).SetContent("**游戏名称**");
-    recent_matches_table.Get(0, 2).SetContent("**结束时间**");
-    recent_matches_table.Get(0, 3).SetContent("**等价排名**");
-    recent_matches_table.Get(0, 4).SetContent("**倍率**");
-    recent_matches_table.Get(0, 5).SetContent("**游戏得分**");
-    recent_matches_table.Get(0, 6).SetContent("**零和得分**");
-    recent_matches_table.Get(0, 7).SetContent("**头名得分**");
-    recent_matches_table.Get(0, 8).SetContent("**等级得分**");
+    if (profile.recent_matches_.empty()) {
+        html += "<p align=\"center\">您还没有参与过游戏</p>\n\n";
+    } else {
+        html::Table recent_matches_table(1, 9);
+        recent_matches_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" width=\"800\" ");
+        recent_matches_table.Get(0, 0).SetContent("**序号**");
+        recent_matches_table.Get(0, 1).SetContent("**游戏名称**");
+        recent_matches_table.Get(0, 2).SetContent("**结束时间**");
+        recent_matches_table.Get(0, 3).SetContent("**等价排名**");
+        recent_matches_table.Get(0, 4).SetContent("**倍率**");
+        recent_matches_table.Get(0, 5).SetContent("**游戏得分**");
+        recent_matches_table.Get(0, 6).SetContent("**零和得分**");
+        recent_matches_table.Get(0, 7).SetContent("**头名得分**");
+        recent_matches_table.Get(0, 8).SetContent("**等级得分**");
 
-    for (uint32_t i = 0; i < profile.recent_matches_.size(); ++i) {
-        recent_matches_table.AppendRow();
-        const auto match_profile = profile.recent_matches_[i];
-        recent_matches_table.Get(i + 1, 0).SetContent(colored_text(match_profile.top_score_, std::to_string(i + 1)));
-        recent_matches_table.Get(i + 1, 1).SetContent(colored_text(match_profile.top_score_, match_profile.game_name_));
-        recent_matches_table.Get(i + 1, 2).SetContent(colored_text(match_profile.top_score_, match_profile.finish_time_));
-        recent_matches_table.Get(i + 1, 3).SetContent(colored_text(match_profile.top_score_, [&match_profile]()
-                    {
-                        std::stringstream ss;
-                        ss.precision(2);
-                        ss << (match_profile.user_count_ - float(match_profile.rank_score_) / 2 + 0.5) << " / " << match_profile.user_count_;
-                        return ss.str();
-                    }()));
-        recent_matches_table.Get(i + 1, 4).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.multiple_) + " 倍"));
-        recent_matches_table.Get(i + 1, 5).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.game_score_)));
-        recent_matches_table.Get(i + 1, 6).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.zero_sum_score_)));
-        recent_matches_table.Get(i + 1, 7).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.top_score_)));
-        recent_matches_table.Get(i + 1, 8).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.level_score_)));
+        for (uint32_t i = 0; i < profile.recent_matches_.size(); ++i) {
+            recent_matches_table.AppendRow();
+            const auto match_profile = profile.recent_matches_[i];
+            recent_matches_table.Get(i + 1, 0).SetContent(colored_text(match_profile.top_score_, std::to_string(i + 1)));
+            recent_matches_table.Get(i + 1, 1).SetContent(colored_text(match_profile.top_score_, match_profile.game_name_));
+            recent_matches_table.Get(i + 1, 2).SetContent(colored_text(match_profile.top_score_, match_profile.finish_time_));
+            recent_matches_table.Get(i + 1, 3).SetContent(colored_text(match_profile.top_score_, [&match_profile]()
+                        {
+                            std::stringstream ss;
+                            ss.precision(2);
+                            ss << (match_profile.user_count_ - float(match_profile.rank_score_) / 2 + 0.5) << " / " << match_profile.user_count_;
+                            return ss.str();
+                        }()));
+            recent_matches_table.Get(i + 1, 4).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.multiple_) + " 倍"));
+            recent_matches_table.Get(i + 1, 5).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.game_score_)));
+            recent_matches_table.Get(i + 1, 6).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.zero_sum_score_)));
+            recent_matches_table.Get(i + 1, 7).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.top_score_)));
+            recent_matches_table.Get(i + 1, 8).SetContent(colored_text(match_profile.top_score_, std::to_string(match_profile.level_score_)));
+        }
+        html += recent_matches_table.ToString() + "\n\n";
     }
 
-    html += "\n\n" + recent_matches_table.ToString();
+    // show recent honors
+
+    html += "\n- **近十次荣誉记录**：\n\n";
+    if (profile.recent_honors_.empty()) {
+        html += "<p align=\"center\">您还没有获得过荣誉</p>\n\n";
+    } else {
+        html::Table recent_honors_table(1, 3);
+        recent_honors_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" width=\"800\" ");
+        recent_honors_table.Get(0, 0).SetContent("**ID**");
+        recent_honors_table.Get(0, 1).SetContent("**荣誉**");
+        recent_honors_table.Get(0, 2).SetContent("**获得时间**");
+        for (const auto& info : profile.recent_honors_) {
+            recent_honors_table.AppendRow();
+            recent_honors_table.GetLastRow(0).SetContent(std::to_string(info.id_));
+            recent_honors_table.GetLastRow(1).SetContent(info.description_);
+            recent_honors_table.GetLastRow(2).SetContent(info.time_);
+        }
+        html += recent_honors_table.ToString() + "\n\n";
+    }
+
+    // reply image
 
     reply() << Markdown(html, 850);
 
@@ -618,6 +661,30 @@ static ErrCode show_game_rank_range_time(BotCtx& bot, const UserID uid, const st
     return EC_OK;
 }
 
+static ErrCode show_honors(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
+{
+    if (!bot.db_manager()) {
+        reply() << "[错误] 查看失败：未连接数据库";
+        return EC_DB_NOT_CONNECTED;
+    }
+    html::Table table(1, 4);
+    table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" ");
+    table.Get(0, 0).SetContent("**ID**");
+    table.Get(0, 1).SetContent("**用户**");
+    table.Get(0, 2).SetContent("**荣誉**");
+    table.Get(0, 3).SetContent("**获得时间**");
+    for (const auto& info : bot.db_manager()->GetHonors()) {
+        table.AppendRow();
+        table.GetLastRow(0).SetContent(std::to_string(info.id_));
+        table.GetLastRow(1).SetContent(GetUserAvatar(info.uid_.GetCStr(), 25) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
+                GetUserName(info.uid_.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr));
+        table.GetLastRow(2).SetContent(info.description_);
+        table.GetLastRow(3).SetContent(info.time_);
+    }
+    reply() << Markdown("## 荣誉列表\n\n" + table.ToString(), 800);
+    return EC_OK;
+}
+
 const std::vector<MetaCommandGroup> meta_cmds = {
     {
         "信息查看", { // GAME INFO: can be executed at any time
@@ -644,6 +711,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
                     AnyArg("游戏名称", "猜拳游戏")),
             make_command("查看单个游戏某个赛季粒度等级积分排行榜", show_game_rank_range_time, VoidChecker("#排行"),
                     AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年)),
+            make_command("查看所有荣誉", show_honors, VoidChecker("#荣誉列表")),
         }
     },
     {
@@ -756,6 +824,36 @@ static ErrCode read_all_options(BotCtx& bot, const UserID uid, const std::option
     return EC_OK;
 }
 
+static ErrCode add_honor(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+        const std::string& honor_uid, const std::string honor_desc)
+{
+    if (!bot.db_manager()) {
+        reply() << "[错误] 添加失败：未连接数据库";
+        return EC_DB_NOT_CONNECTED;
+    }
+    if (!bot.db_manager()->AddHonor(honor_uid, honor_desc)) {
+        reply() << "[错误] 添加失败：未知原因";
+        return EC_HONOR_ADD_FAILED;
+    }
+    reply() << "添加荣誉成功，恭喜" << At(UserID{honor_uid}) << "荣获「" << honor_desc << "」";
+    return EC_OK;
+}
+
+static ErrCode delete_honor(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+        const int32_t id)
+{
+    if (!bot.db_manager()) {
+        reply() << "[错误] 删除失败：未连接数据库";
+        return EC_DB_NOT_CONNECTED;
+    }
+    if (!bot.db_manager()->DeleteHonor(id)) {
+        reply() << "[错误] 删除失败：未知原因";
+        return EC_HONOR_ADD_FAILED;
+    }
+    reply() << "删除荣誉成功";
+    return EC_OK;
+}
+
 const std::vector<MetaCommandGroup> admin_cmds = {
     {
         "信息查看", {
@@ -777,6 +875,14 @@ const std::vector<MetaCommandGroup> admin_cmds = {
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("设置配置项（可通过「%配置列表」查看所有支持的配置）", set_option, VoidChecker("%配置"),
                         RepeatableChecker<AnyArg>("配置参数", "配置参数")),
+        }
+    },
+    {
+        "荣誉操作", {
+            make_command("新增荣誉", add_honor, VoidChecker("%荣誉"), VoidChecker("新增"),
+                        AnyArg("用户 ID", "123456789"), AnyArg("荣誉描述", "2022 年度某游戏年赛冠军")),
+            make_command("新增荣誉", delete_honor, VoidChecker("%荣誉"), VoidChecker("删除"),
+                        ArithChecker<int32_t>(0, INT32_MAX, "编号")),
         }
     },
 };

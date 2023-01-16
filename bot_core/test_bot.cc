@@ -76,6 +76,12 @@ class MockDBManager : public DBManagerBase
         return {};
     }
 
+    virtual std::vector<HonorInfo> GetHonors() override { return {}; }
+
+    virtual bool AddHonor(const UserID uid, const std::string_view& description) override { return true; }
+
+    virtual bool DeleteHonor(const int32_t id) override { return true; }
+
     std::vector<MatchProfile> match_profiles_;
     std::map<UserID, UserProfile> user_profiles_;
 };
