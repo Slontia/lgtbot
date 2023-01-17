@@ -552,6 +552,24 @@ class MainStage : public MainGameStage<>
     std::string PrivateRoleInfo_(const RoleBase& role)
     {
         std::string s = std::string("您的代号是 ") + role.GetToken().ToChar() + "，职业是「" + role.GetOccupation().ToString() + "」";
+        const auto show_killer = [&]()
+            {
+                if (const auto killer = role_manager_.GetRole(Occupation::杀手)) {
+                    s += "，杀手的代号是 ";
+                    s += killer->GetToken().ToChar();
+                }
+            };
+        const auto show_civilians = [&]()
+            {
+                s += "，平民的代号包括";
+                role_manager_.Foreach([&](const auto& role)
+                    {
+                        if (role.GetOccupation() == Occupation::平民) {
+                            s += ' ';
+                            s += role.GetToken().ToChar();
+                        }
+                    });
+            };
         if (role.GetOccupation() == Occupation::杀手) {
             s += "，平民阵营的代号包括";
             role_manager_.Foreach([&](const auto& role)
@@ -561,14 +579,8 @@ class MainStage : public MainGameStage<>
                         s += role.GetToken().ToChar();
                     }
                 });
-        } else if (role.GetOccupation() == Occupation::替身 || role.GetOccupation() == Occupation::内奸) {
-            s += "，杀手的代号是 ";
-            role_manager_.Foreach([&](const auto& role)
-                {
-                    if (role.GetOccupation() == Occupation::杀手) {
-                        s += role.GetToken().ToChar();
-                    }
-                });
+        } else if (role.GetOccupation() == Occupation::替身) {
+            show_killer();
         } else if (role.GetOccupation() == Occupation::恶灵) {
             s += "，杀手和灵媒师的代号在";
             role_manager_.Foreach([&](const auto& role)
@@ -579,6 +591,11 @@ class MainStage : public MainGameStage<>
                     }
                 });
             s += " 之间";
+        } else if (role.GetOccupation() == Occupation::平民) {
+            show_civilians();
+        } else if (role.GetOccupation() == Occupation::内奸) {
+            show_killer();
+            show_civilians();
         }
         return s;
     }

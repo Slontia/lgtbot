@@ -15,6 +15,7 @@ ENUM_BEGIN(Occupation)
     ENUM_MEMBER(Occupation, 灵媒师)
     // special team
     ENUM_MEMBER(Occupation, 内奸)
+    ENUM_MEMBER(Occupation, 人偶)
 ENUM_END(Occupation)
 
 
