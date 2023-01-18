@@ -487,7 +487,7 @@ GAME_TEST(5, max_round_traitor_failed)
 
 GAME_TEST(5, ghost_still_limit_cure_after_death)
 {
-    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
     START_GAME();
     ASSERT_TIMEOUT(CONTINUE);
     for (uint32_t i = 0; i < 4; ++i) {
@@ -502,7 +502,7 @@ GAME_TEST(5, ghost_still_limit_cure_after_death)
 
 GAME_TEST(5, ghost_is_exorcism_after_death_cant_act)
 {
-    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
     START_GAME();
     ASSERT_TIMEOUT(CONTINUE);
     for (uint32_t i = 0; i < 4; ++i) {
@@ -515,7 +515,7 @@ GAME_TEST(5, ghost_is_exorcism_after_death_cant_act)
 
 GAME_TEST(5, ghost_is_detected_when_move_after_death_cant_act)
 {
-    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
     ASSERT_PRI_MSG(OK, 0, "血量 15");
     START_GAME();
     ASSERT_TIMEOUT(CONTINUE);
@@ -537,7 +537,7 @@ GAME_TEST(5, ghost_is_detected_when_move_after_death_cant_act)
 
 GAME_TEST(5, ghost_is_exorcism_when_hurt_sorcerer_cant_act)
 {
-    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
     START_GAME();
     ASSERT_PRI_MSG(OK, 4, "攻击 B 15");
     ASSERT_PRI_MSG(OK, 3, "驱灵 E");
@@ -549,7 +549,7 @@ GAME_TEST(5, ghost_is_exorcism_when_hurt_sorcerer_cant_act)
 
 GAME_TEST(5, ghost_act_has_effect_when_exocrism)
 {
-    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
     ASSERT_PRI_MSG(OK, 0, "血量 15");
     START_GAME();
     ASSERT_PRI_MSG(OK, 4, "攻击 D 15");
@@ -561,7 +561,7 @@ GAME_TEST(5, ghost_act_has_effect_when_exocrism)
 
 GAME_TEST(5, ghost_act_has_effect_when_exocrism_only_one_round)
 {
-    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
     ASSERT_PRI_MSG(OK, 0, "血量 30");
     START_GAME();
     ASSERT_PRI_MSG(OK, 4, "攻击 D 15");
@@ -574,7 +574,7 @@ GAME_TEST(5, ghost_act_has_effect_when_exocrism_only_one_round)
 
 GAME_TEST(5, ghost_act_has_effect_when_exocrism_after_dead_only_one_round)
 {
-    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒师 恶灵");
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
     ASSERT_PRI_MSG(OK, 0, "血量 30");
     START_GAME();
     ASSERT_TIMEOUT(CONTINUE);
@@ -586,6 +586,165 @@ GAME_TEST(5, ghost_act_has_effect_when_exocrism_after_dead_only_one_round)
     ASSERT_ELIMINATED(4);
     ASSERT_TIMEOUT(CONTINUE);
     ASSERT_PRI_MSG(CONTINUE, 0, "攻击 B 15"); // still alive
+}
+
+GAME_TEST(5, assassin_hurt_little_blood)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 平民 替身 替身 刺客");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(FAILED, 4, "攻击 B 1");
+    ASSERT_PRI_MSG(FAILED, 4, "攻击 B 20");
+    ASSERT_PRI_MSG(FAILED, 4, "攻击 B 25");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 B 5");
+    ASSERT_PRI_MSG(OK, 1, "pass"); // still alive
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 B 5");
+    ASSERT_PRI_MSG(OK, 1, "pass"); // still alive
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 B 5");
+    ASSERT_ELIMINATED(1);
+}
+
+GAME_TEST(5, assassin_hurt_zero_blood)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 平民 替身 替身 刺客");
+    ASSERT_PRI_MSG(OK, 0, "血量 1");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 B 0");
+    ASSERT_PRI_MSG(OK, 1, "pass"); // still alive
+}
+
+GAME_TEST(5, DISABLED_assassin_cannot_hurt_guard_and_killer_team)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 恶灵 守卫 刺客");
+    ASSERT_PRI_MSG(OK, 0, "血量 1");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 A 5");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 B 5");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 C 5");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 D 5");
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(OK, 1, "pass");
+    ASSERT_PRI_MSG(OK, 2, "pass");
+    ASSERT_PRI_MSG(OK, 3, "pass");
+}
+
+GAME_TEST(6, non_civilian_team_cannot_shield_anti)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 恶灵 刺客 内奸 守卫");
+    START_GAME();
+    ASSERT_PRI_MSG(FAILED, 0, "盾反 100");
+    ASSERT_PRI_MSG(FAILED, 1, "盾反 100");
+    ASSERT_PRI_MSG(FAILED, 2, "盾反 100");
+    ASSERT_PRI_MSG(FAILED, 3, "盾反 100");
+    ASSERT_PRI_MSG(FAILED, 4, "盾反 100");
+}
+
+GAME_TEST(5, civilian_cannot_shield_anti_when_guard_not_exist)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 恶灵 刺客 平民");
+    START_GAME();
+    ASSERT_PRI_MSG(FAILED, 4, "盾反 100");
+}
+
+GAME_TEST(5, civilian_cannot_shield_anti_when_guard_dead)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 恶灵 守卫 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 1");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 3, "攻击 D 15");
+    ASSERT_PRI_MSG(OK, 4, "盾反 100");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_ELIMINATED(3); // guard dead
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(FAILED, 4, "盾反 100");
+}
+
+GAME_TEST(5, civilian_cannot_repeat_shield_anti)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 恶灵 守卫 平民");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 4, "盾反 100");
+    ASSERT_PRI_MSG(FAILED, 4, "盾反 100");
+}
+
+GAME_TEST(5, guard_can_repeat_shield_anti)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 恶灵 守卫 平民");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 3, "盾反 100");
+    ASSERT_PRI_MSG(CONTINUE, 3, "盾反 100");
+}
+
+GAME_TEST(5, shield_anti_single_hurt)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 恶灵 守卫 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "攻击 D 15");
+    ASSERT_PRI_MSG(OK, 4, "攻击 D 15");
+    ASSERT_PRI_MSG(OK, 3, "盾反 -15");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_ELIMINATED(1);
+    ASSERT_ELIMINATED(4);
+}
+
+GAME_TEST(5, shield_anti_single_cure)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 恶灵 守卫 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 25");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 0, "治愈 D 10");
+    ASSERT_PRI_MSG(OK, 3, "盾反 35");
+    ASSERT_TIMEOUT(CONTINUE); // D hp 25 -> 35
+    ASSERT_PRI_MSG(OK, 0, "攻击 D 25");
+    ASSERT_TIMEOUT(CONTINUE); // D hp 35 -> 10
+    ASSERT_PRI_MSG(OK, 3, "pass");
+}
+
+GAME_TEST(5, shield_anti_takes_no_effects_when_blocked_hurt)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 守卫 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 0, "治愈 D 10");
+    ASSERT_PRI_MSG(OK, 1, "挡刀 D");
+    ASSERT_PRI_MSG(OK, 2, "攻击 D 15");
+    ASSERT_PRI_MSG(OK, 3, "盾反 25");
+    ASSERT_TIMEOUT(CONTINUE); // cure takes no effects
+    ASSERT_ELIMINATED(1); // body double dead
+    ASSERT_PRI_MSG(OK, 2, "攻击 D 15"); // C is alive
+    ASSERT_PRI_MSG(OK, 3, "pass"); // D is alive, remains 25 hp
+    ASSERT_TIMEOUT(CONTINUE); // cure takes no effects
+    ASSERT_PRI_MSG(OK, 3, "pass"); // D is alive, remains 10 hp
+}
+
+GAME_TEST(5, shield_anti_hurt_cannot_be_blocked)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 守卫 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 0, "攻击 D 25");
+    ASSERT_PRI_MSG(OK, 1, "挡刀");
+    ASSERT_PRI_MSG(OK, 3, "盾反 -10");
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
+GAME_TEST(5, shield_anti_goddess_not_hurt)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 守卫 圣女");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 4, "攻击 D 15");
+    ASSERT_PRI_MSG(OK, 3, "盾反 15");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(OK, 4, "pass"); // E alive
+    ASSERT_PRI_MSG(CONTINUE, 3, "pass"); // D alive
 }
 
 int main(int argc, char** argv)

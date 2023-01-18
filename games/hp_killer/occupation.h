@@ -7,15 +7,15 @@ ENUM_BEGIN(Occupation)
     ENUM_MEMBER(Occupation, 杀手)
     ENUM_MEMBER(Occupation, 替身)
     ENUM_MEMBER(Occupation, 恶灵)
-    ENUM_MEMBER(Occupation, 见习杀手)
+    ENUM_MEMBER(Occupation, 刺客)
     // civilian team
     ENUM_MEMBER(Occupation, 平民)
     ENUM_MEMBER(Occupation, 圣女)
     ENUM_MEMBER(Occupation, 侦探)
-    ENUM_MEMBER(Occupation, 灵媒师)
+    ENUM_MEMBER(Occupation, 灵媒)
+    ENUM_MEMBER(Occupation, 守卫)
     // special team
     ENUM_MEMBER(Occupation, 内奸)
-    ENUM_MEMBER(Occupation, 人偶)
 ENUM_END(Occupation)
 
 
