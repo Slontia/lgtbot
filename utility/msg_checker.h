@@ -322,23 +322,12 @@ class MsgArgChecker<void> final
 };
 
 template <typename Checker> requires std::is_base_of_v<MsgArgChecker<typename Checker::arg_type>, Checker>
-class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg_type>>
+class RepeatableCheckerBase : public MsgArgChecker<std::vector<typename Checker::arg_type>>
 {
   public:
     template <typename ...Args>
-    RepeatableChecker(Args&&... args)
-            : checker_(std::forward<Args>(args)...)
-            , format_info_("[" + checker_.FormatInfo() + " " + checker_.FormatInfo() + "...]")
-            , escaped_format_info_("[" + checker_.EscapedFormatInfo() + " " + checker_.EscapedFormatInfo() + "...]")
-            , colored_format_info_(HTML_COLOR_FONT_HEADER(blue) + escaped_format_info_ + HTML_FONT_TAIL)
-    {}
-    virtual std::string FormatInfo() const override { return format_info_; }
-    virtual std::string EscapedFormatInfo() const override { return escaped_format_info_; }
-    virtual std::string ColoredFormatInfo() const override { return colored_format_info_; }
-    virtual std::string ExampleInfo() const override
-    {
-        return checker_.ExampleInfo();
-    }
+    RepeatableCheckerBase(Args&&... args) : checker_(std::forward<Args>(args)...) {}
+
     virtual std::optional<std::vector<typename Checker::arg_type>> Check(MsgReader& reader) const override
     {
         std::optional<std::vector<typename Checker::arg_type>> ret(std::in_place);
@@ -351,6 +340,7 @@ class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg
         }
         return ret;
     }
+
     virtual std::string ArgString(const std::vector<typename Checker::arg_type>& value_vec) const
     {
         if (value_vec.empty()) {
@@ -364,8 +354,70 @@ class RepeatableChecker : public MsgArgChecker<std::vector<typename Checker::arg
         return result;
     }
 
-  private:
+  protected:
     const Checker checker_;
+};
+
+template <typename Checker> requires std::is_base_of_v<MsgArgChecker<typename Checker::arg_type>, Checker>
+class RepeatableChecker : public RepeatableCheckerBase<Checker>
+{
+    using RepeatableCheckerBase<Checker>::checker_;
+
+  public:
+    template <typename ...Args>
+    RepeatableChecker(Args&&... args)
+            : RepeatableCheckerBase<Checker>(std::forward<Args>(args)...)
+            , format_info_("[" + checker_.FormatInfo() + " " + checker_.FormatInfo() + " ...]")
+            , escaped_format_info_("[" + checker_.EscapedFormatInfo() + " " + checker_.EscapedFormatInfo() + " ...]")
+            , colored_format_info_(HTML_COLOR_FONT_HEADER(blue) + escaped_format_info_ + HTML_FONT_TAIL)
+    {}
+    virtual std::string FormatInfo() const override { return format_info_; }
+    virtual std::string EscapedFormatInfo() const override { return escaped_format_info_; }
+    virtual std::string ColoredFormatInfo() const override { return colored_format_info_; }
+    virtual std::string ExampleInfo() const override
+    {
+        return checker_.ExampleInfo();
+    }
+
+  protected:
+    const std::string format_info_;
+    const std::string escaped_format_info_;
+    const std::string colored_format_info_;
+};
+
+template <typename Checker> requires std::is_base_of_v<MsgArgChecker<typename Checker::arg_type>, Checker>
+class FixedSizeRepeatableChecker : public RepeatableCheckerBase<Checker>
+{
+    using RepeatableCheckerBase<Checker>::checker_;
+
+  public:
+    template <typename ...Args>
+    FixedSizeRepeatableChecker(const size_t size, Args&&... args)
+            : RepeatableCheckerBase<Checker>(std::forward<Args>(args)...)
+            , size_(size)
+            , format_info_("[" + checker_.FormatInfo() + " " + checker_.FormatInfo() + " ...(total: " + std::to_string(size) + ")]")
+            , escaped_format_info_("[" + checker_.EscapedFormatInfo() + " " + checker_.EscapedFormatInfo() + " ...(total: " + std::to_string(size) + ")]")
+            , colored_format_info_(HTML_COLOR_FONT_HEADER(blue) + escaped_format_info_ + HTML_FONT_TAIL)
+    {}
+    virtual std::string FormatInfo() const override { return format_info_; }
+    virtual std::string EscapedFormatInfo() const override { return escaped_format_info_; }
+    virtual std::string ColoredFormatInfo() const override { return colored_format_info_; }
+    virtual std::string ExampleInfo() const override
+    {
+        std::string s;
+        for (size_t i = 0; i < size_; ++i) {
+            s += checker_.ExampleInfo() + " ";
+        }
+        return s;
+    }
+    virtual std::optional<std::vector<typename Checker::arg_type>> Check(MsgReader& reader) const override
+    {
+        const auto ret = RepeatableCheckerBase<Checker>::Check(reader);
+        return ret.has_value() && ret->size() == size_ ? ret : std::nullopt;
+    }
+
+  protected:
+    const size_t size_;
     const std::string format_info_;
     const std::string escaped_format_info_;
     const std::string colored_format_info_;

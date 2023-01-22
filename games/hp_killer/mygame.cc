@@ -28,6 +28,20 @@ std::string GameOption::StatusInfo() const
     return "共 " + std::to_string(GET_VALUE(回合数)) + " 回合，每回合超时时间 " + std::to_string(GET_VALUE(时限)) + " 秒";
 }
 
+static const std::vector<Occupation>& GetOccupationList(const GameOption& option)
+{
+    return option.PlayerNum() == 5 ? GET_OPTION_VALUE(option, 五人身份) :
+           option.PlayerNum() == 6 ? GET_OPTION_VALUE(option, 六人身份) :
+           option.PlayerNum() == 7 ? GET_OPTION_VALUE(option, 七人身份) :
+           option.PlayerNum() == 8 ? GET_OPTION_VALUE(option, 八人身份) :
+           option.PlayerNum() == 9 ? GET_OPTION_VALUE(option, 九人身份) : (assert(false), GET_OPTION_VALUE(option, 五人身份));
+}
+
+static std::vector<Occupation>& GetOccupationList(GameOption& option)
+{
+    return const_cast<std::vector<Occupation>&>(GetOccupationList(const_cast<const GameOption&>(option)));
+}
+
 bool GameOption::ToValid(MsgSenderBase& reply)
 {
     if (PlayerNum() < 5) {
@@ -37,6 +51,20 @@ bool GameOption::ToValid(MsgSenderBase& reply)
     if (!GET_VALUE(身份列表).empty() && PlayerNum() != GET_VALUE(身份列表).size()) {
         reply() << "玩家人数和身份列表长度不匹配";
         return false;
+    }
+    auto& occupation_list = GetOccupationList(*this);
+    if (occupation_list.size() != PlayerNum()) {
+        reply() << "[警告] 身份列表配置项身份个数与参加人数不符，将按照默认配置进行游戏";
+        occupation_list.clear();
+    } else if (std::ranges::count(occupation_list, Occupation::杀手) != 1) {
+        reply() << "[警告] 身份列表中杀手个数不为 1，将按照默认配置进行游戏";
+        occupation_list.clear();
+    } else if (std::ranges::count(occupation_list, Occupation::替身) > 1) {
+        reply() << "[警告] 身份列表中替身个数大于 1，将按照默认配置进行游戏";
+        occupation_list.clear();
+    } else if (std::ranges::count(occupation_list, Occupation::内奸) > 1) {
+        reply() << "[警告] 身份列表中内奸个数大于 1，将按照默认配置进行游戏";
+        occupation_list.clear();
     }
     return true;
 }
@@ -540,6 +568,8 @@ enum class RoundResult { KILLER_WIN, CIVILIAN_WIN, DRAW, CONTINUE };
 class MainStage : public MainGameStage<>
 {
   public:
+    using RoleMaker = std::unique_ptr<RoleBase>(*)(uint64_t, Token, const RoleOption&, RoleManager&);
+
     MainStage(const GameOption& option, MatchBase& match)
         : GameStage(option, match,
                 MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
@@ -559,7 +589,7 @@ class MainStage : public MainGameStage<>
                 MakeStageCommand("跳过本回合行动", &MainStage::Pass_, VoidChecker("pass")))
         , k_image_width_((k_avatar_width_ + k_cellspacing_ + k_cellpadding_) * option.PlayerNum() + 150)
         , role_manager_(GET_OPTION_VALUE(option, 身份列表).empty()
-                ?  GetRoleVec_(option.PlayerNum(), DefaultRoleOption_(option), role_manager_)
+                ?  GetRoleVec_(option, DefaultRoleOption_(option), role_manager_)
                 : LoadRoleVec_(GET_OPTION_VALUE(option, 身份列表), DefaultRoleOption_(option), role_manager_))
         , role_info_(RoleInfo_())
         , round_(1)
@@ -902,38 +932,25 @@ class MainStage : public MainGameStage<>
     }
 
     template <typename RoleType>
-    static std::unique_ptr<RoleBase> AddRole_(const size_t index, const RoleOption& option, RoleManager& role_manager)
+    static std::unique_ptr<RoleBase> MakeRole_(const uint64_t pid, const Token token, const RoleOption& option, RoleManager& role_manager)
     {
-        return std::make_unique<RoleType>(index, Token(index), option, role_manager);
+        return std::make_unique<RoleType>(pid, token, option, role_manager);
     }
 
     static RoleManager::RoleVec LoadRoleVec_(const std::vector<Occupation>& occupation_list, const RoleOption& option, RoleManager& role_manager)
     {
-        using RoleMaker = std::unique_ptr<RoleBase>(*)(size_t, const RoleOption&, RoleManager&);
-        std::array<RoleMaker, Occupation::Count()> role_makers;
-        role_makers[static_cast<uint32_t>(Occupation(Occupation::杀手))] = &MainStage::AddRole_<KillerRole>;
-        role_makers[static_cast<uint32_t>(Occupation(Occupation::替身))] = &MainStage::AddRole_<BodyDoubleRole>;
-        role_makers[static_cast<uint32_t>(Occupation(Occupation::平民))] = &MainStage::AddRole_<CivilianRole>;
-        role_makers[static_cast<uint32_t>(Occupation(Occupation::侦探))] = &MainStage::AddRole_<DetectiveRole>;
-        role_makers[static_cast<uint32_t>(Occupation(Occupation::圣女))] = &MainStage::AddRole_<GoddessRole>;
-        role_makers[static_cast<uint32_t>(Occupation(Occupation::内奸))] = &MainStage::AddRole_<TraitorRole>;
-        role_makers[static_cast<uint32_t>(Occupation(Occupation::恶灵))] = &MainStage::AddRole_<GhostRole>;
-        role_makers[static_cast<uint32_t>(Occupation(Occupation::灵媒))] = &MainStage::AddRole_<SorcererRole>;
-        role_makers[static_cast<uint32_t>(Occupation(Occupation::刺客))] = &MainStage::AddRole_<AssassinRole>;
-        role_makers[static_cast<uint32_t>(Occupation(Occupation::守卫))] = &MainStage::AddRole_<GuardRole>;
-
         RoleManager::RoleVec v;
         for (uint32_t pid = 0; pid < occupation_list.size(); ++pid) {
-            v.emplace_back(role_makers[occupation_list[pid].ToUInt()](pid, option, role_manager));
+            v.emplace_back(k_role_makers_[occupation_list[pid].ToUInt()](pid, Token(pid), option, role_manager));
         }
         return v;
     }
 
-    static RoleManager::RoleVec GetRoleVec_(const uint64_t player_num, const RoleOption& option, RoleManager& role_manager)
+    static RoleManager::RoleVec GetRoleVec_(const GameOption& option, const RoleOption& role_option, RoleManager& role_manager)
     {
         std::vector<PlayerID> pids;
         std::vector<Token> tokens;
-        for (uint32_t i = 0; i < player_num; ++i) {
+        for (uint32_t i = 0; i < option.PlayerNum(); ++i) {
             pids.emplace_back(i);
             tokens.emplace_back(i);
         }
@@ -942,59 +959,38 @@ class MainStage : public MainGameStage<>
         std::ranges::shuffle(pids, g);
         std::ranges::shuffle(tokens, g);
         RoleManager::RoleVec v;
-        const auto add_role = [&](auto type_identity)
-        {
-            v.emplace_back(std::make_unique<typename decltype(type_identity)::type>(pids[v.size()], tokens[v.size()], option, role_manager));
-        };
-        switch (player_num) {
-        case 5:
-            add_role(std::type_identity<KillerRole>());
-            add_role(std::type_identity<BodyDoubleRole>());
-            add_role(std::type_identity<DetectiveRole>());
-            add_role(std::type_identity<CivilianRole>());
-            add_role(std::type_identity<CivilianRole>());
-            break;
-        case 6:
-            add_role(std::type_identity<KillerRole>());
-            add_role(std::type_identity<BodyDoubleRole>());
-            add_role(std::type_identity<DetectiveRole>());
-            add_role(std::type_identity<GoddessRole>());
-            add_role(std::type_identity<CivilianRole>());
-            add_role(std::type_identity<CivilianRole>());
-            break;
-        case 7:
-            add_role(std::type_identity<KillerRole>());
-            add_role(std::type_identity<BodyDoubleRole>());
-            add_role(std::type_identity<TraitorRole>());
-            add_role(std::type_identity<DetectiveRole>());
-            add_role(std::type_identity<GoddessRole>());
-            add_role(std::type_identity<CivilianRole>());
-            add_role(std::type_identity<CivilianRole>());
-            break;
-        case 8:
-            add_role(std::type_identity<KillerRole>());
-            add_role(std::type_identity<BodyDoubleRole>());
-            add_role(std::type_identity<AssassinRole>());
-            add_role(std::type_identity<DetectiveRole>());
-            add_role(std::type_identity<GoddessRole>());
-            add_role(std::type_identity<GuardRole>());
-            add_role(std::type_identity<CivilianRole>());
-            add_role(std::type_identity<CivilianRole>());
-            break;
-        case 9:
-            add_role(std::type_identity<KillerRole>());
-            add_role(std::type_identity<BodyDoubleRole>());
-            add_role(std::type_identity<AssassinRole>());
-            add_role(std::type_identity<TraitorRole>());
-            add_role(std::type_identity<DetectiveRole>());
-            add_role(std::type_identity<GoddessRole>());
-            add_role(std::type_identity<GuardRole>());
-            add_role(std::type_identity<CivilianRole>());
-            add_role(std::type_identity<CivilianRole>());
-            break;
+        const auto make_roles = [&](const auto& occupation_list)
+            {
+                assert(pids.size() == occupation_list.size());
+                assert(tokens.size() == occupation_list.size());
+                RoleManager::RoleVec v;
+                for (size_t i = 0; i < occupation_list.size(); ++i) {
+                    v.emplace_back(k_role_makers_[static_cast<uint32_t>(occupation_list[i])](pids[i], tokens[i], role_option, role_manager));
+                }
+                std::ranges::sort(v, [](const auto& _1, const auto& _2) { return _1->GetToken() < _2->GetToken(); });
+                return v;
+            };
+        const auto& occupation_list = GetOccupationList(option);
+        if (!occupation_list.empty()) {
+            return make_roles(occupation_list);
         }
-        std::ranges::sort(v, [](const auto& _1, const auto& _2) { return _1->GetToken() < _2->GetToken(); });
-        return v;
+        switch (option.PlayerNum()) {
+        case 5: return
+                make_roles(std::array<Occupation, 5>{Occupation::杀手, Occupation::替身, Occupation::侦探, Occupation::圣女, Occupation::平民});
+        case 6: return
+                make_roles(std::array<Occupation, 6>{Occupation::杀手, Occupation::替身, Occupation::侦探, Occupation::圣女, Occupation::平民, Occupation::平民});
+        case 7: return
+                make_roles(std::array<Occupation, 7>{Occupation::杀手, Occupation::替身, Occupation::侦探, Occupation::圣女, Occupation::平民, Occupation::平民, Occupation::内奸});
+        case 8: return rand() % 2 ?
+                make_roles(std::array<Occupation, 8>{Occupation::杀手, Occupation::替身, Occupation::刺客, Occupation::侦探, Occupation::圣女, Occupation::守卫, Occupation::平民, Occupation::平民}) :
+                make_roles(std::array<Occupation, 8>{Occupation::杀手, Occupation::替身, Occupation::恶灵, Occupation::侦探, Occupation::圣女, Occupation::灵媒, Occupation::平民, Occupation::平民});
+        case 9: return rand() % 2 ?
+                make_roles(std::array<Occupation, 9>{Occupation::杀手, Occupation::替身, Occupation::刺客, Occupation::侦探, Occupation::圣女, Occupation::守卫, Occupation::平民, Occupation::平民, Occupation::内奸}) :
+                make_roles(std::array<Occupation, 9>{Occupation::杀手, Occupation::替身, Occupation::恶灵, Occupation::侦探, Occupation::圣女, Occupation::灵媒, Occupation::平民, Occupation::平民, Occupation::内奸});
+        default:
+            assert(false);
+            return {};
+        }
     }
 
     std::string Image_(const char* const name, const int32_t width) const
@@ -1214,6 +1210,7 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, PassAction{});
     }
 
+    static RoleMaker k_role_makers_[Occupation::Count()];
     static constexpr const uint32_t k_avatar_width_ = 80;
     static constexpr const uint32_t k_cellspacing_ = 3;
     static constexpr const uint32_t k_cellpadding_ = 1;
@@ -1227,6 +1224,22 @@ class MainStage : public MainGameStage<>
     bool last_round_civilian_lost_;
     bool last_round_killer_lost_;
     bool last_round_traitor_lost_;
+};
+
+MainStage::RoleMaker MainStage::k_role_makers_[Occupation::Count()] = {
+    // killer team
+    [static_cast<uint32_t>(Occupation(Occupation::杀手))] = &MainStage::MakeRole_<KillerRole>,
+    [static_cast<uint32_t>(Occupation(Occupation::替身))] = &MainStage::MakeRole_<BodyDoubleRole>,
+    [static_cast<uint32_t>(Occupation(Occupation::恶灵))] = &MainStage::MakeRole_<GhostRole>,
+    [static_cast<uint32_t>(Occupation(Occupation::刺客))] = &MainStage::MakeRole_<AssassinRole>,
+    // civilian team
+    [static_cast<uint32_t>(Occupation(Occupation::平民))] = &MainStage::MakeRole_<CivilianRole>,
+    [static_cast<uint32_t>(Occupation(Occupation::圣女))] = &MainStage::MakeRole_<GoddessRole>,
+    [static_cast<uint32_t>(Occupation(Occupation::侦探))] = &MainStage::MakeRole_<DetectiveRole>,
+    [static_cast<uint32_t>(Occupation(Occupation::灵媒))] = &MainStage::MakeRole_<SorcererRole>,
+    [static_cast<uint32_t>(Occupation(Occupation::守卫))] = &MainStage::MakeRole_<GuardRole>,
+    // special team
+    [static_cast<uint32_t>(Occupation(Occupation::内奸))] = &MainStage::MakeRole_<TraitorRole>,
 };
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)

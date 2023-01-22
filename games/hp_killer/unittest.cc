@@ -34,6 +34,27 @@ GAME_TEST(9, start_game)
     START_GAME();
 }
 
+GAME_TEST(5, user_define_occupation_list_must_has_killer)
+{
+    ASSERT_PUB_MSG(OK, 0, "五人身份 替身 平民 平民 圣女 守卫");
+    START_GAME();
+    ASSERT_TRUE(!CHECK_PRI_MSG(OK, 0, "盾反 100") && !CHECK_PRI_MSG(OK, 1, "盾反 100") && !CHECK_PRI_MSG(OK, 2, "盾反 100"));
+}
+
+GAME_TEST(5, user_define_occupation_list_cannot_has_two_killers)
+{
+    ASSERT_PUB_MSG(OK, 0, "五人身份 杀手 杀手 平民 圣女 守卫");
+    START_GAME();
+    ASSERT_TRUE(!CHECK_PRI_MSG(OK, 0, "盾反 100") && !CHECK_PRI_MSG(OK, 1, "盾反 100") && !CHECK_PRI_MSG(OK, 2, "盾反 100"));
+}
+
+GAME_TEST(5, user_define_occupation_list)
+{
+    ASSERT_PUB_MSG(OK, 0, "五人身份 替身 杀手 平民 圣女 守卫");
+    START_GAME();
+    ASSERT_TRUE(CHECK_PRI_MSG(OK, 0, "盾反 100") || CHECK_PRI_MSG(OK, 1, "盾反 100") || CHECK_PRI_MSG(OK, 2, "盾反 100"));
+}
+
 GAME_TEST(5, max_three_cure)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 替身 杀手 平民 圣女 侦探");
