@@ -48,12 +48,16 @@ bool GameOption::ToValid(MsgSenderBase& reply)
         reply() << "该游戏至少 5 人参加，当前玩家数为 " << PlayerNum();
         return false;
     }
-    if (!GET_VALUE(身份列表).empty() && PlayerNum() != GET_VALUE(身份列表).size()) {
+    const auto player_num_matched = [player_num = PlayerNum()](const std::vector<Occupation>& occupation_list)
+        {
+            return std::ranges::count_if(occupation_list, [](const Occupation occupation) { return occupation != Occupation::人偶; }) == player_num;
+        };
+    if (!GET_VALUE(身份列表).empty() && !player_num_matched(GET_VALUE(身份列表))) {
         reply() << "玩家人数和身份列表长度不匹配";
         return false;
     }
     auto& occupation_list = GetOccupationList(*this);
-    if (occupation_list.size() != PlayerNum()) {
+    if (!player_num_matched(occupation_list)) {
         reply() << "[警告] 身份列表配置项身份个数与参加人数不符，将按照默认配置进行游戏";
         occupation_list.clear();
     } else if (std::ranges::count(occupation_list, Occupation::杀手) != 1) {
@@ -179,7 +183,7 @@ struct RoleOption
 class RoleBase
 {
   protected:
-    RoleBase(const PlayerID pid, const Token token, const Occupation occupation, const Team team, const RoleOption& option, RoleManager& role_manager)
+    RoleBase(const std::optional<PlayerID> pid, const Token token, const Occupation occupation, const Team team, const RoleOption& option, RoleManager& role_manager)
         : pid_(pid)
         , token_(token)
         , occupation_(occupation)
@@ -261,7 +265,7 @@ class RoleBase
     void DisableAct() { can_act_ = false; }
     void DisableActWhenRefresh() { disable_act_when_refresh_ = true; }
 
-    PlayerID PlayerId() const { return pid_; }
+    std::optional<PlayerID> PlayerId() const { return pid_; }
     Token GetToken() const { return token_; }
     Occupation GetOccupation() const { return occupation_; }
     Team GetTeam() const { return team_; }
@@ -277,7 +281,7 @@ class RoleBase
     }
 
   protected:
-    const PlayerID pid_;
+    const std::optional<PlayerID> pid_;
     const Token token_;
     const Occupation occupation_;
     RoleManager& role_manager_;
@@ -293,8 +297,9 @@ class RoleBase
     std::vector<RoleStatus> history_status_;
 };
 
-struct RoleManager
+class RoleManager
 {
+  public:
     using RoleVec = std::vector<std::unique_ptr<RoleBase>>;
 
     RoleManager(RoleVec roles) : roles_(std::move(roles))
@@ -342,6 +347,9 @@ struct RoleManager
     template <typename Fn>
     void Foreach(const Fn& fn) const { std::ranges::for_each(roles_, [&fn](const auto& role_p) { fn(*role_p); }); }
 
+    uint32_t Size() const { return roles_.size(); }
+
+  private:
     RoleVec roles_;
 };
 
@@ -561,6 +569,15 @@ class TraitorRole : public RoleBase
     }
 };
 
+class PuppetRole : public RoleBase
+{
+  public:
+    PuppetRole(const Token token, const RoleOption& option, RoleManager& role_manager)
+        : RoleBase(std::nullopt, token, Occupation::人偶, Team::特殊, option, role_manager)
+    {
+    }
+};
+
 enum class RoundResult { KILLER_WIN, CIVILIAN_WIN, DRAW, CONTINUE };
 
 // ========== GAME STAGES ==========
@@ -587,10 +604,10 @@ class MainStage : public MainGameStage<>
                 MakeStageCommand("使用盾反", &MainStage::ShieldAnti_, VoidChecker("盾反"),
                     ArithChecker<int32_t>(-1000, 1000, "预测下一回合血量")),
                 MakeStageCommand("跳过本回合行动", &MainStage::Pass_, VoidChecker("pass")))
-        , k_image_width_((k_avatar_width_ + k_cellspacing_ + k_cellpadding_) * option.PlayerNum() + 150)
         , role_manager_(GET_OPTION_VALUE(option, 身份列表).empty()
-                ?  GetRoleVec_(option, DefaultRoleOption_(option), role_manager_)
+                ? GetRoleVec_(option, DefaultRoleOption_(option), role_manager_)
                 : LoadRoleVec_(GET_OPTION_VALUE(option, 身份列表), DefaultRoleOption_(option), role_manager_))
+        , k_image_width_((k_avatar_width_ + k_cellspacing_ + k_cellpadding_) * role_manager_.Size() + 150)
         , role_info_(RoleInfo_())
         , round_(1)
         , last_round_civilian_lost_(false)
@@ -603,7 +620,9 @@ class MainStage : public MainGameStage<>
         Boardcast() << "游戏开始，将私信各位玩家角色代号及职业\n\n第 1 回合开始，请私信裁判行动";
         role_manager_.Foreach([&](const auto& role)
             {
-                Tell(role.PlayerId()) << PrivateRoleInfo_(role);
+                if (role.PlayerId().has_value()) {
+                    Tell(*role.PlayerId()) << PrivateRoleInfo_(role);
+                }
             });
         table_html_ = Html_(false);
         StartTimer(GET_OPTION_VALUE(option(), 时限));
@@ -728,7 +747,8 @@ class MainStage : public MainGameStage<>
                     role_manager_.GetRole(action->token_).AddHp(action->hp_);
                 } else if (const auto action = std::get_if<DetectAction>(&role.CurAction())) {
                     auto& detected_role = role_manager_.GetRole(action->token_);
-                    auto sender = Tell(role.PlayerId());
+                    assert(role.PlayerId().has_value());
+                    auto sender = Tell(*role.PlayerId());
                     sender << "上一回合角色 " << action->token_.ToChar() << " 的行动是「";
                     if (const auto detect_action = std::get_if<HurtAction>(&detected_role.CurAction())) {
                         sender << "攻击 " << detect_action->token_.ToChar();
@@ -745,7 +765,8 @@ class MainStage : public MainGameStage<>
                     }
                 } else if (const auto action = std::get_if<ExocrismAction>(&role.CurAction())) {
                     auto& exocrism_role = role_manager_.GetRole(action->token_);
-                    auto sender = Tell(role.PlayerId());
+                    assert(role.PlayerId().has_value());
+                    auto sender = Tell(*role.PlayerId());
                     if (exocrism_role.GetOccupation() != Occupation::恶灵) {
                         sender << "很遗憾，" << action->token_.ToChar() << " 不是恶灵";
                     } else {
@@ -784,7 +805,8 @@ class MainStage : public MainGameStage<>
             role_manager_.Foreach([&](auto& role)
                 {
                     if (role.GetOccupation() == Occupation::守卫) {
-                        Tell(role.PlayerId()) << "请注意，上一回合有人盾反成功";
+                        assert(role.PlayerId().has_value());
+                        Tell(*role.PlayerId()) << "请注意，上一回合有人盾反成功";
                     }
                 });
         }
@@ -796,7 +818,12 @@ class MainStage : public MainGameStage<>
         role_manager_.Foreach([&](auto& role)
             {
                 if (role.Refresh()) {
-                    sender << "\n角色 " << role.GetToken().ToChar() << " 死亡，他的「中之人」是" << At(role.PlayerId());
+                    sender << "\n角色 " << role.GetToken().ToChar() << " 死亡，";
+                    if (role.PlayerId().has_value()) {
+                        sender << "他的「中之人」是" << At(*role.PlayerId());
+                    } else {
+                        sender << "他是 NPC，没有「中之人」";
+                    }
                     if (role.GetOccupation() != Occupation::恶灵) {
                         DisableAct_(role);
                     }
@@ -805,7 +832,8 @@ class MainStage : public MainGameStage<>
                             {
                                 if (other_role.GetOccupation() == Occupation::内奸) {
                                     other_role.SetAllowHeavyHurtCure(true);
-                                    Tell(other_role.PlayerId()) << "杀手已经死亡，您获得了造成 " << k_heavy_hurt_hp << " 点伤害和治愈 " << k_heavy_cure_hp << " 点 HP 的权利";
+                                    assert(other_role.PlayerId().has_value());
+                                    Tell(*other_role.PlayerId()) << "杀手已经死亡，您获得了造成 " << k_heavy_hurt_hp << " 点伤害和治愈 " << k_heavy_cure_hp << " 点 HP 的权利";
                                 }
                             });
                     }
@@ -878,7 +906,9 @@ class MainStage : public MainGameStage<>
                     {
                         if ((!last_round_civilian_lost_ && civilian_lost && role.GetTeam() == Team::平民) ||
                                 (!last_round_killer_lost_ && killer_lost && role.GetTeam() == Team::杀手)) {
-                            Tell(role.PlayerId()) << "很遗憾，您所在的阵营失败了";
+                            if (role.PlayerId().has_value()) {
+                                Tell(*role.PlayerId()) << "很遗憾，您所在的阵营失败了";
+                            }
                             if (role.CanAct()) {
                                 DisableAct_(role);
                             }
@@ -900,7 +930,7 @@ class MainStage : public MainGameStage<>
                     role.SetWinner(!killer_lost);
                 } else if (role.GetOccupation() == Occupation::内奸) {
                     role.SetWinner(!traitor_lost);
-                } else {
+                } else if (role.GetOccupation() != Occupation::人偶) {
                     assert(false);
                 }
             });
@@ -927,8 +957,10 @@ class MainStage : public MainGameStage<>
         } else {
             role.DisableAct();
         }
-        Tell(role.PlayerId()) << "您失去了行动能力";
-        Eliminate(role.PlayerId());
+        if (role.PlayerId()) {
+            Tell(*role.PlayerId()) << "您失去了行动能力";
+            Eliminate(*role.PlayerId());
+        }
     }
 
     template <typename RoleType>
@@ -940,38 +972,44 @@ class MainStage : public MainGameStage<>
     static RoleManager::RoleVec LoadRoleVec_(const std::vector<Occupation>& occupation_list, const RoleOption& option, RoleManager& role_manager)
     {
         RoleManager::RoleVec v;
-        for (uint32_t pid = 0; pid < occupation_list.size(); ++pid) {
-            v.emplace_back(k_role_makers_[occupation_list[pid].ToUInt()](pid, Token(pid), option, role_manager));
+        for (uint32_t i = 0, pid = 0; i < occupation_list.size(); ++i) {
+            if (occupation_list[i] == Occupation::人偶) {
+                v.emplace_back(std::make_unique<PuppetRole>(Token(i), option, role_manager));
+            } else {
+                v.emplace_back(k_role_makers_[occupation_list[i].ToUInt()](pid++, Token(i), option, role_manager));
+            }
         }
         return v;
     }
 
     static RoleManager::RoleVec GetRoleVec_(const GameOption& option, const RoleOption& role_option, RoleManager& role_manager)
     {
-        std::vector<PlayerID> pids;
-        std::vector<Token> tokens;
-        for (uint32_t i = 0; i < option.PlayerNum(); ++i) {
-            pids.emplace_back(i);
-            tokens.emplace_back(i);
-        }
-        std::random_device rd;
-        std::mt19937 g(rd());
-        std::ranges::shuffle(pids, g);
-        std::ranges::shuffle(tokens, g);
-        RoleManager::RoleVec v;
         const auto make_roles = [&](const auto& occupation_list)
             {
-                assert(pids.size() == occupation_list.size());
-                assert(tokens.size() == occupation_list.size());
+                std::vector<PlayerID> pids;
+                for (uint32_t i = 0; i < option.PlayerNum(); ++i) {
+                    pids.emplace_back(i);
+                }
+                std::vector<Token> tokens;
+                for (uint32_t i = 0; i < occupation_list.size(); ++i) {
+                    tokens.emplace_back(i);
+                }
+                std::random_device rd;
+                std::mt19937 g(rd());
+                std::ranges::shuffle(pids, g);
+                std::ranges::shuffle(tokens, g);
                 RoleManager::RoleVec v;
-                for (size_t i = 0; i < occupation_list.size(); ++i) {
-                    v.emplace_back(k_role_makers_[static_cast<uint32_t>(occupation_list[i])](pids[i], tokens[i], role_option, role_manager));
+                for (size_t i = 0, pid_i = 0; i < occupation_list.size(); ++i) {
+                    if (occupation_list[i] == Occupation::人偶) {
+                        v.emplace_back(std::make_unique<PuppetRole>(tokens[i], role_option, role_manager));
+                    } else {
+                        v.emplace_back(k_role_makers_[static_cast<uint32_t>(occupation_list[i])](pids[pid_i++], tokens[i], role_option, role_manager));
+                    }
                 }
                 std::ranges::sort(v, [](const auto& _1, const auto& _2) { return _1->GetToken() < _2->GetToken(); });
                 return v;
             };
-        const auto& occupation_list = GetOccupationList(option);
-        if (!occupation_list.empty()) {
+        if (const auto& occupation_list = GetOccupationList(option); !occupation_list.empty()) {
             return make_roles(occupation_list);
         }
         switch (option.PlayerNum()) {
@@ -982,7 +1020,7 @@ class MainStage : public MainGameStage<>
         case 7: return
                 make_roles(std::array<Occupation, 7>{Occupation::杀手, Occupation::替身, Occupation::侦探, Occupation::圣女, Occupation::平民, Occupation::平民, Occupation::内奸});
         case 8: return rand() % 2 ?
-                make_roles(std::array<Occupation, 8>{Occupation::杀手, Occupation::替身, Occupation::刺客, Occupation::侦探, Occupation::圣女, Occupation::守卫, Occupation::平民, Occupation::平民}) :
+                make_roles(std::array<Occupation, 9>{Occupation::杀手, Occupation::替身, Occupation::刺客, Occupation::侦探, Occupation::圣女, Occupation::守卫, Occupation::平民, Occupation::平民, Occupation::人偶}) :
                 make_roles(std::array<Occupation, 8>{Occupation::杀手, Occupation::替身, Occupation::恶灵, Occupation::侦探, Occupation::圣女, Occupation::灵媒, Occupation::平民, Occupation::平民});
         case 9: return rand() % 2 ?
                 make_roles(std::array<Occupation, 9>{Occupation::杀手, Occupation::替身, Occupation::刺客, Occupation::侦探, Occupation::圣女, Occupation::守卫, Occupation::平民, Occupation::平民, Occupation::内奸}) :
@@ -1001,7 +1039,7 @@ class MainStage : public MainGameStage<>
 
     std::string RoleInfo_() const
     {
-        std::string s = HTML_SIZE_FONT_HEADER(5) "<b>本场游戏包含职业：";
+        std::string s = HTML_SIZE_FONT_HEADER(4) "<b>本场游戏包含职业：";
         std::vector<Occupation> occupations;
         role_manager_.Foreach([&](const auto& role)
             {
@@ -1011,12 +1049,15 @@ class MainStage : public MainGameStage<>
         for (const auto& occupation : occupations) {
             if (occupation == Occupation::杀手 || occupation == Occupation::替身 || occupation == Occupation::恶灵 || occupation == Occupation::刺客) {
                 s += HTML_COLOR_FONT_HEADER(red);
-            } else if (occupation == Occupation::内奸) {
+            } else if (occupation == Occupation::内奸 || occupation == Occupation::人偶) {
                 s += HTML_COLOR_FONT_HEADER(blue);
             } else {
                 s += HTML_COLOR_FONT_HEADER(black);
             }
             s += occupation.ToString();
+            if (occupation == Occupation::人偶) {
+                s += "（NPC）";
+            }
             s += HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE;
         }
         s += "</b>" HTML_FONT_TAIL;
@@ -1029,24 +1070,24 @@ class MainStage : public MainGameStage<>
         const char* const k_middle_grey = "#E0E0E0";
         const char* const k_light_grey = "#F5F5F5";
 
-        html::Table table(0, option().PlayerNum() + 1);
+        html::Table table(0, role_manager_.Size() + 1);
         table.SetTableStyle(" align=\"center\" cellspacing=\"" + std::to_string(k_cellspacing_) + "\" cellpadding=\"" +
                 std::to_string(k_cellpadding_) + "\"");
         table.AppendRow();
         table.GetLastRow(0).SetContent("**玩家**");
         table.GetLastRow(0).SetColor(k_dark_blue);
-        for (uint32_t token_id = 0; token_id < option().PlayerNum(); ++token_id) {
+        for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
             const auto& role = role_manager_.GetRole(Token{token_id});
-            const auto image = (!role.IsAlive() || with_action)
-                ? PlayerAvatar(role.PlayerId(), k_avatar_width_)
-                : Image_("unknown_player", k_avatar_width_);
+            const auto image = (role.IsAlive() && !with_action) ? Image_("unknown_player", k_avatar_width_)       :
+                               role.PlayerId().has_value()      ? PlayerAvatar(*role.PlayerId(), k_avatar_width_) :
+                               "<p style=\"width:" + std::to_string(k_avatar_width_) + "px;\"></p>";
             table.Get(table.Row() - 1, token_id + 1).SetContent(image);
             table.Get(table.Row() - 1, token_id + 1).SetColor(role.IsAlive() ? k_dark_blue : k_middle_grey);
         }
         table.AppendRow();
         table.GetLastRow(0).SetContent("**角色代号**");
         table.GetLastRow(0).SetColor(k_dark_blue);
-        for (uint32_t token_id = 0; token_id < option().PlayerNum(); ++token_id) {
+        for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
             const auto& role = role_manager_.GetRole(Token{token_id});
             table.Get(table.Row() - 1, token_id + 1).SetContent(std::string("<font size=\"6\"> **") + Token{token_id}.ToChar() + "** ");
             table.Get(table.Row() - 1, token_id + 1).SetColor(role.IsAlive() ? k_dark_blue : k_middle_grey);
@@ -1055,7 +1096,7 @@ class MainStage : public MainGameStage<>
             table.AppendRow();
             table.GetLastRow(0).SetContent("**职业**");
             table.GetLastRow(0).SetColor(k_dark_blue);
-            for (uint32_t token_id = 0; token_id < option().PlayerNum(); ++token_id) {
+            for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
                 const auto& role = role_manager_.GetRole(Token{token_id});
                 table.Get(table.Row() - 1, token_id + 1).SetContent(std::string("<font size=\"5\"> **") +
                         role_manager_.GetRole(Token{token_id}).GetOccupation().ToString() + "** " HTML_FONT_TAIL);
@@ -1065,7 +1106,7 @@ class MainStage : public MainGameStage<>
         table.AppendRow();
         table.GetLastRow(0).SetContent("**初始状态**");
         table.GetLastRow(0).SetColor(k_light_grey);
-        for (uint32_t token_id = 0; token_id < option().PlayerNum(); ++token_id) {
+        for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
             table.Get(table.Row() - 1, token_id + 1).SetContent("<p align=\"left\"><font size=\"4\">" +
                     Image_("blank", k_icon_size_) + std::to_string(GET_OPTION_VALUE(option(), 血量)) + "</font></p>");
             table.Get(table.Row() - 1, token_id + 1).SetColor(k_light_grey);
@@ -1075,7 +1116,7 @@ class MainStage : public MainGameStage<>
             table.GetLastRow(0).SetContent("**第 " + std::to_string(r + 1) + " 回合**");
             table.GetLastRow(0).SetColor(r % 2 ? k_light_grey : k_middle_grey);
             if (with_action) {
-                for (uint32_t token_id = 0; token_id < option().PlayerNum(); ++token_id) {
+                for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
                     const auto status = role_manager_.GetRole(Token{token_id}).GetHistoryStatus(r);
                     table.Get(table.Row() - 1, token_id + 1).SetColor(r % 2 ? k_light_grey : k_middle_grey);
                     if (!status) {
@@ -1087,7 +1128,7 @@ class MainStage : public MainGameStage<>
                 table.AppendRow();
                 table.MergeDown(table.Row() - 2, 0, 2);
             }
-            for (uint32_t token_id = 0; token_id < option().PlayerNum(); ++token_id) {
+            for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
                 const auto& role = role_manager_.GetRole(Token{token_id});
                 const auto status = role.GetHistoryStatus(r);
                 table.Get(table.Row() - 1, token_id + 1).SetColor(r % 2 ? k_light_grey : k_middle_grey );
@@ -1215,8 +1256,8 @@ class MainStage : public MainGameStage<>
     static constexpr const uint32_t k_cellspacing_ = 3;
     static constexpr const uint32_t k_cellpadding_ = 1;
     static constexpr const uint32_t k_icon_size_ = 40;
-    const uint32_t k_image_width_;
     RoleManager role_manager_;
+    const uint32_t k_image_width_;
     const std::string role_info_;
     int round_;
     std::string table_html_;

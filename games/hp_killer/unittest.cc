@@ -34,6 +34,13 @@ GAME_TEST(9, start_game)
     START_GAME();
 }
 
+GAME_TEST(5, user_define_occupation_list_size_mismatch)
+{
+    ASSERT_PUB_MSG(OK, 0, "五人身份 替身 平民 平民 圣女 守卫 平民");
+    START_GAME();
+    ASSERT_TRUE(!CHECK_PRI_MSG(OK, 0, "盾反 100") && !CHECK_PRI_MSG(OK, 1, "盾反 100") && !CHECK_PRI_MSG(OK, 2, "盾反 100"));
+}
+
 GAME_TEST(5, user_define_occupation_list_must_has_killer)
 {
     ASSERT_PUB_MSG(OK, 0, "五人身份 替身 平民 平民 圣女 守卫");
@@ -51,6 +58,13 @@ GAME_TEST(5, user_define_occupation_list_cannot_has_two_killers)
 GAME_TEST(5, user_define_occupation_list)
 {
     ASSERT_PUB_MSG(OK, 0, "五人身份 替身 杀手 平民 圣女 守卫");
+    START_GAME();
+    ASSERT_TRUE(CHECK_PRI_MSG(OK, 0, "盾反 100") || CHECK_PRI_MSG(OK, 1, "盾反 100") || CHECK_PRI_MSG(OK, 2, "盾反 100"));
+}
+
+GAME_TEST(5, user_define_occupation_list_with_npc)
+{
+    ASSERT_PUB_MSG(OK, 0, "五人身份 替身 杀手 平民 圣女 守卫 人偶");
     START_GAME();
     ASSERT_TRUE(CHECK_PRI_MSG(OK, 0, "盾反 100") || CHECK_PRI_MSG(OK, 1, "盾反 100") || CHECK_PRI_MSG(OK, 2, "盾反 100"));
 }
@@ -766,6 +780,16 @@ GAME_TEST(5, shield_anti_goddess_not_hurt)
     ASSERT_TIMEOUT(CONTINUE);
     ASSERT_PRI_MSG(OK, 4, "pass"); // E alive
     ASSERT_PRI_MSG(CONTINUE, 3, "pass"); // D alive
+}
+
+GAME_TEST(5, goddess_can_hurt_puppet)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 守卫 圣女 人偶");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 4, "攻击 F 15");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(FAILED, 0, "攻击 F 15"); // puppet is dead
 }
 
 int main(int argc, char** argv)

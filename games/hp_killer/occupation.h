@@ -16,6 +16,8 @@ ENUM_BEGIN(Occupation)
     ENUM_MEMBER(Occupation, 守卫)
     // special team
     ENUM_MEMBER(Occupation, 内奸)
+    // npc
+    ENUM_MEMBER(Occupation, 人偶)
 ENUM_END(Occupation)
 
 
