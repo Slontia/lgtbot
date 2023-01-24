@@ -225,7 +225,10 @@ class ArithChecker : public MsgArgChecker<T>
         if (!reader.HasNext()) {
             return std::nullopt;
         }
-        const std::string str = reader.NextArg();
+        return Check(reader.NextArg());
+    }
+    virtual std::optional<T> Check(const std::string& str) const
+    {
         T result{};
         const auto [ptr, ec] { std::from_chars(str.data(), str.data() + str.size(), result) };
         if (ec == std::errc() && ptr == str.data() + str.size() && min_ <= result && result <= max_) {
@@ -517,8 +520,9 @@ class EnumChecker : public MsgArgChecker<Enum>
         if (!reader.HasNext()) {
             return std::nullopt;
         }
-        return Enum::Parse(reader.NextArg());
+        return Check(reader.NextArg());
     }
+    virtual std::optional<Enum> Check(const std::string& str) const { return Enum::Parse(str); }
     virtual std::string ArgString(const Enum& value) const { return value.ToString(); }
 
   private:

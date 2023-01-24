@@ -17,30 +17,33 @@ GAME_TEST(2, show_info)
 
 GAME_TEST(2, leave_default_choise)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
     ASSERT_LEAVE(CONTINUE, 1);
-    ASSERT_PRI_MSG(CHECKOUT, 0, "石头1");
-    ASSERT_PRI_MSG(CHECKOUT, 0, "石头2");
-    ASSERT_PRI_MSG(CHECKOUT, 0, "石头1");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "布1");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "布2");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "布1");
 
-    ASSERT_PRI_MSG(CHECKOUT, 0, "石头2");
-    ASSERT_PRI_MSG(CHECKOUT, 0, "石头4");
-    ASSERT_PRI_MSG(CHECKOUT, 0, "石头2");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "布2");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "布4");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "布2");
 
-    ASSERT_PRI_MSG(CHECKOUT, 0, "石头4");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "布4");
     ASSERT_PRI_MSG(CHECKOUT, 0, "剪刀4");
-    ASSERT_PRI_MSG(CHECKOUT, 0, "石头4");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "布4");
     ASSERT_SCORE(1, 0);
 }
 
 GAME_TEST(2, forbid_public_choose)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
     ASSERT_PUB_MSG(FAILED, 0, "石头1");
 }
 
 GAME_TEST(2, forbid_public_alter)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
     ASSERT_PRI_MSG(OK, 0, "石头1");
     ASSERT_PRI_MSG(CHECKOUT, 1, "石头1");
@@ -51,6 +54,7 @@ GAME_TEST(2, forbid_public_alter)
 
 GAME_TEST(2, repeat_choose)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
     ASSERT_PRI_MSG(OK, 0, "石头1");
     ASSERT_PRI_MSG(OK, 0, "石头2");
@@ -60,14 +64,16 @@ GAME_TEST(2, repeat_choose)
 
 GAME_TEST(2, not_exist_card)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
-    ASSERT_PRI_MSG(FAILED, 0, "啥玩意");
+    ASSERT_PRI_MSG(NOT_FOUND, 0, "啥玩意");
     ASSERT_PRI_MSG(NOT_FOUND, 1, "石头1 哈哈哈");
     ASSERT_PRI_MSG(FAILED, 1, "石头3");
 }
 
 GAME_TEST(2, choose_choosed_card)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
     ASSERT_PRI_MSG(OK, 0, "石头1");
     ASSERT_PRI_MSG(CHECKOUT, 1, "石头1");
@@ -76,6 +82,7 @@ GAME_TEST(2, choose_choosed_card)
 
 GAME_TEST(2, choose_used_card)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
     ASSERT_PRI_MSG(OK, 0, "石头1");
     ASSERT_PRI_MSG(CHECKOUT, 1, "石头1");
@@ -114,6 +121,7 @@ std::array<const char*, 9> k_card_names {
 
 GAME_TEST(2, all_win_by_type)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
 
     LAST_ROUND("剪刀1", "石头1");
@@ -133,6 +141,7 @@ GAME_TEST(2, all_win_by_type)
 
 GAME_TEST(2, some_win_by_number)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
 
     LAST_ROUND("剪刀1", "剪刀2");
@@ -152,6 +161,7 @@ GAME_TEST(2, some_win_by_number)
 
 GAME_TEST(2, half_win)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
 
     LAST_ROUND("布1", "布2");
@@ -164,6 +174,7 @@ GAME_TEST(2, half_win)
 
 GAME_TEST(2, half_win_interrupt)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
 
     LAST_ROUND("布1", "石头4");
@@ -180,6 +191,7 @@ GAME_TEST(2, half_win_interrupt)
 
 GAME_TEST(2, half_win_at_last)
 {
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀1 布1 石头2 剪刀2 布2 石头4 剪刀4 布4");
     START_GAME();
 
     LAST_ROUND("剪刀1", "石头1");
