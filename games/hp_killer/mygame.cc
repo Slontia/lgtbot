@@ -691,15 +691,6 @@ class MainStage : public MainGameStage<>
                     }
                 });
             s += " 之间";
-        } else if (role.GetOccupation() == Occupation::平民) {
-            s += "，平民的代号包括";
-            role_manager_.Foreach([&](const auto& role)
-                {
-                    if (role.GetOccupation() == Occupation::平民) {
-                        s += ' ';
-                        s += role.GetToken().ToChar();
-                    }
-                });
         } else if (role.GetOccupation() == Occupation::内奸) {
             s += "，杀手和平民的代号在";
             role_manager_.Foreach([&](const auto& role)
@@ -1073,45 +1064,43 @@ class MainStage : public MainGameStage<>
         html::Table table(0, role_manager_.Size() + 1);
         table.SetTableStyle(" align=\"center\" cellspacing=\"" + std::to_string(k_cellspacing_) + "\" cellpadding=\"" +
                 std::to_string(k_cellpadding_) + "\"");
-        table.AppendRow();
-        table.GetLastRow(0).SetContent("**玩家**");
-        table.GetLastRow(0).SetColor(k_dark_blue);
-        for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
-            const auto& role = role_manager_.GetRole(Token{token_id});
-            const auto image = (role.IsAlive() && !with_action) ? Image_("unknown_player", k_avatar_width_)       :
-                               role.PlayerId().has_value()      ? PlayerAvatar(*role.PlayerId(), k_avatar_width_) :
-                               "<p style=\"width:" + std::to_string(k_avatar_width_) + "px;\"></p>";
-            table.Get(table.Row() - 1, token_id + 1).SetContent(image);
-            table.Get(table.Row() - 1, token_id + 1).SetColor(role.IsAlive() ? k_dark_blue : k_middle_grey);
-        }
-        table.AppendRow();
-        table.GetLastRow(0).SetContent("**角色代号**");
-        table.GetLastRow(0).SetColor(k_dark_blue);
-        for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
-            const auto& role = role_manager_.GetRole(Token{token_id});
-            table.Get(table.Row() - 1, token_id + 1).SetContent(std::string("<font size=\"6\"> **") + Token{token_id}.ToChar() + "** ");
-            table.Get(table.Row() - 1, token_id + 1).SetColor(role.IsAlive() ? k_dark_blue : k_middle_grey);
-        }
-        if (with_action) {
-            table.AppendRow();
-            table.GetLastRow(0).SetContent("**职业**");
-            table.GetLastRow(0).SetColor(k_dark_blue);
-            for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
-                const auto& role = role_manager_.GetRole(Token{token_id});
-                table.Get(table.Row() - 1, token_id + 1).SetContent(std::string("<font size=\"5\"> **") +
-                        role_manager_.GetRole(Token{token_id}).GetOccupation().ToString() + "** " HTML_FONT_TAIL);
-                table.Get(table.Row() - 1, token_id + 1).SetColor(role.IsAlive() ? k_dark_blue : k_middle_grey);
-            }
-        }
-        table.AppendRow();
-        table.GetLastRow(0).SetContent("**初始状态**");
-        table.GetLastRow(0).SetColor(k_light_grey);
-        for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
-            table.Get(table.Row() - 1, token_id + 1).SetContent("<p align=\"left\"><font size=\"4\">" +
-                    Image_("blank", k_icon_size_) + std::to_string(GET_OPTION_VALUE(option(), 血量)) + "</font></p>");
-            table.Get(table.Row() - 1, token_id + 1).SetColor(k_light_grey);
-        }
-        for (uint32_t r = 0; r < (with_action ? round_: round_ - 1); ++r) {
+
+        const auto new_line = [&](const std::string_view title, const char* const color, const auto fn)
+            {
+                table.AppendRow();
+                table.GetLastRow(0).SetContent("**" + std::string(title) + "**");
+                table.GetLastRow(0).SetColor(color);
+                for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
+                    const auto& role = role_manager_.GetRole(Token{token_id});
+                    auto& box = table.Get(table.Row() - 1, token_id + 1);
+                    box.SetColor(role.IsAlive() ? k_dark_blue : k_middle_grey);
+                    fn(box, role);
+                }
+            };
+        new_line("玩家", k_dark_blue, [&](html::Box& box, const RoleBase& role)
+                {
+                    const auto image = (role.IsAlive() && !with_action) ? Image_("unknown_player", k_avatar_width_)       :
+                                       role.PlayerId().has_value()      ? PlayerAvatar(*role.PlayerId(), k_avatar_width_) :
+                                       "<p style=\"width:" + std::to_string(k_avatar_width_) + "px;\"></p>";
+                    box.SetContent(image);
+                });
+        new_line("角色代号", k_dark_blue, [&](html::Box& box, const RoleBase& role)
+                {
+                    box.SetContent(std::string("<font size=\"6\"> **") + role.GetToken().ToChar() + "** ");
+                });
+        new_line("职业", k_dark_blue, [&](html::Box& box, const RoleBase& role)
+                {
+                    box.SetContent(std::string("<font size=\"5\"> **") +
+                            (with_action ? role.GetOccupation().ToString() : "??") +
+                            "** " HTML_FONT_TAIL);
+                });
+        new_line("初始状态", k_light_grey, [&](html::Box& box, const RoleBase& role)
+                {
+                    box.SetContent("<p align=\"left\"><font size=\"4\">" +
+                            Image_("blank", k_icon_size_) + std::to_string(GET_OPTION_VALUE(option(), 血量)) + "</font></p>");
+                    box.SetColor(k_light_grey);
+                });
+        for (uint32_t r = 0; r < (with_action ? round_ : round_ - 1); ++r) {
             table.AppendRow();
             table.GetLastRow(0).SetContent("**第 " + std::to_string(r + 1) + " 回合**");
             table.GetLastRow(0).SetColor(r % 2 ? k_light_grey : k_middle_grey);
@@ -1131,7 +1120,7 @@ class MainStage : public MainGameStage<>
             for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
                 const auto& role = role_manager_.GetRole(Token{token_id});
                 const auto status = role.GetHistoryStatus(r);
-                table.Get(table.Row() - 1, token_id + 1).SetColor(r % 2 ? k_light_grey : k_middle_grey );
+                table.Get(table.Row() - 1, token_id + 1).SetColor(r % 2 ? k_light_grey : k_middle_grey);
                 if (!status) {
                     continue;
                 }
