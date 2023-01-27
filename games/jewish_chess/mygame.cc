@@ -10,6 +10,7 @@
 #include "game_framework/game_main.h"
 #include "game_framework/game_options.h"
 #include "game_framework/game_stage.h"
+#include "game_framework/game_achievements.h"
 #include "utility/msg_checker.h"
 
 const std::string k_game_name = "犹太人棋";

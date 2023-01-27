@@ -279,9 +279,27 @@ class SubStageBaseWrapper : public StageBaseWrapper<IS_ATOM>
     MainStage& main_stage_;
 };
 
-template <bool IS_ATOM>
-class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_ATOM>
+template <typename AchievementTuple, size_t I = std::tuple_size_v<AchievementTuple>>
+class AchievementVerdictatorHelper : public AchievementVerdictatorHelper<AchievementTuple, I - 1>
 {
+  protected:
+    using AchievementVerdictatorHelper<AchievementTuple, I - 1>::VerdictateAchievement;
+    virtual bool VerdictateAchievement(const std::decay_t<decltype(std::get<I - 1>(AchievementTuple{}))>, const PlayerID pid) const = 0;
+};
+
+template <typename AchievementTuple>
+class AchievementVerdictatorHelper<AchievementTuple, 0>
+{
+  protected:
+    // define this function to avoid compilation error at using statement for non-achievement games
+    void VerdictateAchievement() const {}
+};
+
+template <bool IS_ATOM, typename Achievement>
+class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_ATOM>, public AchievementVerdictatorHelper<typename Achievement::Tuple::Type>
+{
+    using AchievementVerdictatorHelper<typename Achievement::Tuple::Type>::VerdictateAchievement;
+
   public:
     template <typename ...Commands>
     MainStageBaseWrapper(const GameOptionBase& option, MatchBase& match, Commands&& ...commands)
@@ -291,21 +309,39 @@ class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_AT
 
     virtual int64_t PlayerScore(const PlayerID pid) const = 0;
 
+    virtual const char* const* VerdictateAchievements(const PlayerID pid) const override
+    {
+        thread_local static std::array<const char*, Achievement::Count() + 1> achieved_list = {nullptr};
+        achieved_list.fill(nullptr);
+        int32_t i = 0;
+        const auto verdictate = [this, pid, &i](const auto achievement)
+            {
+                if (VerdictateAchievement(achievement, pid)) {
+                    achieved_list[++i] = Achievement(achievement).ToString();
+                }
+            };
+        std::apply([&](const auto ...achievements)
+                {
+                    (verdictate(achievements), ...);
+                }, typename Achievement::Tuple::Type{});
+        return achieved_list.data();
+    }
+
   private:
     GlobalInfo global_info_;
 };
 
-template <typename GameOption, typename MainStage, typename... SubStages>
+template <typename GameOption, typename Achievement, typename MainStage, typename... SubStages>
 class GameStage;
 
 // Is Comp Stage
-template <typename GameOption, typename MainStage, typename... SubStages> requires (sizeof...(SubStages) > 0)
-class GameStage<GameOption, MainStage, SubStages...>
-    : public std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<false>, SubStageBaseWrapper<false, MainStage>>
+template <typename GameOption, typename Achievement, typename MainStage, typename... SubStages> requires (sizeof...(SubStages) > 0)
+class GameStage<GameOption, Achievement, MainStage, SubStages...>
+    : public std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<false, Achievement>, SubStageBaseWrapper<false, MainStage>>
     , public SubStageCheckoutHelper<SubStages, std::variant<std::unique_ptr<SubStages>...>>...
 {
   public:
-    using Base = std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<false>, SubStageBaseWrapper<false, MainStage>>;
+    using Base = std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<false, Achievement>, SubStageBaseWrapper<false, MainStage>>;
     using VariantSubStage = std::variant<std::unique_ptr<SubStages>...>;
     using SubStageCheckoutHelper<SubStages, VariantSubStage>::NextSubStage...;
 
@@ -454,12 +490,12 @@ class GameStage<GameOption, MainStage, SubStages...>
 };
 
 // Is Atom Stage
-template <typename GameOption, typename MainStage>
-class GameStage<GameOption, MainStage>
-    : public std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<true>, SubStageBaseWrapper<true, MainStage>>
+template <typename GameOption, typename Achievement, typename MainStage>
+class GameStage<GameOption, Achievement, MainStage>
+    : public std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<true, Achievement>, SubStageBaseWrapper<true, MainStage>>
 {
    public:
-    using Base = std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<true>, SubStageBaseWrapper<true, MainStage>>;
+    using Base = std::conditional_t<std::is_void_v<MainStage>, MainStageBaseWrapper<true, Achievement>, SubStageBaseWrapper<true, MainStage>>;
 
     template <typename ...Args>
     GameStage(Args&& ...args) : Base(std::forward<Args>(args)...) {}
@@ -635,11 +671,12 @@ class GameStage<GameOption, MainStage>
 };
 
 class GameOption;
+class Achievement;
 class MainStage;
 
 template <typename... SubStages>
-using SubGameStage = GameStage<GameOption, MainStage, SubStages...>;
+using SubGameStage = GameStage<GameOption, Achievement, MainStage, SubStages...>;
 
 template <typename... SubStages>
-using MainGameStage = GameStage<GameOption, void, SubStages...>;
+using MainGameStage = GameStage<GameOption, Achievement, void, SubStages...>;
 

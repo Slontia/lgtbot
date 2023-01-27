@@ -344,6 +344,38 @@ static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<Grou
     return EC_OK;
 }
 
+static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+                         const std::string& gamename)
+{
+    const auto it = bot.game_handles().find(gamename);
+    if (it == bot.game_handles().end()) {
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        return EC_REQUEST_UNKNOWN_GAME;
+    };
+    if (it->second->achievements_.empty()) {
+        reply() << "该游戏没有任何成就";
+        return EC_OK;
+    }
+    html::Table table(1 + it->second->achievements_.size(), 3 + (bot.db_manager() != nullptr));
+    table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" width=\"600\" ");
+    table.Get(0, 0).SetContent("**序号**");
+    table.Get(0, 1).SetContent("**名称**");
+    table.Get(0, 2).SetContent("**描述**");
+    if (bot.db_manager()) {
+        table.Get(0, 3).SetContent("**达成人数**");
+    }
+    for (size_t i = 0; i < it->second->achievements_.size(); ++i) {
+        table.Get(1 + i, 0).SetContent(std::to_string(i + 1));
+        table.Get(1 + i, 1).SetContent(it->second->achievements_[i].name_);
+        table.Get(1 + i, 2).SetContent(it->second->achievements_[i].description_);
+        if (bot.db_manager()) {
+            table.Get(1 + i, 3).SetContent("未连接数据库"); // TODO
+        }
+    }
+    reply() << Markdown("## " + gamename + "：成就一览\n\n" + table.ToString());
+    return EC_OK;
+}
+
 static ErrCode about(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
     reply() << "LGTBot 内测版本 Beta-v0.1.0"
@@ -694,6 +726,8 @@ const std::vector<MetaCommandGroup> meta_cmds = {
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("查看游戏规则（游戏名称可以通过「#游戏列表」查看）", show_rule, VoidChecker("#规则"),
                         AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
+            make_command("查看游戏成就（游戏名称可以通过「#游戏列表」查看）", show_achievement, VoidChecker("#成就"),
+                        AnyArg("游戏名称", "猜拳游戏")),
             make_command("查看已加入，或该房间正在进行的比赛信息", show_match_info, VoidChecker("#游戏信息")),
             make_command("查看当前所有未开始的私密比赛", show_private_matches, VoidChecker("#私密游戏列表")),
             make_command("关于机器人", about, VoidChecker("#关于")),

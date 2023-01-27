@@ -13,6 +13,7 @@
 #include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
 #include "game_framework/game_options.h"
+#include "game_framework/game_achievements.h"
 #include "utility/msg_checker.h"
 #include "utility/html.h"
 #include "occupation.h"

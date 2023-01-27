@@ -82,6 +82,8 @@ class name \
     template <INNER_ENUM(name) ...MEMBERS> class SubSet; \
 \
     class BitSet; \
+    class Type; \
+    class Tuple; \
   private: \
     INNER_ENUM(name) v_; \
 }; \
@@ -118,6 +120,32 @@ class name::BitSet : protected std::bitset<name::Count()> \
     constexpr bool operator[](const name e) const { return std::bitset<name::Count()>::operator[](static_cast<uint32_t>(e)); } \
 \
     decltype(auto) operator[](const name e) { return std::bitset<name::Count()>::operator[](static_cast<uint32_t>(e)); } \
+};
+#include ENUM_FILE
+#undef ENUM_BEGIN
+#undef ENUM_MEMBER
+#undef ENUM_END
+
+#define ENUM_BEGIN(name) \
+struct name::Type \
+{
+#define ENUM_MEMBER(name, member) \
+    using member = INNER_CONSTANT(name)<INNER_ENUM(name)::member>;
+#define ENUM_END(name) \
+};
+#include ENUM_FILE
+#undef ENUM_BEGIN
+#undef ENUM_MEMBER
+#undef ENUM_END
+
+#define ENUM_BEGIN(name) \
+struct name::Tuple \
+{ \
+    using Type = std::decay_t<decltype(std::tuple{
+#define ENUM_MEMBER(name, member) \
+            name::Type::member{},
+#define ENUM_END(name) \
+        })>; \
 };
 #include ENUM_FILE
 #undef ENUM_BEGIN

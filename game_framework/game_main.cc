@@ -11,6 +11,7 @@
 #include "game_framework/game_main.h"
 #include "game_framework/util.h"
 #include "game_framework/game_options.h"
+#include "game_framework/game_achievements.h"
 
 extern MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
 
@@ -32,6 +33,7 @@ const bool GetGameInfo(GameInfo* game_info)
     game_info->multiple_ = k_multiple;
     game_info->developer_ = k_developer.c_str();
     game_info->description_ = k_description.c_str();
+    game_info->achievements_ = k_achievements.data();
     return true;
 }
 

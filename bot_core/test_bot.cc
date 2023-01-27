@@ -2,6 +2,15 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
+#ifdef ENUM_BEGIN
+
+// Mock achievements which defined in game_framework/game_achievements.h
+ENUM_BEGIN(Achievement)
+ENUM_MEMBER(Achievement, 成就)
+ENUM_END(Achievement)
+
+#else
+
 #include <future>
 #include <filesystem>
 
@@ -188,6 +197,9 @@ class GameOption : public GameOptionBase
     //std::string resource_dir_;
 };
 
+#define ENUM_FILE "../bot_core/test_bot.cc"
+#include "../utility/extend_enum.h"
+
 class MainStage;
 
 class SubStage : public SubGameStage<>
@@ -368,6 +380,11 @@ class MainStage : public MainGameStage<SubStage>
         return StageErrCode::OK;
     }
 
+    virtual bool VerdictateAchievement(const Achievement::Type::成就, const PlayerID pid) const override
+    {
+        return false;
+    }
+
     uint32_t to_checkout_;
     std::vector<int64_t> scores_;
 };
@@ -401,6 +418,11 @@ class AtomMainStage : public MainGameStage<>
     {
         EXPECT_FALSE(is_over_);
         return StageErrCode::CHECKOUT;
+    }
+
+    virtual bool VerdictateAchievement(const Achievement::Type::成就, const PlayerID pid) const override
+    {
+        return false;
     }
 
     bool is_over_;
@@ -439,8 +461,8 @@ class TestBot : public testing::Test
     void AddGame(const char* const name, const uint64_t max_player, const GameHandle::game_options_allocator new_option)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
-                    name, name, max_player, "这是规则介绍", 1, "这是开发者", "这是游戏描述",
-                    new_option,
+                    name, name, max_player, "这是规则介绍", std::vector<GameHandle::Achievement>{}, 1, "这是开发者",
+                    "这是游戏描述", new_option,
                     [](const GameOptionBase* const options) {},
                     [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
                             -> MainStageBase* { return new MyMainStage(static_cast<const GameOption&>(option), match); },
@@ -453,8 +475,8 @@ class TestBot : public testing::Test
     void AddGame(const char* const name, const uint64_t max_player)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
-                    name, name, max_player, "这是规则介绍", 1, "这是开发者", "这是游戏描述",
-                    []() -> GameOptionBase* { return new GameOption(); },
+                    name, name, max_player, "这是规则介绍", std::vector<GameHandle::Achievement>{}, 1, "这是开发者",
+                    "这是游戏描述", []() -> GameOptionBase* { return new GameOption(); },
                     [](const GameOptionBase* const options) { delete options; },
                     [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
                             -> MainStageBase* { return new MyMainStage(static_cast<const GameOption&>(option), match); },
@@ -1547,3 +1569,5 @@ int main(int argc, char** argv)
   g_argv = argv;
   return RUN_ALL_TESTS();
 }
+
+#endif

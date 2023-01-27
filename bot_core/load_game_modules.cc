@@ -67,10 +67,14 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
         ErrorLog() << "Load failed: Cannot get game game";
         return;
     }
+    std::vector<GameHandle::Achievement> achievements;
+    for (const GameAchievement* achievement = game_info.achievements_; achievement->name_; ++achievement) {
+        achievements.emplace_back(achievement->name_, achievement->description_);
+    }
     game_handles.emplace(
             game_info.game_name_,
             std::make_unique<GameHandle>(game_info.game_name_, game_info.module_name_, game_info.max_player_,
-                game_info.rule_, game_info.multiple_, game_info.developer_, game_info.description_,
+                game_info.rule_, std::move(achievements), game_info.multiple_, game_info.developer_, game_info.description_,
                 game_options_allocator_fn, game_options_deleter_fn, main_stage_allocator_fn, main_stage_deleter_fn,
                 [mod] { FreeLibrary(mod); }));
     InfoLog() << "Loaded successfully!";

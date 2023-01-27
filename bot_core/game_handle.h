@@ -18,7 +18,8 @@ class MainStageBase;
 class GameOptionBase;
 class MatchBase;
 
-struct GameHandle {
+struct GameHandle
+{
     using ModGuard = std::function<void()>;
     using game_options_allocator = GameOptionBase*(*)();
     using game_options_deleter = void(*)(const GameOptionBase*);
@@ -27,26 +28,34 @@ struct GameHandle {
     using main_stage_deleter = void(*)(const MainStageBase*);
     using main_stage_ptr = std::unique_ptr<MainStageBase, main_stage_deleter>;
 
-    GameHandle(const std::string& name, const std::string& module_name,
-               const uint64_t max_player, const std::string& rule, const uint32_t multiple,
-               const std::string& developer, const std::string& description,
-               const game_options_allocator& game_options_allocator_fn,
-               const game_options_deleter& game_options_deleter_fn,
-               const main_stage_allocator& main_stage_allocator_fn,
-               const main_stage_deleter& main_stage_deleter_fn,
-               ModGuard&& mod_guard)
-        : name_(name)
-        , module_name_(module_name)
+    struct Achievement
+    {
+        std::string name_;
+        std::string description_;
+    };
+
+    GameHandle(std::string name, std::string module_name,
+               const uint64_t max_player, std::string rule,
+               std::vector<Achievement> achievements, const uint32_t multiple,
+               std::string developer, std::string description,
+               game_options_allocator game_options_allocator_fn,
+               game_options_deleter game_options_deleter_fn,
+               main_stage_allocator main_stage_allocator_fn,
+               main_stage_deleter main_stage_deleter_fn,
+               ModGuard mod_guard)
+        : name_(std::move(name))
+        , module_name_(std::move(module_name))
         , max_player_(max_player)
-        , rule_(rule)
+        , rule_(std::move(rule))
+        , achievements_(std::move(achievements))
         , multiple_(multiple)
-        , developer_(developer)
-        , description_(description)
-        , game_options_allocator_(game_options_allocator_fn)
-        , game_options_deleter_(game_options_deleter_fn)
-        , main_stage_allocator_(main_stage_allocator_fn)
-        , main_stage_deleter_(main_stage_deleter_fn)
-        , mod_guard_(std::forward<ModGuard>(mod_guard))
+        , developer_(std::move(developer))
+        , description_(std::move(description))
+        , game_options_allocator_(std::move(game_options_allocator_fn))
+        , game_options_deleter_(std::move(game_options_deleter_fn))
+        , main_stage_allocator_(std::move(main_stage_allocator_fn))
+        , main_stage_deleter_(std::move(main_stage_deleter_fn))
+        , mod_guard_(std::move(mod_guard))
         , activity_(0)
     {}
 
@@ -66,6 +75,7 @@ struct GameHandle {
     const std::string module_name_;
     const uint64_t max_player_;
     const std::string rule_;
+    const std::vector<Achievement> achievements_;
     uint32_t multiple_;
     const std::string developer_;
     const std::string description_;

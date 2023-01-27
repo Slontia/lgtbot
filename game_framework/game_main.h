@@ -38,6 +38,12 @@ ENUM_END(StageErrCode)
 class MsgSenderForGame;
 class MatchBase;
 
+struct GameAchievement
+{
+    const char* name_;
+    const char* description_;
+};
+
 struct GameInfo
 {
     const char* game_name_;
@@ -47,6 +53,7 @@ struct GameInfo
     uint32_t multiple_;
     const char* developer_;
     const char* description_;
+    const GameAchievement* achievements_;
 };
 
 struct GlobalGameOption
@@ -104,8 +111,9 @@ class StageBase
 
 class MainStageBase : virtual public StageBase
 {
-   public:
+  public:
     virtual int64_t PlayerScore(const PlayerID pid) const = 0;
+    virtual const char* const* VerdictateAchievements(const PlayerID pid) const = 0;
 };
 
 #endif
