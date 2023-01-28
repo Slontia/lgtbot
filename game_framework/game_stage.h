@@ -317,7 +317,7 @@ class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_AT
         const auto verdictate = [this, pid, &i](const auto achievement)
             {
                 if (VerdictateAchievement(achievement, pid)) {
-                    achieved_list[++i] = Achievement(achievement).ToString();
+                    achieved_list[i++] = Achievement(achievement).ToString();
                 }
             };
         std::apply([&](const auto ...achievements)

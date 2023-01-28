@@ -79,6 +79,16 @@ void InsertUserWithMatch(sqlite::database& db, const uint64_t match_id, const Us
        << rank_score;
 }
 
+void InsertUserWithAchievement(sqlite::database& db, const uint64_t match_id, const UserID& uid, const uint32_t birth_count,
+        const std::string& achievement_name)
+{
+    db << "INSERT INTO user_with_achievement (user_id, birth_count, match_id, achievement_name) VALUES (?,?,?,?);"
+       << uid.GetStr()
+       << birth_count
+       << match_id
+       << achievement_name;
+}
+
 void UpdateBirthOfUser(sqlite::database& db, const UserID& uid)
 {
     db << "UPDATE user SET birth_time = datetime(CURRENT_TIMESTAMP, \'localtime\'), birth_count = birth_count + 1 "
@@ -139,6 +149,7 @@ uint32_t GetMatchCountOfUser(sqlite::database& db, const UserID& uid)
 
 uint32_t GetBirthCountOfUser(sqlite::database& db, const UserID& uid)
 {
+    InsertUserIfNotExist(db, uid);
     uint32_t birth_count = -1;
     db << "SELECT birth_count FROM user WHERE user_id = ?;" << uid.GetStr() >> birth_count;
     return birth_count;
@@ -148,8 +159,8 @@ auto GetGameHistoryOfUser(sqlite::database& db, const UserID& uid, const std::st
 {
     struct
     {
-        uint64_t match_count_;
-        double total_level_score_;
+        uint64_t match_count_ = 0;
+        double total_level_score_ = 0;
     } result;
     db << "SELECT COUNT(*), SUM(level_score) FROM user_with_match, match, user "
             "WHERE user_with_match.user_id = ? AND "
@@ -319,8 +330,57 @@ void ForeachRecentHonorOfUser(sqlite::database& db, const UserID& uid, const uin
     db << "SELECT honor.id, honor.description, honor.user_id, honor.time FROM honor, user "
           "WHERE honor.user_id = ? AND honor.user_id = user.user_id AND honor.birth_count = user.birth_count "
           "ORDER BY honor.id DESC LIMIT ?"
-       << uid << limit
+       << uid.GetStr() << limit
        >> fn;
+}
+
+template <typename Fn>
+void ForeachRecentAchievementOfUser(sqlite::database& db, const UserID& uid, const uint32_t limit, const Fn& fn)
+{
+    db << "SELECT user_with_achievement.achievement_name, match.game_name, match.finish_time "
+          "FROM user_with_achievement, user, match "
+          "WHERE user_with_achievement.user_id = ? AND "
+              "user_with_achievement.user_id = user.user_id AND "
+              "user_with_achievement.birth_count = user.birth_count AND "
+              "user_with_achievement.match_id = match.match_id "
+          "ORDER BY user_with_achievement.id DESC LIMIT ?"
+       << uid.GetStr() << limit
+       >> fn;
+}
+
+auto GetAchievementStatistic(sqlite::database& db, const UserID& uid, const std::string& game_name,
+        const std::string& achievement_name)
+{
+    struct
+    {
+        std::string first_achieve_time_;
+        int64_t count_ = 0;
+    } result;
+    db << "SELECT match.finish_time, COUNT(*) AS count FROM user_with_achievement, user, match "
+          "WHERE user_with_achievement.match_id = match.match_id AND "
+              "user_with_achievement.user_id = user.user_id and user.user_id = ? AND "
+              "match.game_name = ? "
+              "AND user_with_achievement.achievement_name = ? "
+          "LIMIT 1;"
+       << uid.GetStr() << game_name << achievement_name
+       >> std::tie(result.first_achieve_time_, result.count_);
+    return result;
+}
+
+int64_t GetAchievedUserNumber(sqlite::database& db, const std::string& game_name, const std::string& achievement_name)
+{
+    int64_t count = 0;
+    db << "SELECT count(*) FROM "
+              "("
+                  "SELECT 1 FROM user_with_achievement, match "
+                  "WHERE user_with_achievement.match_id = match.match_id AND "
+                      "match.game_name = ? AND "
+                      "user_with_achievement.achievement_name = ? "
+                  "GROUP BY user_with_achievement.user_id"
+              ");"
+       << game_name << achievement_name
+       >> count;
+    return count;
 }
 
 SQLiteDBManager::SQLiteDBManager(const DBName& db_name) : db_name_(db_name)
@@ -330,14 +390,18 @@ SQLiteDBManager::SQLiteDBManager(const DBName& db_name) : db_name_(db_name)
 SQLiteDBManager::~SQLiteDBManager() {}
 
 void RecordMatch(sqlite::database& db, const std::string& game_name, const std::optional<GroupID> gid,
-        const UserID host_uid, const uint64_t multiple, const std::vector<ScoreInfo>& score_infos)
+        const UserID host_uid, const uint64_t multiple, const std::vector<ScoreInfo>& score_infos,
+        const std::vector<std::pair<UserID, std::string>>& achievements)
 {
     const auto match_id = InsertMatch(db, game_name, gid, host_uid, score_infos.size(), multiple);
     for (const ScoreInfo& score_info : score_infos) {
-        InsertUserIfNotExist(db, score_info.uid_);
         const auto birth_count = GetBirthCountOfUser(db, score_info.uid_);
         InsertUserWithMatch(db, match_id, score_info.uid_, birth_count, score_info.game_score_,
                 score_info.zero_sum_score_, score_info.top_score_, score_info.level_score_, score_info.rank_score_);
+    }
+    for (const auto& [user_id, achievement_name] : achievements) {
+        const auto birth_count = GetBirthCountOfUser(db, user_id);
+        InsertUserWithAchievement(db, match_id, user_id, birth_count, achievement_name);
     }
 }
 
@@ -353,19 +417,20 @@ std::vector<UserInfoForCalScore> GetUserInfoForCalScore(sqlite::database& db, co
 }
 
 std::vector<ScoreInfo> SQLiteDBManager::RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
-        const UserID host_uid, const uint64_t multiple, const std::vector<std::pair<UserID, int64_t>>& game_score_infos)
+        const UserID& host_uid, const uint64_t multiple, const std::vector<std::pair<UserID, int64_t>>& game_score_infos,
+        const std::vector<std::pair<UserID, std::string>>& achievements)
 {
     std::vector<ScoreInfo> score_infos; // TODO: get from game_score_infos
     return ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
             auto user_infos = GetUserInfoForCalScore(db, game_name, game_score_infos);
             score_infos = CalScores(user_infos, multiple);
-            ::RecordMatch(db, game_name, gid, host_uid, multiple, score_infos);
+            ::RecordMatch(db, game_name, gid, host_uid, multiple, score_infos, achievements);
             return true;
         }) ? score_infos : std::vector<ScoreInfo>();
 }
 
-UserProfile SQLiteDBManager::GetUserProfile(const UserID uid, const std::string_view& time_range_begin,
+UserProfile SQLiteDBManager::GetUserProfile(const UserID& uid, const std::string_view& time_range_begin,
         const std::string_view& time_range_end)
 {
     UserProfile profile;
@@ -408,6 +473,11 @@ UserProfile SQLiteDBManager::GetUserProfile(const UserID uid, const std::string_
                     {
                         profile.recent_honors_.emplace_back(id, std::move(description), std::move(uid), std::move(time));
                     });
+            ForeachRecentAchievementOfUser(db, uid, 10,
+                  [&](std::string achievement_name, std::string game_name, std::string time)
+                    {
+                        profile.recent_achievements_.emplace_back(std::move(game_name), std::move(achievement_name), std::move(time));
+                    });
             return true;
         });
     std::ranges::sort(profile.game_level_infos_,
@@ -415,7 +485,7 @@ UserProfile SQLiteDBManager::GetUserProfile(const UserID uid, const std::string_
     return profile;
 }
 
-bool SQLiteDBManager::Suicide(const UserID uid, const uint32_t required_match_num)
+bool SQLiteDBManager::Suicide(const UserID& uid, const uint32_t required_match_num)
 {
     return ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
@@ -488,11 +558,25 @@ GameRankInfo SQLiteDBManager::GetLevelScoreRank(const std::string& game_name, co
     return info;
 }
 
-bool SQLiteDBManager::AddHonor(const UserID uid, const std::string_view& description)
+AchievementStatisticInfo SQLiteDBManager::GetAchievementStatistic(const UserID& uid, const std::string& game_name,
+            const std::string& achievement_name)
+{
+    AchievementStatisticInfo info;
+    ExecuteTransaction(db_name_, [&](sqlite::database& db)
+        {
+            auto result = ::GetAchievementStatistic(db, uid, game_name, std::string(achievement_name));
+            info.first_achieve_time_ = std::move(result.first_achieve_time_);
+            info.count_ = result.count_;
+            info.achieved_user_num_ = GetAchievedUserNumber(db, game_name, achievement_name);
+            return true;
+        });
+    return info;
+}
+
+bool SQLiteDBManager::AddHonor(const UserID& uid, const std::string_view& description)
 {
     return ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            InsertUserIfNotExist(db, uid);
             const auto birth_count = GetBirthCountOfUser(db, uid);
             ::AddHonor(db, description, uid, birth_count);
             return true;
@@ -563,6 +647,13 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::pat
                 "user_id VARCHAR(100) NOT NULL, "
                 "birth_count INT UNSIGNED NOT NULL, "
                 "time DATETIME);";
+        db << "CREATE TABLE IF NOT EXISTS user_with_achievement("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "user_id VARCHAR(100) NOT NULL, "
+                "birth_count INT UNSIGNED NOT NULL, "
+                "match_id BIGINT UNSIGNED NOT NULL, "
+                "achievement_name VARCHAR(100) NOT NULL);";
+        db << "CREATE INDEX IF NOT EXISTS user_id_index ON user_with_achievement(user_id);";
         return std::unique_ptr<DBManagerBase>(new SQLiteDBManager(db_name_str));
     } catch (const sqlite::sqlite_exception& e) {
         HandleError(e);

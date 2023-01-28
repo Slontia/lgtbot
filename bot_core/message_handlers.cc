@@ -356,21 +356,30 @@ static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::option
         reply() << "该游戏没有任何成就";
         return EC_OK;
     }
-    html::Table table(1 + it->second->achievements_.size(), 3 + (bot.db_manager() != nullptr));
+    html::Table table(1 + it->second->achievements_.size(), bot.db_manager() == nullptr ? 3 : 6);
     table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" width=\"600\" ");
     table.Get(0, 0).SetContent("**序号**");
     table.Get(0, 1).SetContent("**名称**");
     table.Get(0, 2).SetContent("**描述**");
     if (bot.db_manager()) {
-        table.Get(0, 3).SetContent("**达成人数**");
+        table.Get(0, 3).SetContent("**首次达成时间**");
+        table.Get(0, 4).SetContent("**达成次数**");
+        table.Get(0, 5).SetContent("**达成人数**");
     }
     for (size_t i = 0; i < it->second->achievements_.size(); ++i) {
-        table.Get(1 + i, 0).SetContent(std::to_string(i + 1));
-        table.Get(1 + i, 1).SetContent(it->second->achievements_[i].name_);
-        table.Get(1 + i, 2).SetContent(it->second->achievements_[i].description_);
+        const char* color_header = HTML_COLOR_FONT_HEADER(black);
         if (bot.db_manager()) {
-            table.Get(1 + i, 3).SetContent("未连接数据库"); // TODO
+            const auto statistic = bot.db_manager()->GetAchievementStatistic(uid, gamename, it->second->achievements_[i].name_);
+            if (statistic.count_ > 0) {
+                color_header = HTML_COLOR_FONT_HEADER(green);
+            }
+            table.Get(1 + i, 3).SetContent(color_header + (statistic.first_achieve_time_.empty() ? "-" : statistic.first_achieve_time_) + HTML_FONT_TAIL);
+            table.Get(1 + i, 4).SetContent(color_header + std::to_string(statistic.count_) + HTML_FONT_TAIL);
+            table.Get(1 + i, 5).SetContent(color_header + std::to_string(statistic.achieved_user_num_) + HTML_FONT_TAIL);
         }
+        table.Get(1 + i, 0).SetContent(color_header + std::to_string(i + 1) + HTML_FONT_TAIL);
+        table.Get(1 + i, 1).SetContent(color_header + it->second->achievements_[i].name_ + HTML_FONT_TAIL);
+        table.Get(1 + i, 2).SetContent(color_header + it->second->achievements_[i].description_ + HTML_FONT_TAIL);
     }
     reply() << Markdown("## " + gamename + "：成就一览\n\n" + table.ToString());
     return EC_OK;
@@ -416,7 +425,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
     std::string html = std::string("## ") + GetUserAvatar(uid.GetCStr(), 40) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
         GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) + "\n";
 
-    html += "\n- **注册时间**：" + profile.birth_time_ + "\n";
+    html += "\n- **注册时间**：" + (profile.birth_time_.empty() ? "无" : profile.birth_time_) + "\n";
 
     // title: season score info
     html += "\n<h3 align=\"center\">" HTML_COLOR_FONT_HEADER(blue);
@@ -541,6 +550,40 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
             recent_honors_table.GetLastRow(0).SetContent(std::to_string(info.id_));
             recent_honors_table.GetLastRow(1).SetContent(info.description_);
             recent_honors_table.GetLastRow(2).SetContent(info.time_);
+        }
+        html += recent_honors_table.ToString() + "\n\n";
+    }
+
+    // show recent achievements
+
+    html += "\n- **近十次成就记录**：\n\n";
+    if (profile.recent_achievements_.empty()) {
+        html += "<p align=\"center\">您还没有获得过成就</p>\n\n";
+    } else {
+        html::Table recent_honors_table(1, 5);
+        recent_honors_table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" width=\"800\" ");
+        recent_honors_table.Get(0, 0).SetContent("**序号**");
+        recent_honors_table.Get(0, 1).SetContent("**游戏名称**");
+        recent_honors_table.Get(0, 2).SetContent("**成就名称**");
+        recent_honors_table.Get(0, 3).SetContent("**成就描述**");
+        recent_honors_table.Get(0, 4).SetContent("**获得时间**");
+        for (size_t i = 0; i < profile.recent_achievements_.size(); ++i) {
+            const auto& info = profile.recent_achievements_[i];
+            recent_honors_table.AppendRow();
+            recent_honors_table.GetLastRow(0).SetContent(std::to_string(i + 1));
+            recent_honors_table.GetLastRow(1).SetContent(info.game_name_);
+            recent_honors_table.GetLastRow(2).SetContent(info.achievement_name_);
+            if (const auto it = bot.game_handles().find(info.game_name_); it == bot.game_handles().end()) {
+                recent_honors_table.GetLastRow(3).SetContent("???");
+            } else {
+                for (const auto& [name, description] : it->second->achievements_) {
+                    if (name == info.achievement_name_) {
+                        recent_honors_table.GetLastRow(3).SetContent(description);
+                        break;
+                    }
+                }
+            }
+            recent_honors_table.GetLastRow(4).SetContent(info.time_);
         }
         html += recent_honors_table.ToString() + "\n\n";
     }

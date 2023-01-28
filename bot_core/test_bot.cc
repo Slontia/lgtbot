@@ -6,7 +6,7 @@
 
 // Mock achievements which defined in game_framework/game_achievements.h
 ENUM_BEGIN(Achievement)
-ENUM_MEMBER(Achievement, 成就)
+ENUM_MEMBER(Achievement, 普通成就)
 ENUM_END(Achievement)
 
 #else
@@ -51,8 +51,9 @@ class MockDBManager : public DBManagerBase
 {
   public:
     virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
-            const UserID host_uid, const uint64_t multiple,
-            const std::vector<std::pair<UserID, int64_t>>& game_score_infos) override
+            const UserID& host_uid, const uint64_t multiple,
+            const std::vector<std::pair<UserID, int64_t>>& game_score_infos,
+            const std::vector<std::pair<UserID, std::string>>& achievements) override
     {
         std::vector<UserInfoForCalScore> user_infos;
         for (const auto& [uid, game_score] : game_score_infos) {
@@ -63,16 +64,19 @@ class MockDBManager : public DBManagerBase
             match_profiles_.emplace_back(game_name, "sometime", score_infos.size(), multiple, info.game_score_,
                     info.zero_sum_score_, info.top_score_);
         }
+        for (const auto& [user_id, achievement_name] : achievements) {
+            user_achievements_[user_id].emplace_back(achievement_name);
+        }
         return score_infos;
     }
 
-    virtual UserProfile GetUserProfile(const UserID uid, const std::string_view& time_range_begin,
+    virtual UserProfile GetUserProfile(const UserID& uid, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) override
     {
         return user_profiles_[uid];
     }
 
-    virtual bool Suicide(const UserID uid, const uint32_t required_match_num) override { return true; }
+    virtual bool Suicide(const UserID& uid, const uint32_t required_match_num) override { return true; }
 
     virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) override
     {
@@ -85,14 +89,21 @@ class MockDBManager : public DBManagerBase
         return {};
     }
 
+    virtual AchievementStatisticInfo GetAchievementStatistic(const UserID& uid, const std::string& game_name,
+            const std::string& achievement_name) override
+    {
+        return {};
+    }
+
     virtual std::vector<HonorInfo> GetHonors() override { return {}; }
 
-    virtual bool AddHonor(const UserID uid, const std::string_view& description) override { return true; }
+    virtual bool AddHonor(const UserID& uid, const std::string_view& description) override { return true; }
 
     virtual bool DeleteHonor(const int32_t id) override { return true; }
 
     std::vector<MatchProfile> match_profiles_;
     std::map<UserID, UserProfile> user_profiles_;
+    std::map<UserID, std::vector<std::string>> user_achievements_;
 };
 
 struct Messager
@@ -344,7 +355,8 @@ class MainStage : public MainGameStage<SubStage>
     MainStage(const GameOption& option, MatchBase& match)
         : GameStage(option, match,
                 MakeStageCommand("准备切换", &MainStage::ToCheckout_, VoidChecker("准备切换"), ArithChecker(0, 10)),
-                MakeStageCommand("设置玩家分数", &MainStage::Score_, VoidChecker("分数"), ArithChecker<int64_t>(-10, 10)))
+                MakeStageCommand("设置玩家分数", &MainStage::Score_, VoidChecker("分数"), ArithChecker<int64_t>(-10, 10)),
+                MakeStageCommand("获得成就", &MainStage::Achievement_, VoidChecker("成就")))
         , to_checkout_(0)
         , scores_(option.PlayerNum(), 0)
     {}
@@ -380,13 +392,20 @@ class MainStage : public MainGameStage<SubStage>
         return StageErrCode::OK;
     }
 
-    virtual bool VerdictateAchievement(const Achievement::Type::成就, const PlayerID pid) const override
+    CompReqErrCode Achievement_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        return false;
+        achievement_pids_.emplace(pid);
+        return StageErrCode::OK;
+    }
+
+    virtual bool VerdictateAchievement(const Achievement::Type::普通成就, const PlayerID pid) const override
+    {
+        return achievement_pids_.find(pid) != achievement_pids_.end();
     }
 
     uint32_t to_checkout_;
     std::vector<int64_t> scores_;
+    std::set<PlayerID> achievement_pids_;
 };
 
 class AtomMainStage : public MainGameStage<>
@@ -420,7 +439,7 @@ class AtomMainStage : public MainGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual bool VerdictateAchievement(const Achievement::Type::成就, const PlayerID pid) const override
+    virtual bool VerdictateAchievement(const Achievement::Type::普通成就, const PlayerID pid) const override
     {
         return false;
     }
@@ -1559,6 +1578,22 @@ TEST_F(TestBot, user_interrupt_game_not_consider_left_users)
   ASSERT_PRI_MSG(EC_OK, "2", "#退出 强制");
   ASSERT_PRI_MSG(EC_OK, "1", "#中断");
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+}
+
+// Achievement
+
+TEST_F(TestBot, get_achievement)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "成就");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "准备");
+  ASSERT_EQ(1, db_manager().user_achievements_[UserID("1")].size());
+  ASSERT_EQ(0, db_manager().user_achievements_[UserID("2")].size());
+  ASSERT_EQ("普通成就", db_manager().user_achievements_[UserID("1")][0]);
 }
 
 int main(int argc, char** argv)

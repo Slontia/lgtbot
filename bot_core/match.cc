@@ -572,9 +572,9 @@ void Match::OnGameOver_()
         MatchLog(WarnLog()) << "OnGameOver_ but has already been over";
         return;
     }
+    std::vector<std::pair<UserID, int64_t>> user_game_scores;
+    std::vector<std::pair<UserID, std::string>> user_achievements;
     {
-        std::vector<std::pair<UserID, int64_t>> user_game_scores;
-
         auto sender = Boardcast();
         sender << "游戏结束，公布分数：\n";
         for (PlayerID pid = 0; pid < PlayerNum(); ++pid) {
@@ -583,6 +583,11 @@ void Match::OnGameOver_()
             const auto id = ConvertPid(pid);
             if (const auto pval = std::get_if<UserID>(&id); pval) {
                 user_game_scores.emplace_back(*pval, score);
+                const char* const* const achievements = main_stage_->VerdictateAchievements(pid);
+                for (const char* const* achievement_name_p = achievements; *achievement_name_p; ++achievement_name_p) {
+                    user_achievements.emplace_back(*pval, *achievement_name_p);
+                    MatchLog(InfoLog()) << "User get achievement uid=" << *pval << " achievement=" << *achievement_name_p;
+                }
             }
         }
         sender << "感谢诸位参与！";
@@ -602,7 +607,8 @@ void Match::OnGameOver_()
         } else if (multiple_ == 0) {
             sender << "\n\n游戏结果不记录：因为该游戏为试玩游戏";
         } else if (const auto score_info =
-                    bot_.db_manager()->RecordMatch(game_handle_.name_, gid_, host_uid_, multiple_, user_game_scores);
+                    bot_.db_manager()->RecordMatch(game_handle_.name_, gid_, host_uid_, multiple_, user_game_scores,
+                        user_achievements);
                 score_info.empty()) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
             MatchLog(ErrorLog()) << "Save database failed";
@@ -615,6 +621,13 @@ void Match::OnGameOver_()
                                                         << show_score("等级", info.level_score_);
 
             }
+        }
+    }
+    if (!user_achievements.empty()) {
+        auto sender = Boardcast();
+        sender << "有用户获得新成就：";
+        for (const auto& [user_id, achievement_name] : user_achievements) {
+            sender << "\n" << At(user_id) << "：" << achievement_name;
         }
     }
     state_ = State::IS_OVER; // is necessary because other thread may own a match reference

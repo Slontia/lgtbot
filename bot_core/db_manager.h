@@ -103,6 +103,20 @@ struct HonorInfo
     std::string time_;
 };
 
+struct AchievementInfo
+{
+    std::string game_name_;
+    std::string achievement_name_;
+    std::string time_;
+};
+
+struct AchievementStatisticInfo
+{
+    std::string first_achieve_time_;
+    uint64_t count_;
+    uint64_t achieved_user_num_;
+};
+
 struct UserProfile
 {
     UserID uid_;
@@ -113,25 +127,27 @@ struct UserProfile
     std::vector<MatchProfile> recent_matches_;
     std::string birth_time_;
     std::vector<HonorInfo> recent_honors_;
+    std::vector<AchievementInfo> recent_achievements_;
 };
-
-static constexpr const auto k_level_score_initial_value = 1500;
 
 class DBManagerBase
 {
    public:
     virtual ~DBManagerBase() {}
     virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
-            const UserID host_uid, const uint64_t multiple,
-            const std::vector<std::pair<UserID, int64_t>>& game_score_infos) = 0;
-    virtual UserProfile GetUserProfile(const UserID uid, const std::string_view& time_range_begin,
+            const UserID& host_uid, const uint64_t multiple,
+            const std::vector<std::pair<UserID, int64_t>>& game_score_infos,
+            const std::vector<std::pair<UserID, std::string>>& achievements) = 0;
+    virtual UserProfile GetUserProfile(const UserID& uid, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) = 0;
-    virtual bool Suicide(const UserID uid, const uint32_t required_match_num) = 0;
+    virtual bool Suicide(const UserID& uid, const uint32_t required_match_num) = 0;
     virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) = 0;
     virtual GameRankInfo GetLevelScoreRank(const std::string& game_name, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) = 0;
+    virtual AchievementStatisticInfo GetAchievementStatistic(const UserID& uid, const std::string& game_name,
+            const std::string& achievement_name) = 0;
     virtual std::vector<HonorInfo> GetHonors() = 0;
-    virtual bool AddHonor(const UserID uid, const std::string_view& description) = 0;
+    virtual bool AddHonor(const UserID& uid, const std::string_view& description) = 0;
     virtual bool DeleteHonor(const int32_t id) = 0;
 };
 
@@ -143,16 +159,19 @@ class SQLiteDBManager : public DBManagerBase
     static std::unique_ptr<DBManagerBase> UseDB(const std::filesystem::path::value_type* sv);
     virtual ~SQLiteDBManager();
     virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
-            const UserID host_uid, const uint64_t multiple,
-            const std::vector<std::pair<UserID, int64_t>>& game_score_infos) override;
-    virtual UserProfile GetUserProfile(const UserID uid, const std::string_view& time_range_begin,
+            const UserID& host_uid, const uint64_t multiple,
+            const std::vector<std::pair<UserID, int64_t>>& game_score_infos,
+            const std::vector<std::pair<UserID, std::string>>& achievements) override;
+    virtual UserProfile GetUserProfile(const UserID& uid, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) override;
-    virtual bool Suicide(const UserID uid, const uint32_t required_match_num) override;
+    virtual bool Suicide(const UserID& uid, const uint32_t required_match_num) override;
     virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) override;
     virtual GameRankInfo GetLevelScoreRank(const std::string& game_name, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) override;
+    virtual AchievementStatisticInfo GetAchievementStatistic(const UserID& uid, const std::string& game_name,
+            const std::string& achievement_name) override;
     virtual std::vector<HonorInfo> GetHonors() override;
-    virtual bool AddHonor(const UserID uid, const std::string_view& description) override;
+    virtual bool AddHonor(const UserID& uid, const std::string_view& description) override;
     virtual bool DeleteHonor(const int32_t id) override;
 
   private:
