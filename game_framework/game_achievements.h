@@ -2,13 +2,17 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
+#ifndef GAME_ACHIEVEMENT_FILENAME
+#define GAME_ACHIEVEMENT_FILENAME "achievements.h"
+#endif
+
 #ifdef ENUM_BEGIN
 #ifdef ENUM_MEMBER
 #ifdef ENUM_END
 
 ENUM_BEGIN(Achievement)
 #define EXTEND_ACHIEVEMENT(name, description) ENUM_MEMBER(Achievement, name)
-#include "achievements.h"
+#include GAME_ACHIEVEMENT_FILENAME
 #undef EXTEND_ACHIEVEMENT
 ENUM_END(Achievement)
 
@@ -27,7 +31,7 @@ ENUM_END(Achievement)
 
 static std::array<const GameAchievement, Achievement::Count() + 1> k_achievements = {
 #define EXTEND_ACHIEVEMENT(name, description) GameAchievement{.name_ = #name, .description_ = description},
-#include "achievements.h"
+#include GAME_ACHIEVEMENT_FILENAME
 #undef EXTEND_ACHIEVEMENT
     GameAchievement{.name_ = nullptr, .description_ = nullptr}
 };

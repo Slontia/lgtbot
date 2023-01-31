@@ -2,12 +2,13 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
-#ifdef ENUM_BEGIN
+#if defined EXTEND_ACHIEVEMENT
 
-// Mock achievements which defined in game_framework/game_achievements.h
-ENUM_BEGIN(Achievement)
-ENUM_MEMBER(Achievement, 普通成就)
-ENUM_END(Achievement)
+EXTEND_ACHIEVEMENT(普通成就, "一个专门用来测试的成就")
+
+#elif defined EXTEND_OPTION
+
+EXTEND_OPTION("时间限制", 时限, (ArithChecker<int>(0, 10)), 1)
 
 #else
 
@@ -17,6 +18,8 @@ ENUM_END(Achievement)
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
+#define GAME_OPTION_FILENAME "test_bot.cc"
+#define GAME_ACHIEVEMENT_FILENAME "test_bot.cc"
 #include "game_framework/game_stage.h"
 
 #include "bot_core/msg_sender.h"
@@ -190,26 +193,11 @@ static void BlockStage()
     substage_blocked_ = false;
 }
 
-class GameOption : public GameOptionBase
-{
-  public:
-    GameOption() : GameOptionBase(0), timeout_sec_(1) {}
-    virtual ~GameOption() {}
-    virtual void SetResourceDir(const std::filesystem::path::value_type* const resource_dir) { /*resource_dir_ = resource_dir;*/ }
-    virtual const char* ResourceDir() const { return "这是资源路径"; }
-    virtual const char* Info(const uint64_t index) const { return "这是配置介绍"; };
-    virtual const char* ColoredInfo(const uint64_t index) const { return "这是配置介绍"; };
-    virtual const char* Status() const { return "这是配置状态"; };
-    virtual bool SetOption(const char* const msg) { return true; };
-    virtual bool ToValid(MsgSenderBase& reply) { return true; }
-    virtual uint64_t BestPlayerNum() const { return 2; }
-    uint64_t timeout_sec_;
-  private:
-    //std::string resource_dir_;
-};
+std::string GameOption::StatusInfo() const { return ""; }
 
-#define ENUM_FILE "../bot_core/test_bot.cc"
-#include "../utility/extend_enum.h"
+bool GameOption::ToValid(MsgSenderBase& reply) { return true; }
+
+uint64_t GameOption::BestPlayerNum() const { return 2; }
 
 class MainStage;
 
@@ -239,7 +227,7 @@ class SubStage : public SubGameStage<>
     virtual void OnStageBegin() override
     {
         Boardcast() << "子阶段开始";
-        StartTimer(option().timeout_sec_);
+        StartTimer(GET_OPTION_VALUE(option(), 时限));
     }
 
     virtual CheckoutErrCode OnTimeout() override
@@ -247,7 +235,7 @@ class SubStage : public SubGameStage<>
         EXPECT_FALSE(is_over_);
         if (to_reset_timer_) {
             to_reset_timer_ = false;
-            StartTimer(option().timeout_sec_);
+            StartTimer(GET_OPTION_VALUE(option(), 时限));
             Boardcast() << "时间到，但是回合继续";
             return StageErrCode::OK;
         }
@@ -272,7 +260,7 @@ class SubStage : public SubGameStage<>
             ClearReady();
             if (to_reset_timer_) {
                 to_reset_timer_ = false;
-                StartTimer(option().timeout_sec_);
+                StartTimer(GET_OPTION_VALUE(option(), 时限));
                 Boardcast() << "全员行动完毕，但是回合继续";
             }
         }
@@ -420,7 +408,7 @@ class AtomMainStage : public MainGameStage<>
     virtual void OnStageBegin() override
     {
         Boardcast() << "原子主阶段开始";
-        StartTimer(option().timeout_sec_);
+        StartTimer(GET_OPTION_VALUE(option(), 时限));
     }
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return 0; };
@@ -1008,7 +996,7 @@ TEST_F(TestBot, config_game)
 {
   AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
-  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "整点配置");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "时限 1");
 }
 
 TEST_F(TestBot, config_game_not_host)
@@ -1016,7 +1004,7 @@ TEST_F(TestBot, config_game_not_host)
   AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
-  ASSERT_PUB_MSG(EC_MATCH_NOT_HOST, "1", "2", "整点配置");
+  ASSERT_PUB_MSG(EC_MATCH_NOT_HOST, "1", "2", "时限 1");
 }
 
 
@@ -1025,7 +1013,7 @@ TEST_F(TestBot, config_game_kick_joined_player)
   AddGame("测试游戏", 2);
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
-  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "整点配置");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "时限 1");
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
 }
 

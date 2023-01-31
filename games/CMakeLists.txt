@@ -67,8 +67,7 @@ foreach (GAME_DIR ${GAME_DIRS})
     target_link_libraries(${GAME} ${GAME_THIRD_PARTIES})
 
     add_library(${GAME}_for_test_lib OBJECT ${SOURCE_FILES})
-    target_compile_definitions(${GAME}_for_test_lib PUBLIC TEST_BOT)
-    target_compile_definitions(${GAME}_for_test_lib PUBLIC GAME_MODULE_NAME="${GAME}")
+    target_compile_definitions(${GAME}_for_test_lib PUBLIC GAME_MODULE_NAME="${GAME}" TEST_BOT)
     target_include_directories(${GAME}_for_test_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
     target_link_libraries(${GAME}_for_test_lib ${GAME_THIRD_PARTIES})
 

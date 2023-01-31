@@ -9,8 +9,12 @@
 #include "game_framework/game_main.h"
 #include "utility/msg_checker.h"
 
+#ifndef GAME_OPTION_FILENAME
+#define GAME_OPTION_FILENAME "options.h"
+#endif
+
 #define OPTION_CLASSNAME MyGameOption
-#define OPTION_FILENAME "options.h"
+#define OPTION_FILENAME GAME_OPTION_FILENAME
 #include "utility/extend_option.h"
 #undef OPTION_CLASSNAME
 #undef OPTION_FILENAME
@@ -19,6 +23,7 @@ class GameOption : public GameOptionBase, public MyGameOption
 {
    public:
     GameOption() : GameOptionBase(Count()) {};
+    virtual ~GameOption() {}
 
     virtual bool SetOption(const char* const msg) override
     {
