@@ -50,9 +50,10 @@ static const std::array<std::vector<int32_t>, comb::k_direct_max> k_points{
 
 struct Player
 {
-    Player(std::string resource_path) : score_(0), comb_(new comb::Comb(std::move(resource_path))) {}
+    Player(std::string resource_path) : score_(0), line_count_(0), comb_(new comb::Comb(std::move(resource_path))) {}
     Player(Player&&) = default;
     int32_t score_;
+    int32_t line_count_;
     std::unique_ptr<comb::Comb> comb_;
 };
 
@@ -108,14 +109,29 @@ class MainStage : public MainGameStage<RoundStage>
         return players_[pid].score_;
     }
 
-    virtual bool VerdictateAchievement(const Achievement::Type::工蜂, const PlayerID pid) const
+    virtual bool VerdictateAchievement(const Achievement::Type::处女蜂王, const PlayerID pid) const
     {
-        return false;
+        return GET_OPTION_VALUE(option(), 种子).empty() && players_[pid].line_count_ >= 12;
     }
 
-    virtual bool VerdictateAchievement(const Achievement::Type::蜂后, const PlayerID pid) const
+    virtual bool VerdictateAchievement(const Achievement::Type::蜂王, const PlayerID pid) const
     {
-        return false;
+        return GET_OPTION_VALUE(option(), 种子).empty() && players_[pid].line_count_ >= 15;
+    }
+
+    virtual bool VerdictateAchievement(const Achievement::Type::幼年蜂, const PlayerID pid) const
+    {
+        return GET_OPTION_VALUE(option(), 种子).empty() && players_[pid].score_ >= 200;
+    }
+
+    virtual bool VerdictateAchievement(const Achievement::Type::青年蜂, const PlayerID pid) const
+    {
+        return GET_OPTION_VALUE(option(), 种子).empty() && players_[pid].score_ >= 250;
+    }
+
+    virtual bool VerdictateAchievement(const Achievement::Type::壮年蜂, const PlayerID pid) const
+    {
+        return GET_OPTION_VALUE(option(), 种子).empty() && players_[pid].score_ >= 300;
     }
 
     std::string CombHtml(const std::string& str)
@@ -168,13 +184,14 @@ class RoundStage : public SubGameStage<>
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             if (!IsReady(pid)) {
                 auto& player = main_stage().players_[pid];
-                const auto [idx, point] = player.comb_->SeqFill(card_);
+                const auto [idx, result] = player.comb_->SeqFill(card_);
                 auto sender = Boardcast();
                 sender << At(pid) << "因为超时未做选择，自动填入空位置 " << idx;
-                if (point > 0) {
-                    sender << "，意外收获 " << point << " 点积分";
+                if (result.point_ > 0) {
+                    sender << "，意外收获 " << result.point_ << " 点积分";
+                    player.score_ += result.point_;
+                    player.line_count_ += result.line_;
                 }
-                player.score_ += point;
                 Hook(pid);
             }
         }
@@ -197,7 +214,10 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::OK;
         }
         auto& player = main_stage().players_[pid];
-        player.score_ += player.comb_->SeqFill(card_).second;
+        if (const auto& [point, line] = player.comb_->SeqFill(card_).second; point > 0) {
+            player.score_ += point;
+            player.line_count_ += line;
+        }
         return StageErrCode::READY;
     }
 
@@ -212,13 +232,14 @@ class RoundStage : public SubGameStage<>
             reply() << "该位置已经被填过了，试试其它位置吧";
             return StageErrCode::FAILED;
         }
-        const auto point = player.comb_->Fill(idx, card_);
+        const auto [point, line] = player.comb_->Fill(idx, card_);
         auto sender = reply();
         sender << "设置数字 " << idx << " 成功";
         if (point > 0) {
             sender << "，本次操作收获 " << point << " 点积分";
+            player.score_ += point;
+            player.line_count_ += line;
         }
-        player.score_ += point;
         return StageErrCode::READY;
     }
 

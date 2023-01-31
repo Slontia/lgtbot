@@ -159,9 +159,33 @@ class MainStage : public MainGameStage<RoundStage>
 
     virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
 
-    int64_t PlayerScore(const PlayerID pid) const
+    virtual int64_t PlayerScore(const PlayerID pid) const override
     {
         return players_[pid].score_;
+    }
+
+    virtual bool VerdictateAchievement(const Achievement::Type::片甲不留, const PlayerID pid) const
+    {
+        const auto result = players_[pid].board_->GetAreaStatistic();
+        return IsAchievementOption_() && result.card_count_ == 0 && result.stone_count_ == 0 &&
+            players_[pid].score_ >= WinScoreThreshold(GET_OPTION_VALUE(option(), 模式));
+    }
+
+    virtual bool VerdictateAchievement(const Achievement::Type::纹丝不动, const PlayerID pid) const
+    {
+        const auto result = players_[pid].board_->GetAreaStatistic();
+        return IsAchievementOption_() && result.stone_count_ == 2 &&
+            players_[pid].score_ >= WinScoreThreshold(GET_OPTION_VALUE(option(), 模式));
+    }
+
+    virtual bool VerdictateAchievement(const Achievement::Type::超额完成（经典）, const PlayerID pid) const
+    {
+        return IsAchievementOption_() && !GET_OPTION_VALUE(option(), 模式) && players_[pid].score_ >= 12;
+    }
+
+    virtual bool VerdictateAchievement(const Achievement::Type::超额完成（竞技）, const PlayerID pid) const
+    {
+        return IsAchievementOption_() && GET_OPTION_VALUE(option(), 模式) && players_[pid].score_ >= 220;
     }
 
     std::string BoardHtml(std::string str)
@@ -181,10 +205,15 @@ class MainStage : public MainGameStage<RoundStage>
         return str + table.ToString();
     }
 
-
     std::vector<Player> players_;
 
   private:
+    bool IsAchievementOption_() const
+    {
+        return GET_OPTION_VALUE(option(), 种子).empty() && GET_OPTION_VALUE(option(), 颜色) == 6 &&
+            GET_OPTION_VALUE(option(), 点数) == 6;
+    }
+
     VariantSubStage NewStage_();
 
     uint32_t round_;

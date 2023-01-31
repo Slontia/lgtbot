@@ -20,7 +20,7 @@ MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBas
 
 std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path);
 
-extern inline bool enable_markdown_to_image;
+extern bool enable_markdown_to_image;
 
 class RunGameMockMatch : public MockMatch
 {

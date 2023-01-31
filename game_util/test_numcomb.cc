@@ -34,77 +34,77 @@ TEST_F(TestComb, coordinate_to_index)
 TEST_F(TestComb, fill_line_mismatch)
 {
     comb::Comb cb("");
-    ASSERT_EQ(0, cb.Fill(4, comb::AreaCard(4, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(5, comb::AreaCard(3, 5, 7)));
-    ASSERT_EQ(0, cb.Fill(6, comb::AreaCard(3, 5, 7)));
-    ASSERT_EQ(0, cb.Fill(7, comb::AreaCard(3, 5, 7)));
+    ASSERT_EQ(0, cb.Fill(4, comb::AreaCard(4, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(5, comb::AreaCard(3, 5, 7)).point_);
+    ASSERT_EQ(0, cb.Fill(6, comb::AreaCard(3, 5, 7)).point_);
+    ASSERT_EQ(0, cb.Fill(7, comb::AreaCard(3, 5, 7)).point_);
 }
 
 TEST_F(TestComb, get_score)
 {
     comb::Comb cb("");
-    ASSERT_EQ(0, cb.Fill(8, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(9, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(10, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(11, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(45, cb.Fill(12, comb::AreaCard(8, 9, 6)));
+    ASSERT_EQ(0, cb.Fill(8, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(9, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(10, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(11, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(45, cb.Fill(12, comb::AreaCard(8, 9, 6)).point_);
 
-    ASSERT_EQ(0, cb.Fill(3, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(24, cb.Fill(7, comb::AreaCard(8, 9, 6)));
+    ASSERT_EQ(0, cb.Fill(3, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(24, cb.Fill(7, comb::AreaCard(8, 9, 6)).point_);
 
-    ASSERT_EQ(0, cb.Fill(18, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(24, cb.Fill(15, comb::AreaCard(8, 9, 6)));
+    ASSERT_EQ(0, cb.Fill(18, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(24, cb.Fill(15, comb::AreaCard(8, 9, 6)).point_);
 }
 
 TEST_F(TestComb, get_score_three_direct)
 {
     comb::Comb cb("");
-    ASSERT_EQ(0, cb.Fill(8, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(9, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(10, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(12, comb::AreaCard(8, 9, 6)));
+    ASSERT_EQ(0, cb.Fill(8, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(9, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(10, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(12, comb::AreaCard(8, 9, 6)).point_);
 
-    ASSERT_EQ(0, cb.Fill(2, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(6, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(16, comb::AreaCard(8, 9, 6)));
+    ASSERT_EQ(0, cb.Fill(2, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(6, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(16, comb::AreaCard(8, 9, 6)).point_);
 
-    ASSERT_EQ(0, cb.Fill(7, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(18, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(15, comb::AreaCard(8, 9, 6)));
+    ASSERT_EQ(0, cb.Fill(7, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(18, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(15, comb::AreaCard(8, 9, 6)).point_);
 
-    ASSERT_EQ(8 * 4 + 9 * 5 + 6 * 4, cb.Fill(11, comb::AreaCard(8, 9, 6)));
+    ASSERT_EQ(8 * 4 + 9 * 5 + 6 * 4, cb.Fill(11, comb::AreaCard(8, 9, 6)).point_);
 }
 
 TEST_F(TestComb, get_score_wild)
 {
     comb::Comb cb("");
-    ASSERT_EQ(0, cb.Fill(8, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(9, comb::AreaCard()));
-    ASSERT_EQ(0, cb.Fill(10, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(11, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(45, cb.Fill(12, comb::AreaCard(8, 9, 6)));
+    ASSERT_EQ(0, cb.Fill(8, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(9, comb::AreaCard()).point_);
+    ASSERT_EQ(0, cb.Fill(10, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(11, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(45, cb.Fill(12, comb::AreaCard(8, 9, 6)).point_);
 
-    ASSERT_EQ(0, cb.Fill(3, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(24, cb.Fill(7, comb::AreaCard()));
+    ASSERT_EQ(0, cb.Fill(3, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(24, cb.Fill(7, comb::AreaCard()).point_);
 }
 
 TEST_F(TestComb, get_score_three_direct_wild)
 {
     comb::Comb cb("");
-    ASSERT_EQ(0, cb.Fill(8, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(9, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(10, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(12, comb::AreaCard(8, 9, 6)));
+    ASSERT_EQ(0, cb.Fill(8, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(9, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(10, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(12, comb::AreaCard(8, 9, 6)).point_);
 
-    ASSERT_EQ(0, cb.Fill(2, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(6, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(16, comb::AreaCard(8, 9, 6)));
+    ASSERT_EQ(0, cb.Fill(2, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(6, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(16, comb::AreaCard(8, 9, 6)).point_);
 
-    ASSERT_EQ(0, cb.Fill(7, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(18, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(0, cb.Fill(15, comb::AreaCard(8, 9, 6)));
+    ASSERT_EQ(0, cb.Fill(7, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(18, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(0, cb.Fill(15, comb::AreaCard(8, 9, 6)).point_);
 
-    ASSERT_EQ(8 * 4 + 9 * 5 + 6 * 4, cb.Fill(11, comb::AreaCard()));
+    ASSERT_EQ(8 * 4 + 9 * 5 + 6 * 4, cb.Fill(11, comb::AreaCard()).point_);
 }
 
 TEST_F(TestComb, all_set)
@@ -112,15 +112,15 @@ TEST_F(TestComb, all_set)
     comb::Comb cb("");
     int32_t score = 0;
     for (int32_t i = 1; i <= 19; ++i) {
-        score += cb.Fill(i, comb::AreaCard(8, 9, 6));
+        score += cb.Fill(i, comb::AreaCard(8, 9, 6)).point_;
     }
     ASSERT_EQ(19 * (8 + 9 + 6), score);
 }
 
 TEST_F(TestComb, fill_zero)
 {
-    ASSERT_EQ(8 + 9 + 6, comb::Comb("").Fill(0, comb::AreaCard(8, 9, 6)));
-    ASSERT_EQ(30, comb::Comb("").Fill(0, comb::AreaCard()));
+    ASSERT_EQ(8 + 9 + 6, comb::Comb("").Fill(0, comb::AreaCard(8, 9, 6)).point_);
+    ASSERT_EQ(30, comb::Comb("").Fill(0, comb::AreaCard()).point_);
 }
 
 int main(int argc, char** argv)

@@ -1,2 +1,5 @@
-EXTEND_ACHIEVEMENT(工蜂, "连通 12 及以上条线路")
-EXTEND_ACHIEVEMENT(蜂后, "联通 15 条线路")
+EXTEND_ACHIEVEMENT(处女蜂王, "在不指定种子的前提下，连通 12 及以上条线路")
+EXTEND_ACHIEVEMENT(蜂王, "在不指定种子的前提下，联通 15 条线路")
+EXTEND_ACHIEVEMENT(幼年蜂, "在不指定种子的前提下，取得 200 分及以上的成绩")
+EXTEND_ACHIEVEMENT(青年蜂, "在不指定种子的前提下，取得 250 分及以上的成绩")
+EXTEND_ACHIEVEMENT(壮年蜂, "在不指定种子的前提下，取得 300 分及以上的成绩")

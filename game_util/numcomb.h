@@ -180,26 +180,36 @@ class Comb
     Comb(const Comb& comb) = delete;
     Comb(Comb&& comb) = delete;
 
-    int32_t Fill(const uint32_t idx, const AreaCard& card)
+    struct FillResult
+    {
+        int32_t point_;
+        uint32_t line_;
+        friend FillResult operator+(const FillResult& _1, const FillResult& _2)
+        {
+            return FillResult{.point_ = _1.point_ + _2.point_, .line_ = _1.line_ + _2.line_};
+        }
+    };
+
+    FillResult Fill(const uint32_t idx, const AreaCard& card)
     {
         auto& area = areas_[idx];
         area.card_ = card;
         const auto img_str = Image_(card.ImageName());
         area.box_.SetContent(img_str);
         if (idx == 0) {
-            return card.PointSum();
+            return {card.PointSum(), 0};
         } else {
             return Check_(area.coordinate_);
         }
     }
 
-    std::pair<uint32_t, int32_t> SeqFill(const AreaCard& card)
+    std::pair<uint32_t, FillResult> SeqFill(const AreaCard& card)
     {
         const auto img_str = Image_(card.ImageName());
         if (!areas_[0].card_.has_value()) {
             areas_[0].box_.SetContent(img_str);
             areas_[0].card_ = card;
-            return {0, card.PointSum()};
+            return {0, FillResult{card.PointSum(), 0}};
         }
         for (uint32_t i = 1; i < areas_.size(); ++i) {
             auto& area = areas_[i];
@@ -209,7 +219,7 @@ class Comb
                 return {i, Check_(area.coordinate_)};
             }
         }
-        return {UINT32_MAX, 0}; // unexpected case
+        return {UINT32_MAX, FillResult{0, 0}}; // unexpected case
     }
 
     void Clear(const uint32_t idx);
@@ -251,11 +261,11 @@ class Comb
     std::string Image_(std::string name) { return "![](file://" + image_path_ + std::move(name) + ".png)"; }
 
     template <Direct direct>
-    int32_t CheckOneDirect_(const Coordinate coordinate)
+    FillResult CheckOneDirect_(const Coordinate coordinate)
     {
         assert(Get_(coordinate).card_.has_value());
         auto point = Get_(coordinate).card_->Point<direct>();
-        uint32_t count = 1;
+        int32_t count = 1;
         const auto check = [&](Coordinate& coor, const Coordinate& step)
             {
                 for (; IsValid_(coor); coor += step) {
@@ -287,7 +297,7 @@ class Comb
         auto head_coor = coordinate + k_direct_step<direct>;
         auto tail_coor = coordinate + -k_direct_step<direct>;
         if (!check(head_coor, k_direct_step<direct>) || !check(tail_coor, -k_direct_step<direct>)) {
-            return 0;
+            return {0, 0};
         }
 
         wall_line(head_coor, k_direct_step<direct>);
@@ -295,13 +305,13 @@ class Comb
 
         // TODO: set around success line
         if (point.has_value()) {
-            return *point * count;
+            return {*point * count, 1};
         } else {
-            return 10000; // TODO: is an impossible case, we should limit number of wild card less than k_size
+            return {10000, 1}; // TODO: is an impossible case, we should limit number of wild card less than k_size
         }
     }
 
-    int32_t Check_(const Coordinate coordinate)
+    FillResult Check_(const Coordinate coordinate)
     {
         return CheckOneDirect_<Direct::VERT>(coordinate) +
                CheckOneDirect_<Direct::TOP_LEFT>(coordinate) +

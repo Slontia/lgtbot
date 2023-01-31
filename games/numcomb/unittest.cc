@@ -21,6 +21,7 @@ GAME_TEST(1, one_finish)
         ASSERT_PUB_MSG(CHECKOUT, 0, std::to_string(i).c_str());
     }
     ASSERT_SCORE(0);
+    ASSERT_ACHIEVEMENTS(0);
 }
 
 GAME_TEST(2, two_finish)
@@ -34,6 +35,7 @@ GAME_TEST(2, two_finish)
         ASSERT_PUB_MSG(CHECKOUT, 1, std::to_string(i).c_str());
     }
     ASSERT_SCORE(0, 0);
+    ASSERT_ACHIEVEMENTS(0);
 }
 
 GAME_TEST(2, repeat_selection)

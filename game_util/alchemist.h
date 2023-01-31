@@ -46,6 +46,12 @@ struct Stone
 
 enum : int { FAIL_ALREADY_SET = -1, FAIL_ADJ_CARDS_MISMATCH = -2, FAIL_NON_ADJ_CARDS = -3, };
 
+struct AreaStatistic
+{
+    int32_t card_count_ = 0;
+    int32_t stone_count_ = 0;
+};
+
 class Board
 {
   public:
@@ -98,6 +104,27 @@ class Board
         area.reset();
         table_.Get(row + 1, col + 1).SetContent(Image_("empty_" + std::to_string(style_)));
         return true;
+    }
+
+    AreaStatistic GetAreaStatistic() const
+    {
+        AreaStatistic result;
+        for (const auto& area_line : areas_) {
+            for (const auto& area : area_line) {
+                if (!area.has_value()) {
+                    std::visit([&] (const auto& arg)
+                            {
+                                using T = std::decay_t<decltype(arg)>;
+                                if constexpr (std::is_same_v<T, Card>) {
+                                    ++result.card_count_;
+                                } else {
+                                    ++result.stone_count_;
+                                }
+                            }, *area);
+                }
+            }
+        }
+        return result;
     }
 
     std::string ToHtml() const { return table_.ToString(); }

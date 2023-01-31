@@ -27,6 +27,7 @@ class TestGame : public MockMatch, public testing::Test
 {
    public:
     using ScoreArray = std::array<int64_t, k_player_num>;
+    using AchievementsArray = std::array<std::vector<std::string>, k_player_num>;
 
     TestGame() : MockMatch(k_player_num), timer_started_(false) {}
 
@@ -61,7 +62,9 @@ class TestGame : public MockMatch, public testing::Test
         return main_stage_ != nullptr;
     }
 
-    auto& expected_scores() const { return expected_scores_; }
+    auto& actual_scores() const { return actual_scores_; }
+
+    auto& actual_achievements() const { return actual_achievements_; }
 
     virtual void StartTimer(const uint64_t /*sec*/, void* p, void(*cb)(void*, uint64_t)) override { timer_started_ = true; }
 
@@ -109,16 +112,23 @@ class TestGame : public MockMatch, public testing::Test
 
     GameOption option_;
     std::unique_ptr<MainStageBase> main_stage_;
-    std::optional<ScoreArray> expected_scores_;
+    std::optional<ScoreArray> actual_scores_;
+    std::optional<AchievementsArray> actual_achievements_;
     bool timer_started_;
 
   private:
     void HandleGameOver_()
     {
         if (main_stage_ && main_stage_->IsOver()) {
-            auto& dst_scores = expected_scores_.emplace();
+            auto& dst_scores = actual_scores_.emplace();
+            auto& dst_achievements = actual_achievements_.emplace();
             for (size_t i = 0; i < dst_scores.size(); ++i) {
                 dst_scores.at(i) = main_stage_->PlayerScore(i);
+                for (const char* const* achievement_name_p = main_stage_->VerdictateAchievements(i);
+                        *achievement_name_p;
+                        ++achievement_name_p) {
+                    dst_achievements.at(i).emplace_back(*achievement_name_p);
+                }
             }
         }
     }
@@ -135,12 +145,18 @@ class TestGame : public MockMatch, public testing::Test
     }
 };
 
-#define ASSERT_FINISHED(finished) ASSERT_EQ(expected_scores().has_value(), finished);
+#define ASSERT_FINISHED(finished) ASSERT_EQ(actual_scores().has_value(), finished);
 
 #define ASSERT_SCORE(scores...) \
     do { \
-        ASSERT_TRUE(expected_scores().has_value()) << "Game not finish"; \
-        ASSERT_EQ((ScoreArray{scores}), *expected_scores()) << "Score not match"; \
+        ASSERT_TRUE(actual_scores().has_value()) << "Game not finish"; \
+        ASSERT_EQ((ScoreArray{scores}), *actual_scores()) << "Score not match"; \
+    } while (0)
+
+#define ASSERT_ACHIEVEMENTS(pid, achievements...) \
+    do { \
+        ASSERT_TRUE(actual_achievements().has_value()) << "Game not finish"; \
+        ASSERT_EQ((std::vector<std::string>{achievements}), actual_achievements()->at(pid)) << "Achievements not match"; \
     } while (0)
 
 #define START_GAME() \

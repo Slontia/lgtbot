@@ -347,6 +347,10 @@ static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<Grou
 static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
                          const std::string& gamename)
 {
+    if (!bot.db_manager()) {
+        reply() << "[错误] 查看失败：未连接数据库";
+        return EC_DB_NOT_CONNECTED;
+    }
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
         reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
@@ -356,32 +360,26 @@ static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::option
         reply() << "该游戏没有任何成就";
         return EC_OK;
     }
-    html::Table table(1 + it->second->achievements_.size(), bot.db_manager() == nullptr ? 3 : 6);
-    table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" width=\"600\" ");
-    table.Get(0, 0).SetContent("**序号**");
-    table.Get(0, 1).SetContent("**名称**");
-    table.Get(0, 2).SetContent("**描述**");
-    if (bot.db_manager()) {
-        table.Get(0, 3).SetContent("**首次达成时间**");
-        table.Get(0, 4).SetContent("**达成次数**");
-        table.Get(0, 5).SetContent("**达成人数**");
-    }
-    for (size_t i = 0; i < it->second->achievements_.size(); ++i) {
-        const char* color_header = HTML_COLOR_FONT_HEADER(black);
-        if (bot.db_manager()) {
-            const auto statistic = bot.db_manager()->GetAchievementStatistic(uid, gamename, it->second->achievements_[i].name_);
-            if (statistic.count_ > 0) {
-                color_header = HTML_COLOR_FONT_HEADER(green);
-            }
-            table.Get(1 + i, 3).SetContent(color_header + (statistic.first_achieve_time_.empty() ? "-" : statistic.first_achieve_time_) + HTML_FONT_TAIL);
-            table.Get(1 + i, 4).SetContent(color_header + std::to_string(statistic.count_) + HTML_FONT_TAIL);
-            table.Get(1 + i, 5).SetContent(color_header + std::to_string(statistic.achieved_user_num_) + HTML_FONT_TAIL);
+    html::Table table(0, 3);
+    table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"5\" cellspacing=\"1\" ");
+    for (const auto& [achievement_name, description] : it->second->achievements_) {
+        const auto statistic = bot.db_manager()->GetAchievementStatistic(uid, gamename, achievement_name);
+        const std::string color_header = statistic.count_ > 0 ? HTML_COLOR_FONT_HEADER(green) : HTML_COLOR_FONT_HEADER(black);
+        table.AppendRow();
+        table.GetLastRow(0).SetContent(color_header + "<font size=\"5\"> **" + achievement_name + "**</font>\n\n达成人数：" +
+                std::to_string(statistic.achieved_user_num_) + HTML_FONT_TAIL);
+        if (statistic.count_ > 0) {
+            table.GetLastRow(1).SetContent(color_header + " 首次达成时间：**" + statistic.first_achieve_time_ + "**" HTML_FONT_TAIL);
+            table.GetLastRow(2).SetContent(color_header + " 达成次数：**" + std::to_string(statistic.count_) + "**" HTML_FONT_TAIL);
+            table.AppendRow();
+            table.MergeDown(table.Row() - 2, 0, 2);
         }
-        table.Get(1 + i, 0).SetContent(color_header + std::to_string(i + 1) + HTML_FONT_TAIL);
-        table.Get(1 + i, 1).SetContent(color_header + it->second->achievements_[i].name_ + HTML_FONT_TAIL);
-        table.Get(1 + i, 2).SetContent(color_header + it->second->achievements_[i].description_ + HTML_FONT_TAIL);
+        table.MergeRight(table.Row() - 1, 1, 2);
+        table.GetLastRow(1).SetContent(color_header + "<font size=\"3\"> " + description + "</font>" HTML_FONT_TAIL);
     }
-    reply() << Markdown("## " + gamename + "：成就一览\n\n" + table.ToString());
+    reply() << Markdown(std::string("## ") + GetUserAvatar(uid.GetCStr(), 40) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
+        GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) + "——" HTML_COLOR_FONT_HEADER(blue) +
+        gamename + HTML_FONT_TAIL "成就一览\n\n" + table.ToString(), 800);
     return EC_OK;
 }
 
