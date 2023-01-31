@@ -58,7 +58,7 @@ public:
 	// 上一枚落子 
 	int lastX = 0, lastY = 0;
 	// 棋盘的markdown格式 
-	string grid[17][17];
+	string grid[30][30];
 	
 	// 将数字转为字符串 
 	string str(int x)
@@ -73,11 +73,11 @@ public:
 		for(int i = 0; i <= sizeX + 2; i++)
 			for(int j = 0; j <= sizeY + 2; j++)
 				grid[i][j] = "";
-				
+		
 		// 用来填充的字符串 
-		string fill = "&ensp;&ensp;";
+		string fill = "<font size=7>　</font><font size=2>　</font>";
 		// 记录颜色格数
-		int n1 = 0, n2 = 0; 
+		int n1 = 0, n2 = 0;
 		
 		// 每一横排的数字 
 		for(int i = 1; i <= sizeX; i++)
@@ -142,7 +142,8 @@ public:
 				}
 			 	grid[i][j] += cr;
 			 	
-			 	grid[i][j] += "\"><font size=7>";
+			 	// 棋子的大小略小一点 
+			 	grid[i][j] += "\"><font size=6>";
 			 	
 			 	// 棋子
 			 	string ch;
@@ -187,7 +188,7 @@ public:
 		UI += "<td bgcolor=\"#FFFFFF\"><font size=7>" + fill + "</font></td>";
 		UI += "<td bgcolor=\"#DDA0DD\"><font size=7>" + fill + "</font></td>";
 		UI += "<td bgcolor=\"#FFFFFF\"><font size=7>" + str(n2) + "</font></td>";
-		UI += "</tr></table>";
+		UI += "</tr><tr></tr></table>";
 		
 		return UI; 
 	}
@@ -195,31 +196,39 @@ public:
 	// 检查一次行动 
 	string CheckMove(string s, int player)
 	{
-		// 长度必须为2 
-		if (s.length() != 2)
+		// 长度必须为2或3 
+		if (s.length() != 2 && s.length() != 3)
 		{
-			return "[错误] 请输入长度为 2 的字符串，如：A1";
+			return "[错误] 请输入长度不超过 3 的字符串，如：A1";
 		}
 		// 大小写不敏感 
-		for (int i = 0; i < 2; i++)
+		if (s[0] <= 'z' && s[0] >= 'a')
 		{
-			if (s[i] <= 'z' && s[i] >= 'a')
-			{
-				s[i] = s[i] - 'a' + 'A';
-			}
+			s[0] = s[0] - 'a' + 'A';
 		}
-		// 横纵交换不敏感 
-		if (s[0] <= '9' && s[0] >= '0')
-		{
-			swap(s[0], s[1]);
-		}
+		/*
+			为了支持更高位数，不支持横纵交换了。 
+		*/ 
+//		// 横纵交换不敏感 
+//		if (s[0] <= '9' && s[0] >= '0')
+//		{
+//			swap(s[0], s[1]);
+//		}
 		// 检查是否为合法输入 
 		if (s[0] > 'Z' || s[0] < 'A' || s[1] > '9' || s[1] < '0' )
 		{
 			return "[错误] 请输入合法的字符串（字母+数字），如：A1";
 		}
+		if (s.length() == 3 && (s[2] > '9' || s[2] < '0'))
+		{
+			return "[错误] 请输入合法的字符串（字母+数字），如：A1";
+		}
 		// 转化 (注意XY)
 		int nowY = s[0] - 'A' + 1, nowX = s[1] - '0'; 
+		if (s.length() == 3)
+		{
+			nowX = (s[1] - '0') * 10 + s[2] - '0';
+		}
 		// 检查是否越界
 		if (nowX < 1 || nowX > sizeX || nowY < 1 || nowY > sizeY) 
 		{
@@ -362,7 +371,7 @@ class RoundStage : public SubGameStage<>
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
         Boardcast() << PlayerName(pid) << "退出游戏，游戏立刻结束。";
-        main_stage().player_scores_[!main_stage().currentPlayer] = 1;
+        main_stage().player_scores_[!pid] = 1;
         main_stage().stop = 1;
         SetReady(0), SetReady(1);
         // Returning |CONTINUE| means the current stage will be continued.
@@ -393,7 +402,7 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
         
-        string ret = main_stage().board.CheckMove(str, main_stage().currentPlayer + 1);
+        string ret = main_stage().board.CheckMove(str, (!(main_stage().round_ % 2)) + 1);
         
         // 不合法的落子选择 
         if (ret != "OK")
