@@ -195,7 +195,7 @@ public:
 		// 长度必须为2或3 
 		if (s.length() != 2 && s.length() != 3)
 		{
-			return "[错误] 请输入长度不超过 3 的字符串，如：A1";
+			return "[错误] 每个格子只能是长度不超过 3 的字符串，如：A1";
 		}
 		// 大小写不敏感 
 		if (s[0] <= 'z' && s[0] >= 'a')
@@ -522,7 +522,15 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 			(c[i][j] == c[i + 1][j + 1] && c[i][j] == c[i + 2][j + 2] && c[i][j] == c[i + 3][j + 3]))
 			{
 				winner = c[i][j] - 1; 
-			} 
+			}
+			// 特判，不然可能访问到负数位置 
+			if (j >= 4)
+			{
+				if (c[i][j] == c[i + 1][j - 1] && c[i][j] == c[i + 2][j - 2] && c[i][j] == c[i + 3][j - 3])
+				{
+					winner = c[i][j] - 1; 
+				}
+			}
 		}
 	}
 	if (winner != -1)
