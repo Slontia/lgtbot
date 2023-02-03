@@ -200,6 +200,9 @@ void getLines() {
       }
     }
   }
+  for (int i = 0; i < index; i++) {
+    std::cout << "Line " << i << ": " << lines[i] << std::endl;
+  }
   line_cnt = index;
 }
 
@@ -286,6 +289,9 @@ void initGame(const std::string& map_path, std::optional<int> seed = std::nullop
   for (int i = 0; i < n + 2; i++) {
     std::cout << map[i] << std::endl;
   }
+  memset(lines, 0, sizeof lines);
+  memset(lx, 0, sizeof lx);
+  memset(ly, 0, sizeof ly);
   getLines();
 }
 
@@ -414,7 +420,7 @@ class RoundStage : public SubGameStage<> {
 
   virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
     Boardcast() << "玩家 " << PlayerName(pid) << " 中途退出。";
-    return StageErrCode::CHECKOUT;
+    return StageErrCode::CONTINUE;
   }
 
   virtual CheckoutErrCode OnTimeout() override {
