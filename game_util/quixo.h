@@ -10,6 +10,10 @@
 
 #include "../utility/html.h"
 
+namespace lgtbot {
+
+namespace game_util {
+
 namespace quixo {
 
 enum class ErrCode { OK, INVALID_SRC, INVALID_DST };
@@ -218,4 +222,8 @@ class Board
     std::array<uint32_t, 2> chess_counts_;
 };
 
-}
+} // namespace quixo
+
+} // namespace game_util
+
+} // namespace lgtbot

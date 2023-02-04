@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-using namespace laser;
+using namespace lgtbot::game_util::laser_chess;
 
 class TestLaserChess : public testing::Test {};
 

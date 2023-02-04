@@ -4,6 +4,12 @@
 
 #include "game_framework/unittest_base.h"
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 GAME_TEST(6, Q1_All_A){
     ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 1"); StartGame();
         for(int i = 0; i < 5; i++) ASSERT_PRI_MSG(OK, i, "A");
@@ -1500,6 +1506,12 @@ GAME_TEST(6, Q34_Basic_AAABBC){
         ASSERT_PRI_MSG(OK, 4, "B");
         ASSERT_PRI_MSG(CHECKOUT, 5, "C");
         ASSERT_SCORE(0,0,0,200,200,100);}
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
 
 int main(int argc, char** argv)
 {

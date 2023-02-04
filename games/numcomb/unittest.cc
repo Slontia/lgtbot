@@ -4,6 +4,12 @@
 
 #include "game_framework/unittest_base.h"
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 GAME_TEST(1, one_player_ok)
 {
     ASSERT_TRUE(StartGame());
@@ -67,6 +73,12 @@ GAME_TEST(2, timeout_hook)
     ASSERT_PUB_MSG(FAILED, 1, "1"); // is seq filled
     ASSERT_PUB_MSG(OK, 1, "2");
 }
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
 
 int main(int argc, char** argv)
 {

@@ -11,16 +11,18 @@
 #include <ranges>
 #include <algorithm>
 
-#include "game_maps.h"
-
-#include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
-#include "game_framework/game_options.h"
-#include "game_framework/game_achievements.h"
-#include "utility/msg_checker.h"
 #include "utility/html.h"
 #include "utility/coding.h"
 #include "game_util/chinese_chess.h"
+
+using namespace lgtbot::game_util::chinese_chess;
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
 
 const std::string k_game_name = "群雄象棋";
 const uint64_t k_max_player = 6; /* 0 means no max-player limits */
@@ -53,8 +55,6 @@ bool GameOption::ToValid(MsgSenderBase& reply)
 uint64_t GameOption::BestPlayerNum() const { return 3; }
 
 // ========== GAME STAGES ==========
-
-using namespace chinese_chess;
 
 static std::ostream& operator<<(std::ostream& os, const Coor& coor) { return os << ('A' + coor.m_) << coor.n_; }
 
@@ -289,10 +289,10 @@ class MainStage : public MainGameStage<>
     std::string cur_html_;
 };
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
-{
-    if (!options.ToValid(reply)) {
-        return nullptr;
-    }
-    return new MainStage(options, match);
-}
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
+
+#include "game_framework/make_main_stage.h"

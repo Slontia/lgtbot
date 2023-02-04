@@ -14,19 +14,28 @@
 
 #include "image.h"
 
+namespace lgtbot {
+
+namespace game {
+
 class MainStageBase;
 class GameOptionBase;
+
+} // namespace lgtbot
+
+} // namespace game
+
 class MatchBase;
 
 struct GameHandle
 {
     using ModGuard = std::function<void()>;
-    using game_options_allocator = GameOptionBase*(*)();
-    using game_options_deleter = void(*)(const GameOptionBase*);
-    using game_options_ptr = std::unique_ptr<GameOptionBase, game_options_deleter>;
-    using main_stage_allocator = MainStageBase*(*)(MsgSenderBase&, const GameOptionBase&, MatchBase& match);
-    using main_stage_deleter = void(*)(const MainStageBase*);
-    using main_stage_ptr = std::unique_ptr<MainStageBase, main_stage_deleter>;
+    using game_options_allocator = lgtbot::game::GameOptionBase*(*)();
+    using game_options_deleter = void(*)(const lgtbot::game::GameOptionBase*);
+    using game_options_ptr = std::unique_ptr<lgtbot::game::GameOptionBase, game_options_deleter>;
+    using main_stage_allocator = lgtbot::game::MainStageBase*(*)(MsgSenderBase&, const lgtbot::game::GameOptionBase&, MatchBase& match);
+    using main_stage_deleter = void(*)(const lgtbot::game::MainStageBase*);
+    using main_stage_ptr = std::unique_ptr<lgtbot::game::MainStageBase, main_stage_deleter>;
 
     struct Achievement
     {
@@ -66,7 +75,7 @@ struct GameHandle
         return game_options_ptr(game_options_allocator_(), game_options_deleter_);
     }
 
-    main_stage_ptr make_main_stage(MsgSenderBase& reply, const GameOptionBase& game_options, MatchBase& match) const
+    main_stage_ptr make_main_stage(MsgSenderBase& reply, const lgtbot::game::GameOptionBase& game_options, MatchBase& match) const
     {
         return main_stage_ptr(main_stage_allocator_(reply, game_options, match), main_stage_deleter_);
     }

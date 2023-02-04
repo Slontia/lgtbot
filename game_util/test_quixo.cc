@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-using namespace quixo;
+using namespace lgtbot::game_util::quixo;
 
 class TestQuixo : public testing::Test {};
 

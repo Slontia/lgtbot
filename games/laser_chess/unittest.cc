@@ -4,6 +4,12 @@
 
 #include "game_framework/unittest_base.h"
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 GAME_TEST(2, keep_rotate)
 {
     ASSERT_PUB_MSG(OK, 0, "地图 genius");
@@ -74,6 +80,12 @@ GAME_TEST(2, keep_pass)
     ASSERT_PRI_MSG(CHECKOUT, 1, "pass");
     ASSERT_SCORE(10, 10);
 }
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
 
 int main(int argc, char** argv)
 {

@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-using namespace chinese_chess;
+using namespace lgtbot::game_util::chinese_chess;
 
 class TestChineseChess_ChessRule : public testing::Test
 {

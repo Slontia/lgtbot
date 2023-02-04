@@ -1,8 +1,8 @@
 #include "game_util/laser_chess.h"
 
-inline laser::Board InitAceBoard(std::string image_path)
+inline lgtbot::game_util::laser_chess::Board InitAceBoard(std::string image_path)
 {
-    using namespace laser;
+    using namespace lgtbot::game_util::laser_chess;
     Board b(8, 10, std::move(image_path));
     b.SetChess(Coor{0, 0}, ShooterChess<0>(DOWN, std::bitset<4>().set(RIGHT).set(DOWN)));
     b.SetChess(Coor{0, 4}, ShieldChess<0>(DOWN));
@@ -33,9 +33,9 @@ inline laser::Board InitAceBoard(std::string image_path)
     return b;
 }
 
-inline laser::Board InitCuriosityBoard(std::string image_path)
+inline lgtbot::game_util::laser_chess::Board InitCuriosityBoard(std::string image_path)
 {
-    using namespace laser;
+    using namespace lgtbot::game_util::laser_chess;
     Board b(8, 10, std::move(image_path));
     b.SetChess(Coor{0, 0}, ShooterChess<0>(RIGHT, std::bitset<4>().set(RIGHT).set(DOWN)));
     b.SetChess(Coor{0, 4}, ShieldChess<0>(LEFT));
@@ -66,9 +66,9 @@ inline laser::Board InitCuriosityBoard(std::string image_path)
     return b;
 }
 
-inline laser::Board InitGrailBoard(std::string image_path)
+inline lgtbot::game_util::laser_chess::Board InitGrailBoard(std::string image_path)
 {
-    using namespace laser;
+    using namespace lgtbot::game_util::laser_chess;
     Board b(8, 10, std::move(image_path));
     b.SetChess(Coor{0, 0}, ShooterChess<0>(DOWN, std::bitset<4>().set(RIGHT).set(DOWN)));
     b.SetChess(Coor{0, 4}, SingleMirrorChess<0>(RIGHT));
@@ -99,9 +99,9 @@ inline laser::Board InitGrailBoard(std::string image_path)
     return b;
 }
 
-inline laser::Board InitMercuryBoard(std::string image_path)
+inline lgtbot::game_util::laser_chess::Board InitMercuryBoard(std::string image_path)
 {
-    using namespace laser;
+    using namespace lgtbot::game_util::laser_chess;
     Board b(8, 10, std::move(image_path));
     b.SetChess(Coor{0, 0}, ShooterChess<0>(RIGHT, std::bitset<4>().set(RIGHT).set(DOWN)));
     b.SetChess(Coor{0, 4}, SingleMirrorChess<0>(RIGHT));
@@ -132,9 +132,9 @@ inline laser::Board InitMercuryBoard(std::string image_path)
     return b;
 }
 
-inline laser::Board InitSophieBoard(std::string image_path)
+inline lgtbot::game_util::laser_chess::Board InitSophieBoard(std::string image_path)
 {
-    using namespace laser;
+    using namespace lgtbot::game_util::laser_chess;
     Board b(8, 10, std::move(image_path));
     b.SetChess(Coor{0, 0}, ShooterChess<0>(DOWN, std::bitset<4>().set(RIGHT).set(DOWN)));
     b.SetChess(Coor{0, 4}, KingChess<0>());
@@ -165,9 +165,9 @@ inline laser::Board InitSophieBoard(std::string image_path)
     return b;
 }
 
-inline laser::Board InitGeniusBoard(std::string image_path)
+inline lgtbot::game_util::laser_chess::Board InitGeniusBoard(std::string image_path)
 {
-    using namespace laser;
+    using namespace lgtbot::game_util::laser_chess;
     Board b(8, 8, std::move(image_path));
     b.SetChess(Coor{0, 0}, ShooterChess<0>(DOWN, std::bitset<4>().set(RIGHT).set(DOWN)));
     b.SetChess(Coor{0, 1}, SingleMirrorChess<1>(RIGHT));
@@ -192,9 +192,9 @@ inline laser::Board InitGeniusBoard(std::string image_path)
     return b;
 }
 
-inline laser::Board InitRefractionBoard(std::string image_path)
+inline lgtbot::game_util::laser_chess::Board InitRefractionBoard(std::string image_path)
 {
-    using namespace laser;
+    using namespace lgtbot::game_util::laser_chess;
     Board b(8, 10, std::move(image_path));
     b.SetChess(Coor{1, 9}, DoubleMirrorChess<0>(false));
     b.SetChess(Coor{4, 9}, LensedMirrorChess<1>(false));
@@ -226,9 +226,9 @@ inline laser::Board InitRefractionBoard(std::string image_path)
     return b;
 }
 
-inline laser::Board InitGeminiBoard(std::string image_path)
+inline lgtbot::game_util::laser_chess::Board InitGeminiBoard(std::string image_path)
 {
-    using namespace laser;
+    using namespace lgtbot::game_util::laser_chess;
     Board b(8, 10, std::move(image_path));
     b.SetChess(Coor{0, 9}, LensedMirrorChess<1>(false));
     b.SetChess(Coor{1, 9}, SingleMirrorChess<1>(RIGHT));
@@ -260,9 +260,9 @@ inline laser::Board InitGeminiBoard(std::string image_path)
     return b;
 }
 
-inline laser::Board InitDaisukeBoard(std::string image_path)
+inline lgtbot::game_util::laser_chess::Board InitDaisukeBoard(std::string image_path)
 {
-    using namespace laser;
+    using namespace lgtbot::game_util::laser_chess;
     Board b(8, 8, std::move(image_path));
     b.SetChess(Coor{0, 0}, DoubleMirrorChess<1>(false));
     b.SetChess(Coor{0, 5}, SingleMirrorChess<1>(RIGHT));

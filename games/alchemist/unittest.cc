@@ -4,6 +4,12 @@
 
 #include "game_framework/unittest_base.h"
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 GAME_TEST(1, invalid_option)
 {
     ASSERT_PUB_MSG(OK, 0, "颜色 2");
@@ -107,6 +113,12 @@ GAME_TEST(2, repeat_selection)
     ASSERT_PUB_MSG(OK, 0, "C4");
     ASSERT_PUB_MSG(FAILED, 0, "B3");
 }
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
 
 int main(int argc, char** argv)
 {

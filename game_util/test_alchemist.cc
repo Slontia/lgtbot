@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-using namespace alchemist;
+using namespace lgtbot::game_util::alchemist;
 
 class TestAlchemist : public testing::Test {};
 

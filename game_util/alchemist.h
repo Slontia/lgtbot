@@ -13,6 +13,10 @@
 
 #include "../utility/html.h"
 
+namespace lgtbot {
+
+namespace game_util {
+
 namespace alchemist {
 
 enum class Color : char { RED = 'r', ORANGE = 'o', YELLOW = 'y', BLUE = 'b', GREY = 'g', PURPLE = 'p', };
@@ -190,4 +194,8 @@ class Board
     html::Table table_;
 };
 
-}
+} // namespace alchemist
+
+} // namespace game_util
+
+} // namespace lgtbot

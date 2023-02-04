@@ -4,6 +4,12 @@
 
 #include "game_framework/unittest_base.h"
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 GAME_TEST(4, player_not_enough)
 {
     ASSERT_FALSE(StartGame());
@@ -791,6 +797,12 @@ GAME_TEST(5, goddess_can_hurt_puppet)
     ASSERT_TIMEOUT(CONTINUE);
     ASSERT_PRI_MSG(FAILED, 0, "攻击 F 15"); // puppet is dead
 }
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
 
 int main(int argc, char** argv)
 {

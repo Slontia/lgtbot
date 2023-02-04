@@ -6,6 +6,8 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
+namespace comb = lgtbot::game_util::numcomb;
+
 class TestComb : public testing::Test {};
 
 TEST_F(TestComb, coordinate_to_index)

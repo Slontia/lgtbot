@@ -24,6 +24,11 @@ ENUM_END(GameMap)
 #ifndef LASER_CHESS_OPTIONS_H_
 #define LASER_CHESS_OPTIONS_H_
 
+#include <array>
+#include <optional>
+#include <map>
+#include <bitset>
+
 #define ENUM_FILE "../games/laser_chess/options.h"
 #include "../../utility/extend_enum.h"
 

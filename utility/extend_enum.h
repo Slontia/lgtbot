@@ -4,12 +4,8 @@
 
 #ifdef ENUM_FILE
 
-#include <string>
-#include <array>
-#include <optional>
-#include <map>
-#include <type_traits>
-#include <bitset>
+// Required headers: string / array / optional / map / bitset.
+// These headers should not be included in this file because this file can be included in a namespace.
 
 #define INNER_ENUM(name) __##name##InnerEnum
 #define INNER_CONSTANT(name) __##name##InnerConstant
@@ -24,6 +20,14 @@
 #undef ENUM_BEGIN
 #undef ENUM_MEMBER
 #undef ENUM_END
+
+// The enum type is actually a class.
+//
+// Members that been used as <enum type>::<member name> have different types but both of them can be implicitly
+// casted to a instance of the extended enum class.
+
+// The defination of the class should not been divided into multiple parts because developers may define several enums
+// in the `ENUM_FILE`.
 
 #define ENUM_BEGIN(name) \
 class name; \

@@ -15,7 +15,11 @@
 
 #include "utility/html.h"
 
-namespace laser {
+namespace lgtbot {
+
+namespace game_util {
+
+namespace laser_chess {
 
 enum Direct : int { UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3 };
 
@@ -582,4 +586,9 @@ class Board
     bool is_shooting_;
 };
 
-};
+} // namespace laser_chess
+
+} // namespace game_util
+
+} // namespace lgtbot
+

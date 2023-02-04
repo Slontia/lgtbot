@@ -4,6 +4,12 @@
 
 #include "game_framework/unittest_base.h"
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 GAME_TEST(1, cannot_one_player)
 {
     ASSERT_FALSE(StartGame());
@@ -102,6 +108,12 @@ GAME_TEST(3, do_nothing)
     }
     ASSERT_SCORE(33000, 17000, 25000);
 }
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
 
 int main(int argc, char** argv)
 {

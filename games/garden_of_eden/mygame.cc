@@ -7,12 +7,14 @@
 #include <memory>
 #include <set>
 
-#include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
-#include "game_framework/game_options.h"
-#include "game_framework/game_achievements.h"
-#include "utility/msg_checker.h"
 #include "utility/html.h"
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
 
 const std::string k_game_name = "伊甸园"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 0; // 0 indicates no max-player limits
@@ -353,10 +355,10 @@ class MainStage : public MainGameStage<>
     static constexpr uint32_t k_markdown_width_ = 650;
 };
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
-{
-    if (!options.ToValid(reply)) {
-        return nullptr;
-    }
-    return new MainStage(options, match);
-}
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
+
+#include "game_framework/make_main_stage.h"

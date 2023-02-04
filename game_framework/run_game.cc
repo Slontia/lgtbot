@@ -6,7 +6,6 @@
 
 #include <gflags/gflags.h>
 
-#include "game_framework/game_stage.h"
 #include "game_framework/game_options.h"
 #include "game_framework/game_main.h"
 #include "game_framework/mock_match.h"
@@ -15,10 +14,6 @@ DEFINE_uint64(player, 0, "Player number: if set to 0, best player num will be se
 DEFINE_uint64(repeat, 1, "Repeat times: if set to 0, will run unlimitedly");
 DEFINE_string(resource_dir, "./resource_dir/", "The path of game image resources");
 DEFINE_bool(gen_image, false, "Whether generate image or not");
-
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
-
-std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path);
 
 extern bool enable_markdown_to_image;
 
@@ -40,6 +35,16 @@ class RunGameMockMatch : public MockMatch
         return str.c_str();
     }
 };
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
+MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
+
+std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path);
 
 int Run()
 {
@@ -80,6 +85,11 @@ int Run()
     return 0;
 }
 
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
 
 int main(int argc, char** argv)
 {
@@ -91,11 +101,11 @@ int main(int argc, char** argv)
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 
     if (FLAGS_player == 0) {
-        FLAGS_player = GameOption().BestPlayerNum();
+        FLAGS_player = lgtbot::game::GAME_MODULE_NAME::GameOption().BestPlayerNum();
     }
 
     for (uint64_t i = 0; i < FLAGS_repeat; ++i) {
-        Run();
+        lgtbot::game::GAME_MODULE_NAME::Run();
     }
 
     return 0;

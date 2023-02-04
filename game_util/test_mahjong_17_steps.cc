@@ -9,6 +9,8 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
+using namespace lgtbot::game_util::mahjong_17_steps;
+
 class TestMahjong17Steps : public testing::Test
 {
   public:

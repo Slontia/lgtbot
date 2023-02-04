@@ -9,9 +9,21 @@
 #include "game_framework/game_main.h"
 #include "utility/msg_checker.h"
 
+#ifndef GAME_MODULE_NAME
+#error GAME_MODULE_NAME is not defined
+#endif
+
 #ifndef GAME_OPTION_FILENAME
 #define GAME_OPTION_FILENAME "options.h"
 #endif
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
+// MyGameOption is a developer-defined class, so it should be put into GAME_MODULE_NAME namespace.
 
 #define OPTION_CLASSNAME MyGameOption
 #define OPTION_FILENAME GAME_OPTION_FILENAME
@@ -21,8 +33,9 @@
 
 class GameOption : public GameOptionBase, public MyGameOption
 {
-   public:
+  public:
     GameOption() : GameOptionBase(Count()) {};
+
     virtual ~GameOption() {}
 
     virtual bool SetOption(const char* const msg) override
@@ -38,7 +51,9 @@ class GameOption : public GameOptionBase, public MyGameOption
     }
 
     virtual const char* ResourceDir() const { return resource_dir_.c_str(); }
+
     virtual const char* Info(const uint64_t index) const override { return MyGameOption::Info(index); }
+
     virtual const char* ColoredInfo(const uint64_t index) const override { return MyGameOption::ColoredInfo(index); }
 
     virtual const char* Status() const override
@@ -48,11 +63,20 @@ class GameOption : public GameOptionBase, public MyGameOption
         return info.c_str();
     }
 
+    // The member functions to be realized by developers in mygame.cc
+
     std::string StatusInfo() const;
+
     virtual bool ToValid(MsgSenderBase& reply);
+
     virtual uint64_t BestPlayerNum() const;
 
-   private:
+  private:
     std::string resource_dir_;
 };
 
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // namespace lgtbot

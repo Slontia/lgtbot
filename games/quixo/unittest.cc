@@ -4,6 +4,12 @@
 
 #include "game_framework/unittest_base.h"
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 GAME_TEST(2, win_line)
 {
     bool first_hand = 0;
@@ -218,6 +224,12 @@ GAME_TEST(2, non_cur_player_leave_lose)
         ASSERT_SCORE(0, 1);
     }
 }
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
 
 int main(int argc, char** argv)
 {

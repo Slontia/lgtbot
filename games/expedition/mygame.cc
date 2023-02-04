@@ -10,11 +10,13 @@
 #include <memory>
 #include <random>
 
-#include "game_framework/game_main.h"
-#include "game_framework/game_options.h"
 #include "game_framework/game_stage.h"
-#include "game_framework/game_achievements.h"
-#include "utility/msg_checker.h"
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
 
 const std::string k_game_name = "远足";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
@@ -283,7 +285,7 @@ int calc(board& b) {
 }
 
 void initGame(const std::string& map_path, std::optional<int> seed = std::nullopt) {
-  srand(::random_seed = seed.value_or(clock() ^ rand()));
+  srand(random_seed = seed.value_or(clock() ^ rand()));
   readMap(map_path);
   std::cout << n << " " << m << std::endl;
   for (int i = 0; i < n + 2; i++) {
@@ -528,16 +530,17 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage,
 
 int64_t MainStage::PlayerScore(const PlayerID pid) const { return score_.at(pid); }
 
-bool MainStage::JudgeOver() { return turn_ >= ::turn; }
+bool MainStage::JudgeOver() { return turn_ >= turn; }
 
 void MainStage::Print() {
   const int width = option().PlayerNum() == 1 ? 400 : 700;
   Boardcast() << Markdown(ui_.ToHtml(), width);
 }
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match) {
-  if (!options.ToValid(reply)) {
-    return nullptr;
-  }
-  return new MainStage(options, match);
-}
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
+
+#include "game_framework/make_main_stage.h"

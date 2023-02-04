@@ -34,6 +34,11 @@ ENUM_END(Team)
 #ifndef HP_KILLER_OCCUPATION_H_
 #define HP_KILLER_OCCUPATION_H_
 
+#include <array>
+#include <optional>
+#include <map>
+#include <bitset>
+
 #define ENUM_FILE "../games/hp_killer/occupation.h"
 #include "../../utility/extend_enum.h"
 

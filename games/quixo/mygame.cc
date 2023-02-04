@@ -9,13 +9,15 @@
 #include <vector>
 #include <random>
 
-#include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
-#include "game_framework/game_options.h"
-#include "game_framework/game_achievements.h"
-#include "utility/msg_checker.h"
 #include "utility/html.h"
 #include "game_util/quixo.h"
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
 
 const std::string k_game_name = "你推我挤";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
@@ -76,7 +78,7 @@ class MainStage : public MainGameStage<>
             const auto valid_dsts = board_.ValidDsts(src);
             const uint32_t dst = valid_dsts[rand() % valid_dsts.size()];
             const auto ret = board_.Push(src, dst, cur_type());
-            if (ret == quixo::ErrCode::OK) {
+            if (ret == game_util::quixo::ErrCode::OK) {
                 Boardcast() << At(pid) << "将 " << src << " 位置的棋子取出，从 " << dst << " 位置重新推入";
                 break;
             }
@@ -97,11 +99,11 @@ class MainStage : public MainGameStage<>
             return StageErrCode::FAILED;
         }
         const auto ret = board_.Push(src, dst, cur_type());
-        if (ret == quixo::ErrCode::INVALID_SRC) {
+        if (ret == game_util::quixo::ErrCode::INVALID_SRC) {
             reply() << "您无法移动该棋子，您只能移动空白或本方相同样式的棋子";
             return StageErrCode::FAILED;
         }
-        if (ret == quixo::ErrCode::INVALID_DST) {
+        if (ret == game_util::quixo::ErrCode::INVALID_DST) {
             const auto valid_dsts = board_.ValidDsts(src);
             auto sender = reply();
             sender << "非法的移动后位置，需要是和移动前同行或同列，且处于边缘的不同位置，这样才能造成棋子推动\n对于移动前位置 "
@@ -198,12 +200,17 @@ class MainStage : public MainGameStage<>
     }
 
     PlayerID cur_pid() const { return round_ % 2 ? PlayerID(1 - first_turn_) : first_turn_; }
-    quixo::Type cur_type() const
+    game_util::quixo::Type cur_type() const
     {
-        static const std::array<quixo::Type, 4> types{quixo::Type::O1, quixo::Type::X1, quixo::Type::O2, quixo::Type::X2};
+        static const std::array<game_util::quixo::Type, 4> types{
+            game_util::quixo::Type::O1,
+            game_util::quixo::Type::X1,
+            game_util::quixo::Type::O2,
+            game_util::quixo::Type::X2
+        };
         return types[round_ % (GET_OPTION_VALUE(option(), 模式) ? 2 : 4)];
     }
-    quixo::Symbol cur_symbol() const { return round_ % 2 ? quixo::Symbol::X : quixo::Symbol::O; }
+    game_util::quixo::Symbol cur_symbol() const { return round_ % 2 ? game_util::quixo::Symbol::X : game_util::quixo::Symbol::O; }
 
     std::array<uint32_t, 2> ChessCounts_() const
     {
@@ -215,15 +222,15 @@ class MainStage : public MainGameStage<>
     }
 
     const PlayerID first_turn_;
-    quixo::Board board_;
+    game_util::quixo::Board board_;
     uint32_t round_;
     std::array<int32_t, 2> scores_;
 };
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
-{
-    if (!options.ToValid(reply)) {
-        return nullptr;
-    }
-    return new MainStage(options, match);
-}
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
+
+#include "game_framework/make_main_stage.h"

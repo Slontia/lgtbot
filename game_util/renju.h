@@ -14,6 +14,10 @@
 
 #include "utility/html.h"
 
+namespace lgtbot {
+
+namespace game_util {
+
 namespace renju {
 
 enum class AreaType { EMPTY, FORBID, WHITE, BLACK };
@@ -307,4 +311,9 @@ class Board
     uint32_t empty_count_;
 };
 
-}
+} // namespace renju
+
+} // namespace game_util
+
+} // namespace lgtbot
+

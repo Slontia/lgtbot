@@ -11,6 +11,12 @@
 #include <cassert>
 #include <iostream>
 
+namespace lgtbot {
+
+namespace game_util {
+
+namespace bet_pool {
+
 template <typename T>
 struct CallBetPoolInfo
 {
@@ -70,3 +76,9 @@ std::vector<CallBetPoolResult> CallBetPool(const std::map<uint64_t, CallBetPoolI
     assert(remain_ids.empty());
     return result;
 }
+
+} // namespace bet_pool
+
+} // namespace game_util
+
+} // namespace lgtbot

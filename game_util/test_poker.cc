@@ -6,6 +6,8 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
+namespace poker = lgtbot::game_util::poker;
+
 class TestPoker : public testing::Test {};
 
 TEST_F(TestPoker, no_pattern_1)

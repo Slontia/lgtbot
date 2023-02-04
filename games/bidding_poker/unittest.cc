@@ -4,6 +4,12 @@
 
 #include "game_framework/unittest_base.h"
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 GAME_TEST(1, player_not_enough)
 {
     ASSERT_FALSE(StartGame());
@@ -276,6 +282,12 @@ GAME_TEST(5, no_bid_return_item)
 
     ASSERT_PRI_MSG(CHECKOUT, 0, "角2");
 }
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
 
 int main(int argc, char** argv)
 {

@@ -15,6 +15,12 @@
 #include "game_framework/game_main.h"
 #include "game_framework/mock_match.h"
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 DEFINE_string(resource_dir, "./resource_dir/", "The path of game image resources");
 DEFINE_bool(gen_image, false, "Whether generate image or not");
 
@@ -203,3 +209,9 @@ class TestGame : public MockMatch, public testing::Test
     TEST_F(TestGame_##player_num##_##test_name, test_name)
 
 #define ASSERT_ELIMINATED(pid) ASSERT_TRUE(IsEliminated(pid))
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot

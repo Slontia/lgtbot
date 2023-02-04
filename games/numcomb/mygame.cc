@@ -10,13 +10,17 @@
 #include <random>
 #include <algorithm>
 
-#include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
-#include "game_framework/game_options.h"
-#include "game_framework/game_achievements.h"
-#include "utility/msg_checker.h"
 #include "utility/html.h"
 #include "game_util/numcomb.h"
+
+namespace comb = lgtbot::game_util::numcomb;
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
 
 const std::string k_game_name = "数字蜂巢";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
@@ -280,10 +284,10 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     return NewStage_();
 }
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
-{
-    if (!options.ToValid(reply)) {
-        return nullptr;
-    }
-    return new MainStage(options, match);
-}
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
+
+#include "game_framework/make_main_stage.h"

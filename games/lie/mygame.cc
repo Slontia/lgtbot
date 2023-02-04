@@ -6,11 +6,13 @@
 #include <functional>
 #include <memory>
 
-#include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
-#include "game_framework/game_options.h"
-#include "game_framework/game_achievements.h"
-#include "utility/msg_checker.h"
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
 
 const std::string k_game_name = "LIE";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
@@ -355,10 +357,10 @@ bool MainStage::JudgeOver()
     return is_over;
 }
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
-{
-    if (!options.ToValid(reply)) {
-        return nullptr;
-    }
-    return new MainStage(options, match);
-}
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
+
+#include "game_framework/make_main_stage.h"

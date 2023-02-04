@@ -29,12 +29,19 @@ ENUM_END(KingdomId)
 #include <cassert>
 #include <random>
 #include <algorithm>
+#include <map>
+#include <bitset>
+#include <optional>
+
 
 #include "utility/html.h"
 
 #define ENUM_FILE "../game_util/chinese_chess.h"
 #include "../utility/extend_enum.h"
 
+namespace lgtbot {
+
+namespace game_util {
 
 namespace chinese_chess {
 
@@ -773,6 +780,10 @@ std::string HalfBoard::ToHtml(const HalfBoard& b1, const HalfBoard& b2, const st
     return "<style>html,body{color:#6b421d; background:#d8bf81;}</style>\n" + table.ToString();
 }
 
-}
+} // namespace chinese_chess
+
+} // namespace game_util
+
+} // namespace lgtbot
 
 #endif

@@ -35,7 +35,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
         return;
     }
 
-    typedef bool(*GetGameInfo)(GameInfo* game_info);
+    typedef bool(*GetGameInfo)(lgtbot::game::GameInfo* game_info);
 
     const auto load_proc = [&mod](const char* const name)
     {
@@ -62,13 +62,13 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
     const char* rule = nullptr;
     const char* module_name = nullptr;
     uint64_t max_player = 0;
-    GameInfo game_info;
+    lgtbot::game::GameInfo game_info;
     if (!game_info_fn(&game_info)) {
         ErrorLog() << "Load failed: Cannot get game game";
         return;
     }
     std::vector<GameHandle::Achievement> achievements;
-    for (const GameAchievement* achievement = game_info.achievements_; achievement->name_; ++achievement) {
+    for (const lgtbot::game::GameAchievement* achievement = game_info.achievements_; achievement->name_; ++achievement) {
         achievements.emplace_back(achievement->name_, achievement->description_);
     }
     game_handles.emplace(

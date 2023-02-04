@@ -4,6 +4,12 @@
 
 #include "game_framework/unittest_base.h"
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 GAME_TEST(2, forbid_public_request)
 {
     ASSERT_PUB_MSG(OK, 0, "阵营 1");
@@ -81,6 +87,12 @@ GAME_TEST(2, cannot_double_move)
     ASSERT_PRI_MSG(OK, 0, "0 A4 B4");
     ASSERT_PRI_MSG(FAILED, 0, "0 A4 B4");
 }
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
 
 int main(int argc, char** argv)
 {

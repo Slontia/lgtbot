@@ -16,7 +16,11 @@
 
 #include "../utility/html.h"
 
-namespace comb {
+namespace lgtbot {
+
+namespace game_util {
+
+namespace numcomb {
 
 static constexpr const uint32_t k_direct_max = 3;
 enum class Direct { TOP_LEFT = 0, VERT = 1, TOP_RIGHT = 2};
@@ -331,5 +335,8 @@ class Comb
     html::Table table_;
 };
 
+} // namespace numcomb
 
-}
+} // namespace game_util
+
+} // namespace lgtbot

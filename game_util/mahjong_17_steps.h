@@ -19,6 +19,22 @@
 #define private public
 #endif
 
+static auto operator<=>(const Tile& _1, const Tile& _2)
+{
+    return _1.tile == _2.tile ? _1.red_dora <=> _2.red_dora : _1.tile <=> _2.tile;
+}
+
+static auto operator==(const Tile& _1, const Tile& _2)
+{
+    return _1.tile == _2.tile && _1.red_dora == _2.red_dora;
+}
+
+namespace lgtbot {
+
+namespace game_util {
+
+namespace mahjong_17_steps {
+
 enum class ErrCode { OK, NOT_HAS, EXCEED_SIZE };
 
 struct PlayerDesc
@@ -44,7 +60,7 @@ struct Mahjong17StepsOption
 
 struct TileIdent
 {
-    Tile ToTile() const
+    operator Tile() const
     {
         return Tile{
             .tile = static_cast<BaseTile>((digit_ == '0' ? 4 : digit_ - '1') + 9 * std::string("mspz").find_first_of(color_)),
@@ -54,21 +70,6 @@ struct TileIdent
     char digit_;
     char color_;
 };
-
-static auto operator<=>(const Tile& _1, const Tile& _2)
-{
-    return _1.tile == _2.tile ? _1.red_dora <=> _2.red_dora : _1.tile <=> _2.tile;
-}
-
-static auto operator==(const Tile& _1, const Tile& _2)
-{
-    return _1.tile == _2.tile && _1.red_dora == _2.red_dora;
-}
-
-static auto operator<=>(const Tile& t, const TileIdent& ident)
-{
-    return t <=> ident.ToTile();
-}
 
 static std::string wind2str(const Wind wind)
 {
@@ -103,14 +104,14 @@ class Mahjong17Steps
 
         friend auto operator<=>(const TileWrapper& t, const TileIdent& ident)
         {
-            Tile tile = ident.ToTile();
+            Tile tile = ident;
             return t <=> TileWrapper(&tile);
         }
 
         Tile* tile_;
     };
 
-    using TileSet = std::multiset<Tile, std::less<>>;
+    using TileSet = std::multiset<Tile, std::less<Tile>>;
 
     struct RonInfo
     {
@@ -780,6 +781,12 @@ class Mahjong17Steps
     std::vector<std::pair<Tile, Tile>> doras_; // inner dora are not currently used
     std::string errstr_;
 };
+
+} // namespace mahjong_17_steps
+
+} // namespace game_util
+
+} // namespace lgtbot
 
 #ifdef TEST_BOT
 #undef private

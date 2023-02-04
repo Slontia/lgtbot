@@ -29,7 +29,7 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, const User
         , gid_(gid)
         , state_(State::NOT_STARTED)
         , options_(game_handle.make_game_options())
-        , main_stage_(nullptr, [](const MainStageBase*) {}) // make when game starts
+        , main_stage_(nullptr, [](const lgtbot::game::MainStageBase*) {}) // make when game starts
         , player_num_each_user_(1)
         , users_()
         , boardcast_private_sender_([this](const std::function<void(MsgSender&)>& fn)

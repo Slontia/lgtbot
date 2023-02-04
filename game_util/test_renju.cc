@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-using namespace renju;
+using namespace lgtbot::game_util::renju;
 
 class TestGoBoard : public testing::Test {};
 

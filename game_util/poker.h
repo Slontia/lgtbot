@@ -59,8 +59,14 @@ ENUM_END(PatternType)
 #include <sstream>
 #include <utility> // g++12 has a bug which will cause 'exchange' is not a member of 'std'
 #include <algorithm>
+#include <bitset>
+
 
 #include "utility/html.h"
+
+namespace lgtbot {
+
+namespace game_util {
 
 namespace poker {
 
@@ -558,6 +564,10 @@ class Hand
     mutable bool need_refresh_;
 };
 
-};  // namespace poker
+} // namespace poker
+
+} // namespace game_util
+
+} // namespace lgtbot
 
 #endif

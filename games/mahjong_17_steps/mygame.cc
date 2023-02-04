@@ -8,13 +8,17 @@
 #include <memory>
 #include <vector>
 
-#include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
-#include "game_framework/game_options.h"
-#include "game_framework/game_achievements.h"
-#include "utility/msg_checker.h"
 #include "utility/html.h"
 #include "game_util/mahjong_17_steps.h"
+
+using namespace lgtbot::game_util::mahjong_17_steps;
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
 
 const std::string k_game_name = "十七步";
 const uint64_t k_max_player = 4; /* 0 means no max-player limits */
@@ -354,11 +358,10 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
     Mahjong17Steps game_table_;
 };
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
-{
-    if (!options.ToValid(reply)) {
-        return nullptr;
-    }
-    return new MainStage(options, match);
-}
+} // namespace GAME_MODULE_NAME
 
+} // namespace game
+
+} // gamespace lgtbot
+
+#include "game_framework/make_main_stage.h"

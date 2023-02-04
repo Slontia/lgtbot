@@ -26,6 +26,9 @@ ENUM_END(TimeRange)
 #include <vector>
 #include <filesystem>
 #include <map>
+#include <bitset>
+#include <array>
+#include <optional>
 
 #include "utility/log.h"
 #include "bot_core/id.h"

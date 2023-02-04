@@ -9,6 +9,8 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
+using namespace lgtbot::game_util::bet_pool;
+
 TEST(TestBetPool, only_one_bet)
 {
     const auto ret = CallBetPool<char>(std::map<uint64_t, CallBetPoolInfo<char>>{

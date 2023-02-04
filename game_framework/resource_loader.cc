@@ -5,7 +5,8 @@
 #include "game_main.h"
 
 #ifdef _WIN32
-#include "resource_loader.h"
+
+#include <Windows.h>
 
 #define IDR_TEXT1_RULE 101
 
@@ -17,6 +18,20 @@
 #define _APS_NEXT_SYMED_VALUE 101
 #endif
 #endif
+
+#elif __linux__
+
+extern char _binary_rule_md_start[];
+
+#endif
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
+#ifdef _WIN32
 
 HMODULE hModule;
 
@@ -51,8 +66,12 @@ const char* Rule()
 
 #elif __linux__
 
-extern char _binary_rule_md_start[];
-
 const char* Rule() { return _binary_rule_md_start; }
 
 #endif
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // namespace lgtbot

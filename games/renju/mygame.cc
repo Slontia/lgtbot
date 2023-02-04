@@ -8,21 +8,23 @@
 #include <memory>
 #include <vector>
 
-#include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
-#include "game_framework/game_options.h"
-#include "game_framework/game_achievements.h"
-#include "utility/msg_checker.h"
 #include "utility/html.h"
 #include "game_util/renju.h"
+
+using namespace lgtbot::game_util::renju;
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
 
 const std::string k_game_name = "决胜五子";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
 const uint64_t k_multiple = 1;
 const std::string k_developer = "森高";
 const std::string k_description = "双方一起落子的五子棋游戏";
-
-using namespace renju;
 
 std::string GameOption::StatusInfo() const
 {
@@ -331,7 +333,7 @@ class MainStage : public MainGameStage<>
 
     static AreaType Pid2Type_(const PlayerID pid) { return pid == 0 ? AreaType::BLACK : AreaType::WHITE; }
 
-    renju::Board board_;
+    Board board_;
     uint32_t round_;
     uint32_t crash_count_;
     bool extended_;
@@ -344,11 +346,10 @@ class MainStage : public MainGameStage<>
     std::optional<PlayerID> winner_;
 };
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
-{
-    if (!options.ToValid(reply)) {
-        return nullptr;
-    }
-    return new MainStage(options, match);
-}
+} // namespace GAME_MODULE_NAME
 
+} // namespace game
+
+} // gamespace lgtbot
+
+#include "game_framework/make_main_stage.h"

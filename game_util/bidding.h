@@ -9,6 +9,12 @@
 #include <optional>
 #include <chrono>
 
+namespace lgtbot {
+
+namespace game_util {
+
+namespace bidding {
+
 template <typename Chip>
 class BiddingManager
 {
@@ -124,3 +130,8 @@ class BiddingManager
     std::vector<Player> players_;
 };
 
+} // namespace bidding
+
+} // namespace game_util
+
+} // namespace lgtbot

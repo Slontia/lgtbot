@@ -10,13 +10,15 @@
 #include <random>
 #include <algorithm>
 
-#include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
-#include "game_framework/game_options.h"
-#include "game_framework/game_achievements.h"
-#include "utility/msg_checker.h"
 #include "utility/html.h"
 #include "game_util/alchemist.h"
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
 
 const std::string k_game_name = "炼金术士";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
@@ -57,30 +59,30 @@ uint64_t GameOption::BestPlayerNum() const { return 1; }
 
 // ========== GAME STAGES ==========
 
-const std::array<alchemist::Color, 6> k_colors {
-    alchemist::Color::RED,
-    alchemist::Color::BLUE,
-    alchemist::Color::YELLOW,
-    alchemist::Color::GREY,
-    alchemist::Color::ORANGE,
-    alchemist::Color::PURPLE
+const std::array<game_util::alchemist::Color, 6> k_colors {
+    game_util::alchemist::Color::RED,
+    game_util::alchemist::Color::BLUE,
+    game_util::alchemist::Color::YELLOW,
+    game_util::alchemist::Color::GREY,
+    game_util::alchemist::Color::ORANGE,
+    game_util::alchemist::Color::PURPLE
 };
 
-const std::array<alchemist::Point, 6> k_points {
-    alchemist::Point::ONE,
-    alchemist::Point::TWO,
-    alchemist::Point::THREE,
-    alchemist::Point::FOUR,
-    alchemist::Point::FIVE,
-    alchemist::Point::SIX,
+const std::array<game_util::alchemist::Point, 6> k_points {
+    game_util::alchemist::Point::ONE,
+    game_util::alchemist::Point::TWO,
+    game_util::alchemist::Point::THREE,
+    game_util::alchemist::Point::FOUR,
+    game_util::alchemist::Point::FIVE,
+    game_util::alchemist::Point::SIX,
 };
 
 struct Player
 {
-    Player(std::string resource_path, const int style) : score_(0), board_(new alchemist::Board(std::move(resource_path), style)) {}
+    Player(std::string resource_path, const int style) : score_(0), board_(new game_util::alchemist::Board(std::move(resource_path), style)) {}
     Player(Player&&) = default;
     int32_t score_;
-    std::unique_ptr<alchemist::Board> board_;
+    std::unique_ptr<game_util::alchemist::Board> board_;
 };
 
 class RoundStage;
@@ -136,7 +138,7 @@ class MainStage : public MainGameStage<RoundStage>
 
         // TODO: handle fushu is zero
 
-        std::uniform_int_distribution<uint32_t> distrib(0, alchemist::Board::k_size - 1);
+        std::uniform_int_distribution<uint32_t> distrib(0, game_util::alchemist::Board::k_size - 1);
         const auto set_stone = [this](const uint32_t row, const uint32_t col)
             {
                 for (auto& player : players_) {
@@ -217,13 +219,13 @@ class MainStage : public MainGameStage<RoundStage>
     VariantSubStage NewStage_();
 
     uint32_t round_;
-    std::vector<std::optional<alchemist::Card>> cards_;
+    std::vector<std::optional<game_util::alchemist::Card>> cards_;
 };
 
 class RoundStage : public SubGameStage<>
 {
   public:
-    RoundStage(MainStage& main_stage, const uint64_t round, const std::optional<alchemist::Card>& card)
+    RoundStage(MainStage& main_stage, const uint64_t round, const std::optional<game_util::alchemist::Card>& card)
             : GameStage(main_stage, "第" + std::to_string(round) + "回合",
                 MakeStageCommand("查看本回合开始时盘面情况，可用于图片重发", &RoundStage::Info_, VoidChecker("赛况")),
                 MakeStageCommand("跳过该回合行动", &RoundStage::Pass_, VoidChecker("pass")),
@@ -255,20 +257,20 @@ class RoundStage : public SubGameStage<>
         const char row_c = coor_str[0];
         const char col_c = coor_str[1];
         std::pair<uint32_t, uint32_t> coor;
-        if ('A' <= row_c && row_c < 'A' + alchemist::Board::k_size) {
+        if ('A' <= row_c && row_c < 'A' + game_util::alchemist::Board::k_size) {
             coor.first = row_c - 'A';
-        } else if ('a' <= row_c && row_c < 'a' + alchemist::Board::k_size) {
+        } else if ('a' <= row_c && row_c < 'a' + game_util::alchemist::Board::k_size) {
             coor.first = row_c - 'a';
         } else {
             reply() << "[错误] 非法的横坐标「" << row_c << "」，应在 A 和 "
-                    << static_cast<char>('A' + alchemist::Board::k_size - 1) << " 之间";
+                    << static_cast<char>('A' + game_util::alchemist::Board::k_size - 1) << " 之间";
             return std::nullopt;
         }
-        if ('1' <= col_c && col_c < '1' + alchemist::Board::k_size) {
+        if ('1' <= col_c && col_c < '1' + game_util::alchemist::Board::k_size) {
             coor.second = col_c - '1';
         } else {
             reply() << "[错误] 非法的纵坐标「" << col_c << "」，应在 1 和 "
-                    << static_cast<char>('1' + alchemist::Board::k_size - 1) << " 之间";
+                    << static_cast<char>('1' + game_util::alchemist::Board::k_size - 1) << " 之间";
             return std::nullopt;
         }
         return coor;
@@ -287,13 +289,13 @@ class RoundStage : public SubGameStage<>
         }
         if (card_.has_value()) {
             const auto ret = player.board_->SetOrClearLine(coor->first, coor->second, *card_, GET_OPTION_VALUE(option(), 模式));
-            if (ret == alchemist::FAIL_ALREADY_SET) {
+            if (ret == game_util::alchemist::FAIL_ALREADY_SET) {
                 reply() << "[错误] 该位置已被占用，试试其它位置吧";
                 return StageErrCode::FAILED;
-            } else if (ret == alchemist::FAIL_NON_ADJ_CARDS) {
+            } else if (ret == game_util::alchemist::FAIL_NON_ADJ_CARDS) {
                 reply() << "[错误] 该位置旁边没有符文或石头，不允许空放，试试其它位置吧";
                 return StageErrCode::FAILED;
-            } else if (ret == alchemist::FAIL_ADJ_CARDS_MISMATCH) {
+            } else if (ret == game_util::alchemist::FAIL_ADJ_CARDS_MISMATCH) {
                 reply() << "[错误] 该位置相邻符文非法，须满足颜色和点数至少一种相同，试试其它位置吧";
                 return StageErrCode::FAILED;
             } else if (ret == 0) {
@@ -333,7 +335,7 @@ class RoundStage : public SubGameStage<>
         sender() << Image(std::string(option().ResourceDir() + (card_.has_value() ? card_->ImageName() : "erase")) + ".png");
     }
 
-    const std::optional<alchemist::Card> card_;
+    const std::optional<game_util::alchemist::Card> card_;
     const std::string board_html_;
 };
 
@@ -365,10 +367,10 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     return NewStage_();
 }
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
-{
-    if (!options.ToValid(reply)) {
-        return nullptr;
-    }
-    return new MainStage(options, match);
-}
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
+
+#include "game_framework/make_main_stage.h"

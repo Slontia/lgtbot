@@ -20,6 +20,7 @@ EXTEND_OPTION("时间限制", 时限, (ArithChecker<int>(0, 10)), 1)
 
 #define GAME_OPTION_FILENAME "test_bot.cc"
 #define GAME_ACHIEVEMENT_FILENAME "test_bot.cc"
+#define GAME_MODULE_NAME test_game
 #include "game_framework/game_stage.h"
 
 #include "bot_core/msg_sender.h"
@@ -192,6 +193,12 @@ static void BlockStage()
     substage_block_request_cv_.wait(l);
     substage_blocked_ = false;
 }
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
 
 std::string GameOption::StatusInfo() const { return ""; }
 
@@ -435,6 +442,12 @@ class AtomMainStage : public MainGameStage<>
     bool is_over_;
 };
 
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot
+
 class TestBot : public testing::Test
 {
   public:
@@ -464,30 +477,30 @@ class TestBot : public testing::Test
     MockDBManager& db_manager() { return static_cast<MockDBManager&>(*static_cast<BotCtx*>(bot_)->db_manager()); }
 
   protected:
-    template <class MyMainStage = MainStage>
+    template <class MyMainStage = lgtbot::game::GAME_MODULE_NAME::MainStage>
     void AddGame(const char* const name, const uint64_t max_player, const GameHandle::game_options_allocator new_option)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
                     name, name, max_player, "这是规则介绍", std::vector<GameHandle::Achievement>{}, 1, "这是开发者",
                     "这是游戏描述", new_option,
-                    [](const GameOptionBase* const options) {},
-                    [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
-                            -> MainStageBase* { return new MyMainStage(static_cast<const GameOption&>(option), match); },
-                    [](const MainStageBase* const main_stage) { delete main_stage; },
+                    [](const lgtbot::game::GameOptionBase* const options) {},
+                    [](MsgSenderBase&, const lgtbot::game::GameOptionBase& option, MatchBase& match)
+                            -> lgtbot::game::MainStageBase* { return new MyMainStage(static_cast<const lgtbot::game::GAME_MODULE_NAME::GameOption&>(option), match); },
+                    [](const lgtbot::game::MainStageBase* const main_stage) { delete main_stage; },
                     []() {}
         ));
     }
 
-    template <class MyMainStage = MainStage>
+    template <class MyMainStage = lgtbot::game::GAME_MODULE_NAME::MainStage>
     void AddGame(const char* const name, const uint64_t max_player)
     {
         static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
                     name, name, max_player, "这是规则介绍", std::vector<GameHandle::Achievement>{}, 1, "这是开发者",
-                    "这是游戏描述", []() -> GameOptionBase* { return new GameOption(); },
-                    [](const GameOptionBase* const options) { delete options; },
-                    [](MsgSenderBase&, const GameOptionBase& option, MatchBase& match)
-                            -> MainStageBase* { return new MyMainStage(static_cast<const GameOption&>(option), match); },
-                    [](const MainStageBase* const main_stage) { delete main_stage; },
+                    "这是游戏描述", []() -> lgtbot::game::GameOptionBase* { return new lgtbot::game::GAME_MODULE_NAME::GameOption(); },
+                    [](const lgtbot::game::GameOptionBase* const options) { delete options; },
+                    [](MsgSenderBase&, const lgtbot::game::GameOptionBase& option, MatchBase& match)
+                            -> lgtbot::game::MainStageBase* { return new MyMainStage(static_cast<const lgtbot::game::GAME_MODULE_NAME::GameOption&>(option), match); },
+                    [](const lgtbot::game::MainStageBase* const main_stage) { delete main_stage; },
                     []() {}
         ));
     }
@@ -1292,7 +1305,7 @@ TEST_F(TestBot, timeout_during_handle_request_checkout)
 
 TEST_F(TestBot, timeout_during_handle_request_checkout_atomic_main_stage)
 {
-  AddGame<AtomMainStage>("测试游戏", 2);
+  AddGame<lgtbot::game::GAME_MODULE_NAME::AtomMainStage>("测试游戏", 2);
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
   ASSERT_PRI_MSG(EC_OK, "1", "#开始");

@@ -1,6 +1,9 @@
 // Copyright (c) 2018-present, Chang Liu <github.com/slontia>. All rights reserved.
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
+//
+// This file defines the base classes which visited by bot_core.
+// This is the only file which can be included by bot_core and GAME_MODULE_NAME should not appear in this file.
 
 #ifdef ENUM_BEGIN
 #ifdef ENUM_MEMBER
@@ -23,6 +26,11 @@ ENUM_END(StageErrCode)
 #define GAME_MAIN_H_
 
 #include <stdint.h>
+#include <array>
+#include <optional>
+#include <map>
+#include <bitset>
+
 
 #include "bot_core/msg_sender.h"
 
@@ -37,6 +45,10 @@ ENUM_END(StageErrCode)
 
 class MsgSenderForGame;
 class MatchBase;
+
+namespace lgtbot {
+
+namespace game {
 
 struct GameAchievement
 {
@@ -115,5 +127,9 @@ class MainStageBase : virtual public StageBase
     virtual int64_t PlayerScore(const PlayerID pid) const = 0;
     virtual const char* const* VerdictateAchievements(const PlayerID pid) const = 0;
 };
+
+} // namespace game
+
+} // namespace lgtbot
 
 #endif
