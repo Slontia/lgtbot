@@ -210,7 +210,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
 ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& reply)
 {
     std::lock_guard<std::mutex> l(mutex_);
-    if (state_ == State::IS_STARTED) {
+    if (state_ != State::NOT_STARTED) {
         reply() << "[错误] 开始失败：游戏已经开始";
         return EC_MATCH_ALREADY_BEGIN;
     }
@@ -254,7 +254,7 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
 ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
 {
     std::lock_guard<std::mutex> l(mutex_);
-    if (state_ == State::IS_STARTED) {
+    if (state_ != State::NOT_STARTED) {
         reply() << "[错误] 加入失败：游戏已经开始";
         return EC_MATCH_ALREADY_BEGIN;
     }
