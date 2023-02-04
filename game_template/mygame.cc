@@ -2,16 +2,14 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
-#include <array>
-#include <functional>
-#include <memory>
-#include <set>
-
-#include "game_framework/game_main.h"
 #include "game_framework/game_stage.h"
-#include "game_framework/game_options.h"
-#include "utility/msg_checker.h"
 #include "utility/html.h"
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
 
 const std::string k_game_name = "测试游戏"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 0; // 0 indicates no max-player limits
@@ -146,10 +144,10 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     return {};
 }
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
-{
-    if (!options.ToValid(reply)) {
-        return nullptr;
-    }
-    return new MainStage(options, match);
-}
+} // namespace lgtbot
+
+} // namespace game
+
+} // namespace lgtbot
+
+#include "game_framework/make_main_stage.h"

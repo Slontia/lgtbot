@@ -4,6 +4,12 @@
 
 #include "game_framework/unittest_base.h"
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 // The first parameter is player number. It is a one-player game test.
 GAME_TEST(1, player_not_enough)
 {
@@ -26,6 +32,11 @@ GAME_TEST(5, simple_test)
     ASSERT_SCORE(0, 100, 200, 300, 400);
 }
 
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // namespace lgtbot
 
 int main(int argc, char** argv)
 {
