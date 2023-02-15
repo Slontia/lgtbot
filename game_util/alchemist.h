@@ -115,7 +115,7 @@ class Board
         AreaStatistic result;
         for (const auto& area_line : areas_) {
             for (const auto& area : area_line) {
-                if (!area.has_value()) {
+                if (area.has_value()) {
                     std::visit([&] (const auto& arg)
                             {
                                 using T = std::decay_t<decltype(arg)>;
