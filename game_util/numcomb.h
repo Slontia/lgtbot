@@ -223,6 +223,7 @@ class Comb
                 return {i, Check_(area.coordinate_)};
             }
         }
+        assert(false);
         return {UINT32_MAX, FillResult{0, 0}}; // unexpected case
     }
 

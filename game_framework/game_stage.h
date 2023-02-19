@@ -52,41 +52,55 @@ using CheckoutErrCode = StageErrCode::SubSet<StageErrCode::CONTINUE, StageErrCod
 class Masker
 {
   public:
-    enum class State { SET = 'S', UNSET = 'U', PINNED = 'P' };
+    struct State
+    {
+        bool is_ready_ = false;
+        bool is_pinned_ = false;
+    };
 
     Masker(const uint64_t match_id, const char* const game_name, const size_t size)
-        : match_id_(match_id), game_name_(game_name), recorder_(size, State::UNSET), unset_count_(size), any_user_ready_(false) {}
+        : match_id_(match_id), game_name_(game_name), recorder_(size), unset_count_(size), any_user_ready_(false) {}
 
     bool Set(const size_t index, const bool is_user)
     {
-        Log_(DebugLog()) << "Set game stage mask is_user=" << Bool2Str(is_user) << " " << ToString_(index);
+        Log_(DebugLog()) << "Set game stage mask begin is_user=" << Bool2Str(is_user) << " " << ToString_(index);
         if (is_user) {
             any_user_ready_ = true;
         }
-        return Record_(index, State::SET);
+        auto& state = recorder_[index];
+        unset_count_ -= !state.is_ready_ && !state.is_pinned_;
+        recorder_[index].is_ready_ = true;
+        Log_(DebugLog()) << "Set game stage mask finish is_user=" << Bool2Str(is_user) << " " << ToString_(index);
+        return IsReady();
     }
 
     void Unset(const size_t index)
     {
         // not reset any_ready to prevent players waiting a left player
-        Log_(DebugLog()) << "Unset game stage mask " << ToString_(index);
-        Record_(index, State::UNSET);
+        Log_(DebugLog()) << "Unset game stage begin mask " << ToString_(index);
+        Unset_(recorder_[index]);
+        Log_(DebugLog()) << "Unset game stage finish mask " << ToString_(index);
     }
 
     bool Pin(const size_t index)
     {
-        Log_(DebugLog()) << "Pin game stage mask " << ToString_(index);
+        Log_(DebugLog()) << "Pin game stage mask begin " << ToString_(index);
+        auto& state = recorder_[index];
+        unset_count_ -= !state.is_ready_ && !state.is_pinned_;
         any_user_ready_ = true;
-        return Record_(index, State::PINNED);
+        state.is_pinned_ = true;
+        Log_(DebugLog()) << "Pin game stage mask finish " << ToString_(index);
+        return IsReady();
     }
 
     bool Unpin(const size_t index)
     {
-        Log_(DebugLog()) << "Unpin game stage mask " << ToString_(index);
         auto& state = recorder_[index];
-        if (state == State::PINNED) {
-            state = State::UNSET;
-            ++unset_count_;
+        if (state.is_pinned_) {
+            Log_(DebugLog()) << "Unpin game stage mask begin " << ToString_(index);
+            unset_count_ += !state.is_ready_;
+            state.is_pinned_ = false;
+            Log_(DebugLog()) << "Unpin game stage mask finish " << ToString_(index);
             return true;
         }
         return false;
@@ -98,10 +112,7 @@ class Masker
     {
         any_user_ready_ = false;
         for (auto& state : recorder_) {
-            if (state == State::SET) {
-                state = State::UNSET;
-                ++unset_count_;
-            }
+            Unset_(state);
         }
         Log_(DebugLog()) << "Clear game stage mask finish " << ToString_();
     }
@@ -109,9 +120,16 @@ class Masker
     bool IsReady() const { return unset_count_ == 0 && any_user_ready_; }
 
   private:
+    void Unset_(State& state)
+    {
+        unset_count_ += state.is_ready_ && !state.is_pinned_;
+        state.is_ready_ = false;
+    }
+
     std::string ToString_(const size_t index)
     {
-        return "index=" + std::to_string(index) + " cur_state=" + static_cast<char>(recorder_[index]) + " " + ToString_();
+        return "index=" + std::to_string(index) + " is_ready=" + std::to_string(recorder_[index].is_ready_) +
+            " is_pinned=" + std::to_string(recorder_[index].is_pinned_) + " " + ToString_();
     }
 
     std::string ToString_()
@@ -123,18 +141,6 @@ class Masker
     Logger& Log_(Logger&& logger)
     {
         return logger << "[mid=" << match_id_ << "] [" << "game=" << game_name_ << "] ";
-    }
-
-    bool Record_(const size_t index, const State state)
-    {
-        const auto old = recorder_[index];
-        if (old != State::PINNED) {
-            recorder_[index] = state;
-            unset_count_ += (state == State::UNSET);
-            unset_count_ -= (old == State::UNSET);
-        }
-        Log_(DebugLog()) << "Record game stage mask finish " << ToString_(index);
-        return IsReady();
     }
 
     const uint64_t match_id_;
@@ -225,7 +231,7 @@ class StageBaseWrapper : virtual public StageBase
 
     void Hook(const PlayerID pid) const
     {
-        if (global_info_.masker_.Get(pid) != Masker::State::PINNED) {
+        if (!global_info_.masker_.Get(pid).is_pinned_) {
             global_info_.masker_.Pin(pid);
             Tell(pid) << "您已经进入挂机状态，若其他玩家已经行动完成，裁判将不再继续等待您，执行任意游戏请求可恢复至原状态";
         }
@@ -607,7 +613,7 @@ class GameStage<MainStage>
     void ClearReady() { Base::masker().Clear(); }
     void ClearReady(const PlayerID pid) { Base::masker().Unset(pid); }
     void SetReady(const PlayerID pid) { Base::masker().Set(pid, true); }
-    bool IsReady(const PlayerID pid) const { return Base::masker().Get(pid) == Masker::State::SET; }
+    bool IsReady(const PlayerID pid) const { return Base::masker().Get(pid).is_ready_; }
     bool IsAllReady() const { return Base::IsInDeduction() || Base::masker().IsReady(); }
 
     void HookUnreadyPlayers() const
@@ -627,7 +633,8 @@ class GameStage<MainStage>
         sender << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) <<
             "秒\n\n以下玩家还未选择，要抓紧了，机会不等人\n";
         for (PlayerID pid = 0; pid < stage.option().PlayerNum(); ++pid) {
-            if (stage.masker().Get(pid) == Masker::State::UNSET) {
+            const auto& state = stage.masker().Get(pid);
+            if (!state.is_ready_ && !state.is_pinned_) {
                 sender << At(pid);
             }
         }
@@ -638,7 +645,8 @@ class GameStage<MainStage>
         auto& stage = *static_cast<GameStage*>(p);
         stage.Boardcast() << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) << "秒";
         for (PlayerID pid = 0; pid < stage.option().PlayerNum(); ++pid) {
-            if (stage.masker().Get(pid) == Masker::State::UNSET) {
+            const auto& state = stage.masker().Get(pid);
+            if (!state.is_ready_ && !state.is_pinned_) {
                 stage.Tell(pid) << "您还未选择，要抓紧了，机会不等人";
             }
         }

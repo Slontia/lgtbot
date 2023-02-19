@@ -74,6 +74,19 @@ GAME_TEST(2, timeout_hook)
     ASSERT_PUB_MSG(OK, 1, "2");
 }
 
+GAME_TEST(2, set_and_leave_do_not_auto_set)
+{
+    ASSERT_TRUE(StartGame());
+    for (uint32_t i = 1; i <= 18; ++i) {
+        ASSERT_PUB_MSG(OK, 0, std::to_string(i).c_str());
+        ASSERT_PUB_MSG(CHECKOUT, 1, std::to_string(i).c_str());
+    }
+    ASSERT_PUB_MSG(OK, 0, "19");
+    ASSERT_LEAVE(CONTINUE, 0);
+    ASSERT_PUB_MSG(CHECKOUT, 1, "19");
+    ASSERT_PUB_MSG(CHECKOUT, 1, "0");
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
