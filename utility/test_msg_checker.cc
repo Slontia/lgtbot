@@ -260,6 +260,15 @@ TEST_F(TestMsgChecker, test_flags_checker)
     ASSERT_EQ("", checker.ArgString(0b000));
 }
 
+TEST_F(TestMsgChecker, test_batch_checker)
+{
+    BatchChecker<ArithChecker<int>, BoolChecker> checker(ArithChecker<int>{0, 10}, BoolChecker{"true", "false"});
+    ASSERT_FAIL(checker, "0");
+    ASSERT_FAIL(checker, "true");
+    ASSERT_FAIL(checker, "");
+    ASSERT_ARG(checker, "0 true", (std::tuple<int, bool>{0, true}));
+}
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

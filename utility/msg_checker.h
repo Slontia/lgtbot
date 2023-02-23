@@ -52,17 +52,22 @@ class MsgReader final
     std::vector<std::string>::iterator iter_;
 };
 
+class MsgArgCheckerBase
+{
+  public:
+    virtual std::string FormatInfo() const = 0;
+    virtual std::string EscapedFormatInfo() const = 0;
+    virtual std::string ColoredFormatInfo() const = 0;
+    virtual std::string ExampleInfo() const = 0;
+};
+
 template <typename T>
-class MsgArgChecker
+class MsgArgChecker : public MsgArgCheckerBase
 {
   public:
     typedef T arg_type;
     MsgArgChecker() {}
     virtual ~MsgArgChecker() {}
-    virtual std::string FormatInfo() const = 0;
-    virtual std::string EscapedFormatInfo() const = 0;
-    virtual std::string ColoredFormatInfo() const = 0;
-    virtual std::string ExampleInfo() const = 0;
     virtual std::optional<T> Check(MsgReader& reader) const = 0;
     virtual std::string ArgString(const T& value) const = 0;
 };
@@ -497,6 +502,72 @@ class OptionalDefaultChecker : public MsgArgChecker<typename Checker::arg_type>
     const std::string format_info_;
     const std::string escaped_format_info_;
     const std::string colored_format_info_;
+};
+
+template <typename ...Checkers> requires (sizeof...(Checkers) > 0)
+class BatchChecker : public MsgArgChecker<std::tuple<typename Checkers::arg_type...>>
+{
+  public:
+    BatchChecker(Checkers ...checkers)
+            : checkers_(std::move(checkers)...)
+            , format_info_(PrintAllCheckersInfo_(&MsgArgCheckerBase::FormatInfo))
+            , escaped_format_info_(PrintAllCheckersInfo_(&MsgArgCheckerBase::EscapedFormatInfo))
+            , colored_format_info_(PrintAllCheckersInfo_(&MsgArgCheckerBase::ColoredFormatInfo))
+            , example_(PrintAllCheckersInfo_(&MsgArgCheckerBase::ExampleInfo))
+    {}
+    virtual std::string FormatInfo() const override { return format_info_; }
+    virtual std::string EscapedFormatInfo() const override { return escaped_format_info_; }
+    virtual std::string ColoredFormatInfo() const override { return colored_format_info_; }
+    virtual std::string ExampleInfo() const override { return example_; }
+    virtual std::optional<std::tuple<typename Checkers::arg_type...>> Check(MsgReader& reader) const override
+    {
+        std::tuple<typename Checkers::arg_type...> ret;
+        return Check_(ret, reader) ? std::optional{ret} : std::nullopt;;
+    }
+    virtual std::string ArgString(const std::tuple<typename Checkers::arg_type...>& value) const
+    {
+        return ArgString_(value);
+    }
+
+  private:
+    template <size_t N = 0>
+    bool Check_(std::tuple<typename Checkers::arg_type...>& ret_tuple, MsgReader& reader) const
+    {
+        if constexpr (N < sizeof...(Checkers)) {
+            if (auto tmp_ret = std::get<N>(checkers_).Check(reader); tmp_ret.has_value()) {
+                std::get<N>(ret_tuple) = *tmp_ret;
+                return Check_<N + 1>(ret_tuple, reader);
+            }
+            return false;
+        }
+        return true;
+    }
+
+    template <size_t N = 0>
+    std::string ArgString_(const std::tuple<typename Checkers::arg_type...>& value) const
+    {
+        if constexpr (N < sizeof...(Checkers)) {
+            return (N == 0 ? "" : " ") + std::get<N>(checkers_).ArgString(std::get<N>(value)) + ArgString_<N + 1>(value);
+        }
+        return "";
+    }
+
+    std::string PrintAllCheckersInfo_(std::string(MsgArgCheckerBase::*f)() const) const
+    {
+        std::string ret;
+        std::apply([&](const Checkers& ...checkers)
+                {
+                    std::size_t n{0};
+                    ((ret += (checkers.*f)() + (++n != sizeof...(Checkers) ? " " : "")), ...);
+                }, checkers_);
+        return ret;
+    }
+
+    const std::tuple<Checkers...> checkers_;
+    const std::string format_info_;
+    const std::string escaped_format_info_;
+    const std::string colored_format_info_;
+    const std::string example_;
 };
 
 template <typename Enum>

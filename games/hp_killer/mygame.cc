@@ -72,6 +72,9 @@ bool GameOption::ToValid(MsgSenderBase& reply)
     } else if (std::ranges::count(occupation_list, Occupation::内奸) > 1) {
         reply() << "[警告] 身份列表中内奸个数大于 1，将按照默认配置进行游戏";
         occupation_list.clear();
+    } else if (std::ranges::count(occupation_list, Occupation::守卫) > 1) {
+        reply() << "[警告] 身份列表中守卫个数大于 1，将按照默认配置进行游戏";
+        occupation_list.clear();
     }
     return true;
 }
@@ -155,9 +158,22 @@ struct ExocrismAction
 
 struct ShieldAntiAction
 {
-    std::string ToString() const { return std::string("盾反 ") + std::to_string(hp_); }
+    std::string ToString() const
+    {
+        std::string ret;
+        for (const auto& [token, hp] : token_hps_) {
+            if (!ret.empty()) {
+                ret += "<br>";
+            }
+            ret += "盾反 ";
+            ret += token.ToChar();
+            ret += " ";
+            ret += std::to_string(hp);
+        }
+        return ret;
+    }
 
-    int32_t hp_;
+    std::vector<std::tuple<Token, int32_t>> token_hps_;
 };
 
 using ActionVariant = std::variant<HurtAction, CureAction, BlockHurtAction, DetectAction, PassAction, ExocrismAction, ShieldAntiAction>;
@@ -236,12 +252,16 @@ class RoleBase
         return true;
     }
 
-    virtual bool Act(const ShieldAntiAction& action, MsgSenderBase& reply);
+    virtual bool Act(const ShieldAntiAction& action, MsgSenderBase& reply)
+    {
+        reply() << "盾反失败：您无法执行该类型行动";
+        return false;
+    }
 
     // return true if dead in this round
     virtual bool Refresh()
     {
-        if (!can_act_ && hp_ <= 0) {
+        if (!can_act_ && !is_alive_) {
             // both action and HP unchange os we need not push to |history_status_|
             return false;
         }
@@ -406,25 +426,6 @@ bool RoleBase::Act(const CureAction& action, MsgSenderBase& reply)
     return true;
 }
 
-bool RoleBase::Act(const ShieldAntiAction& action, MsgSenderBase& reply)
-{
-    if (team_ != Team::平民) {
-        reply() << "盾反失败：只有平民阵营的玩家可以使用该技能";
-        return false;
-    }
-    if (occupation_ != Occupation::守卫 && !history_status_.empty() && std::get_if<ShieldAntiAction>(&history_status_.back().action_)) {
-        reply() << "盾反失败：您无法连续两回合进行盾反";
-        return false;
-    }
-    if (const auto guard_role = role_manager_.GetRole(Occupation::守卫); guard_role == nullptr || !guard_role->is_alive_) {
-        reply() << "盾反失败：只有守卫存活时才可使用盾反";
-        return false;
-    }
-    reply() << "您选择盾反成功";
-    cur_action_ = action;
-    return true;
-}
-
 class KillerRole : public RoleBase
 {
   public:
@@ -561,6 +562,31 @@ class GuardRole : public RoleBase
     {
     }
 
+    virtual bool Act(const ShieldAntiAction& action, MsgSenderBase& reply) override
+    {
+        if (action.token_hps_.size() > 2 || action.token_hps_.empty()) {
+            reply() << "盾反失败：您需要指定 1~2 名角色的血量";
+            return false;
+        }
+        if (action.token_hps_.size() == 2 &&
+                std::get<Token>(action.token_hps_[0]) == std::get<Token>(action.token_hps_[1])) {
+            reply() << "盾反失败：您需要为不同角色盾反";
+            return false;
+        }
+        for (const auto& [token, hp] : action.token_hps_) {
+            if (std::ranges::any_of(last_hp_tokens_,
+                        [token](const auto& token_hp) { return std::get<Token>(token_hp) == token; })) {
+                reply() << "盾反失败：您上一次盾反时指定过角色 " << token.ToChar() << " 为目标了，您无法连续两次盾反指定同一名角色为目标";
+                return false;
+            }
+        }
+        cur_action_ = action;
+        last_hp_tokens_ = action.token_hps_;
+        return true;
+    }
+
+  private:
+    std::vector<std::tuple<Token, int32_t>> last_hp_tokens_;
 };
 
 class TraitorRole : public RoleBase
@@ -604,8 +630,10 @@ class MainStage : public MainGameStage<>
                     OptionalChecker<BasicChecker<Token>>("角色代号（若为空，则为杀手代号）", "A")),
                 MakeStageCommand("检查某名角色是否为恶灵", &MainStage::Exocrism_, VoidChecker("驱灵"),
                     BasicChecker<Token>("角色代号", "A")),
-                MakeStageCommand("使用盾反", &MainStage::ShieldAnti_, VoidChecker("盾反"),
-                    ArithChecker<int32_t>(-1000, 1000, "预测下一回合血量")),
+                MakeStageCommand("盾反某几名角色", &MainStage::ShieldAnti_, VoidChecker("盾反"),
+                    RepeatableChecker<BatchChecker<BasicChecker<Token>, ArithChecker<int32_t>>>(
+                            BasicChecker<Token>("角色代号", "A"),
+                            ArithChecker<int32_t>(-1000, 1000, "预测下一回合血量"))),
                 MakeStageCommand("跳过本回合行动", &MainStage::Pass_, VoidChecker("pass")))
         , role_manager_(GET_OPTION_VALUE(option, 身份列表).empty()
                 ? GetRoleVec_(option, DefaultRoleOption_(option), role_manager_)
@@ -710,7 +738,7 @@ class MainStage : public MainGameStage<>
 
     void SettlementAction_(MsgSenderBase::MsgSenderGuard& sender)
     {
-        // 禁止有多个替身,因为会循环挡刀
+        // Multiple body doubles is forbidden.
         RoleBase* const hurt_blocker = role_manager_.GetRole(Occupation::替身);
         const BlockHurtAction* const block_hurt_action =
             hurt_blocker ? std::get_if<BlockHurtAction>(&hurt_blocker->CurAction()) : nullptr;
@@ -720,7 +748,6 @@ class MainStage : public MainGameStage<>
                     ((!block_hurt_action->token_.has_value() && role.GetOccupation() == Occupation::杀手) ||
                      (block_hurt_action->token_.has_value() && role.GetToken() == *block_hurt_action->token_));
             };
-
         const auto is_avoid_hurt = [&](const RoleBase& hurter_role, const RoleBase& hurted_role)
             {
                 return hurter_role.GetOccupation() == Occupation::圣女 && hurted_role.GetTeam() == Team::平民;
@@ -777,34 +804,33 @@ class MainStage : public MainGameStage<>
                     }
                 }
             });
-        bool has_shield_anti_succ = false;
-        role_manager_.Foreach([&](auto& role)
-            {
-                if (const auto action = std::get_if<ShieldAntiAction>(&role.CurAction())) {
-                    if (is_blocked_hurt(role) || role.GetHp() != action->hp_) {
-                        return;
-                    }
-                    has_shield_anti_succ = true;
-                    role_manager_.Foreach([&](auto& hurter_role)
-                        {
-                            if (const auto hurt_action = std::get_if<HurtAction>(&hurter_role.CurAction());
-                                    hurt_action != nullptr && hurt_action->token_ == role.GetToken() && !is_avoid_hurt(hurter_role, role)) {
-                                role.AddHp(hurt_action->hp_);
-                                hurter_role.AddHp(-hurt_action->hp_);
-                            }
-                        });
-                }
-            });
-        if (has_shield_anti_succ) {
+
+        RoleBase* const guard_role = role_manager_.GetRole(Occupation::守卫);
+        if (const ShieldAntiAction* const shield_anti_action =
+                guard_role ? std::get_if<ShieldAntiAction>(&guard_role->CurAction()) : nullptr) {
+            std::vector<int32_t> hp_additions(role_manager_.Size(), 0);
             role_manager_.Foreach([&](auto& role)
                 {
-                    if (role.GetOccupation() == Occupation::守卫) {
-                        assert(role.PlayerId().has_value());
-                        Tell(*role.PlayerId()) << "请注意，上一回合有人盾反成功";
+                    const auto it = std::ranges::find_if(shield_anti_action->token_hps_,
+                            [token = role.GetToken()](const auto& token_hp) { return std::get<Token>(token_hp) == token; });
+                    if (it != std::end(shield_anti_action->token_hps_) && !is_blocked_hurt(role) &&
+                            role.GetHp() == std::get<int32_t>(*it)) {
+                        Tell(*guard_role->PlayerId()) << "为角色 " << role.GetToken().ToChar() << " 盾反成功";
+                        role_manager_.Foreach([&](auto& hurter_role)
+                            {
+                                if (const auto hurt_action = std::get_if<HurtAction>(&hurter_role.CurAction());
+                                        hurt_action != nullptr && hurt_action->token_ == role.GetToken() && !is_avoid_hurt(hurter_role, role)) {
+                                    hp_additions[role.GetToken().id_] += hurt_action->hp_;
+                                    hp_additions[hurter_role.GetToken().id_] -= hurt_action->hp_;
+                                }
+                            });
                     }
                 });
+            role_manager_.Foreach([&](auto& role)
+                {
+                    role.AddHp(hp_additions[role.GetToken().id_]);
+                });
         }
-
     }
 
     void RefreshRoles_(MsgSenderBase::MsgSenderGuard& sender)
@@ -1114,8 +1140,8 @@ class MainStage : public MainGameStage<>
                     if (!status) {
                         continue;
                     }
-                    table.Get(table.Row() - 1, token_id + 1).SetContent("**" +
-                            std::visit([](const auto& action) { return action.ToString(); }, status->action_) + "**");
+                    table.Get(table.Row() - 1, token_id + 1).SetContent("<b>" +
+                            std::visit([](const auto& action) { return action.ToString(); }, status->action_) + "</b>");
                 }
                 table.AppendRow();
                 table.MergeDown(table.Row() - 2, 0, 2);
@@ -1233,9 +1259,10 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, ExocrismAction{.token_ = token});
     }
 
-    AtomReqErrCode ShieldAnti_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int32_t hp)
+    AtomReqErrCode ShieldAnti_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+            const std::vector<std::tuple<Token, int32_t>>& token_hps)
     {
-        return GenericAct_(pid, is_public, reply, ShieldAntiAction{.hp_ = hp});
+        return GenericAct_(pid, is_public, reply, ShieldAntiAction{.token_hps_ = token_hps});
     }
 
     AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)

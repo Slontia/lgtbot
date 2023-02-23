@@ -188,7 +188,7 @@ class TestGame : public MockMatch, public testing::Test
         __ASSERT_ERRCODE_BASE(ret, (PublicRequest(pid, msg))); \
     } while (0)
 #define CHECK_PUB_MSG(ret, pid, msg) \
-    ([this] { ASSERT_FALSE(IsEliminated(pid)) << "player is eliminated"; }(), StageErrCode::ret == PublicRequest(pid, msg))
+    ([&] { ASSERT_FALSE(IsEliminated(pid)) << "player is eliminated"; }(), StageErrCode::ret == PublicRequest(pid, msg))
 
 #define ASSERT_PRI_MSG(ret, pid, msg) \
     do { \
@@ -196,7 +196,7 @@ class TestGame : public MockMatch, public testing::Test
         __ASSERT_ERRCODE_BASE(ret, (PrivateRequest(pid, msg))); \
     } while (0)
 #define CHECK_PRI_MSG(ret, pid, msg) \
-    ([this] { ASSERT_FALSE(IsEliminated(pid)) << "player is eliminated"; }(), StageErrCode::ret == PrivateRequest(pid, msg))
+    ([&] { ASSERT_FALSE(IsEliminated(pid)) << "player is eliminated"; }(), StageErrCode::ret == PrivateRequest(pid, msg))
 
 #define ASSERT_LEAVE(ret, pid) __ASSERT_ERRCODE_BASE(ret, Leave(pid))
 #define CHECK_LEAVE(ret, pid) (StageErrCode::ret == Leave(pid))
