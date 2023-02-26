@@ -866,6 +866,53 @@ GAME_TEST(5, goddess_can_hurt_puppet)
     ASSERT_PRI_MSG(FAILED, 0, "攻击 F 15"); // puppet is dead
 }
 
+GAME_TEST(5, twin_cannot_attack_self_and_each_other)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 双子（邪） 双子（正） 平民 守卫");
+    START_GAME();
+    ASSERT_PRI_MSG(FAILED, 1, "攻击 B 15");
+    ASSERT_PRI_MSG(FAILED, 2, "攻击 B 15");
+    ASSERT_PRI_MSG(FAILED, 1, "攻击 C 15");
+    ASSERT_PRI_MSG(FAILED, 2, "攻击 C 15");
+    ASSERT_PRI_MSG(OK, 1, "攻击 D 15");
+    ASSERT_PRI_MSG(OK, 2, "攻击 D 15");
+}
+
+GAME_TEST(5, killer_twin_change_team_if_one_dead_and_another_one_alive)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 双子（邪） 双子（正） 平民 守卫");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 0, "攻击 C 15"); // civilian twin dead
+    ASSERT_PRI_MSG(CHECKOUT, 0, "攻击 A 15"); // killer dead, civilian team wins
+    ASSERT_SCORE(0, 1, 1, 1, 1);
+}
+
+GAME_TEST(5, civilian_twin_change_team_if_one_dead_and_another_one_alive)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 双子（邪） 双子（正） 平民 守卫");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 0, "攻击 B 15"); // killer twin dead
+    ASSERT_PRI_MSG(CHECKOUT, 0, "攻击 A 15"); // killer dead, civilian team wins
+    ASSERT_SCORE(0, 0, 0, 1, 1);
+}
+
+GAME_TEST(5, twin_do_not_change_team_if_dead_at_the_same_time)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 双子（邪） 双子（正） 平民 守卫");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 0, "攻击 B 15"); // killer twin dead
+    ASSERT_PRI_MSG(OK, 3, "攻击 C 15"); // civilian twin dead
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(OK, 0, "攻击 A 15"); // killer dead, civilian team wins
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
