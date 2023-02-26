@@ -707,13 +707,27 @@ class GuardRole : public RoleBase
         }
         for (const auto& [token, hp] : action.token_hps_) {
             if (GetHpFromMultiTargetAction(token, last_hp_tokens_) != nullptr) {
-                reply() << "盾反失败：您上一次盾反时指定过角色 " << token.ToChar() << " 为目标了，您无法连续两次盾反指定同一名角色为目标";
+                reply() << "盾反失败：您上一回合盾反过角色 " << token.ToChar() << " 了，您无法连续两回合盾反同一角色";
                 return false;
             }
         }
         cur_action_ = action;
         last_hp_tokens_ = action.token_hps_;
+        auto sender = reply();
+        sender << "您选择盾反角色";
+        for (const auto& [token, hp] : action.token_hps_) {
+            sender << " " << std::get<Token>(token).ToChar();
+        }
+        sender << "，如果盾反成功，您将收到反馈";
         return true;
+    }
+
+    virtual bool Refresh() override
+    {
+        if (!std::get_if<ShieldAntiAction>(&cur_action_)) {
+            last_hp_tokens_.clear();
+        }
+        return RoleBase::Refresh();
     }
 
   private:

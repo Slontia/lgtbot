@@ -746,10 +746,10 @@ GAME_TEST(5, guard_cannot_repeat_shield_anti_for_each_role)
 
     ASSERT_PRI_MSG(CONTINUE, 3, "攻击 C 15");
 
-    ASSERT_PRI_MSG(FAILED, 3, "盾反 A 100");
+    ASSERT_PRI_MSG(CONTINUE, 3, "盾反 A 100");
     ASSERT_TIMEOUT(CONTINUE);
 
-    ASSERT_PRI_MSG(FAILED, 3, "盾反 A 100");
+    ASSERT_PRI_MSG(CONTINUE, 3, "盾反 A 100");
 }
 
 GAME_TEST(5, shield_anti_single_hurt)
