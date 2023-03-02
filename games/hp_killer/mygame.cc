@@ -243,6 +243,7 @@ class RoleBase
         , token_(token)
         , occupation_(occupation)
         , role_manager_(role_manager)
+        , next_round_team_(team)
         , team_(team)
         , hp_(option.hp_)
         , can_act_(true)
@@ -299,8 +300,13 @@ class RoleBase
         return std::string("您的代号是 ") + GetToken().ToChar() + "，职业是「" + GetOccupation().ToString() + "」";
     }
 
+    virtual void OnRoundBegin()
+    {
+        team_ = next_round_team_;
+    }
+
     // return true if dead in this round
-    virtual bool Refresh()
+    virtual bool OnRoundEnd()
     {
         if (!can_act_ && !is_alive_) {
             // both action and HP unchange os we need not push to |history_status_|
@@ -327,13 +333,13 @@ class RoleBase
     void SetAllowHeavyHurtCure(const bool allow) { is_allowed_heavy_hurt_cure_ = allow; }
     void SetWinner(const bool is_winner) { is_winner_ = is_winner; }
     void DisableAct() { can_act_ = false; }
-    void DisableActWhenRefresh() { disable_act_when_refresh_ = true; }
+    void DisableActWhenRoundEnd() { disable_act_when_refresh_ = true; }
 
     std::optional<PlayerID> PlayerId() const { return pid_; }
     Token GetToken() const { return token_; }
     Occupation GetOccupation() const { return occupation_; }
     Team GetTeam() const { return team_; }
-    void SetTeam(const Team team) { team_ = team; }
+    void SetNextRoundTeam(const Team team) { next_round_team_ = team; }
     int32_t GetHp() const { return hp_; }
     bool CanAct() const { return can_act_; }
     bool IsAlive() const { return is_alive_; }
@@ -350,6 +356,7 @@ class RoleBase
     const Token token_;
     const Occupation occupation_;
     RoleManager& role_manager_;
+    Team next_round_team_;
     Team team_;
     int32_t hp_;
     bool can_act_;
@@ -536,8 +543,14 @@ class KillerRole : public RoleBase
 
     virtual std::string PrivateInfo() const
     {
+        if (!private_info_.empty()) {
+            return private_info_;
+        }
         return RoleBase::PrivateInfo() + "，" + TokenInfoForTeam(role_manager_, Team::平民);
     }
+
+  private:
+    std::string private_info_;
 };
 
 class BodyDoubleRole : public RoleBase
@@ -741,12 +754,12 @@ class GuardRole : public RoleBase
         return true;
     }
 
-    virtual bool Refresh() override
+    virtual bool OnRoundEnd() override
     {
         if (!std::get_if<ShieldAntiAction>(&cur_action_)) {
             last_hp_tokens_.clear();
         }
-        return RoleBase::Refresh();
+        return RoleBase::OnRoundEnd();
     }
 
   private:
@@ -857,6 +870,7 @@ class MainStage : public MainGameStage<>
             });
         table_html_ = Html_(false);
         StartTimer(GET_OPTION_VALUE(option(), 时限));
+        RolesOnRoundBegin_();
         Boardcast() << Markdown("## 第 1 回合\n\n" + table_html_, k_image_width_);
     }
 
@@ -994,11 +1008,19 @@ class MainStage : public MainGameStage<>
         }
     }
 
-    void RefreshRoles_(MsgSenderBase::MsgSenderGuard& sender)
+    void RolesOnRoundBegin_()
     {
         role_manager_.Foreach([&](auto& role)
             {
-                if (role.Refresh()) {
+                role.OnRoundBegin();
+            });
+    }
+
+    void RolesOnRoundEnd_(MsgSenderBase::MsgSenderGuard& sender)
+    {
+        role_manager_.Foreach([&](auto& role)
+            {
+                if (role.OnRoundEnd()) {
                     sender << "\n角色 " << role.GetToken().ToChar() << " 死亡，";
                     if (role.PlayerId().has_value()) {
                         sender << "他的「中之人」是" << At(*role.PlayerId());
@@ -1016,8 +1038,8 @@ class MainStage : public MainGameStage<>
                     } else if (((role.GetOccupation() == Occupation::双子（正） && (other_role = role_manager_.GetRole(Occupation::双子（邪）))) ||
                              (role.GetOccupation() == Occupation::双子（邪） && (other_role = role_manager_.GetRole(Occupation::双子（正）))))
                             && other_role->GetHp() > 0) { // cannot use IsAlive() because the is_alive_ field may have not been updated
-                        other_role->SetTeam(role.GetTeam());
-                        Tell(*other_role->PlayerId()) << "另一位双子死亡，您如今的阵营变更为：" << role.GetTeam() << "阵营";
+                        other_role->SetNextRoundTeam(role.GetTeam());
+                        Tell(*other_role->PlayerId()) << "另一位双子死亡，您下一回合的阵营变更为：" << role.GetTeam() << "阵营";
                     }
                 }
             });
@@ -1125,7 +1147,7 @@ class MainStage : public MainGameStage<>
         auto sender = Boardcast();
         sender << "第 " << round_ << " 回合结束，下面公布各角色血量";
         SettlementAction_(sender);
-        RefreshRoles_(sender);
+        RolesOnRoundEnd_(sender);
         return CheckTeamsLost_(sender);
     }
 
@@ -1135,7 +1157,7 @@ class MainStage : public MainGameStage<>
             // Some logic may depend on the value of |role.can_act_| so we cannot modify it immediately.
             // For example, the ghost will be disabled acting when being exorcismed. If we modify the
             // |role.can_act_| immediately, the action will not be emplaced into |role.history_status_|.
-            role.DisableActWhenRefresh();
+            role.DisableActWhenRoundEnd();
         } else {
             role.DisableAct();
         }
@@ -1360,6 +1382,7 @@ class MainStage : public MainGameStage<>
             Boardcast() << Markdown("## 第 " + std::to_string(round_) + " 回合\n\n" + table_html_, k_image_width_);
             ClearReady();
             StartTimer(GET_OPTION_VALUE(option(), 时限));
+            RolesOnRoundBegin_();
             return false;
         }
         Boardcast() << Markdown("## 终局\n\n" + Html_(true), k_image_width_);
