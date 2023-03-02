@@ -678,20 +678,24 @@ GAME_TEST(5, assassin_hurt_multi_blood)
     ASSERT_PRI_MSG(OK, 0, "血量 5");
     START_GAME();
     ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_PRI_MSG(CHECKOUT, 4, "攻击 B 5 C 5 D 5");
+    ASSERT_PRI_MSG(CHECKOUT, 4, "攻击 B C D 5");
     ASSERT_SCORE(1, 0, 0, 0, 1);
 }
 
-GAME_TEST(5, assassin_invalid_hurt)
+GAME_TEST(6, assassin_invalid_hurt)
 {
-    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 平民 圣女 侦探 刺客");
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 平民 圣女 侦探 刺客 平民");
     START_GAME();
     ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_PRI_MSG(FAILED, 4, "攻击");
-    ASSERT_PRI_MSG(FAILED, 4, "攻击 A 5 B 5 C 5 D 5");
-    ASSERT_PRI_MSG(FAILED, 4, "攻击 A 5 B 10");
-    ASSERT_PRI_MSG(FAILED, 4, "攻击 A 20");
-    ASSERT_PRI_MSG(FAILED, 4, "攻击 A 5 A 5");
+    ASSERT_PRI_MSG(FAILED, 4, "攻击 15");
+    ASSERT_PRI_MSG(FAILED, 4, "攻击 A B C D E F 5");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 A B C D E 5");
+    ASSERT_PRI_MSG(FAILED, 4, "攻击 A B C 10");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 A B 10");
+    ASSERT_PRI_MSG(FAILED, 4, "攻击 A B 15");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 A 15");
+    ASSERT_PRI_MSG(FAILED, 4, "攻击 A B 0");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 A 0");
 }
 
 GAME_TEST(5, non_assassin_can_only_hurt_one_role)
@@ -699,8 +703,8 @@ GAME_TEST(5, non_assassin_can_only_hurt_one_role)
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 平民 圣女 侦探 刺客");
     START_GAME();
     ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_PRI_MSG(FAILED, 0, "攻击");
-    ASSERT_PRI_MSG(FAILED, 0, "攻击 A 5 B 5");
+    ASSERT_PRI_MSG(FAILED, 0, "攻击 5");
+    ASSERT_PRI_MSG(FAILED, 0, "攻击 A B 5");
 }
 
 GAME_TEST(5, DISABLED_assassin_cannot_hurt_guard_and_killer_team)

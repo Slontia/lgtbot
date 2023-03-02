@@ -190,12 +190,13 @@ TEST_F(TestMsgChecker, test_void_checker)
 
 TEST_F(TestMsgChecker, test_repeatable_normal_checker)
 {
+    BatchChecker batch_checker(RepeatableChecker<ArithChecker<int>>(-1, 1), RepeatableChecker<AnyArg>());
+    ASSERT_ARG(batch_checker, "-2", std::tuple(std::vector<int>(), std::vector<std::string>{"-2"}));
+    ASSERT_ARG(batch_checker, "2", std::tuple(std::vector<int>(), std::vector<std::string>{"2"}));
+    ASSERT_ARG(batch_checker, "zero", std::tuple(std::vector<int>(), std::vector<std::string>{"zero"}));
+    ASSERT_ARG(batch_checker, "1 zero", std::tuple(std::vector<int>{1}, std::vector<std::string>{"zero"}));
+    ASSERT_ARG(batch_checker, "0 1 2", std::tuple(std::vector<int>{0, 1}, std::vector<std::string>{"2"}));
     RepeatableChecker<ArithChecker<int>> checker(-1, 1);
-    ASSERT_FAIL(checker, "-2");
-    ASSERT_FAIL(checker, "2");
-    ASSERT_FAIL(checker, "zero");
-    ASSERT_FAIL(checker, "1 zero");
-    ASSERT_FAIL(checker, "0 1 2");
     ASSERT_ARG(checker, "", std::vector<int>{});
     ASSERT_ARG(checker, " ", std::vector<int>{});
     ASSERT_ARG(checker, "\t", std::vector<int>{});

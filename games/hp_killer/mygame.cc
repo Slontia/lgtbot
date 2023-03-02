@@ -124,6 +124,28 @@ static const int32_t* GetHpFromMultiTargetAction(const Token token,
     return it == std::end(token_hps) ? nullptr : &std::get<int32_t>(*it);
 }
 
+template <typename Container, typename T>
+bool Has(const Container& container, const T& value)
+{
+    return std::ranges::find(container, value) != std::end(container);
+}
+
+static std::string MultiTargetActionToString(const char* const name, const std::vector<Token>& tokens, const int32_t hp)
+{
+    std::string ret;
+    for (const auto& token : tokens) {
+        if (!ret.empty()) {
+            ret += "<br>";
+        }
+        ret += name;
+        ret += " ";
+        ret += token.ToChar();
+        ret += " ";
+        ret += std::to_string(hp);
+    }
+    return ret;
+}
+
 static std::string MultiTargetActionToString(const char* const name,
         const std::vector<std::tuple<Token, int32_t>>& token_hps)
 {
@@ -143,9 +165,10 @@ static std::string MultiTargetActionToString(const char* const name,
 
 struct HurtAction
 {
-    std::string ToString() const { return MultiTargetActionToString("攻击", token_hps_); }
+    std::string ToString() const { return MultiTargetActionToString("攻击", tokens_, hp_); }
 
-    std::vector<std::tuple<Token, int32_t>> token_hps_;
+    std::vector<Token> tokens_;
+    int32_t hp_;
 };
 
 struct CureAction
@@ -397,12 +420,12 @@ class RoleManager
 
 bool RoleBase::Act(const HurtAction& action, MsgSenderBase& reply)
 {
-    if (action.token_hps_.size() != 1) {
+    if (action.tokens_.size() != 1) {
         reply() << "攻击失败：您需要且只能攻击 1 名角色";
         return false;
     }
-    const Token& token = std::get<Token>(action.token_hps_[0]);
-    const int32_t& hp = std::get<int32_t>(action.token_hps_[0]);
+    const Token& token = action.tokens_[0];
+    const int32_t hp = action.hp_;
     auto& target = role_manager_.GetRole(token);
     if (!target.is_alive_) {
         reply() << "攻击失败：该角色已经死亡";
@@ -568,51 +591,47 @@ class AssassinRole : public RoleBase
 
     virtual bool Act(const HurtAction& action, MsgSenderBase& reply) override
     {
-        int32_t sum_hp = 0;
-        int32_t last_hp = INT32_MAX;
-        if (action.token_hps_.empty()) {
+        if (action.tokens_.empty()) {
             reply() << "攻击失败：需要至少攻击 1 名角色";
             return false;
         }
-        for (const auto& [token, hp] : action.token_hps_) {
-            auto& target = role_manager_.GetRole(token);
-            if (!target.IsAlive()) {
+        for (const auto& token : action.tokens_) {
+            if (!role_manager_.GetRole(token).IsAlive()) {
                 reply() << "攻击失败：角色 " << token.ToChar() << " 已经死亡";
                 return false;
             }
-            if (hp != 0 && hp != 5 && hp != 10 && hp != 15) {
-                reply() << "攻击失败：您只能造成 0 / 5 / 10 / 15 点伤害";
-                return false;
-            }
-            if (sum_hp + hp > k_normal_hurt_hp) {
-                reply() << "攻击失败：您的攻击总和超过了 " << k_normal_hurt_hp << " 点 HP";
-                return false;
-            }
-            if (hp > last_hp) {
-                reply() << "攻击失败：攻击伤害较高的角色需要放在前面";
-                return false;
-            }
-            if (1 < std::ranges::count_if(action.token_hps_,
-                        [token](const auto& token_hp) { return std::get<Token>(token_hp) == token; })) {
-                reply() << "攻击失败：对角色 " << token.ToChar() << " 的攻击出现了多次";
-                return false;
-            }
-            sum_hp += hp;
-            last_hp = hp;
+        }
+        int32_t max_target_num = 0;
+        switch (action.hp_) {
+        case 0:
+            max_target_num = 1;
+            break;
+        case 5:
+            max_target_num = 5;
+            break;
+        case 10:
+            max_target_num = 2;
+            break;
+        case 15:
+            max_target_num = 1;
+            break;
+        default:
+            reply() << "攻击失败：您只能造成 0 / 5 / 10 / 15 点伤害";
+            return false;
+        }
+        if (action.tokens_.size() > max_target_num) {
+            reply() << "攻击失败：伤害值为 " << action.hp_ << " 时最多指定 " << max_target_num << " 名角色";
+            return false;
         }
 
         cur_action_ = action;
 
         auto sender = reply();
         sender << "您本回合分别对角色";
-        for (const auto& [token, _] : action.token_hps_) {
+        for (const auto& token : action.tokens_) {
             sender << " " << token.ToChar();
         }
-        sender << " 依次造成了";
-        for (const auto& [_, hp] : action.token_hps_) {
-            sender << " " << hp;
-        }
-        sender << " 点伤害";
+        sender << " 造成了 " << action.hp_ << " 点伤害";
 
         return true;
     }
@@ -715,8 +734,8 @@ class GuardRole : public RoleBase
         last_hp_tokens_ = action.token_hps_;
         auto sender = reply();
         sender << "您选择盾反角色";
-        for (const auto& [token, hp] : action.token_hps_) {
-            sender << " " << std::get<Token>(token).ToChar();
+        for (const auto& [token, _] : action.token_hps_) {
+            sender << " " << token.ToChar();
         }
         sender << "，如果盾反成功，您将收到反馈";
         return true;
@@ -753,7 +772,7 @@ class TwinRole : public RoleBase
 
     virtual bool Act(const HurtAction& action, MsgSenderBase& reply) override
     {
-        for (const auto& [token, _] : action.token_hps_) {
+        for (const auto& token : action.tokens_) {
             const auto occupation = role_manager_.GetRole(token).GetOccupation();
             if (occupation == Occupation::双子（正） || occupation == Occupation::双子（邪）) {
                 reply() << "攻击失败：您无法对自己和另一名双子进行攻击";
@@ -801,9 +820,7 @@ class MainStage : public MainGameStage<>
         : GameStage(option, match,
                 MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
                 MakeStageCommand("攻击某名角色", &MainStage::Hurt_, VoidChecker("攻击"),
-                    RepeatableChecker<BatchChecker<BasicChecker<Token>, ArithChecker<int32_t>>>(
-                            BasicChecker<Token>("角色代号", "A"),
-                            ArithChecker<int32_t>(0, 25, "血量"))),
+                    RepeatableChecker<BasicChecker<Token>>("角色代号", "A"), ArithChecker<int32_t>(0, 25, "血量")),
                 MakeStageCommand("治愈某名角色", &MainStage::Cure_, VoidChecker("治愈"),
                     BasicChecker<Token>("角色代号", "A"),
                     BoolChecker(std::to_string(k_heavy_cure_hp), std::to_string(k_normal_cure_hp))),
@@ -855,7 +872,7 @@ class MainStage : public MainGameStage<>
             return StageErrCode::OK;
         }
         if (rand() % 2) {
-            Hurt_(pid, false, reply, {std::tuple{Token{static_cast<uint32_t>(rand() % option().PlayerNum())}, 15}}); // randomly hurt one role
+            Hurt_(pid, false, reply, {Token{static_cast<uint32_t>(rand() % option().PlayerNum())}}, 15); // randomly hurt one role
         } else {
             Cure_(pid, false, reply, Token{static_cast<uint32_t>(rand() % option().PlayerNum())}, false); // randomly hurt one role
         }
@@ -898,14 +915,14 @@ class MainStage : public MainGameStage<>
         role_manager_.Foreach([&](auto& role)
             {
                 if (const auto action = std::get_if<HurtAction>(&role.CurAction())) {
-                    for (const auto& [token, hp] : action->token_hps_) {
+                    for (const auto& token : action->tokens_) {
                         auto& hurted_role = role_manager_.GetRole(token);
                         if (is_avoid_hurt(role, hurted_role)) {
                             // do nothing
                         } else if (is_blocked_hurt(hurted_role)) {
-                            hurt_blocker->AddHp(-hp);
+                            hurt_blocker->AddHp(-action->hp_);
                         } else {
-                            hurted_role.AddHp(-hp);
+                            hurted_role.AddHp(-action->hp_);
                         }
                     }
                 } else if (const auto action = std::get_if<CureAction>(&role.CurAction())) {
@@ -916,7 +933,7 @@ class MainStage : public MainGameStage<>
                     auto sender = Tell(*role.PlayerId());
                     sender << "上一回合角色 " << action->token_.ToChar() << " 的行动是「";
                     if (const auto detect_action = std::get_if<HurtAction>(&detected_role.CurAction())) {
-                        sender << "攻击 " << std::get<Token>(detect_action->token_hps_[0]).ToChar();
+                        sender << "攻击 " << detect_action->tokens_[0].ToChar();
                     } else if (const auto detect_action = std::get_if<CureAction>(&detected_role.CurAction())) {
                         sender << "治愈 " << detect_action->token_.ToChar();
                     } else {
@@ -940,7 +957,7 @@ class MainStage : public MainGameStage<>
                         if (!exocrism_role.CanAct()) {
                             sender << "但是他早就已经失去行动能力了";
                         } else if (!exocrism_role.IsAlive() ||
-                                (hurt_action && GetHpFromMultiTargetAction(role.GetToken(), hurt_action->token_hps_) != nullptr)) {
+                                (hurt_action && Has(hurt_action->tokens_, role.GetToken()))) {
                             sender << "驱灵成功，他已经失去行动能力了！";
                             DisableAct_(exocrism_role, true);
                         } else {
@@ -962,13 +979,10 @@ class MainStage : public MainGameStage<>
                         role_manager_.Foreach([&](auto& hurter_role)
                             {
                                 const HurtAction* const hurt_action = std::get_if<HurtAction>(&hurter_role.CurAction());
-                                if (hurt_action == nullptr) {
-                                    return;
-                                }
-                                if (const int32_t* const hurt_hp_p = GetHpFromMultiTargetAction(role.GetToken(), hurt_action->token_hps_);
-                                        hurt_hp_p != nullptr && !is_avoid_hurt(hurter_role, role)) {
-                                    hp_additions[role.GetToken().id_] += *hurt_hp_p;
-                                    hp_additions[hurter_role.GetToken().id_] -= *hurt_hp_p;
+                                if (hurt_action && Has(hurt_action->tokens_, role.GetToken()) &&
+                                        !is_avoid_hurt(hurter_role, role)) {
+                                    hp_additions[role.GetToken().id_] += hurt_action->hp_;
+                                    hp_additions[hurter_role.GetToken().id_] -= hurt_action->hp_;
                                 }
                             });
                     }
@@ -1374,15 +1388,15 @@ class MainStage : public MainGameStage<>
     }
 
     AtomReqErrCode Hurt_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
-            const std::vector<std::tuple<Token, int32_t>>& token_hps)
+            const std::vector<Token>& tokens, const int32_t hp)
     {
-        for (const auto& [token, hp] : token_hps) {
+        for (const auto& token : tokens) {
             if (!role_manager_.IsValid(token)) {
                 reply() << "攻击失败：场上没有角色 " << token.ToChar();
                 return StageErrCode::FAILED;
             }
         }
-        return GenericAct_(pid, is_public, reply, HurtAction{.token_hps_ = token_hps});
+        return GenericAct_(pid, is_public, reply, HurtAction{.tokens_ = tokens, .hp_ = hp});
     }
 
     AtomReqErrCode Cure_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Token token, const bool is_heavy)

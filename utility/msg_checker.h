@@ -39,13 +39,17 @@ class MsgReader final
 
     bool HasNext() const { return iter_ != args_.end(); }
 
+    std::vector<std::string>::iterator Iterator() const { return iter_; }
+
     const std::string& NextArg()
     {
         static const std::string k_empty;
         return iter_ == args_.end() ? k_empty : *(iter_++);
     }
 
-    void Reset() { iter_ = args_.begin(); }
+    void Reset(const std::vector<std::string>::iterator iter) { iter_ = iter; }
+
+    void Reset() { Reset(args_.begin()); }
 
    private:
     std::vector<std::string> args_;
@@ -340,10 +344,12 @@ class RepeatableCheckerBase : public MsgArgChecker<std::vector<typename Checker:
     {
         std::optional<std::vector<typename Checker::arg_type>> ret(std::in_place);
         while (reader.HasNext()) {
+            const auto iter = reader.Iterator();
             if (auto tmp_ret = checker_.Check(reader); tmp_ret.has_value()) {
                 ret->emplace_back(std::move(*tmp_ret));
             } else {
-                return std::nullopt;
+                reader.Reset(iter);
+                break;
             }
         }
         return ret;
