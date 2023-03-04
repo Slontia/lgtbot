@@ -200,7 +200,7 @@ struct PassAction
 
 struct ExocrismAction
 {
-    std::string ToString() const { return std::string("除灵 ") + token_.ToChar(); }
+    std::string ToString() const { return std::string("通灵 ") + token_.ToChar(); }
 
     Token token_;
 };
@@ -278,7 +278,7 @@ class RoleBase
 
     virtual bool Act(const ExocrismAction& action, MsgSenderBase& reply)
     {
-        reply() << "除灵失败：您无法执行该类型行动";
+        reply() << "通灵失败：您无法执行该类型行动";
         return false;
     }
 
@@ -584,8 +584,7 @@ class GhostRole : public RoleBase
 
     virtual std::string PrivateInfo() const
     {
-        return RoleBase::PrivateInfo() + "，" +
-            TokenInfoForRoles(role_manager_, std::array<Occupation, 2>{Occupation::杀手, Occupation::灵媒});
+        return RoleBase::PrivateInfo() + "，" + TokenInfoForRole(role_manager_, Occupation::灵媒);
     }
 };
 
@@ -707,15 +706,24 @@ class SorcererRole : public RoleBase
   public:
     SorcererRole(const uint64_t pid, const Token token, const RoleOption& option, RoleManager& role_manager)
         : RoleBase(pid, token, Occupation::灵媒, Team::平民, option, role_manager)
+        , exocrismed_(false)
     {
     }
 
     virtual bool Act(const ExocrismAction& action, MsgSenderBase& reply) override
     {
-        reply() << "您选择驱灵角色 " << action.token_.ToChar() << "，本回合结束后将私信您他是否为恶灵，以及是否驱灵成功";
+        if (exocrismed_) {
+            reply() << "通灵失败：您本局游戏已经通灵过一次了";
+            return false;
+        }
+        reply() << "您选择通灵角色 " << action.token_.ToChar() << "，本回合结束后将私信您他的职业";
         cur_action_ = action;
+        exocrismed_ = true;
         return true;
     }
+
+  private:
+    bool exocrismed_;
 };
 
 class GuardRole : public RoleBase
@@ -841,7 +849,7 @@ class MainStage : public MainGameStage<>
                     BasicChecker<Token>("角色代号", "A")),
                 MakeStageCommand("替某名角色承担本回合伤害", &MainStage::BlockHurt_, VoidChecker("挡刀"),
                     OptionalChecker<BasicChecker<Token>>("角色代号（若为空，则为杀手代号）", "A")),
-                MakeStageCommand("检查某名角色是否为恶灵", &MainStage::Exocrism_, VoidChecker("驱灵"),
+                MakeStageCommand("获取某名死者的职业", &MainStage::Exocrism_, VoidChecker("通灵"),
                     BasicChecker<Token>("角色代号", "A")),
                 MakeStageCommand("盾反某几名角色", &MainStage::ShieldAnti_, VoidChecker("盾反"),
                     RepeatableChecker<BatchChecker<BasicChecker<Token>, ArithChecker<int32_t>>>(
@@ -937,6 +945,9 @@ class MainStage : public MainGameStage<>
                             hurt_blocker->AddHp(-action->hp_);
                         } else {
                             hurted_role.AddHp(-action->hp_);
+                            if (hurted_role.GetOccupation() == Occupation::灵媒 && role.GetOccupation() == Occupation::恶灵) {
+                                role.AddHp(-action->hp_);
+                            }
                         }
                     }
                 } else if (const auto action = std::get_if<CureAction>(&role.CurAction())) {
@@ -963,20 +974,10 @@ class MainStage : public MainGameStage<>
                     auto& exocrism_role = role_manager_.GetRole(action->token_);
                     assert(role.PlayerId().has_value());
                     auto sender = Tell(*role.PlayerId());
-                    if (exocrism_role.GetOccupation() != Occupation::恶灵) {
-                        sender << "很遗憾，" << action->token_.ToChar() << " 不是恶灵";
-                    } else {
-                        sender << action->token_.ToChar() << " 确实是恶灵！";
-                        const auto hurt_action = std::get_if<HurtAction>(&exocrism_role.CurAction());
-                        if (!exocrism_role.CanAct()) {
-                            sender << "但是他早就已经失去行动能力了";
-                        } else if (!exocrism_role.IsAlive() ||
-                                (hurt_action && Has(hurt_action->tokens_, role.GetToken()))) {
-                            sender << "驱灵成功，他已经失去行动能力了！";
-                            DisableAct_(exocrism_role, true);
-                        } else {
-                            sender << "但是并没有驱灵成功，他仍可以继续行动";
-                        }
+                    sender << "死亡角色 " << exocrism_role.GetToken().ToChar() << " 的职业是「" << exocrism_role.GetOccupation() << "」";
+                    if (exocrism_role.GetOccupation() == Occupation::恶灵) {
+                        DisableAct_(exocrism_role, true);
+                        sender << "，他从下回合开始将失去行动能力！";
                     }
                 }
             });
@@ -1452,7 +1453,11 @@ class MainStage : public MainGameStage<>
     AtomReqErrCode Exocrism_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Token token)
     {
         if (!role_manager_.IsValid(token)) {
-            reply() << "驱灵失败：场上没有该角色";
+            reply() << "通灵失败：场上没有该角色";
+            return StageErrCode::FAILED;
+        }
+        if (role_manager_.GetRole(token).IsAlive()) {
+            reply() << "通灵失败：只能通灵死亡角色";
             return StageErrCode::FAILED;
         }
         return GenericAct_(pid, is_public, reply, ExocrismAction{.token_ = token});

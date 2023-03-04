@@ -566,7 +566,7 @@ GAME_TEST(5, ghost_is_exorcism_after_death_cant_act)
         ASSERT_PRI_MSG(CONTINUE, 0, "攻击 E 25");
     }
     ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_PRI_MSG(CONTINUE, 3, "驱灵 E");
+    ASSERT_PRI_MSG(CONTINUE, 3, "通灵 E");
     ASSERT_ELIMINATED(4);
 }
 
@@ -592,16 +592,15 @@ GAME_TEST(5, ghost_is_detected_when_move_after_death_cant_act)
     ASSERT_ELIMINATED(4);
 }
 
-GAME_TEST(5, ghost_is_exorcism_when_hurt_sorcerer_cant_act)
+GAME_TEST(5, ghost_cannot_exorcism_alive_roles)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
     START_GAME();
-    ASSERT_PRI_MSG(OK, 4, "攻击 B 15");
-    ASSERT_PRI_MSG(OK, 3, "驱灵 E");
-    ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_PRI_MSG(OK, 4, "攻击 D 15");
-    ASSERT_PRI_MSG(CONTINUE, 3, "驱灵 E");
-    ASSERT_ELIMINATED(4);
+    ASSERT_PRI_MSG(FAILED, 3, "通灵 A");
+    ASSERT_PRI_MSG(FAILED, 3, "通灵 B");
+    ASSERT_PRI_MSG(FAILED, 3, "通灵 C");
+    ASSERT_PRI_MSG(FAILED, 3, "通灵 D");
+    ASSERT_PRI_MSG(FAILED, 3, "通灵 E");
 }
 
 GAME_TEST(5, ghost_act_has_effect_when_exocrism)
@@ -609,27 +608,32 @@ GAME_TEST(5, ghost_act_has_effect_when_exocrism)
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
     ASSERT_PRI_MSG(OK, 0, "血量 15");
     START_GAME();
-    ASSERT_PRI_MSG(OK, 4, "攻击 D 15");
-    ASSERT_PRI_MSG(OK, 3, "驱灵 E");
+    ASSERT_PRI_MSG(OK, 3, "pass");
+    ASSERT_PRI_MSG(OK, 4, "攻击 E 15"); // E dead
     ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_ELIMINATED(3);
+    ASSERT_PRI_MSG(OK, 3, "通灵 E");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 B 15");
+    ASSERT_ELIMINATED(1);
     ASSERT_ELIMINATED(4);
 }
 
-GAME_TEST(5, ghost_act_has_effect_when_exocrism_only_one_round)
+GAME_TEST(5, ghost_cannot_exocrism_twice)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
-    ASSERT_PRI_MSG(OK, 0, "血量 30");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
     START_GAME();
-    ASSERT_PRI_MSG(OK, 4, "攻击 D 15");
-    ASSERT_PRI_MSG(OK, 3, "驱灵 E");
+    ASSERT_PRI_MSG(OK, 3, "pass");
+    ASSERT_PRI_MSG(OK, 2, "攻击 C 15"); // C dead
+    ASSERT_PRI_MSG(OK, 4, "攻击 E 15"); // E dead
     ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_ELIMINATED(4);
+    ASSERT_ELIMINATED(2);
+    ASSERT_PRI_MSG(OK, 3, "通灵 C");
     ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_PRI_MSG(CONTINUE, 3, "攻击 A 15"); // still alive
+    ASSERT_PRI_MSG(FAILED, 3, "通灵 E");
 }
 
-GAME_TEST(5, ghost_act_has_effect_when_exocrism_after_dead_only_one_round)
+// It is a bug case that the ghost keeps taking it latest action before being exocrismed.
+GAME_TEST(5, ghost_act_has_effect_when_exocrism_only_one_round)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
     ASSERT_PRI_MSG(OK, 0, "血量 30");
@@ -638,11 +642,23 @@ GAME_TEST(5, ghost_act_has_effect_when_exocrism_after_dead_only_one_round)
     ASSERT_PRI_MSG(CONTINUE, 4, "攻击 E 15");
     ASSERT_PRI_MSG(OK, 3, "pass");
     ASSERT_PRI_MSG(CONTINUE, 4, "攻击 E 15"); // E dead
-    ASSERT_PRI_MSG(OK, 3, "驱灵 E");
-    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 A 15");
+    ASSERT_PRI_MSG(OK, 3, "通灵 E");
+    ASSERT_PRI_MSG(CONTINUE, 4, "攻击 B 15");
     ASSERT_ELIMINATED(4);
     ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_PRI_MSG(CONTINUE, 0, "攻击 B 15"); // still alive
+    ASSERT_PRI_MSG(CONTINUE, 1, "攻击 C 15"); // still alive
+}
+
+GAME_TEST(5, ghost_attact_sorcerer_ghost_also_be_hurted)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 3, "pass");
+    ASSERT_PRI_MSG(OK, 4, "攻击 D 15"); // D E dead, but E can still act
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_ELIMINATED(3);
+    ASSERT_PRI_MSG(FAILED, 0, "攻击 E 15");
 }
 
 GAME_TEST(5, assassin_hurt_little_blood)
