@@ -607,7 +607,8 @@ class GameStage<MainStage>
 
     void StopTimer()
     {
-        finish_time_ = nullptr;
+        Base::match_.StopTimer();
+        finish_time_ = std::nullopt;
     }
 
     void ClearReady() { Base::masker().Clear(); }
