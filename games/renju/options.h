@@ -2,4 +2,5 @@ EXTEND_OPTION("每回合落子时间", 时限, (ArithChecker<uint32_t>(10, 300, 
 EXTEND_OPTION("多少次碰撞发生后，游戏平局（0 视为没有该限制）", 碰撞上限, (ArithChecker<uint32_t>(0, 100, "碰撞次数")), 10)
 EXTEND_OPTION("多少回合后，游戏平局（0 视为没有该限制）", 回合上限, (ArithChecker<uint32_t>(0, 120, "回合数")), 50)
 EXTEND_OPTION("双方 pass 总数量达到多少时，游戏平局（0 视为没有该限制）", pass上限, (ArithChecker<uint32_t>(0, 100, "pass数")), 0)
-EXTEND_OPTION("游戏模式", 模式, (BoolChecker("经典", "竞技")), false)
+EXTEND_OPTION("平局时 pass 次数较多的玩家取得胜利", pass胜利, (BoolChecker("开启", "关闭")), false)
+EXTEND_OPTION("落子时可以按照优先级先后提供多个选点，降低碰撞概率", 多选点, (BoolChecker("开启", "关闭")), true)

@@ -10,6 +10,7 @@
 
 #include "game_framework/game_stage.h"
 #include "utility/html.h"
+#include "utility/coding.h"
 #include "game_util/renju.h"
 
 using namespace lgtbot::game_util::renju;
@@ -32,7 +33,8 @@ std::string GameOption::StatusInfo() const
         (GET_VALUE(碰撞上限) == 0 ? "碰撞不会造成和棋" : std::to_string(GET_VALUE(碰撞上限)) + " 次碰撞发生时和棋") + "，" +
         (GET_VALUE(回合上限) == 0 ? "没有回合限制" : std::to_string(GET_VALUE(回合上限)) + " 回合结束时和棋") + "，" +
         (GET_VALUE(pass上限) == 0 ? "pass 不会造成和棋" : "双方共 pass " + std::to_string(GET_VALUE(pass上限)) + " 次时和棋") + "，" +
-        (GET_VALUE(模式) ? "pass 数量不会影响胜负" : "和棋时 pass 数量较多的玩家获胜");
+        (GET_VALUE(pass胜利) ? "和棋时 pass 数量较多的玩家获胜" : "pass 数量不会影响胜负") + "，" +
+        (GET_VALUE(多选点) ? "每回合可以选择多个备选落子位置" : "每回合只能选择一个落子位置");
 }
 
 bool GameOption::ToValid(MsgSenderBase& reply)
@@ -55,10 +57,9 @@ class MainStage : public MainGameStage<>
     MainStage(const GameOption& option, MatchBase& match)
         : GameStage(option, match,
                 MakeStageCommand("查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
-                MakeStageCommand("决定落子", &MainStage::Ready_, VoidChecker("落子")),
                 MakeStageCommand("跳过本次落子", &MainStage::Pass_, VoidChecker("pass")),
                 MakeStageCommand("尝试落子（若附带「落子」参数，则直接落子）", &MainStage::Set_,
-                    AnyArg("坐标"), OptionalDefaultChecker<BoolChecker>(true, "落子", "试下")))
+                    RepeatableChecker<AnyArg>("坐标")))
         , board_(option.ResourceDir())
         , round_(0)
         , crash_count_(0)
@@ -72,8 +73,8 @@ class MainStage : public MainGameStage<>
 
     virtual void OnStageBegin()
     {
-        if (!GET_OPTION_VALUE(option(), 模式)) {
-            Boardcast() << "[注意] 本局为竞技模式，和棋时 pass 次数较多的玩家取得胜利";
+        if (GET_OPTION_VALUE(option(), pass胜利)) {
+            Boardcast() << "[注意] 本局和棋时 pass 次数较多的玩家取得胜利\n\n但是因为首回合 pass 不计 pass 次数，所以第一手还请正常落子";
         }
         StartTimer(GET_OPTION_VALUE(option(), 时限));
         Boardcast() << Markdown(HtmlHead_() + board_.ToHtml());
@@ -82,9 +83,12 @@ class MainStage : public MainGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
     {
+        uint32_t x, y;
         do {
-            player_pos_[pid].emplace(rand() % Board::k_size_, rand() % Board::k_size_);
-        } while (!board_.CanBeSet(player_pos_[pid]->first, player_pos_[pid]->second));
+            x = rand() % Board::k_size_;
+            y = rand() % Board::k_size_;
+        } while (!board_.CanBeSet(x, y));
+        player_pos_[pid].emplace_back(x, y);
         return StageErrCode::READY;
     }
 
@@ -94,20 +98,6 @@ class MainStage : public MainGameStage<>
     }
 
   private:
-    AtomReqErrCode Ready_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
-    {
-        if (IsReady(pid)) {
-            reply() << "落子失败：您已经完成落子或已经决定跳过，无法再次落子";
-            return StageErrCode::FAILED;
-        }
-        if (!player_pos_[pid].has_value()) {
-            reply() << "落子失败：您还未选择落子位置，可以通过私信裁判坐标，来选择落子位置";
-            return StageErrCode::FAILED;
-        }
-        reply() << "落子成功，您在 " << static_cast<char>('A' + player_pos_[pid]->first) << player_pos_[pid]->second << " 位置落子";
-        return StageErrCode::READY;
-    }
-
     AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         if (is_public) {
@@ -118,84 +108,63 @@ class MainStage : public MainGameStage<>
             reply() << "跳过失败：您已经完成落子，无法跳过";
             return StageErrCode::FAILED;
         }
-        player_pos_[pid].reset();
+        player_pos_[pid].clear();
         reply() << "跳过成功，本回合您不进行落子";
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& pos,
-            const bool ready)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<std::string>& pos_strs)
     {
         if (is_public) {
-            reply() << "选择失败：请私信裁判选择落子位置";
+            reply() << "落子失败：请私信裁判选择落子位置";
             return StageErrCode::FAILED;
         }
         if (IsReady(pid)) {
-            reply() << "选择失败：您已经完成落子，无法变更落子位置";
+            reply() << "落子失败：您已经完成落子，无法变更落子位置";
             return StageErrCode::FAILED;
         }
-        if (!(player_pos_[pid] = ToPos_(reply, pos)).has_value()) {
+        if (pos_strs.empty()) {
+            reply() << "落子失败：请至少选择一个落子点";
             return StageErrCode::FAILED;
         }
-        if (!board_.CanBeSet(player_pos_[pid]->first, player_pos_[pid]->second)) {
-            player_pos_[pid].reset();
-            reply() << "选择失败：该位置无法落子，请试试其它位置吧";
+        if (!GET_OPTION_VALUE(option(), 多选点) && pos_strs.size() != 1) {
+            reply() << "落子失败：您只能选择一个落子点";
             return StageErrCode::FAILED;
         }
-        if (round_ == 0 && player_pos_[pid]->first == Board::k_size_ / 2 &&
-                player_pos_[pid]->second == Board::k_size_ / 2) {
-            player_pos_[pid].reset();
-            reply() << "选择失败：首回合不允许落子天元";
-            return StageErrCode::FAILED;
+        auto& player_pos = player_pos_[pid];
+        for (const auto& str : pos_strs) {
+            const auto decode_res = DecodePos<Board::k_size_ - 1, Board::k_size_ - 1>(str);
+            if (const auto* const errstr = std::get_if<std::string>(&decode_res)) {
+                player_pos.clear();
+                reply() << "[错误] " << *errstr;
+                return StageErrCode::FAILED;
+            }
+            const auto [x, y] = std::get<std::pair<uint32_t, uint32_t>>(decode_res);
+            if (!board_.CanBeSet(x, y)) {
+                player_pos.clear();
+                reply() << "落子失败：" << str << " 位置无法落子，请试试其它位置吧";
+                return StageErrCode::FAILED;
+            }
+            if (round_ == 0 && x == Board::k_size_ / 2 && y == Board::k_size_ / 2) {
+                player_pos.clear();
+                reply() << "落子失败：首回合不允许落子天元";
+                return StageErrCode::FAILED;
+            }
+            if (std::ranges::find(player_pos, std::pair{x, y}) != std::end(player_pos)) {
+                player_pos.clear();
+                reply() << "落子失败：不允许有重复的选点";
+                return StageErrCode::FAILED;
+            }
+            player_pos.emplace_back(x, y);
         }
-        if (ready) {
-            reply() << "落子成功，您在 " << static_cast<char>('A' + player_pos_[pid]->first) << player_pos_[pid]->second << " 位置落子";
-            return StageErrCode::READY;
-        }
-        reply() << Markdown(HtmlHead_() + board_.SetAndToHtml(player_pos_[pid]->first, player_pos_[pid]->second,
-                    pid == 0 ? AreaType::BLACK : AreaType::WHITE));
-        reply() << "选择位置成功，但是您还需要使用「落子」命令进行实际落子，落子前您可多次变更位置";
-        return StageErrCode::OK;
+        reply() << "落子成功";
+        return StageErrCode::READY;
     }
 
     AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         reply() << Markdown(HtmlHead_() + board_.ToHtml());
         return StageErrCode::OK;
-    }
-
-    static std::optional<std::pair<uint32_t, uint32_t>> ToPos_(MsgSenderBase& reply, const std::string& str)
-    {
-        if (str.size() != 2 && str.size() != 3) {
-            reply() << "[错误] 非法的坐标长度 " << str.size() << " ，应为 2 或 3";
-            return std::nullopt;
-        }
-        std::pair<uint32_t, uint32_t> coor;
-        const char row_c = str[0];
-        if ('A' <= row_c && row_c < 'A' + Board::k_size_) {
-            coor.first = row_c - 'A';
-        } else if ('a' <= row_c && row_c < 'a' + Board::k_size_) {
-            coor.first = row_c - 'a';
-        } else {
-            reply() << "[错误] 非法的横坐标「" << row_c << "」，应在 A 和 "
-                    << std::string(1, static_cast<char>('A' + Board::k_size_ - 1)) << " 之间";
-            return std::nullopt;
-        }
-        if (std::isdigit(str[1])) {
-            coor.second = str[1] - '0';
-        } else {
-            reply() << "[错误] 非法的纵坐标「" << str.substr(1) << "」，应在 0 和 " << Board::k_size_ - 1 << " 之间";
-            return std::nullopt;
-        }
-        if (str.size() == 2) {
-            // do nothing
-        } else if (std::isdigit(str[2])) {
-            coor.second = 10 * coor.second + str[2] - '0';
-        } else {
-            reply() << "[错误] 非法的纵坐标「" << str.substr(1) << "」，应在 0 和 " << Board::k_size_ - 1 << " 之间";
-            return std::nullopt;
-        }
-        return coor;
     }
 
     std::string HtmlHead_() const
@@ -218,7 +187,9 @@ class MainStage : public MainGameStage<>
                         std::string("![](file://") + option().ResourceDir() + (pid == 0 ? "c_b.bmp)" : "c_w.bmp)"));
                 player_table.MergeDown(1, 0 + pid * 2, 2);
                 player_table.Get(1, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
-                if (last_round_passed_[pid] && !last_last_round_both_passed_) {
+                if (!GET_OPTION_VALUE(option(), pass胜利)) {
+                    // do nothing
+                } else if (last_round_passed_[pid] && !last_last_round_both_passed_) {
                     player_table.Get(2, 1 + pid * 2).SetContent(
                             HTML_COLOR_FONT_HEADER(red) "pass 次数：" + std::to_string(pass_count_[pid]) + HTML_FONT_TAIL);
                 } else {
@@ -251,17 +222,41 @@ class MainStage : public MainGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
+    Result SetProperPieceToBoard_(MsgSenderBase& reply, const size_t idx = 0)
+    {
+        const std::array<bool, 2> no_more_choise { player_pos_[0].size() == idx + 1, player_pos_[1].size() == idx + 1 };
+        if (player_pos_[0][idx] != player_pos_[1][idx] || (round_ > 0 && no_more_choise[0] && no_more_choise[1])) {
+            return board_.Set(player_pos_[0][idx].first, player_pos_[0][idx].second, player_pos_[1][idx].first,
+                    player_pos_[1][idx].second);
+        } else if (round_ == 0 && no_more_choise[0] && no_more_choise[1]) {
+            reply() << "[提示] 已通过中心对称调整某一方落子，防止首回合碰撞";
+            return board_.Set(player_pos_[0][idx].first, player_pos_[0][idx].second,
+                    Board::k_size_ - 1 - player_pos_[1][idx].first, Board::k_size_ - 1 - player_pos_[1][idx].second);
+        } else if (no_more_choise[0]) {
+            return board_.Set(player_pos_[0][idx].first, player_pos_[0][idx].second, player_pos_[1][idx + 1].first,
+                    player_pos_[1][idx + 1].second);
+        } else if (no_more_choise[1]) {
+            return board_.Set(player_pos_[0][idx + 1].first, player_pos_[0][idx + 1].second, player_pos_[1][idx].first,
+                    player_pos_[1][idx].second);
+        } else {
+            return SetProperPieceToBoard_(reply, idx + 1);
+        }
+    }
+
     bool SetToBoard_(MsgSenderBase& reply)
     {
         board_.ClearHighlight();
         const auto ret =
-            player_pos_[0].has_value() && player_pos_[1].has_value() ?
-                board_.Set(player_pos_[0]->first, player_pos_[0]->second, player_pos_[1]->first, player_pos_[1]->second) :
-            player_pos_[0].has_value() ? board_.Set(player_pos_[0]->first, player_pos_[0]->second, Pid2Type_(0)) :
-            player_pos_[1].has_value() ? board_.Set(player_pos_[1]->first, player_pos_[1]->second, Pid2Type_(1)) :
-                                         Result::CONTINUE_OK;
+            player_pos_[0].empty() && player_pos_[1].empty() ?
+                Result::CONTINUE_OK :
+            player_pos_[1].empty() ?
+                board_.Set(player_pos_[0].front().first, player_pos_[0].front().second, Pid2Type_(0)) :
+            player_pos_[0].empty() ?
+                board_.Set(player_pos_[1].front().first, player_pos_[1].front().second, Pid2Type_(1)) :
+            // both not empty
+                SetProperPieceToBoard_(reply);
         for (int i = 0; i < 2; ++i) {
-            pass_count_[i] += (last_round_passed_[i] = !player_pos_[i].has_value()) && !last_round_both_passed_;
+            pass_count_[i] += (last_round_passed_[i] = player_pos_[i].empty()) && !last_round_both_passed_ && round_ > 0;
         }
         last_last_round_both_passed_ = last_round_both_passed_;
         last_round_both_passed_ = last_round_passed_[0] && last_round_passed_[1];
@@ -289,7 +284,7 @@ class MainStage : public MainGameStage<>
                     sender << "，目前已发生 " << crash_count_ << " 次碰撞（当发生 " << GET_OPTION_VALUE(option(), 碰撞上限)
                            << " 次碰撞时，将满足和棋条件）";
                 }
-                if (last_round_both_passed_) {
+                if (last_round_both_passed_ && GET_OPTION_VALUE(option(), pass胜利)) {
                     sender << "\n\n下一回合允许继续 pass，但不推荐，理由是下回合的 pass 不会记在个人的 pass 数上";
                 }
             } else if (ret == Result::CONTINUE_OK) {
@@ -301,7 +296,7 @@ class MainStage : public MainGameStage<>
                 abort();
             }
             if (GET_OPTION_VALUE(option(), pass上限) > 0 &&
-                    (!player_pos_[0].has_value() || !player_pos_[1].has_value())) {
+                    (player_pos_[0].empty() || player_pos_[1].empty())) {
                 sender << "\n\n本回合有玩家选择了 pass（当双方 pass 次数总和达到 "
                     << GET_OPTION_VALUE(option(), pass上限) << " 次时，将满足和棋条件）";
             }
@@ -315,7 +310,7 @@ class MainStage : public MainGameStage<>
                 is_over = false;
             }
         }
-        if (is_over && !winner_.has_value() && GET_OPTION_VALUE(option(), 模式) == false) {
+        if (is_over && !winner_.has_value() && GET_OPTION_VALUE(option(), pass胜利)) {
             if (pass_count_[0] > pass_count_[1]) {
                 sender << "，但由于黑方 pass 次数多于白方，故黑方取得胜利";
                 winner_ = 0;
@@ -326,8 +321,8 @@ class MainStage : public MainGameStage<>
                 sender << "，由于双方 pass 次数相同，游戏平局";
             }
         }
-        player_pos_[0].reset();
-        player_pos_[1].reset();
+        player_pos_[0].clear();
+        player_pos_[1].clear();
         return is_over;
     }
 
@@ -337,7 +332,7 @@ class MainStage : public MainGameStage<>
     uint32_t round_;
     uint32_t crash_count_;
     bool extended_;
-    std::array<std::optional<std::pair<uint32_t, uint32_t>>, 2> player_pos_;
+    std::array<std::vector<std::pair<uint32_t, uint32_t>>, 2> player_pos_;
     std::array<bool, 2> last_round_passed_;
     bool last_round_both_passed_;
     bool last_last_round_both_passed_;

@@ -112,6 +112,8 @@ GAME_TEST(2, crash_not_count_before_extend)
 {
     ASSERT_PUB_MSG(OK, 0, "碰撞上限 1");
     ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CONTINUE, 1, "pass");
     ASSERT_PRI_MSG(OK, 0, "F7");
     ASSERT_PRI_MSG(CONTINUE, 1, "F7");
     ASSERT_PRI_MSG(OK, 0, "pass");
@@ -174,6 +176,8 @@ GAME_TEST(2, full_board)
 {
     ASSERT_PUB_MSG(OK, 0, "碰撞上限 0");
     ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CONTINUE, 1, "pass");
     for (char a = 'F'; a <= 'J'; ++a) {
         for (char b = '5'; b <= '9'; ++b) {
             if (a == 'F' && b == '7') {
@@ -188,26 +192,6 @@ GAME_TEST(2, full_board)
     ASSERT_PRI_MSG(CHECKOUT, 1, "F7");
 }
 
-GAME_TEST(2, set_not_ready)
-{
-    ASSERT_TRUE(StartGame());
-    ASSERT_PRI_MSG(OK, 0, "F7 试下");
-    ASSERT_PRI_MSG(OK, 1, "F8 试下");
-    ASSERT_PRI_MSG(OK, 0, "F9 试下");
-    ASSERT_PRI_MSG(OK, 1, "落子");
-    ASSERT_PRI_MSG(CONTINUE, 0, "落子");
-    ASSERT_PRI_MSG(OK, 0, "F7");
-    ASSERT_PRI_MSG(FAILED, 0, "F9");
-}
-
-GAME_TEST(2, cannot_ready_directly)
-{
-    ASSERT_TRUE(StartGame());
-    ASSERT_PRI_MSG(OK, 0, "F7");
-    ASSERT_PRI_MSG(CONTINUE, 1, "F8");
-    ASSERT_PRI_MSG(FAILED, 0, "落子");
-}
-
 GAME_TEST(2, timeout_clear_both_ready)
 {
     ASSERT_TRUE(StartGame());
@@ -219,8 +203,10 @@ GAME_TEST(2, timeout_clear_both_ready)
 GAME_TEST(2, achieve_pass_limit)
 {
     ASSERT_PRI_MSG(OK, 0, "pass上限 1");
-    ASSERT_PRI_MSG(OK, 0, "模式 经典");
+    ASSERT_PRI_MSG(OK, 0, "pass胜利 关闭");
     ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "G7"); // an arbitray point to prevent first round pass
+    ASSERT_PRI_MSG(CONTINUE, 1, "G7"); // an arbitray point to prevent first round pass
     ASSERT_PRI_MSG(OK, 0, "pass");
     ASSERT_PRI_MSG(CHECKOUT, 1, "F7");
     ASSERT_SCORE(0, 0);
@@ -229,8 +215,10 @@ GAME_TEST(2, achieve_pass_limit)
 GAME_TEST(2, achieve_pass_limit_in_competitive_mode)
 {
     ASSERT_PRI_MSG(OK, 0, "pass上限 1");
-    ASSERT_PRI_MSG(OK, 0, "模式 竞技");
+    ASSERT_PRI_MSG(OK, 0, "pass胜利 开启");
     ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "G7"); // an arbitray point to prevent first round pass
+    ASSERT_PRI_MSG(CONTINUE, 1, "G7"); // an arbitray point to prevent first round pass
     ASSERT_PRI_MSG(OK, 0, "pass");
     ASSERT_PRI_MSG(CHECKOUT, 1, "F7");
     ASSERT_SCORE(1, 0);
@@ -239,8 +227,10 @@ GAME_TEST(2, achieve_pass_limit_in_competitive_mode)
 GAME_TEST(2, timeout_is_pass)
 {
     ASSERT_PRI_MSG(OK, 0, "pass上限 1");
-    ASSERT_PRI_MSG(OK, 0, "模式 竞技");
+    ASSERT_PRI_MSG(OK, 0, "pass胜利 开启");
     ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "G7"); // an arbitray point to prevent first round pass
+    ASSERT_PRI_MSG(CONTINUE, 1, "G7"); // an arbitray point to prevent first round pass
     ASSERT_PRI_MSG(OK, 1, "F7");
     ASSERT_TIMEOUT(CHECKOUT);
     ASSERT_SCORE(1, 0);
@@ -254,6 +244,76 @@ GAME_TEST(2, pass_after_pass_crash_not_count)
     ASSERT_PRI_MSG(CONTINUE, 1, "pass");
     ASSERT_PRI_MSG(OK, 0, "pass");
     ASSERT_PRI_MSG(CONTINUE, 1, "F7");
+}
+
+GAME_TEST(2, first_round_pass_not_count)
+{
+    ASSERT_PRI_MSG(OK, 0, "pass上限 1");
+    ASSERT_PRI_MSG(OK, 0, "pass胜利 开启");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "pass");
+    ASSERT_PRI_MSG(CONTINUE, 1, "F7");
+}
+
+GAME_TEST(2, multi_choise_crash)
+{
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "F7 F6");
+    ASSERT_PRI_MSG(CONTINUE, 1, "F7 F6");
+    ASSERT_PRI_MSG(FAILED, 0, "F6");
+    ASSERT_PRI_MSG(OK, 0, "F7");
+}
+
+GAME_TEST(2, multi_choise_one_two)
+{
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "F7 F6");
+    ASSERT_PRI_MSG(CONTINUE, 1, "F7");
+    ASSERT_PRI_MSG(FAILED, 0, "F6");
+    ASSERT_PRI_MSG(FAILED, 0, "F7");
+    ASSERT_PRI_MSG(OK, 0, "G6");
+    ASSERT_PRI_MSG(CONTINUE, 1, "G7");
+    ASSERT_PRI_MSG(OK, 0, "H6");
+    ASSERT_PRI_MSG(CONTINUE, 1, "H7");
+    ASSERT_PRI_MSG(OK, 0, "I6");
+    ASSERT_PRI_MSG(CONTINUE, 1, "I7");
+    ASSERT_PRI_MSG(OK, 0, "J6");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "J7");
+    ASSERT_SCORE(0, 0);
+}
+
+GAME_TEST(2, multi_choise_two_two)
+{
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "F8 F6");
+    ASSERT_PRI_MSG(CONTINUE, 1, "F8 F7");
+    ASSERT_PRI_MSG(FAILED, 0, "F6");
+    ASSERT_PRI_MSG(FAILED, 0, "F7");
+    ASSERT_PRI_MSG(OK, 0, "G6");
+    ASSERT_PRI_MSG(CONTINUE, 1, "G7");
+    ASSERT_PRI_MSG(OK, 0, "H6");
+    ASSERT_PRI_MSG(CONTINUE, 1, "H7");
+    ASSERT_PRI_MSG(OK, 0, "I6");
+    ASSERT_PRI_MSG(CONTINUE, 1, "I7");
+    ASSERT_PRI_MSG(OK, 0, "J6");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "J7");
+    ASSERT_SCORE(0, 0);
+}
+
+GAME_TEST(2, change_position_to_avoid_first_round_crash)
+{
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "G8");
+    ASSERT_PRI_MSG(CONTINUE, 1, "G8");
+    ASSERT_PRI_MSG(FAILED, 0, "G8");
+    ASSERT_PRI_MSG(FAILED, 0, "I6");
+}
+
+GAME_TEST(2, multi_choise_cannot_be_repeated)
+{
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(FAILED, 0, "G8 G8");
+    ASSERT_PRI_MSG(FAILED, 0, "G8 F8 G8");
 }
 
 } // namespace GAME_MODULE_NAME
