@@ -128,6 +128,9 @@ class MainStage : public MainGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
+        if (IsReady(pid)) {
+            return StageErrCode::OK;
+        }
         const auto chess_type = PlayerIDToChessType_(pid);
         const auto avaliable_placements = board_.PlacablePositions(chess_type);
         if (!avaliable_placements.empty()) {

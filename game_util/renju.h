@@ -122,15 +122,31 @@ class GoBoard
     std::array<std::array<std::shared_ptr<Piece>, k_size_>, k_size_> pieces_;
 };
 
+struct BoardOptions
+{
+    bool to_expand_board_ = false;
+    bool is_overline_win_ = false;
+};
+
 class Board
 {
   public:
     static constexpr const uint32_t k_size_ = 15;
+    static constexpr uint32_t k_max_expand_level_ = k_size_ / 2;
+    static constexpr uint32_t k_min_expand_level_ = 2;
+    static constexpr std::array<std::pair<uint32_t, uint32_t>, 5> k_start_points_ = {
+        std::pair<uint32_t, uint32_t>{3, 3},
+        std::pair<uint32_t, uint32_t>{k_size_ - 4, 3},
+        std::pair<uint32_t, uint32_t>{k_size_ - 4, k_size_ - 4},
+        std::pair<uint32_t, uint32_t>{3, k_size_ - 4},
+        std::pair<uint32_t, uint32_t>{k_size_ / 2, k_size_ / 2}
+    };
 
-    Board(const std::string& image_path)
+    Board(const std::string& image_path, const BoardOptions& options)
         : image_path_(image_path)
-        , expend_level_(2)
-        , empty_count_((expend_level_ * 2 + 1) * (expend_level_ * 2 + 1))
+        , options_(options)
+        , expand_level_(options.to_expand_board_ ? k_min_expand_level_ : k_max_expand_level_)
+        , empty_count_((expand_level_ * 2 + 1) * (expand_level_ * 2 + 1))
     {
         for (auto& row : areas_) {
             for (auto& area : row) {
@@ -149,14 +165,8 @@ class Board
             highlight_flag_[black_row][black_column] = true;
             return (empty_count_ -= 1) == 0 ? Result::TIE_FULL_BOARD : Result::CONTINUE_CRASH;
         }
-        const auto set_chess = [this](const uint32_t row, const uint32_t col, const AreaType type)
-            {
-                areas_[row][col] = type;
-                highlight_flag_[row][col] = true;
-                return HasRenju_(row, col);
-            };
-        const bool black_renju = set_chess(black_row, black_column, AreaType::BLACK);
-        const bool white_renju = set_chess(white_row, white_column, AreaType::WHITE);
+        const bool black_renju = SetChess_(black_row, black_column, AreaType::BLACK);
+        const bool white_renju = SetChess_(white_row, white_column, AreaType::WHITE);
         return (empty_count_ -= 2) == 0   ? Result::TIE_FULL_BOARD  :
                black_renju && white_renju ? Result::TIE_DOUBLE_WIN  :
                black_renju                ? Result::WIN_BLACK       :
@@ -189,10 +199,10 @@ class Board
 
     std::string ToHtml() const
     {
-        html::Table table(expend_level_ * 2 + 3, expend_level_ * 2 + 3);
+        html::Table table(expand_level_ * 2 + 3, expand_level_ * 2 + 3);
         table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
         const auto idx2c = [this](const uint32_t idx) { return idx == MinPos_() ? '0' : idx == MaxPos_() ? '2' : '1'; };
-        for (uint32_t i = 0; i < expend_level_ * 2 + 1; ++i) {
+        for (uint32_t i = 0; i < expand_level_ * 2 + 1; ++i) {
             const bool highlight_row = highlight_flag_[MinPos_() + i].any();
             const bool highlight_column =
                 std::ranges::any_of(highlight_flag_, [&](const auto& bitset) { return bitset.test(MinPos_() + i); });
@@ -208,7 +218,7 @@ class Board
             table.GetLastRow(i + 1).SetContent(column_index);
             table.Get(i + 1, 0).SetContent(row_index);
             table.GetLastColumn(i + 1).SetContent(row_index);
-            for (uint32_t j = 0; j < expend_level_ * 2 + 1; ++j) {
+            for (uint32_t j = 0; j < expand_level_ * 2 + 1; ++j) {
                 std::string image_name;
                 switch (areas_[MinPos_() + i][MinPos_() + j]) {
                 case AreaType::WHITE:
@@ -224,6 +234,10 @@ class Board
                     image_name = "b_";
                     image_name += idx2c(MinPos_() + i);
                     image_name += idx2c(MinPos_() + j);
+                    if (image_name == "b_11" &&
+                            std::ranges::find(k_start_points_, std::pair{MinPos_() + i, MinPos_() + j}) != std::end(k_start_points_)) {
+                        image_name = "s";
+                    }
                     break;
                 }
                 if (highlight_flag_[MinPos_() + i][MinPos_() + j]) {
@@ -270,7 +284,7 @@ class Board
             };
         extend_range(1);
         extend_range(-1);
-        if (renjus.size() >= 5) {
+        if (renjus.size() == 5 || (options_.is_overline_win_ && renjus.size() > 5)) {
             for (const auto& [m, n] : renjus) {
                 highlight_flag_[m].set(n);
             }
@@ -281,17 +295,17 @@ class Board
 
     bool TryExpand_()
     {
-        if (expend_level_ < k_size_ / 2 && EdgeHas_(AreaType::BLACK) && EdgeHas_(AreaType::WHITE)) {
-            ++expend_level_;
-            empty_count_ += expend_level_ * 2 * 4;
+        if (expand_level_ < k_size_ / 2 && EdgeHas_(AreaType::BLACK) && EdgeHas_(AreaType::WHITE)) {
+            ++expand_level_;
+            empty_count_ += expand_level_ * 2 * 4;
             return true;
         }
         return false;
     }
 
-    uint32_t MinPos_() const { return k_size_ / 2 - expend_level_; }
+    uint32_t MinPos_() const { return k_size_ / 2 - expand_level_; }
 
-    uint32_t MaxPos_() const { return k_size_ / 2 + expend_level_; }
+    uint32_t MaxPos_() const { return k_size_ / 2 + expand_level_; }
 
     bool EdgeHas_(const AreaType type) const
     {
@@ -305,9 +319,11 @@ class Board
     std::string Image_(std::string name) const { return "![](file://" + image_path_ + "/" + std::move(name) + ".bmp)"; }
 
     const std::string image_path_;
+    const BoardOptions options_;
+
     std::array<std::array<AreaType, k_size_>, k_size_> areas_;
     std::array<std::bitset<k_size_>, k_size_> highlight_flag_;
-    uint32_t expend_level_; // [ k_size_ / 2 - expend_level_, k_size_ / 2 + expend_level_] is available
+    uint32_t expand_level_; // [ k_size_ / 2 - expand_level_, k_size_ / 2 + expand_level_] is available
     uint32_t empty_count_;
 };
 

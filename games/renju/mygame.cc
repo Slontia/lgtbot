@@ -58,9 +58,8 @@ class MainStage : public MainGameStage<>
         : GameStage(option, match,
                 MakeStageCommand("查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
                 MakeStageCommand("跳过本次落子", &MainStage::Pass_, VoidChecker("pass")),
-                MakeStageCommand("尝试落子（若附带「落子」参数，则直接落子）", &MainStage::Set_,
-                    RepeatableChecker<AnyArg>("坐标")))
-        , board_(option.ResourceDir())
+                MakeStageCommand("落子", &MainStage::Set_, RepeatableChecker<AnyArg>("坐标")))
+        , board_(option.ResourceDir(), BoardOptions{.to_expand_board_ = true, .is_overline_win_ = true})
         , round_(0)
         , crash_count_(0)
         , extended_(false)
@@ -133,10 +132,10 @@ class MainStage : public MainGameStage<>
         }
         auto& player_pos = player_pos_[pid];
         for (const auto& str : pos_strs) {
-            const auto decode_res = DecodePos<Board::k_size_ - 1, Board::k_size_ - 1>(str);
+            const auto decode_res = DecodePos<Board::k_size_, Board::k_size_>(str);
             if (const auto* const errstr = std::get_if<std::string>(&decode_res)) {
                 player_pos.clear();
-                reply() << "[错误] " << *errstr;
+                reply() << "落子失败：" << *errstr;
                 return StageErrCode::FAILED;
             }
             const auto [x, y] = std::get<std::pair<uint32_t, uint32_t>>(decode_res);
