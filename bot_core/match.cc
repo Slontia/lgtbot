@@ -164,7 +164,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
 {
     std::lock_guard<std::mutex> l(mutex_);
     const auto it = users_.find(uid);
-    if (it == users_.end() && it->second.state_ == ParticipantUser::State::LEFT) {
+    if (it == users_.end() || it->second.state_ == ParticipantUser::State::LEFT) {
         reply() << "[错误] 您未处于游戏中或已经离开";
         return EC_MATCH_USER_NOT_IN_MATCH;
     }
@@ -728,7 +728,7 @@ void Match::Terminate_()
             match_manager().UnbindMatch(uid);
         }
     }
-    users_.clear();
+    //users_.clear();
     Unbind_();
 }
 

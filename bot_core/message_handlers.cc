@@ -366,7 +366,7 @@ static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::option
         const auto statistic = bot.db_manager()->GetAchievementStatistic(uid, gamename, achievement_name);
         const std::string color_header = statistic.count_ > 0 ? HTML_COLOR_FONT_HEADER(green) : HTML_COLOR_FONT_HEADER(black);
         table.AppendRow();
-        table.GetLastRow(0).SetContent(color_header + "<font size=\"5\"> **" + achievement_name + "**</font>\n\n达成人数：" +
+        table.GetLastRow(0).SetContent("<nobr>" + color_header + "<font size=\"5\"> **" + achievement_name + "**</font>\n\n达成人数：" +
                 std::to_string(statistic.achieved_user_num_) + HTML_FONT_TAIL);
         if (statistic.count_ > 0) {
             table.GetLastRow(1).SetContent(color_header + " 首次达成时间：**" + statistic.first_achieve_time_ + "**" HTML_FONT_TAIL);
