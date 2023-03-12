@@ -459,7 +459,7 @@ class Mahjong17Steps
         std::string s;
         for (const auto& info : player.ron_infos_) {
             std::vector<std::string> texts = {
-                "<font size=\"4\"> " HTML_COLOR_FONT_HEADER(blue) " **放铳者：" + option_.player_descs_[pid].small_avatar_ +
+                "<font size=\"4\"> " HTML_COLOR_FONT_HEADER(blue) " **放铳者：" + option_.player_descs_[info.loser_].small_avatar_ +
                     "&nbsp;&nbsp; " + option_.player_descs_[info.loser_].name_ + "** " HTML_FONT_TAIL " </font>"
             };
             if (info.counter_.score1 < option_.ron_required_point_) {

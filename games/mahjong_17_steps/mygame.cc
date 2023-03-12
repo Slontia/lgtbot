@@ -328,7 +328,7 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
                             {
                                 std::vector<PlayerDesc> descs;
                                 for (PlayerID pid = 0; pid < main_stage.option().PlayerNum(); ++pid) {
-                                    descs.emplace_back(PlayerName(pid), PlayerAvatar(pid, 60), PlayerAvatar(pid, 30),
+                                    descs.emplace_back(PlayerName(pid), PlayerAvatar(pid, 45), PlayerAvatar(pid, 30),
                                             k_winds[main_stage.players_[pid].wind_idx_],
                                             main_stage.players_[pid].score_);
                                 }
