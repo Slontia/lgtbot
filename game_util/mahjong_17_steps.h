@@ -21,12 +21,13 @@
 
 static auto operator<=>(const Tile& _1, const Tile& _2)
 {
-    return _1.tile == _2.tile ? _1.red_dora <=> _2.red_dora : _1.tile <=> _2.tile;
+    return _1.tile != _2.tile         ? _1.tile <=> _2.tile         :
+           _1.red_dora != _2.red_dora ? _1.red_dora <=> _2.red_dora : _1.toumei <=> _2.toumei;
 }
 
 static auto operator==(const Tile& _1, const Tile& _2)
 {
-    return _1.tile == _2.tile && _1.red_dora == _2.red_dora;
+    return _1.tile == _2.tile && _1.red_dora == _2.red_dora && _1.toumei == _2.toumei;
 }
 
 namespace lgtbot {
@@ -50,6 +51,7 @@ struct Mahjong17StepsOption
 {
     std::string name_;
     bool with_red_dora_ = false;
+    uint32_t with_toumei_ = 0;
     bool with_inner_dora_ = false;
     uint32_t dora_num_ = 0;
     uint32_t ron_required_point_ = 8000;
@@ -63,8 +65,10 @@ struct TileIdent
     operator Tile() const
     {
         return Tile{
-            .tile = static_cast<BaseTile>((digit_ == '0' ? 4 : digit_ - '1') + 9 * std::string("mspz").find_first_of(color_)),
-            .red_dora = (digit_ == '0')};
+            .tile = static_cast<BaseTile>((digit_ == '0' ? 4 : digit_ - '1') + 9 * (std::string("mspzMSPZ").find_first_of(color_) % 4)),
+            .red_dora = (digit_ == '0'),
+            .toumei = static_cast<bool>(std::isupper(color_)),
+        };
     }
 
     char digit_;
@@ -146,6 +150,7 @@ class Mahjong17Steps
         for (uint32_t i = 0; i < tiles.size(); ++i) {
             tiles[i].tile = static_cast<BaseTile>(i % k_yama_tile_num_);
             tiles[i].red_dora = false;
+            tiles[i].toumei = i < option_.with_toumei_ * k_yama_tile_num_;
         }
         if (option_.with_red_dora_) {
             tiles[4].red_dora = true;
@@ -238,7 +243,7 @@ class Mahjong17Steps
             errstr_ = "您已经切过牌了，切的是 " + player.kiri_->to_simple_string();
             return false;
         }
-        if (str.size() > 2) {
+        if (!(str.size() == 2 || (str.size() == 3 && str[0] == 't'))) {
             errstr_ = "您只能切一张牌";
             return false;
         }
@@ -285,7 +290,7 @@ class Mahjong17Steps
     std::string PrepareHtml(const uint64_t pid) const
     {
         const Player& player = players_[pid];
-        std::string s = TitleHtml_() + "\n\n" + PlayerNameHtml_(pid) + "\n\n" + DoraHtml_(false) + "\n\n" + HandHtml_(pid, true, TileStyle::HAND) + "\n\n";
+        std::string s = TitleHtml_() + "\n\n" + PlayerNameHtml_(pid) + "\n\n" + DoraHtml_(false) + "\n\n" + HandHtmlPrepare_(pid) + "\n\n";
         if (player.hand_.size() != k_hand_tile_num_) {
             // no nothing
         } else if (player.listen_tiles_.empty()) {
@@ -306,10 +311,10 @@ class Mahjong17Steps
             s += "<br />\n\n";
         }
         s += YamaHtml_(pid);
-        return s;
+        return s + StyleHtml_();
     }
 
-    enum class TileStyle { HAND = '0', FORWARD = '1', LEFT = '2' };
+    enum class TileStyle { HAND = '0', FORWARD = '1', LEFT = '2', SMALL_HAND = '3' };
 
     // Step state
     std::string KiriHtml(const uint64_t pid)
@@ -326,7 +331,7 @@ class Mahjong17Steps
                     HTML_FONT_TAIL "\n\n</font> </center>\n\n";
             }
         }
-        s += DoraHtml_(is_ron && !player.furutin_) + "\n\n" + HandHtml_(pid, false, TileStyle::HAND) + "\n\n";
+        s += DoraHtml_(is_ron && !player.furutin_) + "\n\n" + HandHtmlAll_(pid, TileStyle::HAND) + "\n\n";
         if (is_ron) {
             s += RonInfoHtml_(pid) + "\n\n<br />\n\n";
         } else if (player.furutin_) {
@@ -342,7 +347,7 @@ class Mahjong17Steps
             }
         }
 
-        return s;
+        return s + StyleHtml_();
     }
 
     // Step state
@@ -352,13 +357,18 @@ class Mahjong17Steps
         for (uint64_t pid = 0; pid < option_.player_descs_.size(); ++pid) {
             s += PlayerHtml_(pid) + "\n\n";
         }
-        return s;
+        return s + StyleHtml_();
     }
 
     // Any time
     const std::string& ErrorStr() const { return errstr_; }
 
   private:
+    static const char* StyleHtml_()
+    {
+        return "\n\n<style>html,body{background:#c3e4f5;}</style>\n\n";
+    }
+
     void PrepareForRoundOver_(const uint64_t pid)
     {
         Player& player = players_[pid];
@@ -421,9 +431,11 @@ class Mahjong17Steps
         if (!players_[pid].ron_infos_.empty() && !players_[pid].furutin_) {
             s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(blue) " **和&nbsp;&nbsp;了** "
                 HTML_FONT_TAIL "\n\n</font> </center>\n\n";
-            s += DoraHtml_(true) + "\n\n" + HandHtml_(pid, false, TileStyle::FORWARD) + "\n\n" + RonInfoHtml_(pid) + "\n\n<br />\n\n";
+            s += DoraHtml_(true) + "\n\n" + HandHtmlAll_(pid, TileStyle::FORWARD) + "\n\n" + RonInfoHtml_(pid) + "\n\n<br />\n\n";
         } else if (is_flow_) {
-            s += HandHtml_(pid, false, TileStyle::FORWARD) + "\n\n<br />\n\n";
+            s += HandHtmlAll_(pid, TileStyle::FORWARD) + "\n\n<br />\n\n";
+        } else {
+            s += HandHtmlBack_(pid) + "\n\n<br />\n\n";
         }
         s += RiverHtml_(pid);
         return s;
@@ -437,12 +449,15 @@ class Mahjong17Steps
 
     std::string RiverHtml_(const uint64_t pid) const
     {
+        const auto& river = players_[pid].river_;
+        if (river.empty()) {
+            return "";
+        }
         html::Table table(1, 1);
         table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
         table.SetRowStyle(" align=\"left\" ");
-        const auto& river = players_[pid].river_;
         std::string s;
-        s += 0 < river.size() ? Image_(river[0], TileStyle::LEFT) : NonImage_(TileStyle::FORWARD);
+        s += Image_(river[0], TileStyle::LEFT);
         for (uint32_t i = 1; i < river.size(); ++i) {
             s += Image_(river[i], TileStyle::FORWARD);
             if (i == 5 || i == 11) {
@@ -510,25 +525,55 @@ class Mahjong17Steps
         return final_str;
     }
 
-    std::string HandHtml_(const uint64_t pid, const bool with_tile_str, const TileStyle style) const
+    std::string HandHtmlPrepare_(const uint64_t pid) const
     {
         const Player& player = players_[pid];
-        std::string str;
-        if (with_tile_str) {
-            str += "<center>手牌 (" + std::to_string(player.hand_.size()) + " / 13)</center>\n\n";
-        }
+        std::string str = "<center>手牌 (" + std::to_string(player.hand_.size()) + " / 13)</center>\n\n";
         html::Table table(2, k_hand_tile_num_);
         table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
         uint32_t i = 0;
         for (const auto& tile : player.hand_) {
-            if (with_tile_str) {
-                table.Get(0, i).SetContent(tile.to_simple_string());
-            }
-            table.Get(1, i).SetContent(Image_(tile, style));
+            table.Get(0, i).SetContent(tile.to_simple_string());
+            table.Get(1, i).SetContent(Image_(tile, TileStyle::HAND));
             ++i;
         }
         for (; i < k_hand_tile_num_; ++i) {
-            table.Get(1, i).SetContent(NonImage_(style));
+            table.Get(1, i).SetContent("<p style=\"width:36px; height:60px;\">" HTML_SIZE_FONT_HEADER(6) "?" HTML_FONT_TAIL "</p>");
+        }
+        str += table.ToString();
+        return str;
+    }
+
+    std::string HandHtmlAll_(const uint64_t pid, const TileStyle style) const
+    {
+        const Player& player = players_[pid];
+        std::string str;
+        html::Table table(1, k_hand_tile_num_);
+        table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
+        uint32_t i = 0;
+        for (const auto& tile : player.hand_) {
+            table.Get(0, i).SetContent(Image_(tile, style));
+            ++i;
+        }
+        str += table.ToString();
+        return str;
+    }
+
+    std::string HandHtmlBack_(const uint64_t pid) const
+    {
+        const Player& player = players_[pid];
+        std::string str;
+        html::Table table(1, k_hand_tile_num_);
+        table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
+        uint32_t i = 0;
+        for (const auto& tile : player.hand_) {
+            if (tile.toumei) {
+                table.Get(0, i).SetContent(Image_(tile, TileStyle::SMALL_HAND));
+                ++i;
+            }
+        }
+        for (; i < k_hand_tile_num_; ++i) {
+            table.Get(0, i).SetContent(BackImage_(TileStyle::SMALL_HAND));
         }
         str += table.ToString();
         return str;
@@ -684,24 +729,43 @@ class Mahjong17Steps
     TileSet GetTilesFrom_(TileSet& src, const std::string_view str)
     {
         TileSet tiles;
+        const auto insert = [&](const TileSet::iterator it)
+            {
+                tiles.emplace(*it);
+                src.erase(it);
+            };
+        const auto rollback = [&](const std::string& tile_str)
+            {
+                errstr_ = "没有足够的 \"";
+                errstr_ += tile_str;
+                errstr_ += "\" 可以取出";
+                src.insert(tiles.begin(), tiles.end());
+            };
         const auto decoded_str = DecodeTilesString_(str, errstr_);
         assert(decoded_str.size() % 2 == 0);
         for (uint32_t i = 0; i < decoded_str.size(); i += 2) {
             const auto it = src.find(TileIdent(decoded_str[i], decoded_str[i + 1]));
-            if (it == src.end()) {
-                errstr_ = "没有足够的 \"";
-                errstr_ += decoded_str[i];
-                errstr_ += decoded_str[i + 1];
-                errstr_ += "\" 可以取出";
-                src.insert(tiles.begin(), tiles.end()); // rollback
+            if (it != src.end()) {
+                insert(it);
+                continue;
+            }
+            if (std::isupper(decoded_str[i + 1])) {
+                rollback({'t', decoded_str[i], static_cast<char>(std::tolower(decoded_str[i + 1]))});
                 return {};
             }
-            tiles.emplace(*it);
-            src.erase(it);
+            const auto it_toumei = src.find(TileIdent(decoded_str[i], std::toupper(decoded_str[i + 1])));
+            if (it_toumei != src.end()) {
+                insert(it_toumei);
+                continue;
+            }
+            rollback({decoded_str[i], decoded_str[i + 1]});
+            return {};
         }
         return tiles;
     }
 
+    // input: 1t3st45m
+    // output: 1s3S4M5m
     static std::string DecodeTilesString_(const std::string_view str, std::string& errstr)
     {
         std::string output;
@@ -711,8 +775,21 @@ class Mahjong17Steps
             return {};
         }
         bool has_number_tile_num = false; // 0,8,9 can only appear in m,s,p
+        bool read_toumei = false;
         for (const char c : str) {
+            if (read_toumei && !std::isdigit(c)) {
+                errstr = "\'t\' 后面需要跟数字";
+                return {};
+            }
+            if (c == 't') {
+                read_toumei = true;
+                continue;
+            }
             if (std::isdigit(c)) {
+                if (read_toumei) {
+                    digits += 't';
+                    read_toumei = false;
+                }
                 digits += c;
                 has_number_tile_num |= (c == '0' || c == '8' || c == '9');
                 continue;
@@ -734,8 +811,13 @@ class Mahjong17Steps
                 return {};
             }
             for (const char digit_c : digits) {
-                output += digit_c;
-                output += c;
+                if (digit_c == 't') {
+                    read_toumei = true;
+                } else {
+                    output += digit_c;
+                    output += read_toumei ? (c - 'a' + 'A') : c;
+                    read_toumei = false;
+                }
             }
             digits.clear();
             has_number_tile_num = false;
@@ -757,22 +839,6 @@ class Mahjong17Steps
     {
         return "![](file://" + option_.image_path_ + "/" + static_cast<char>(style) + "_back.png)";
     }
-    std::string NonImage_(const TileStyle style) const
-    {
-        return "![](file://" + option_.image_path_ + "/" + static_cast<char>(style) + "_non.png)";
-    }
-    std::string BigNonImage_() const { return "![](file://" + option_.image_path_ + "/non.gif)"; }
-    std::string SmallNonImage_() const { return "![](file://" + option_.image_path_ + "/non.png)"; }
-    /*
-    std::string ImageHtml_(const Tile& tile) const
-    {
-        return "<p><img src=\"file://" + option_.image_path_ + "/" + tile.to_simple_string() + ".gif\" style=\"vertical-align:middle;\" alt=\"\"></p>";
-    }
-    std::string NonImageHtml_() const
-    {
-        return "<p><img src=\"file://" + option_.image_path_ + "/non.gif\" alt=\"\"></p>";
-    }
-    */
 
     const Mahjong17StepsOption option_;
     uint32_t round_;

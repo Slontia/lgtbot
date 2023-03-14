@@ -31,6 +31,7 @@ std::string GameOption::StatusInfo() const
     return "配牌时限 " + std::to_string(GET_VALUE(配牌时限)) + " 秒，切牌时限 " + std::to_string(GET_VALUE(切牌时限)) +
         " 秒，和牌牌型最少需要 " + std::to_string(GET_VALUE(起和点)) + " 点，场上有 " + std::to_string(GET_VALUE(宝牌)) +
         " 枚宝牌，" + (GET_VALUE(赤宝牌) ? "有" : "无") + "赤宝牌，" + (GET_VALUE(里宝牌) ? "有" : "无") + "里宝牌，" +
+        "每种牌有 " + std::to_string(GET_VALUE(透明牌)) + " 张透明牌，" +
         (GET_VALUE(种子).empty() ? "无种子" : "种子：" + GET_VALUE(种子));
 }
 
@@ -221,6 +222,7 @@ class KiriStage : public SubGameStage<>
     virtual void OnStageBegin() override
     {
         StartTimer(GET_OPTION_VALUE(option(), 切牌时限));
+        SendInfo_();
         Boardcast() << "请从牌山中选择一张切出去，时限 " << GET_OPTION_VALUE(option(), 切牌时限) << " 秒";
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             Tell(pid) << "请从牌山中选择一张切出去，时限 " << GET_OPTION_VALUE(option(), 切牌时限) << " 秒";
@@ -319,6 +321,7 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
         , game_table_(Mahjong17Steps(Mahjong17StepsOption{
                     .name_ = stage_name,
                     .with_red_dora_ = GET_OPTION_VALUE(main_stage.option(), 赤宝牌),
+                    .with_toumei_ = GET_OPTION_VALUE(main_stage.option(), 透明牌),
                     .with_inner_dora_ = GET_OPTION_VALUE(main_stage.option(), 里宝牌),
                     .dora_num_ = GET_OPTION_VALUE(main_stage.option(), 宝牌),
                     .ron_required_point_ = GET_OPTION_VALUE(main_stage.option(), 起和点),

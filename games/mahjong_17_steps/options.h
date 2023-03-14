@@ -2,6 +2,7 @@ EXTEND_OPTION("配牌超时时间，超时后会自动从牌山靠前位置补�
 EXTEND_OPTION("切牌超时时间，超时后会自动切出牌山中第一张牌", 切牌时限, (ArithChecker<uint32_t>(10, 300, "时间（秒）")), 120)
 EXTEND_OPTION("和牌点数要求", 起和点, (ArithChecker<uint32_t>(0, 32000, "点数")), 7700)
 EXTEND_OPTION("宝牌数量（四人游戏不允许有宝牌，请设置为 0）", 宝牌, (ArithChecker<uint32_t>(0, 5, "数量")), 1)
+EXTEND_OPTION("透明牌数量", 透明牌, (ArithChecker<uint32_t>(0, 3, "每种数量")), 2)
 EXTEND_OPTION("是否包含赤宝牌", 赤宝牌, (BoolChecker("开启", "关闭")), false)
 EXTEND_OPTION("是否翻开里宝牌", 里宝牌, (BoolChecker("开启", "关闭")), false)
 EXTEND_OPTION("随机种子", 种子, (AnyArg("种子", "我是随便输入的一个字符串")), "")
