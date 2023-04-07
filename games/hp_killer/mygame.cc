@@ -1222,10 +1222,10 @@ class MainStage : public MainGameStage<>
         }
         switch (option.PlayerNum()) {
         case 5: return make_roles(std::initializer_list<std::initializer_list<Occupation>>{
-                    {Occupation::杀手, Occupation::替身, Occupation::侦探, Occupation::圣女, Occupation::平民}
+                    {Occupation::杀手, Occupation::双子（邪）, Occupation::双子（正）, Occupation::平民, Occupation::平民}
                 });
         case 6: return make_roles(std::initializer_list<std::initializer_list<Occupation>>{
-                    {Occupation::杀手, Occupation::替身, Occupation::侦探, Occupation::圣女, Occupation::平民, Occupation::平民}
+                    {Occupation::杀手, Occupation::刺客, Occupation::双子（邪）, Occupation::双子（正）, Occupation::侦探, Occupation::圣女}
                 });
         case 7: return make_roles(std::initializer_list<std::initializer_list<Occupation>>{
                     {Occupation::杀手, Occupation::替身, Occupation::侦探, Occupation::圣女, Occupation::平民, Occupation::平民, Occupation::内奸}
