@@ -792,6 +792,38 @@ TEST_F(TestMahjong17Steps, get_listen_info_has_four_same_tile)
     }
 }
 
+TEST_F(TestMahjong17Steps, check_bug_of_incorrect_fu_20230325)
+{
+    table_.players_[0].hand_ = {
+        Tile{BaseTile::_6m, 0},
+        Tile{BaseTile::_7m, 0},
+        Tile{BaseTile::_8m, 0},
+        Tile{BaseTile::_4p, 0},
+        Tile{BaseTile::_6p, 0},
+        Tile{BaseTile::east, 0},
+        Tile{BaseTile::east, 0},
+        Tile{BaseTile::发, 0},
+        Tile{BaseTile::发, 0},
+        Tile{BaseTile::发, 0},
+        Tile{BaseTile::中, 0},
+        Tile{BaseTile::中, 0},
+        Tile{BaseTile::中, 0},
+    };
+    auto info = table_.GetListenInfo_(0);
+    EXPECT_EQ(1, info.size());
+    {
+        const auto it = info.find(BaseTile::_5p);
+        EXPECT_NE(it, info.end());
+        EXPECT_EQ(3, it->second.yakus.size());
+        EXPECT_EQ(1, std::count_if(it->second.yakus.begin(), it->second.yakus.end(), [](const Yaku yaku) { return yaku == Yaku::立直; }));
+        EXPECT_EQ(1, std::count_if(it->second.yakus.begin(), it->second.yakus.end(), [](const Yaku yaku) { return yaku == Yaku::役牌_发; }));
+        EXPECT_EQ(1, std::count_if(it->second.yakus.begin(), it->second.yakus.end(), [](const Yaku yaku) { return yaku == Yaku::役牌_中; }));
+        EXPECT_EQ(60, it->second.fu);
+        EXPECT_EQ(3, it->second.fan);
+        EXPECT_EQ(7700, it->second.score1);
+    }
+}
+
 class TestMahjong17StepsPlayer2 : public testing::Test
 {
   public:
