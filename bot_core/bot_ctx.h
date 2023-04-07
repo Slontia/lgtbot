@@ -13,6 +13,8 @@
 #include "bot_core/id.h"
 #include "bot_core/db_manager.h"
 #include "bot_core/options.h"
+#include "utility/lock_wrapper.h"
+#include "nlohmann/json.hpp"
 
 #include <dirent.h>
 
@@ -41,15 +43,21 @@ class BotCtx
     const UserID this_uid() const { return this_uid_; }
 
     auto& option() { return mutable_bot_options_; }
-    const auto& options() const { return mutable_bot_options_; }
+    const auto& option() const { return mutable_bot_options_; }
+
+    bool UpdateBotConfig(const std::string& option_name, const std::vector<std::string>& option_args);
+    bool UpdateGameConfig(const std::string& game_name, const std::string& option_name,
+            const std::vector<std::string>& option_args);
+    bool UpdateGameMultiple(const std::string& game_name, const uint32_t multiple);
 
   private:
     void LoadGameModules_(const char* const games_path);
     void LoadAdmins_(const std::string_view& admins);
-    void HandleConfig_(const std::filesystem::path::value_type* const conf_path);
+    bool LoadConfig_();
 
     const UserID this_uid_;
     const std::string game_path_;
+    const std::filesystem::path::value_type* conf_path_;
     std::mutex mutex_;
     GameHandleMap game_handles_;
     std::set<UserID> admins_;
@@ -57,5 +65,6 @@ class BotCtx
 #ifdef WITH_SQLITE
     std::unique_ptr<DBManagerBase> db_manager_;
 #endif
-    MutableBotOption mutable_bot_options_;
+    LockWrapper<MutableBotOption> mutable_bot_options_;
+    LockWrapper<nlohmann::json> config_json_;
 };

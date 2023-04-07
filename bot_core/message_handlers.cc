@@ -192,7 +192,7 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
         } else {
             sender << "现在玩家可以通过私信我「#加入 " << match->MatchId() << "」报名比赛，您也可以通过「帮助」（不带#号）查看所有支持的游戏设置";
         }
-        sender << match->BriefInfo();
+        sender << "\n\n" << match->BriefInfo();
     }
     return EC_OK;
 }
@@ -383,6 +383,23 @@ static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::option
     return EC_OK;
 }
 
+static ErrCode show_game_options(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+        const std::string& gamename, const bool text_mode)
+{
+    const auto it = bot.game_handles().find(gamename);
+    if (it == bot.game_handles().end()) {
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        return EC_REQUEST_UNKNOWN_GAME;
+    };
+    const std::string outstr = std::string("### 全局配置选项") + it->second->game_options_.Lock().Get()->Info();
+    if (text_mode) {
+        reply() << outstr;
+    } else {
+        reply() << Markdown(outstr);
+    }
+    return EC_OK;
+}
+
 static ErrCode about(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
     reply() << "LGTBot 内测版本 Beta-v0.1.0"
@@ -476,11 +493,13 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
             table.GetLastRow(3).SetContent(colored_text(total_level_score_ / 100, std::to_string(info.total_level_score_)));
             table.GetLastRow(4).SetContent(colored_text(total_level_score_ / 100, std::to_string(std::sqrt(info.count_) * info.total_level_score_)));
             table.GetLastRow(5).SetContent(colored_text(total_level_score_ / 100,
-                        total_level_score_ <= -300 ? "E" :
-                        total_level_score_ <= -100 ? "D" :
-                        total_level_score_ < 100   ? "C" :
-                        total_level_score_ < 300   ? "B" :
-                        total_level_score_ < 500   ? "A" : "S"));
+                        total_level_score_ <= -300 ? "E"  :
+                        total_level_score_ <= -100 ? "D"  :
+                        total_level_score_ < 100   ? "C"  :
+                        total_level_score_ < 300   ? "B"  :
+                        total_level_score_ < 500   ? "A"  :
+                        total_level_score_ < 700   ? "S"  :
+                        total_level_score_ < 1000  ? "SS" : "SSS"));
         }
         for (size_t i = 0; i < k_level_score_table_num; ++i) {
             level_score_table_outside.Get(0, i).SetContent(level_score_table[i].ToString());
@@ -769,6 +788,8 @@ const std::vector<MetaCommandGroup> meta_cmds = {
                         AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("查看游戏成就（游戏名称可以通过「#游戏列表」查看）", show_achievement, VoidChecker("#成就"),
                         AnyArg("游戏名称", "猜拳游戏")),
+            make_command("查看游戏配置信息（游戏名称可以通过「#游戏列表」查看）", show_game_options, VoidChecker("#配置"),
+                        AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("查看已加入，或该房间正在进行的比赛信息", show_match_info, VoidChecker("#游戏信息")),
             make_command("查看当前所有未开始的私密比赛", show_private_matches, VoidChecker("#私密游戏列表")),
             make_command("关于机器人", about, VoidChecker("#关于")),
@@ -842,6 +863,7 @@ static ErrCode set_game_default_multiple(BotCtx& bot, const UserID uid, const st
     };
     it->second->multiple_ = multiple;
     reply() << "设置成功，游戏默认倍率为 " << multiple;
+    bot.UpdateGameMultiple(gamename, multiple);
     return EC_OK;
 }
 
@@ -867,30 +889,48 @@ static ErrCode clear_others_profile(BotCtx& bot, const UserID uid, const std::op
     return EC_OK;
 }
 
-static ErrCode set_option(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const std::vector<std::string>& option_args)
+static ErrCode set_bot_option(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+        MsgSenderBase& reply, const std::string& option_name, const std::vector<std::string>& option_args)
 {
-    if (option_args.empty()) {
-        reply() << "[错误] 配置参数为空";
-        return EC_INVALID_ARGUMENT;
-    }
     MsgReader reader(option_args);
-    if (!bot.option().SetOption(reader)) {
+    auto locked_option = bot.option().Lock(); // lock until updated config to prevent write skew
+    if (!locked_option.Get().SetOption(option_name, reader)) {
         reply() << "[错误] 设置配置项失败，请检查配置项是否存在";
         return EC_INVALID_ARGUMENT;
     }
     reply() << "设置成功";
+    bot.UpdateBotConfig(option_name, option_args);
     return EC_OK;
 }
 
-static ErrCode read_all_options(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+static ErrCode set_game_option(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+        MsgSenderBase& reply, const std::string& game_name, const std::string& option_name,
+        const std::vector<std::string>& option_args)
+{
+    const auto game_handle_it = bot.game_handles().find(game_name);
+    if (game_handle_it == bot.game_handles().end()) {
+        reply() << "[错误] 设置失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        return EC_REQUEST_UNKNOWN_GAME;
+    }
+    MsgReader reader(option_args);
+    std::string option_str = option_name;
+    for (const auto& option_arg : option_args) {
+        option_str += " " + option_arg;
+    }
+    auto locked_option = game_handle_it->second->game_options_.Lock(); // lock until updated config to prevent write skew
+    if (!locked_option.Get()->SetOption(option_str.c_str())) {
+        reply() << "[错误] 设置配置项失败，请检查配置项是否存在";
+        return EC_INVALID_ARGUMENT;
+    }
+    reply() << "设置成功";
+    bot.UpdateGameConfig(game_name, option_name, option_args);
+    return EC_OK;
+}
+
+static ErrCode show_bot_options(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
         MsgSenderBase& reply, const bool text_mode)
 {
-    std::string outstr = "### 全局配置选项";
-    const auto option_size = bot.option().Count();
-    for (uint64_t i = 0; i < option_size; ++i) {
-        outstr += "\n" + std::to_string(i) + ". " + (text_mode ? bot.option().Info(i) : bot.option().ColoredInfo(i));
-    }
+    const std::string outstr = "### 全局配置选项" + bot.option().Lock().Get().Info();
     if (text_mode) {
         reply() << outstr;
     } else {
@@ -934,22 +974,29 @@ const std::vector<MetaCommandGroup> admin_cmds = {
         "信息查看", {
             make_command("查看帮助", help<true>, VoidChecker("%帮助"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
+            make_command("查看他人战绩", show_others_profile, VoidChecker("%战绩"), AnyArg("用户 ID", "123456789"),
+                        OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::总)),
         }
     },
     {
         "管理操作", {
             make_command("强制中断比赛", interrupt_game, VoidChecker("%中断"),
                         OptionalChecker<BasicChecker<MatchID>>("私密比赛编号")),
-            make_command("设置游戏默认属性", set_game_default_multiple, VoidChecker("%默认倍率"),
-                        AnyArg("游戏名称", "猜拳游戏"), ArithChecker<uint32_t>(0, 3, "倍率")),
-            make_command("查看他人战绩", show_others_profile, VoidChecker("%战绩"), AnyArg("用户 ID", "123456789"),
-                        OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::总)),
             make_command("清除他人战绩，并通知其具体理由", clear_others_profile, VoidChecker("%清除战绩"),
                         AnyArg("用户 ID", "123456789"), AnyArg("理由", "恶意刷分")),
-            make_command("查看所有支持的配置项", read_all_options, VoidChecker("%配置列表"),
+        }
+    },
+    {
+        "配置操作", {
+            make_command("设置游戏默认倍率", set_game_default_multiple, VoidChecker("%倍率"),
+                        AnyArg("游戏名称", "猜拳游戏"), ArithChecker<uint32_t>(0, 3, "倍率")),
+            make_command("查看所有支持的配置项", show_bot_options, VoidChecker("%全局配置"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
-            make_command("设置配置项（可通过「%配置列表」查看所有支持的配置）", set_option, VoidChecker("%配置"),
-                        RepeatableChecker<AnyArg>("配置参数", "配置参数")),
+            make_command("设置配置项（可通过「%配置列表」查看所有支持的配置）", set_bot_option, VoidChecker("%全局配置"),
+                        AnyArg("配置名称", "某配置"), RepeatableChecker<AnyArg>("配置参数", "参数")),
+            make_command("设置配置项（可通过「%配置列表」查看所有支持的配置）", set_game_option, VoidChecker("%配置"),
+                        AnyArg("游戏名称", "猜拳游戏"), AnyArg("配置名称", "某配置"),
+                        RepeatableChecker<AnyArg>("配置参数", "参数")),
         }
     },
     {

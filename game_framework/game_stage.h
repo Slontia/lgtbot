@@ -19,6 +19,8 @@
 #include "game_framework/game_options.h"
 #include "game_framework/game_achievements.h"
 
+#include "nlohmann/json.hpp"
+
 #ifndef GAME_MODULE_NAME
 #error GAME_MODULE_NAME is not defined
 #endif
@@ -165,9 +167,10 @@ class SubStageCheckoutHelper
 struct GlobalInfo
 {
     GlobalInfo(const uint64_t match_id, const char* const game_name, const size_t player_num)
-        : masker_(match_id, game_name, player_num), is_in_deduction_(false) {}
+        : masker_(match_id, game_name, player_num), is_in_deduction_(false), bot_info_id_(0) {}
     Masker masker_;
     bool is_in_deduction_;
+    int32_t bot_info_id_;
 };
 
 template <bool IS_ATOM>
@@ -222,6 +225,15 @@ class StageBaseWrapper : virtual public StageBase
     std::string PlayerName(const PlayerID pid) const { return match_.PlayerName(pid); }
 
     std::string PlayerAvatar(const PlayerID pid, const int32_t size) const { return match_.PlayerAvatar(pid, size); }
+
+    void BoardcastRobot(nlohmann::json j)
+    {
+        Boardcast() << nlohmann::json{
+                { "match_id", match().MatchId() },
+                { "info_id", global_info().bot_info_id_++ },
+                { "info", std::move(j) },
+            }.dump();
+    }
 
     void Eliminate(const PlayerID pid) const
     {

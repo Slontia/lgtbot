@@ -24,6 +24,7 @@ DEFINE_string(history_filename, ".simulator_history.txt", "The file saving histo
 DEFINE_bool(color, true, "Enable color");
 DEFINE_string(bot_uid, "this_bot", "The UserID of bot");
 DEFINE_string(admin_uid, "admin", "The UserID of administor");
+DEFINE_string(conf_file, "", "The path of the configuration file");
 
 #ifdef WITH_SQLITE
 DEFINE_string(db_path, "simulator.db", "Name of database");
@@ -185,6 +186,7 @@ int main(int argc, char** argv)
 #ifdef WITH_SQLITE
         .db_path_ = db_path.c_str(),
 #endif
+        .conf_path_ = FLAGS_conf_file.empty() ? nullptr : FLAGS_conf_file.c_str(),
     };
     auto bot = BOT_API::Init(&option);
 

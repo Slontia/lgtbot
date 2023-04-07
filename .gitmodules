@@ -13,3 +13,6 @@
 [submodule "third_party/tiny_expr"]
 	path = third_party/tiny_expr
 	url = git@github.com:codeplea/tinyexpr
+[submodule "third_party/json"]
+	path = third_party/json
+	url = git@github.com:nlohmann/json

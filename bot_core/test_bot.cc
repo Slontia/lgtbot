@@ -1448,7 +1448,7 @@ TEST_F(TestBot, eliminate_leave_need_not_force)
 TEST_F(TestBot, record_score)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 1");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%倍率 测试游戏 1");
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
   ASSERT_PRI_MSG(EC_OK, "1", "#开始");
@@ -1462,7 +1462,7 @@ TEST_F(TestBot, record_score)
 TEST_F(TestBot, not_released_game_not_record)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 0");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%倍率 测试游戏 0");
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
   ASSERT_PRI_MSG(EC_OK, "1", "#开始");
@@ -1476,7 +1476,7 @@ TEST_F(TestBot, not_released_game_not_record)
 TEST_F(TestBot, one_player_game_not_record)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 1");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%倍率 测试游戏 1");
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, "1", "#替补至 2");
   ASSERT_PRI_MSG(EC_OK, "1", "#开始");
@@ -1488,7 +1488,7 @@ TEST_F(TestBot, one_player_game_not_record)
 TEST_F(TestBot, all_player_leave_not_record)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 1");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%倍率 测试游戏 1");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#开始");
@@ -1522,7 +1522,7 @@ TEST_F(TestBot, score_not_enough_cannot_join_multiple_greater)
 TEST_F(TestBot, score_not_enough_can_set_multiple_less_or_equal)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 2");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%倍率 测试游戏 2");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#倍率 1");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#倍率 2");
@@ -1531,7 +1531,7 @@ TEST_F(TestBot, score_not_enough_can_set_multiple_less_or_equal)
 TEST_F(TestBot, set_multiple_effects_zero_sum_score)
 {
   AddGame("测试游戏", 2);
-  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%默认倍率 测试游戏 2");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%倍率 测试游戏 2");
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
   ASSERT_PRI_MSG(EC_OK, "1", "#开始");

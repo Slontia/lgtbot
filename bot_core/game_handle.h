@@ -13,13 +13,14 @@
 #include <filesystem>
 
 #include "image.h"
+#include "game_framework/game_main.h"
+#include "utility/lock_wrapper.h"
 
 namespace lgtbot {
 
 namespace game {
 
 class MainStageBase;
-class GameOptionBase;
 
 } // namespace lgtbot
 
@@ -65,6 +66,7 @@ struct GameHandle
         , main_stage_allocator_(std::move(main_stage_allocator_fn))
         , main_stage_deleter_(std::move(main_stage_deleter_fn))
         , mod_guard_(std::move(mod_guard))
+        , game_options_(game_options_allocator_(), game_options_deleter_)
         , activity_(0)
     {}
 
@@ -72,7 +74,7 @@ struct GameHandle
 
     game_options_ptr make_game_options() const
     {
-        return game_options_ptr(game_options_allocator_(), game_options_deleter_);
+        return game_options_ptr(game_options_.Lock().Get()->Copy(), game_options_deleter_);
     }
 
     main_stage_ptr make_main_stage(MsgSenderBase& reply, const lgtbot::game::GameOptionBase& game_options, MatchBase& match) const
@@ -93,6 +95,7 @@ struct GameHandle
     const main_stage_allocator main_stage_allocator_;
     const main_stage_deleter main_stage_deleter_;
     const ModGuard mod_guard_;
+    const LockWrapper<game_options_ptr> game_options_;
     std::atomic<uint64_t> activity_;
 };
 

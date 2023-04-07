@@ -90,9 +90,12 @@ class GameOptionBase
     virtual bool ToValid(MsgSenderBase& reply) = 0;
     virtual uint64_t BestPlayerNum() const = 0;
 
-    virtual const char* Info(const uint64_t index) const = 0;
-    virtual const char* ColoredInfo(const uint64_t index) const = 0;
+    virtual const char* Info() const = 0;
+    virtual const char* ColoredInfo() const = 0;
     virtual const char* Status() const = 0;
+
+    virtual GameOptionBase* Copy() const = 0;
+    virtual const char* const* Content() const = 0;
 
     GlobalGameOption global_options_;
 

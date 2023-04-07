@@ -23,6 +23,8 @@ option(WITH_IMAGE "allow bot print image" TRUE)
 option(WITH_GLOG "build with glog" TRUE)
 option(WITH_SQLITE "build with sqlite" TRUE)
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/include)
+
 if (WITH_IMAGE)
   add_subdirectory(third_party/markdown2image)
 endif()

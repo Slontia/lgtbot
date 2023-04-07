@@ -14,7 +14,7 @@ namespace game_util {
 
 namespace othello {
 
-enum class ChessType { BLACK, WHITE, CRASH, NONE };
+enum class ChessType { BLACK = 0, WHITE = 1, CRASH = 2, NONE = 3 };
 
 enum class VariationType { PLACE, REVERSE, NONE };
 
@@ -118,10 +118,10 @@ class Board
         html::Table table(k_size_ + 2, k_size_ + 2);
         table.SetTableStyle(" align=\"center\" cellpadding=\"2\" cellspacing=\"0\"");
         for (int32_t i = 0; i < k_size_; ++i) {
-            table.Get(0, i + 1).SetContent(std::to_string(i));
-            table.Get(k_size_ + 1, i + 1).SetContent(std::to_string(i));
-            table.Get(i + 1, 0).SetContent(std::string(1, 'A' + i));
-            table.Get(i + 1, k_size_ + 1).SetContent(std::string(1, 'A' + i));
+            table.Get(0, i + 1).SetContent(std::string(1, 'A' + i));
+            table.Get(k_size_ + 1, i + 1).SetContent(std::string(1, 'A' + i));
+            table.Get(i + 1, 0).SetContent(std::to_string(i));
+            table.Get(i + 1, k_size_ + 1).SetContent(std::to_string(i));
         }
         for (int32_t row = 0; row < k_size_; ++row) {
             for (int32_t col = 0; col < k_size_; ++col) {
@@ -129,6 +129,18 @@ class Board
             }
         }
         return "<style>html,body{color:#8fd59c; background:#217844;}</style>\n" + table.ToString();
+    }
+
+    std::string ToString() const
+    {
+        static const char* const k_chess_type_2_char = "102_";
+        std::string ret(k_size_ * k_size_, 0);
+        for (int32_t row = 0; row < k_size_; ++row) {
+            for (int32_t col = 0; col < k_size_; ++col) {
+                ret[row * k_size_ + col] = k_chess_type_2_char[static_cast<uint8_t>(Get_(Coor{row, col}).cur_type_)];
+            }
+        }
+        return ret;
     }
 
   private:

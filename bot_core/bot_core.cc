@@ -28,12 +28,13 @@ const int32_t LGT_AC = -1;
 BotCtx::BotCtx(const BotOption& option, std::unique_ptr<DBManagerBase> db_manager)
     : this_uid_(option.this_uid_)
     , game_path_(std::filesystem::absolute(option.game_path_).string())
+    , conf_path_(option.conf_path_)
     , match_manager_(*this)
     , db_manager_(std::move(db_manager))
 {
     LoadGameModules_(option.game_path_);
     LoadAdmins_(option.admins_);
-    HandleConfig_(option.conf_path_);
+    LoadConfig_();
 }
 
 void BotCtx::LoadAdmins_(const std::string_view& admins_str)
@@ -56,27 +57,6 @@ void BotCtx::LoadAdmins_(const std::string_view& admins_str)
     }
     for (const auto& admin : admins_) {
         InfoLog() << "Load administor: " << admin;
-    }
-}
-
-void BotCtx::HandleConfig_(const std::filesystem::path::value_type* const conf_path)
-{
-    if (!conf_path) {
-        InfoLog() << "No config files";
-        return;
-    }
-    std::ifstream f(conf_path);
-    if (!f) {
-        ErrorLog() << "Config file not exist: " << conf_path;
-        return;
-    }
-    InfoLog() << "Handle config file: " << conf_path;
-    for (std::string s; std::getline(f, s); ) {
-        if (const ErrCode rc = HandleAdminRequest(*this, "", std::nullopt, s, EmptyMsgSender::Get()); rc != EC_OK) {
-            ErrorLog() << "Handle initial admin request \"" << s << "\" failed, rc=" << errcode2str(rc);
-        } else {
-            InfoLog() << "Handle initial admin request \"" << s << "\" succeed";
-        }
     }
 }
 

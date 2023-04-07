@@ -24,6 +24,8 @@
 class MsgReader final
 {
    public:
+    using IterType = std::vector<std::string>::iterator;
+
     MsgReader(const std::string& msg)
     {
         std::istringstream ss(msg);
@@ -39,7 +41,7 @@ class MsgReader final
 
     bool HasNext() const { return iter_ != args_.end(); }
 
-    std::vector<std::string>::iterator Iterator() const { return iter_; }
+    IterType Iterator() const { return iter_; }
 
     const std::string& NextArg()
     {

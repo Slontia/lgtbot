@@ -19,6 +19,7 @@
 #include "bot_core/match_manager.h"
 #include "bot_core/score_calculation.h"
 #include "bot_core/options.h"
+#include "nlohmann/json.hpp"
 
 Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, const UserID host_uid,
              const std::optional<GroupID> gid)
@@ -224,23 +225,35 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
     assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
     options_->SetPlayerNum(player_num);
     options_->SetResourceDir(resource_dir.c_str());
-    options_->global_options_.public_timer_alert_ = GET_OPTION_VALUE(bot_.option(), 计时公开提示);
+    options_->global_options_.public_timer_alert_ = GET_OPTION_VALUE(bot_.option().Lock().Get(), 计时公开提示);
     if (!(main_stage_ = game_handle_.make_main_stage(reply, *options_, *this))) {
         reply() << "[错误] 开始失败：不符合游戏参数的预期";
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
     state_ = State::IS_STARTED;
     BoardcastAtAll() << "游戏开始，您可以使用「帮助」命令（不带#号），查看可执行命令";
+    nlohmann::json players_json_array;
     for (auto& [uid, user_info] : users_) {
         for (int i = 0; i < player_num_each_user_; ++i) {
             user_info.pids_.emplace_back(players_.size());
             players_.emplace_back(uid);
+            players_json_array.push_back(nlohmann::json{
+                        { "user_id", uid.GetStr() }
+                    });
         }
         user_info.sender_.SetMatch(this);
     }
     for (ComputerID cid = 0; cid < ComputerNum_(); ++cid) {
         players_.emplace_back(cid);
+        players_json_array.push_back(nlohmann::json{
+                    { "computer_id", static_cast<uint64_t>(cid) }
+                });
     }
+    Boardcast() << nlohmann::json{
+            { "match_id", MatchId() },
+            { "state", "started" },
+            { "players", std::move(players_json_array) },
+        }.dump();
     boardcast_private_sender_.SetMatch(this);
     if (group_sender_.has_value()) {
         group_sender_->SetMatch(this);
@@ -563,7 +576,14 @@ std::string Match::BriefInfo() const
 
 std::string Match::OptionInfo_() const
 {
-    return options_->Status();
+    std::string result = options_->Status();
+    const char* const* option_content = options_->Content();
+    while (*option_content) {
+        result += "\n- ";
+        result += *option_content;
+        ++option_content;
+    }
+    return result;
 }
 
 void Match::OnGameOver_()
@@ -651,10 +671,7 @@ void Match::Help_(MsgSenderBase& reply, const bool text_mode)
         outstr += main_stage_->CommandInfoC(text_mode);
     } else {
         outstr += "\n\n ### 配置选项";
-        const auto option_size = options_->Size();
-        for (uint64_t i = 0; i < option_size; ++i) {
-            outstr += "\n" + std::to_string(i + 1) + ". " + (text_mode ? options_->Info(i) : options_->ColoredInfo(i));
-        }
+        outstr += options_->Info();
     }
     if (text_mode) {
         reply() << outstr;
@@ -730,6 +747,10 @@ void Match::Terminate_()
     }
     //users_.clear();
     Unbind_();
+    Boardcast() << nlohmann::json{
+            { "match_id", MatchId() },
+            { "state", "finished" },
+        }.dump();
 }
 
 void Match::KickForConfigChange_()

@@ -38,6 +38,13 @@ GAME_TEST(2, both_timeout)
     ASSERT_SCORE(2, 2); // the current score
 }
 
+GAME_TEST(2, cannot_repeat_set)
+{
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "C4");
+    ASSERT_PRI_MSG(FAILED, 1, "C4");
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game

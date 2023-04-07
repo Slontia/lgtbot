@@ -55,9 +55,10 @@ class MainStage : public MainGameStage<>
     virtual void OnStageBegin() override
     {
         StartTimer(GET_OPTION_VALUE(option(), 时限));
-        Boardcast() << Markdown(ToHtml_());
+        Group() << Markdown(ToHtml_());
+        Tell(0) << Markdown(ToHtml_());
+        Tell(1) << Markdown(ToHtml_());
         Boardcast() << "游戏开始，请私信裁判坐标以落子（如 C3），时限 " << GET_OPTION_VALUE(option(), 时限) << " 秒，超时未落子即判负";
-
     }
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return player_scores_[pid]; }
@@ -99,13 +100,17 @@ class MainStage : public MainGameStage<>
             reply() << "落子失败：请私信裁判落子";
             return StageErrCode::FAILED;
         }
+        if (IsReady(pid)) {
+            reply() << "落子失败：您已经落子过了";
+            return StageErrCode::FAILED;
+        }
         const auto decode_result = DecodePos(coor_str);
         if (const auto* errstr = std::get_if<std::string>(&decode_result)) {
             reply() << "落子失败：" << *errstr;
             return StageErrCode::FAILED;
         }
         const auto raw_coor = std::get<std::pair<uint32_t, uint32_t>>(decode_result);
-        if (!board_.Place(Coor{static_cast<int32_t>(raw_coor.first), static_cast<int32_t>(raw_coor.second)},
+        if (!board_.Place(Coor{static_cast<int32_t>(raw_coor.second), static_cast<int32_t>(raw_coor.first)},
                     PlayerIDToChessType_(pid))) {
             auto sender = reply();
             sender << "落子失败：您无法在此处落子，";
@@ -115,14 +120,13 @@ class MainStage : public MainGameStage<>
             } else {
                 sender << "合法的落子点包括";
                 for (const Coor coor : placable_positions) {
-                    sender << " " << std::string(1, 'A' + coor.row_) << coor.col_;
+                    sender << " " << std::string(1, 'A' + coor.col_) << coor.row_;
                 }
             }
             return StageErrCode::FAILED;
         }
         reply() << "落子成功";
-        if (!IsReady(1 - pid)) {
-        }
+        placed_coors_[pid] = raw_coor;
         return StageErrCode::READY;
     }
 
@@ -134,7 +138,9 @@ class MainStage : public MainGameStage<>
         const auto chess_type = PlayerIDToChessType_(pid);
         const auto avaliable_placements = board_.PlacablePositions(chess_type);
         if (!avaliable_placements.empty()) {
-            const auto ret = board_.Place(avaliable_placements[std::rand() % avaliable_placements.size()], chess_type);
+            const auto coor = avaliable_placements[std::rand() % avaliable_placements.size()];
+            placed_coors_[pid] = std::pair{static_cast<uint32_t>(coor.row_), static_cast<uint32_t>(coor.col_)};
+            const auto ret = board_.Place(coor, chess_type);
             assert(ret);
         }
         return StageErrCode::READY;
@@ -142,19 +148,30 @@ class MainStage : public MainGameStage<>
 
     virtual void OnAllPlayerReady() override
     {
+        nlohmann::json json_array;
         const auto result = board_.Settlement();
-        const auto update_player = [&](const PlayerID pid)
-            {
-                player_scores_[pid] = result[static_cast<uint8_t>(PlayerIDToChessType_(pid))];
-                if (!board_.PlacablePositions(PlayerIDToChessType_(pid)).empty()) {
-                    ClearReady(pid);
-                }
-            };
-        update_player(0);
-        update_player(1);
+        for (auto pid : {PlayerID{0}, PlayerID{1}}) {
+            auto& coor = placed_coors_[pid];
+            if (coor.has_value()) {
+                json_array.push_back(std::string(1, 'A' + coor->first) + std::to_string(coor->second));
+                coor.reset();
+            } else {
+                json_array.push_back(nullptr);
+            }
+            player_scores_[pid] = result[static_cast<uint8_t>(PlayerIDToChessType_(pid))];
+            if (!board_.PlacablePositions(PlayerIDToChessType_(pid)).empty()) {
+                ClearReady(pid);
+            }
+        }
         Boardcast() << "双方落子成功";
+        BoardcastRobot(nlohmann::json{
+                    { "player_coordinates", std::move(json_array) },
+                    { "board", board_.ToString() }
+                });
         ++round_;
-        Boardcast() << Markdown(ToHtml_());
+        Group() << Markdown(ToHtml_());
+        Tell(0) << Markdown(ToHtml_());
+        Tell(1) << Markdown(ToHtml_());
         if (!IsReady(0) || !IsReady(1)) {
             StartTimer(GET_OPTION_VALUE(option(), 时限));
             Boardcast() << "请继续私信裁判坐标以落子（如 C3），时限 " << GET_OPTION_VALUE(option(), 时限) << " 秒，超时未落子即判负";
@@ -183,6 +200,7 @@ class MainStage : public MainGameStage<>
 
     int round_;
     std::array<int64_t, 2> player_scores_;
+    std::array<std::optional<std::pair<uint32_t, uint32_t>>, 2> placed_coors_;
     Board board_;
 };
 

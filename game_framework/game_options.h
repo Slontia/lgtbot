@@ -52,15 +52,41 @@ class GameOption : public GameOptionBase, public MyGameOption
 
     virtual const char* ResourceDir() const { return resource_dir_.c_str(); }
 
-    virtual const char* Info(const uint64_t index) const override { return MyGameOption::Info(index); }
+    virtual const char* Info() const override
+    {
+        thread_local static std::string info;
+        return (info = MyGameOption::Info()).c_str();
+    }
 
-    virtual const char* ColoredInfo(const uint64_t index) const override { return MyGameOption::ColoredInfo(index); }
+    virtual const char* ColoredInfo() const override
+    {
+        thread_local static std::string info;
+        return (info = MyGameOption::ColoredInfo()).c_str();
+    }
 
     virtual const char* Status() const override
     {
         thread_local static std::string info;
-        info = StatusInfo();
-        return info.c_str();
+        return (info = StatusInfo()).c_str();
+    }
+
+    virtual GameOptionBase* Copy() const override
+    {
+        return new GameOption(*this);
+    }
+
+    virtual const char* const* Content() const override
+    {
+        thread_local static std::array<std::string, Count()> str_content;
+        thread_local static std::array<const char*, Count() + 1> c_str_content{nullptr};
+        uint32_t i = 0;
+        Foreach([&](const char* const /*description*/, const char* const name, const auto& checker, const auto& value)
+                {
+                    str_content[i] = std::string(name) + " " + checker.ArgString(value);
+                    c_str_content[i] = str_content[i].c_str();
+                    return false;
+                });
+        return c_str_content.data();
     }
 
     // The member functions to be realized by developers in mygame.cc

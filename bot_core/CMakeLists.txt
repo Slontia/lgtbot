@@ -21,6 +21,7 @@ list(APPEND SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/load_game_modules.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/score_calculation.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/config.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cc
 )
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
