@@ -89,6 +89,8 @@ class MockMatch : public MatchBase
 
     virtual MockMsgSender& GroupMsgSender() override { return boardcast_sender_; }
 
+    virtual MsgSenderBase& BoardcastAiInfoMsgSender() override { return boardcast_sender_; }
+
     virtual const char* PlayerName(const PlayerID& pid) override
     {
         thread_local static std::string str;

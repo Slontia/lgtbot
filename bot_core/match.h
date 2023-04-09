@@ -45,14 +45,16 @@ class Overload : public Ts...
 struct ParticipantUser
 {
     enum class State { ACTIVE, LEFT };
-    explicit ParticipantUser(const UserID uid)
+    explicit ParticipantUser(const UserID uid, const bool is_ai)
         : uid_(uid)
+        , is_ai_(is_ai)
         , sender_(uid)
         , state_(State::ACTIVE)
         , leave_when_config_changed_(true)
         , want_interrupt_(false)
     {}
-    const UserID uid_;
+    UserID uid_;
+    bool is_ai_;
     std::vector<PlayerID> pids_;
     MsgSender sender_;
     State state_;
@@ -71,6 +73,23 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
           const std::optional<GroupID> gid);
     ~Match();
 
+    virtual MsgSenderBase& BoardcastMsgSender() override;
+    virtual MsgSenderBase& BoardcastAiInfoMsgSender() override;
+    virtual MsgSenderBase& TellMsgSender(const PlayerID pid) override;
+    virtual MsgSenderBase& GroupMsgSender() override;
+
+    virtual const char* PlayerName(const PlayerID& pid) override;
+    virtual const char* PlayerAvatar(const PlayerID& pid, const int32_t size) override;
+
+    virtual void StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t)) override;
+    virtual void StopTimer() override;
+
+    virtual void Eliminate(const PlayerID pid) override;
+
+    virtual bool IsInDeduction() const override { return is_in_deduction_; }
+    virtual uint64_t MatchId() const override { return mid_; }
+    virtual const char* GameName() const override { return game_handle_.name_.c_str(); }
+
     ErrCode SetBenchTo(const UserID uid, MsgSenderBase& reply, const std::optional<uint64_t> com_num);
     ErrCode SetMultiple(const UserID uid, MsgSenderBase& reply, const uint32_t multiple);
 
@@ -81,20 +100,12 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force);
     ErrCode LeaveMidway(const UserID uid, const bool is_public);
     ErrCode UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel);
-    virtual MsgSenderBase& BoardcastMsgSender() override;
-    virtual MsgSenderBase& TellMsgSender(const PlayerID pid) override;
-    virtual MsgSenderBase& GroupMsgSender() override;
-    virtual const char* PlayerName(const PlayerID& pid) override;
-    virtual const char* PlayerAvatar(const PlayerID& pid, const int32_t size) override;
+
     MsgSenderBase::MsgSenderGuard Boardcast() { return BoardcastMsgSender()(); }
     MsgSenderBase::MsgSenderGuard BoardcastAtAll();
     MsgSenderBase::MsgSenderGuard Tell(const PlayerID pid) { return TellMsgSender(pid)(); }
-    virtual void StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t)) override;
-    virtual void StopTimer() override;
-    virtual void Eliminate(const PlayerID pid) override;
-    virtual bool IsInDeduction() const override { return is_in_deduction_; }
-    virtual uint64_t MatchId() const override { return mid_; }
-    virtual const char* GameName() const override { return game_handle_.name_.c_str(); }
+    MsgSenderBase::MsgSenderGuard BoardcastAiInfo() { return BoardcastAiInfoMsgSender()(); }
+
     void ShowInfo(MsgSenderBase& reply) const;
 
     bool SwitchHost();
@@ -132,17 +143,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         return logger;
     }
 
-    std::string State2String()
-    {
-        switch (state_) {
-        case State::NOT_STARTED:
-            return "未开始";
-        case State::IS_STARTED:
-            return "已开始";
-        case State::IS_OVER:
-            return "已结束";
-        }
-    }
     void OnGameOver_();
     void Help_(MsgSenderBase& reply, const bool text_mode);
     void Routine_();
@@ -154,6 +154,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     bool Has_(const UserID uid) const;
     const char* HostUserName_() const;
     uint64_t ComputerNum_() const;
+    void EmplaceUser_(const UserID uid);
 
     mutable std::mutex mutex_;
 
@@ -170,16 +171,36 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     // time info
     std::shared_ptr<bool> timer_is_over_; // must before match because atom stage will call StopTimer
     std::unique_ptr<Timer> timer_;
-    //std::chrono::time_point<std::chrono::system_clock> start_time_;
-    //std::chrono::time_point<std::chrono::system_clock> end_time_;
 
     // game
     GameHandle::game_options_ptr options_;
     GameHandle::main_stage_ptr main_stage_;
 
-    // player info
+    // user info
     std::map<UserID, ParticipantUser> users_;
-    MsgSenderBatch boardcast_private_sender_;
+
+    // message senders
+    class MsgSenderBatchHandler
+    {
+      public:
+        MsgSenderBatchHandler(Match& match, const bool ai_only) : match_(match) {};
+
+        template <typename Fn>
+        void operator()(Fn&& fn)
+        {
+            for (auto& [_, user_info] : match_.users_) {
+                if (user_info.state_ != ParticipantUser::State::LEFT && (!ai_only_ || user_info.is_ai_)) {
+                    fn(user_info.sender_);
+                }
+            }
+        }
+
+      private:
+        Match& match_;
+        bool ai_only_;
+    };
+    MsgSenderBatch<MsgSenderBatchHandler> boardcast_private_sender_;
+    MsgSenderBatch<MsgSenderBatchHandler> boardcast_ai_info_private_sender_;
     std::optional<MsgSender> group_sender_;
 
     // other options

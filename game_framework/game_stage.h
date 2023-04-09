@@ -211,29 +211,27 @@ class StageBaseWrapper : virtual public StageBase
     }
 
     decltype(auto) BoardcastMsgSender() const { return IsInDeduction() ? EmptyMsgSender::Get() : match_.BoardcastMsgSender(); }
-
-    decltype(auto) TellMsgSender(const PlayerID pid) const { return IsInDeduction() ? EmptyMsgSender::Get() : match_.TellMsgSender(pid); }
-
-    decltype(auto) GroupMsgSender() const { return IsInDeduction() ? EmptyMsgSender::Get() : match_.GroupMsgSender(); }
-
     decltype(auto) Boardcast() const { return BoardcastMsgSender()(); }
 
+    decltype(auto) TellMsgSender(const PlayerID pid) const { return IsInDeduction() ? EmptyMsgSender::Get() : match_.TellMsgSender(pid); }
     decltype(auto) Tell(const PlayerID pid) const { return TellMsgSender(pid)(); }
 
+    decltype(auto) GroupMsgSender() const { return IsInDeduction() ? EmptyMsgSender::Get() : match_.GroupMsgSender(); }
     decltype(auto) Group() const { return GroupMsgSender()(); }
 
-    std::string PlayerName(const PlayerID pid) const { return match_.PlayerName(pid); }
-
-    std::string PlayerAvatar(const PlayerID pid, const int32_t size) const { return match_.PlayerAvatar(pid, size); }
-
-    void BoardcastRobot(nlohmann::json j)
+    decltype(auto) BoardcastAiInfoMsgSender() const { return IsInDeduction() ? EmptyMsgSender::Get() : match_.BoardcastAiInfoMsgSender(); }
+    void BoardcastAiInfo(nlohmann::json j)
     {
-        Boardcast() << nlohmann::json{
+        BoardcastAiInfoMsgSender()() << nlohmann::json{
                 { "match_id", match().MatchId() },
                 { "info_id", global_info().bot_info_id_++ },
                 { "info", std::move(j) },
             }.dump();
     }
+
+    std::string PlayerName(const PlayerID pid) const { return match_.PlayerName(pid); }
+
+    std::string PlayerAvatar(const PlayerID pid, const int32_t size) const { return match_.PlayerAvatar(pid, size); }
 
     void Eliminate(const PlayerID pid) const
     {

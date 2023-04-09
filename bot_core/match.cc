@@ -10,6 +10,7 @@
 #include <numeric>
 #include <algorithm>
 #include <utility> // g++12 has a bug which will cause 'exchange' is not a member of 'std'
+#include <ranges>
 
 #include "utility/msg_checker.h"
 #include "utility/log.h"
@@ -33,15 +34,9 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, const User
         , main_stage_(nullptr, [](const lgtbot::game::MainStageBase*) {}) // make when game starts
         , player_num_each_user_(1)
         , users_()
-        , boardcast_private_sender_([this](const std::function<void(MsgSender&)>& fn)
-                                        {
-                                            for (auto& [_, user_info] : users_) {
-                                                if (user_info.state_ != ParticipantUser::State::LEFT) {
-                                                    fn(user_info.sender_);
-                                                }
-                                            }
-                                        })
-        , group_sender_(gid.has_value() ? std::optional<MsgSender>(MsgSender(*gid_)) : std::nullopt)
+        , boardcast_private_sender_(MsgSenderBatchHandler(*this, false))
+        , boardcast_ai_info_private_sender_(MsgSenderBatchHandler(*this, true))
+        , group_sender_(gid.has_value() ? std::optional<MsgSender>(MsgSender(*gid_, this)) : std::nullopt)
         , bench_to_player_num_(0)
         , multiple_(game_handle.multiple_)
         , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")))
@@ -50,7 +45,7 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, const User
 #endif
         , is_in_deduction_(false)
 {
-    users_.emplace(host_uid, ParticipantUser(host_uid));
+    EmplaceUser_(host_uid);
 }
 
 Match::~Match() {}
@@ -65,6 +60,13 @@ const char* Match::HostUserName_() const
 uint64_t Match::ComputerNum_() const
 {
     return std::max(int64_t(0), static_cast<int64_t>(bench_to_player_num_ - user_controlled_player_num()));
+}
+
+void Match::EmplaceUser_(const UserID uid)
+{
+    const auto locked_option = bot_.option().Lock();
+    const auto& ai_list = GET_OPTION_VALUE(locked_option.Get(), AI列表);
+    users_.emplace(uid, ParticipantUser(uid, std::ranges::find(ai_list, uid.GetStr()) != std::end(ai_list)));
 }
 
 Match::VariantID Match::ConvertPid(const PlayerID pid) const
@@ -249,16 +251,11 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
                     { "computer_id", static_cast<uint64_t>(cid) }
                 });
     }
-    Boardcast() << nlohmann::json{
+    BoardcastAiInfo() << nlohmann::json{
             { "match_id", MatchId() },
             { "state", "started" },
             { "players", std::move(players_json_array) },
         }.dump();
-    boardcast_private_sender_.SetMatch(this);
-    if (group_sender_.has_value()) {
-        group_sender_->SetMatch(this);
-    }
-    //start_time_ = std::chrono::system_clock::now();
     main_stage_->HandleStageBegin();
     Routine_(); // computer act first
     return EC_OK;
@@ -286,7 +283,7 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         reply() << "[错误] 加入失败：您已加入其他游戏，您可通过私信裁判「#游戏信息」查看该游戏信息";
         return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
     }
-    users_.emplace(uid, ParticipantUser(uid));
+    EmplaceUser_(uid);
     Boardcast() << "玩家 " << At(uid) << " 加入了游戏\n\n" << BriefInfo();
     return EC_OK;
 }
@@ -353,6 +350,17 @@ MsgSenderBase& Match::BoardcastMsgSender()
         return *group_sender_;
     } else {
         return boardcast_private_sender_;
+    }
+}
+
+MsgSenderBase& Match::BoardcastAiInfoMsgSender()
+{
+    if (!group_sender_.has_value()) {
+        return boardcast_ai_info_private_sender_;
+    } else if (std::ranges::any_of(users_, [](const auto& user) { return user.second.is_ai_; })) {
+        return *group_sender_;
+    } else {
+        return EmptyMsgSender::Get();
     }
 }
 
@@ -745,9 +753,8 @@ void Match::Terminate_()
             match_manager().UnbindMatch(uid);
         }
     }
-    //users_.clear();
     Unbind_();
-    Boardcast() << nlohmann::json{
+    BoardcastAiInfo() << nlohmann::json{
             { "match_id", MatchId() },
             { "state", "finished" },
         }.dump();

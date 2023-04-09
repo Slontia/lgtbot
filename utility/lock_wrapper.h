@@ -15,6 +15,7 @@ class LockWrapper : private T
       public:
         LockGuard(TRef& v, std::mutex& m) : v_(v), l_(m) {}
         TRef& Get() { return v_; }
+        const TRef& Get() const { return v_; }
 
       private:
         TRef& v_;

@@ -14,14 +14,25 @@ class MatchBase
   public:
     MatchBase() {}
     virtual ~MatchBase() {}
+
+    // message senders
     virtual MsgSenderBase& BoardcastMsgSender() = 0;
     virtual MsgSenderBase& TellMsgSender(const PlayerID pid) = 0;
     virtual MsgSenderBase& GroupMsgSender() = 0;
+    virtual MsgSenderBase& BoardcastAiInfoMsgSender() = 0;
+
+    // player info
     virtual const char* PlayerName(const PlayerID& pid) = 0;
     virtual const char* PlayerAvatar(const PlayerID& pid, const int32_t size) = 0;
+
+    // timer operation
     virtual void StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t)) = 0;
     virtual void StopTimer() = 0;
+
+    // player operation
     virtual void Eliminate(const PlayerID pid) = 0;
+
+    // match info
     virtual bool IsInDeduction() const = 0;
     virtual uint64_t MatchId() const = 0;
     virtual const char* GameName() const = 0;

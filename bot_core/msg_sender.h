@@ -80,6 +80,8 @@ class MsgSenderBase
         MsgSenderBase* sender_;
     };
 
+    template<typename> friend class MsgSenderBatch;
+
   public:
     virtual ~MsgSenderBase() {}
     virtual MsgSenderGuard operator()() { return MsgSenderGuard(*this); }
@@ -128,8 +130,8 @@ class EmptyMsgSender : public MsgSenderBase
 class MsgSender : public MsgSenderBase
 {
   public:
-    MsgSender(const UserID& uid) : sender_(Open_(uid)), match_(nullptr) {}
-    MsgSender(const GroupID& gid) : sender_(Open_(gid)), match_(nullptr) {}
+    MsgSender(const UserID& uid, Match* const match = nullptr) : sender_(Open_(uid)), match_(match) {}
+    MsgSender(const GroupID& gid, Match* const match = nullptr) : sender_(Open_(gid)), match_(match) {}
     MsgSender(const MsgSender&) = delete;
     MsgSender(MsgSender&& o) : sender_(o.sender_), match_(o.match_)
     {
@@ -147,7 +149,6 @@ class MsgSender : public MsgSenderBase
     virtual void SaveImage(const std::filesystem::path::value_type* const path) override { MessagerPostImage(sender_, path); }
     virtual void Flush() override { MessagerFlush(sender_); }
     void SaveText_(const std::string_view& sv) { SaveText(sv.data(), sv.size()); }
-    friend class MsgSenderBatch;
 
   private:
     static void* Open_(const UserID& uid) { return OpenMessager(uid.GetCStr(), true); }
@@ -205,42 +206,47 @@ MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const s
     return *this;
 }
 
+// `MsgSenderBatch` is a wrapper which support sending the same message to several `MsgSender`s. User-defined class `Fn`
+// should override the operator() which handles a function `sender_fn`. When we send something by `MsgSenderBatch`, it
+// will invoke the `fn_` and pass a function as `sender_fn`. The user-defined `Fn` would pass each `MsgSender` to the
+// `sender_fn` so that the message can be sent by each `MsgSender`.
+template <typename Fn>
 class MsgSenderBatch : public MsgSenderBase
 {
   public:
-    template <typename Fn>
     MsgSenderBatch(Fn&& fn) : fn_(std::forward<Fn>(fn)) {}
 
+  protected:
     virtual void SaveText(const char* const data, const uint64_t len) override
     {
-        fn_([&](MsgSender& sender) { sender.SaveText(data, len); });
+        fn_([&](MsgSenderBase& sender) { sender.SaveText(data, len); });
     }
 
     virtual void SaveUser(const UserID& uid, const bool is_at) override
     {
-        fn_([&](MsgSender& sender) { sender.SaveUser(uid.GetCStr(), is_at); });
+        fn_([&](MsgSenderBase& sender) { sender.SaveUser(uid.GetCStr(), is_at); });
     }
 
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override
     {
-        fn_([&](MsgSender& sender) { sender.SavePlayer(pid, is_at); });
+        fn_([&](MsgSenderBase& sender) { sender.SavePlayer(pid, is_at); });
     }
 
     virtual void SaveImage(const std::filesystem::path::value_type* const path) override
     {
-        fn_([&](MsgSender& sender) { sender.SaveImage(path); });
+        fn_([&](MsgSenderBase& sender) { sender.SaveImage(path); });
     }
 
     virtual void Flush() override
     {
-        fn_([&](MsgSender& sender) { sender.Flush(); });
+        fn_([&](MsgSenderBase& sender) { sender.Flush(); });
     }
 
     virtual void SetMatch(const Match* const match) override
     {
-        fn_([&](MsgSender& sender) { sender.SetMatch(match); });
+        fn_([&](MsgSenderBase& sender) { sender.SetMatch(match); });
     }
 
   private:
-    const std::function<void(const std::function<void(MsgSender&)>&)> fn_;
+    Fn fn_;
 };

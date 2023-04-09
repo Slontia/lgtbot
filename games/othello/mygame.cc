@@ -164,7 +164,7 @@ class MainStage : public MainGameStage<>
             }
         }
         Boardcast() << "双方落子成功";
-        BoardcastRobot(nlohmann::json{
+        BoardcastAiInfo(nlohmann::json{
                     { "player_coordinates", std::move(json_array) },
                     { "board", board_.ToString() }
                 });

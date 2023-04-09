@@ -22,7 +22,7 @@ std::string GetUserAvatar(const char* const uid, const int32_t size)
 
 void MsgSender::SavePlayer(const PlayerID& pid, const bool is_at)
 {
-    if (!match_) {
+    if (!match_ || match_->state() == Match::State::NOT_STARTED) {
         SaveText_("[" + std::to_string(pid) + "号玩家]");
         return;
     }
