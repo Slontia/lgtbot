@@ -224,6 +224,7 @@ class SubStage : public SubGameStage<>
                 , MakeStageCommand("电脑失败次数", &SubStage::ToComputerFailed_, VoidChecker("电脑失败"),
                     BasicChecker<PlayerID>(), ArithChecker<uint64_t>(0, UINT64_MAX))
                 , MakeStageCommand("淘汰", &SubStage::Eliminate_, VoidChecker("淘汰"))
+                , MakeStageCommand("挂机", &SubStage::Hook_, VoidChecker("挂机"))
           )
         , computer_act_count_(0)
         , to_reset_timer_(false)
@@ -334,6 +335,12 @@ class SubStage : public SubGameStage<>
     AtomReqErrCode Eliminate_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         Eliminate(pid);
+        return StageErrCode::OK;
+    }
+
+    AtomReqErrCode Hook_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        Hook(pid);
         return StageErrCode::OK;
     }
 
@@ -1578,6 +1585,54 @@ TEST_F(TestBot, user_interrupt_game_not_consider_left_users)
   ASSERT_PRI_MSG(EC_OK, "1", "#开始");
   ASSERT_PRI_MSG(EC_OK, "2", "#退出 强制");
   ASSERT_PRI_MSG(EC_OK, "1", "#中断");
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, user_interrupt_when_someone_eliminates)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+  ASSERT_PRI_MSG(EC_OK, "1", "#中断");
+  ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "2", "淘汰");
+  ASSERT_PRI_MSG(EC_OK, "1", "#中断"); // must interrupt again to finish match
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, user_interrupt_when_someone_has_eliminated)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "淘汰");
+  ASSERT_PRI_MSG(EC_OK, "2", "#中断");
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, user_interrupt_when_someone_hooks)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+  ASSERT_PRI_MSG(EC_OK, "1", "#中断");
+  ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "2", "挂机");
+  ASSERT_PRI_MSG(EC_OK, "1", "#中断"); // must interrupt again to finish match
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+}
+
+TEST_F(TestBot, user_interrupt_when_someone_has_hooked)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "挂机");
+  ASSERT_PRI_MSG(EC_OK, "2", "#中断");
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
 }
 

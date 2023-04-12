@@ -184,7 +184,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         // TODO: check player_num_each_user_
         const auto pid = it->second.pids_[0];
         assert(state_ == State::IS_STARTED);
-        if (players_[pid].is_eliminated_) {
+        if (players_[pid].state_ == Player::State::ELIMINATED) {
             reply() << "[错误] 您已经被淘汰，无法执行游戏请求";
             return EC_MATCH_ELIMINATED;
         }
@@ -288,12 +288,10 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
     return EC_OK;
 }
 
-bool Match::AllControlledPlayerEliminted_(const UserID uid) const
+template <typename Fn>
+bool Match::AllControlledPlayerState_(const ParticipantUser& user, Fn&& fn) const
 {
-    const auto it = users_.find(uid);
-    assert(it != users_.end());
-    auto& user = it->second;
-    return std::ranges::all_of(user.pids_, [this](const auto pid) { return players_[pid].is_eliminated_; });
+    return std::ranges::all_of(user.pids_, [this, &fn](const auto pid) { return fn(players_[pid].state_); });
 }
 
 ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
@@ -301,7 +299,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
     ErrCode rc = EC_OK;
     std::lock_guard<std::mutex> l(mutex_);
     const auto it = users_.find(uid);
-    if (it == users_.end() && it->second.state_ == ParticipantUser::State::LEFT) {
+    if (it == users_.end() || it->second.state_ == ParticipantUser::State::LEFT) {
         reply() << "[错误] 退出失败：您未处于游戏中或已经离开";
         return EC_MATCH_USER_NOT_IN_MATCH;
     }
@@ -320,7 +318,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
             host_uid_ = users_.begin()->first;
             Boardcast() << At(host_uid_) << "被选为新房主";
         }
-    } else if (force || AllControlledPlayerEliminted_(uid)) {
+    } else if (force || AllControlledPlayerState_(it->second, [](const auto s) { return s == Player::State::ELIMINATED; })) {
         match_manager().UnbindMatch(uid);
         reply() << "退出成功";
         Boardcast() << "玩家 " << At(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
@@ -528,11 +526,32 @@ void Match::StopTimer()
 
 void Match::Eliminate(const PlayerID pid)
 {
-    if (std::exchange(players_[pid].is_eliminated_, true) == false) {
+    if (std::exchange(players_[pid].state_, Player::State::ELIMINATED) != Player::State::ELIMINATED) {
+        // TODO: check all players of the user
         Tell(pid) << "很遗憾，您被淘汰了，可以通过「#退出」以退出游戏";
         is_in_deduction_ = std::ranges::all_of(players_,
-                [](const auto& p) { return std::get_if<ComputerID>(&p.id_) || p.is_eliminated_; });
+                [](const auto& p) { return std::get_if<ComputerID>(&p.id_) || p.state_ != Player::State::ACTIVE; });
         MatchLog(InfoLog()) << "Eliminate player pid=" << pid << " is_in_deduction=" << Bool2Str(is_in_deduction_);
+    }
+}
+
+void Match::Hook(const PlayerID pid)
+{
+    auto& player = players_[pid];
+    if (player.state_ == Player::State::ACTIVE) {
+        // TODO: check all players of the user
+        Tell(pid) << "您已经进入挂机状态，若其他玩家已经行动完成，裁判将不再继续等待您，执行任意游戏请求可恢复至原状态";
+        player.state_ = Player::State::HOOKED;
+    }
+}
+
+void Match::Activate(const PlayerID pid)
+{
+    auto& player = players_[pid];
+    if (player.state_ == Player::State::HOOKED) {
+        // TODO: check all players of the user
+        Tell(pid) << "挂机状态已取消";
+        player.state_ = Player::State::ACTIVE;
     }
 }
 
@@ -699,7 +718,7 @@ void Match::Routine_()
     uint64_t ok_count = 0;
     for (uint64_t i = 0; !main_stage_->IsOver() && ok_count < computer_num; i = (i + 1) % computer_num) {
         const auto pid = user_controlled_num + i;
-        if (players_[pid].is_eliminated_ || StageErrCode::OK == main_stage_->HandleComputerAct(pid, false)) {
+        if (players_[pid].state_ == Player::State::ELIMINATED || StageErrCode::OK == main_stage_->HandleComputerAct(pid, false)) {
             ++ok_count;
         } else {
             ok_count = 0;
@@ -719,8 +738,14 @@ ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool 
         return EC_MATCH_USER_NOT_IN_MATCH;
     }
     it->second.want_interrupt_ = !cancel;
-    const auto remain = std::count_if(users_.begin(), users_.end(),
-            [](const auto& pair) { return !pair.second.want_interrupt_ && pair.second.state_ != ParticipantUser::State::LEFT; });
+    const auto remain = std::count_if(users_.begin(), users_.end(), [this](const auto& pair)
+            {
+                const auto& user = pair.second;
+                return !(user.want_interrupt_ ||
+                         user.state_ == ParticipantUser::State::LEFT ||
+                         AllControlledPlayerState_(user, [](const auto s) { return s != Player::State::ACTIVE; }));
+
+            });
     reply() << "中断成功";
     if (remain == 0) {
         BoardcastAtAll() << "全员支持中断游戏，游戏已中断，谢谢大家参与";

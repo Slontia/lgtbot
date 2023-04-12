@@ -31,6 +31,8 @@ class MatchBase
 
     // player operation
     virtual void Eliminate(const PlayerID pid) = 0;
+    virtual void Hook(const PlayerID pid) = 0;
+    virtual void Activate(const PlayerID pid) = 0;
 
     // match info
     virtual bool IsInDeduction() const = 0;

@@ -86,12 +86,14 @@ class Masker
 
     bool Pin(const size_t index)
     {
-        Log_(DebugLog()) << "Pin game stage mask begin " << ToString_(index);
         auto& state = recorder_[index];
-        unset_count_ -= !state.is_ready_ && !state.is_pinned_;
-        any_user_ready_ = true;
-        state.is_pinned_ = true;
-        Log_(DebugLog()) << "Pin game stage mask finish " << ToString_(index);
+        if (!state.is_pinned_) {
+            Log_(DebugLog()) << "Pin game stage mask begin " << ToString_(index);
+            unset_count_ -= !state.is_ready_;
+            any_user_ready_ = true;
+            state.is_pinned_ = true;
+            Log_(DebugLog()) << "Pin game stage mask finish " << ToString_(index);
+        }
         return IsReady();
     }
 
@@ -192,9 +194,8 @@ class StageBaseWrapper : virtual public StageBase
                                        MsgSenderBase& reply) override final
     {
         MsgReader reader(msg);
-        if (masker().Unpin(pid)) {
-            Tell(pid) << "挂机状态已取消";
-        }
+        masker().Unpin(pid);
+        match_.Activate(pid);
         return HandleRequest(reader, pid, is_public, reply);
     }
     virtual const char* StageInfoC() const override final
@@ -241,10 +242,8 @@ class StageBaseWrapper : virtual public StageBase
 
     void Hook(const PlayerID pid) const
     {
-        if (!global_info_.masker_.Get(pid).is_pinned_) {
-            global_info_.masker_.Pin(pid);
-            Tell(pid) << "您已经进入挂机状态，若其他玩家已经行动完成，裁判将不再继续等待您，执行任意游戏请求可恢复至原状态";
-        }
+        global_info_.masker_.Pin(pid);
+        match_.Hook(pid);
     }
 
     const std::string& name() const { return name_; }

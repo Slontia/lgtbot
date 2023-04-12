@@ -85,6 +85,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     virtual void StopTimer() override;
 
     virtual void Eliminate(const PlayerID pid) override;
+    virtual void Hook(const PlayerID pid) override;
+    virtual void Activate(const PlayerID pid) override;
 
     virtual bool IsInDeduction() const override { return is_in_deduction_; }
     virtual uint64_t MatchId() const override { return mid_; }
@@ -150,7 +152,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     void KickForConfigChange_();
     void Unbind_();
     void Terminate_();
-    bool AllControlledPlayerEliminted_(const UserID uid) const;
+    template <typename Fn>
+    bool AllControlledPlayerState_(const ParticipantUser& user, Fn&& fn) const;
     bool Has_(const UserID uid) const;
     const char* HostUserName_() const;
     uint64_t ComputerNum_() const;
@@ -211,9 +214,10 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     // player info (fill when game ready to start)
     struct Player
     {
-        Player(const VariantID& id) : id_(id), is_eliminated_(false) {}
+        enum class State { ACTIVE, ELIMINATED, HOOKED };
+        Player(const VariantID& id) : id_(id), state_(State::ACTIVE) {}
         VariantID id_;
-        bool is_eliminated_;
+        State state_;
     };
     std::vector<Player> players_; // all players, include computers
 

@@ -106,6 +106,10 @@ class MockMatch : public MatchBase
 
     virtual void Eliminate(const PlayerID pid) override { is_eliminated_[pid] = true; }
 
+    virtual void Hook(const PlayerID pid) override {}
+
+    virtual void Activate(const PlayerID pid) override {}
+
     virtual bool IsInDeduction() const override { return false; }
 
     virtual uint64_t MatchId() const override
