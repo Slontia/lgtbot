@@ -394,6 +394,7 @@ class RoleManager
             }
         }
         assert(false);
+        return *static_cast<RoleBase*>(nullptr);
     }
 
     RoleBase* GetRole(const Occupation occupation)

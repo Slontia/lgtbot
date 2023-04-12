@@ -30,7 +30,7 @@ class RunGameMockMatch : public MockMatch
         const std::string avatar_filename = "avatar_" + std::to_string(pid);
         CharToImage('0' + pid, avatar_filename);
         thread_local static std::string str;
-        str = "<img src=\"file://" + ImageAbsPath(avatar_filename).string() + "\" style=\"width:" + std::to_string(size) + "px; height:" +
+        str = "<img src=\"file://" + ImageAbsPath(avatar_filename) + "\" style=\"width:" + std::to_string(size) + "px; height:" +
             std::to_string(size) + "px; border-radius:50%; vertical-align: middle;\"/>";
         return str.c_str();
     }
@@ -44,7 +44,7 @@ namespace GAME_MODULE_NAME {
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
 
-std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path);
+std::string ImageAbsPath(const std::string_view rel_path);
 
 int Run()
 {
@@ -54,7 +54,7 @@ int Run()
 
     GameOption option;
     option.SetPlayerNum(FLAGS_player);
-    option.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").c_str());
+    option.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").string().c_str());
 
     MockMsgSender sender;
     std::unique_ptr<MainStageBase> main_stage(MakeMainStage(sender, option, match));

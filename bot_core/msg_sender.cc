@@ -7,16 +7,17 @@
 #include "msg_sender.h"
 #include "bot_core/match.h"
 
-bool DownloadUserAvatar(const char* const uid, const std::filesystem::path::value_type* const dest_filename);
+bool DownloadUserAvatar(const char* const uid, const char* const dest_filename);
 
 std::string GetUserAvatar(const char* const uid, const int32_t size)
 {
     const auto path = (std::filesystem::current_path() / ".image" / "avatar" / uid) += ".png";
     std::filesystem::create_directories(path.parent_path());
-    if (!DownloadUserAvatar(uid, path.c_str())) {
+    const std::string path_str = path.string();
+    if (!DownloadUserAvatar(uid, path_str.c_str())) {
         return "";
     }
-    return "<img src=\"file://" + path.string() + "\" style=\"width:" + std::to_string(size) + "px; height:" +
+    return "<img src=\"file://" + path_str + "\" style=\"width:" + std::to_string(size) + "px; height:" +
         std::to_string(size) + "px; border-radius:50%; vertical-align: middle;\"/>";
 }
 

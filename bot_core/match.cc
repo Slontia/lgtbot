@@ -222,7 +222,7 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         return EC_MATCH_NOT_HOST;
     }
     const uint64_t player_num = std::max(user_controlled_player_num(), bench_to_player_num_);
-    const std::filesystem::path resource_dir = std::filesystem::path(bot_.game_path()) / game_handle_.module_name_ / "";
+    const std::string resource_dir = (std::filesystem::path(bot_.game_path()) / game_handle_.module_name_ / "").string();
     assert(main_stage_ == nullptr);
     assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
     options_->SetPlayerNum(player_num);

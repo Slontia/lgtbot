@@ -24,7 +24,7 @@ DEFINE_string(history_filename, ".simulator_history.txt", "The file saving histo
 DEFINE_bool(color, true, "Enable color");
 DEFINE_string(bot_uid, "this_bot", "The UserID of bot");
 DEFINE_string(admin_uid, "admin", "The UserID of administor");
-DEFINE_string(conf_file, "", "The path of the configuration file");
+DEFINE_string(conf_path, "", "The path of the configuration file");
 
 #ifdef WITH_SQLITE
 DEFINE_string(db_path, "simulator.db", "Name of database");
@@ -88,10 +88,10 @@ void MessagerPostUser(void* const p, const char* const uid, const bool is_at)
     messager->ss_ << Default();
 }
 
-void MessagerPostImage(void* p, const std::filesystem::path::value_type* path)
+void MessagerPostImage(void* p, const char* path)
 {
     Messager* const messager = static_cast<Messager*>(p);
-    std::basic_string<std::filesystem::path::value_type> path_str(path);
+    std::string path_str(path);
     messager->ss_ << "[image=" << std::string(path_str.begin(), path_str.end()) << "]";
 }
 
@@ -123,9 +123,9 @@ const char* GetUserName(const char* uid, const char* const group_id)
     return str.c_str();
 }
 
-inline std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path);
+std::string ImageAbsPath(const std::string_view rel_path);
 
-bool DownloadUserAvatar(const char* const uid_str, const std::filesystem::path::value_type* const dest_filename)
+bool DownloadUserAvatar(const char* const uid_str, const char* const dest_filename)
 {
     const std::string avatar_filename = std::string("avatar_") + uid_str;
     if (CharToImage(uid_str[0], avatar_filename) != 0) {
@@ -175,18 +175,15 @@ int main(int argc, char** argv)
 {
     //std::locale::global(std::locale("")); // this line can make number with comma
     gflags::ParseCommandLineFlags(&argc, &argv, true);
-#ifdef WITH_SQLITE
-    const auto db_path = std::filesystem::path(FLAGS_db_path);
-#endif
     const BotOption option {
         .this_uid_ = FLAGS_bot_uid.c_str(),
         .game_path_ = FLAGS_game_path.c_str(),
         .image_path_ = "/image_path/",
         .admins_ = FLAGS_admin_uid.c_str(),
 #ifdef WITH_SQLITE
-        .db_path_ = db_path.c_str(),
+        .db_path_ = FLAGS_db_path.empty() ? nullptr : FLAGS_db_path.c_str(),
 #endif
-        .conf_path_ = FLAGS_conf_file.empty() ? nullptr : FLAGS_conf_file.c_str(),
+        .conf_path_ = FLAGS_conf_path.empty() ? nullptr : FLAGS_conf_path.c_str(),
     };
     auto bot = BOT_API::Init(&option);
 

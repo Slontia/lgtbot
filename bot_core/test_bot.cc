@@ -141,11 +141,10 @@ void MessagerPostUser(void* const p, const char* const uid, const bool is_at)
     }
 }
 
-void MessagerPostImage(void* p, const std::filesystem::path::value_type* path)
+void MessagerPostImage(void* p, const char* path)
 {
     Messager* const messager = static_cast<Messager*>(p);
-    std::basic_string<std::filesystem::path::value_type> path_str(path);
-    messager->ss_ << "[image=" << std::string(path_str.begin(), path_str.end()) << "]";
+    messager->ss_ << "[image=" << path << "]";
 }
 
 void MessagerFlush(void* p)
@@ -176,7 +175,7 @@ const char* GetUserName(const char* const uid, const char* const group_id)
     return str.c_str();
 }
 
-bool DownloadUserAvatar(const char* const uid_str, const std::filesystem::path::value_type* const dest_filename) { return false; }
+bool DownloadUserAvatar(const char* const uid_str, const char* const dest_filename) { return false; }
 
 class TestBot;
 
@@ -466,11 +465,7 @@ class TestBot : public testing::Test
             .game_path_ = "/game_path/",
             .image_path_ = "/image_path/",
             .admins_ = k_admin_qq,
-#ifdef _WIN32
-            .db_path_ = L":memory:",
-#else
             .db_path_ = ":memory:",
-#endif
         };
         bot_ = new BotCtx(option, std::unique_ptr<DBManagerBase>(new MockDBManager()));
         ASSERT_NE(bot_, nullptr) << "init bot failed";

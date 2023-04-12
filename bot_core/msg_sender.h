@@ -14,12 +14,12 @@
 #include "bot_core/id.h"
 #include "bot_core/image.h"
 
-std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path);
+std::string ImageAbsPath(const std::string_view rel_path);
 
 void* OpenMessager(const char* id, bool is_uid);
 void MessagerPostText(void* p, const char* data, uint64_t len);
 void MessagerPostUser(void* p, const char* uid, bool is_at);
-void MessagerPostImage(void* p, const std::filesystem::path::value_type* path);
+void MessagerPostImage(void* p, const char* path);
 void MessagerFlush(void* p);
 void CloseMessager(void* p);
 // |uid| should NOT be null
@@ -35,7 +35,7 @@ class Match;
 
 template <typename IdType> struct At { IdType id_; };
 template <typename IdType> struct Name { IdType id_; };
-struct Image { std::filesystem::path path_; };
+struct Image { std::string path_; };
 struct Markdown { std::string_view data_; uint32_t width_ = 600; };
 
 template <typename T> concept CanToString = requires(T&& t) { std::to_string(std::forward<T>(t)); };
@@ -93,7 +93,7 @@ class MsgSenderBase
     virtual void SaveText(const char* const data, const uint64_t len) = 0;
     virtual void SaveUser(const UserID& id, const bool is_at) = 0;
     virtual void SavePlayer(const PlayerID& id, const bool is_at) = 0;
-    virtual void SaveImage(const std::filesystem::path::value_type* const path) = 0;
+    virtual void SaveImage(const char* const path) = 0;
     virtual void SaveMarkdown(const char* const markdown, const uint32_t width)
     {
         std::stringstream ss;
@@ -118,7 +118,7 @@ class EmptyMsgSender : public MsgSenderBase
     virtual void SaveText(const char* const data, const uint64_t len) override {}
     virtual void SaveUser(const UserID& uid, const bool is_at) override {}
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override {}
-    virtual void SaveImage(const std::filesystem::path::value_type* const path) override {};
+    virtual void SaveImage(const char* const path) override {};
     virtual void Flush() override {}
     virtual void SetMatch(const Match* const match) override {}
 
@@ -146,7 +146,7 @@ class MsgSender : public MsgSenderBase
     virtual void SaveText(const char* const data, const uint64_t len) override { MessagerPostText(sender_, data, len); }
     virtual void SaveUser(const UserID& uid, const bool is_at) override { MessagerPostUser(sender_, uid.GetCStr(), is_at); }
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override;
-    virtual void SaveImage(const std::filesystem::path::value_type* const path) override { MessagerPostImage(sender_, path); }
+    virtual void SaveImage(const char* const path) override { MessagerPostImage(sender_, path); }
     virtual void Flush() override { MessagerFlush(sender_); }
     void SaveText_(const std::string_view& sv) { SaveText(sv.data(), sv.size()); }
 
@@ -232,7 +232,7 @@ class MsgSenderBatch : public MsgSenderBase
         fn_([&](MsgSenderBase& sender) { sender.SavePlayer(pid, is_at); });
     }
 
-    virtual void SaveImage(const std::filesystem::path::value_type* const path) override
+    virtual void SaveImage(const char* const path) override
     {
         fn_([&](MsgSenderBase& sender) { sender.SaveImage(path); });
     }

@@ -46,7 +46,7 @@ class TestGame : public MockMatch, public testing::Test
 #endif
         enable_markdown_to_image = FLAGS_gen_image;
         option_.SetPlayerNum(k_player_num);
-        option_.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").c_str());
+        option_.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").string().c_str());
     }
 
     virtual void TearDown() override
