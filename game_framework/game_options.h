@@ -44,10 +44,9 @@ class GameOption : public GameOptionBase, public MyGameOption
         return MyGameOption::SetOption(msg_reader);
     }
 
-    virtual void SetResourceDir(const std::filesystem::path::value_type* const resource_dir)
+    virtual void SetResourceDir(const char* const resource_dir)
     {
-        std::basic_string<std::filesystem::path::value_type> resource_dir_str(resource_dir);
-        resource_dir_ = std::string(resource_dir_str.begin(), resource_dir_str.end());
+        resource_dir_ = resource_dir;
     }
 
     virtual const char* ResourceDir() const { return resource_dir_.c_str(); }

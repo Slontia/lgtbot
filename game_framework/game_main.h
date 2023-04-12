@@ -81,7 +81,7 @@ class GameOptionBase
 
     virtual bool SetOption(const char* const msg) = 0;
     void SetPlayerNum(const uint64_t player_num) { player_num_ = player_num; }
-    virtual void SetResourceDir(const std::filesystem::path::value_type* const resource_dir) = 0;
+    virtual void SetResourceDir(const char* const resource_dir) = 0;
 
     uint64_t Size() const { return size_; }
     uint64_t PlayerNum() const { return player_num_; }

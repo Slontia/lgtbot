@@ -64,7 +64,7 @@ bool BotCtx::LoadConfig_()
     return true;
 }
 
-static bool SaveConfig_(nlohmann::json& json, const std::filesystem::path::value_type* conf_path)
+static bool SaveConfig_(nlohmann::json& json, const char* conf_path)
 {
     if (!conf_path) {
         return true;
@@ -80,7 +80,7 @@ static bool SaveConfig_(nlohmann::json& json, const std::filesystem::path::value
     return true;
 }
 
-static void UpdateConfig_(nlohmann::json& json, const std::filesystem::path::value_type* conf_path,
+static void UpdateConfig_(nlohmann::json& json, const char* conf_path,
         const std::string& option_name, const std::vector<std::string>& option_args)
 {
     if (option_args.empty()) {

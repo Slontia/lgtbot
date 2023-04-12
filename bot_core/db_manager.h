@@ -159,7 +159,7 @@ class DBManagerBase
 class SQLiteDBManager : public DBManagerBase
 {
   public:
-    static std::unique_ptr<DBManagerBase> UseDB(const std::filesystem::path::value_type* sv);
+    static std::unique_ptr<DBManagerBase> UseDB(const char* sv);
     virtual ~SQLiteDBManager();
     virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
             const UserID& host_uid, const uint64_t multiple,

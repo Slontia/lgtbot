@@ -57,7 +57,7 @@ class BotCtx
 
     const UserID this_uid_;
     const std::string game_path_;
-    const std::filesystem::path::value_type* conf_path_;
+    const char* conf_path_;
     std::mutex mutex_;
     GameHandleMap game_handles_;
     std::set<UserID> admins_;

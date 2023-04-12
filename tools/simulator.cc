@@ -24,7 +24,7 @@ DEFINE_string(history_filename, ".simulator_history.txt", "The file saving histo
 DEFINE_bool(color, true, "Enable color");
 DEFINE_string(bot_uid, "this_bot", "The UserID of bot");
 DEFINE_string(admin_uid, "admin", "The UserID of administor");
-DEFINE_string(conf_file, "", "The path of the configuration file");
+DEFINE_string(conf_path, "", "The path of the configuration file");
 
 #ifdef WITH_SQLITE
 DEFINE_string(db_path, "simulator.db", "Name of database");
@@ -178,6 +178,7 @@ int main(int argc, char** argv)
 #ifdef WITH_SQLITE
     const auto db_path = std::filesystem::path(FLAGS_db_path);
 #endif
+    const auto conf_path = std::filesystem::path(FLAGS_conf_path);
     const BotOption option {
         .this_uid_ = FLAGS_bot_uid.c_str(),
         .game_path_ = FLAGS_game_path.c_str(),
@@ -186,7 +187,7 @@ int main(int argc, char** argv)
 #ifdef WITH_SQLITE
         .db_path_ = db_path.c_str(),
 #endif
-        .conf_path_ = FLAGS_conf_file.empty() ? nullptr : FLAGS_conf_file.c_str(),
+        .conf_path_ = FLAGS_conf_path.empty() ? nullptr : conf_path.c_str(),
     };
     auto bot = BOT_API::Init(&option);
 

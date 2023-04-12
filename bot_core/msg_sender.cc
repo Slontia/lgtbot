@@ -7,7 +7,7 @@
 #include "msg_sender.h"
 #include "bot_core/match.h"
 
-bool DownloadUserAvatar(const char* const uid, const std::filesystem::path::value_type* const dest_filename);
+bool DownloadUserAvatar(const char* const uid, const char* const dest_filename);
 
 std::string GetUserAvatar(const char* const uid, const int32_t size)
 {

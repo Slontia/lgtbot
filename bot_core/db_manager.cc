@@ -607,7 +607,7 @@ std::vector<HonorInfo> SQLiteDBManager::GetHonors()
     return info;
 }
 
-std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::path::value_type* const db_name)
+std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const char* const db_name)
 {
 #ifdef _WIN32
     std::wstring db_name_wstr(db_name);
@@ -654,6 +654,7 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const std::filesystem::pat
                 "match_id BIGINT UNSIGNED NOT NULL, "
                 "achievement_name VARCHAR(100) NOT NULL);";
         db << "CREATE INDEX IF NOT EXISTS user_id_index ON user_with_achievement(user_id);";
+        std::cout << "sss" << db_name_str << std::endl;
         return std::unique_ptr<DBManagerBase>(new SQLiteDBManager(db_name_str));
     } catch (const sqlite::sqlite_exception& e) {
         HandleError(e);
