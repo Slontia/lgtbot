@@ -33,12 +33,6 @@ ENUM_END(TimeRange)
 #include "utility/log.h"
 #include "bot_core/id.h"
 
-#ifdef _WIN32
-using DBName = std::u16string;
-#else
-using DBName = std::string;
-#endif
-
 #define ENUM_FILE "../bot_core/db_manager.h"
 #include "../utility/extend_enum.h"
 
@@ -178,9 +172,9 @@ class SQLiteDBManager : public DBManagerBase
     virtual bool DeleteHonor(const int32_t id) override;
 
   private:
-    SQLiteDBManager(const DBName& db_name);
+    SQLiteDBManager(std::string db_name);
 
-    DBName db_name_;
+    std::string db_name_;
 };
 
 #endif // WITH_SQLITE

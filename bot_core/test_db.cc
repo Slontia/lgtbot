@@ -32,7 +32,7 @@ class TestDB : public testing::Test
   protected:
     bool UseDB_()
     {
-        return (db_manager_ = SQLiteDBManager::UseDB(std::filesystem::path(k_db_path).c_str())) != nullptr;
+        return (db_manager_ = SQLiteDBManager::UseDB(k_db_path)) != nullptr;
     }
 
     std::unique_ptr<DBManagerBase> db_manager_;

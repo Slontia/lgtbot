@@ -27,7 +27,7 @@ static void HandleError(const std::exception& e)
 }
 
 template <typename Fn>
-static bool ExecuteTransaction(const DBName& db_name, const Fn& fn)
+static bool ExecuteTransaction(const std::string& db_name, const Fn& fn)
 {
     try {
         sqlite::database db(db_name);
@@ -383,7 +383,7 @@ int64_t GetAchievedUserNumber(sqlite::database& db, const std::string& game_name
     return count;
 }
 
-SQLiteDBManager::SQLiteDBManager(const DBName& db_name) : db_name_(db_name)
+SQLiteDBManager::SQLiteDBManager(std::string db_name) : db_name_(std::move(db_name))
 {
 }
 
@@ -609,14 +609,9 @@ std::vector<HonorInfo> SQLiteDBManager::GetHonors()
 
 std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const char* const db_name)
 {
-#ifdef _WIN32
-    std::wstring db_name_wstr(db_name);
-    std::u16string db_name_str(db_name_wstr.begin(), db_name_wstr.end()); 
-#else
     std::string db_name_str(db_name);
-#endif
     try {
-        sqlite::database db(db_name_str);
+        sqlite::database db(db_name);
         db << "CREATE TABLE IF NOT EXISTS match("
                 "match_id INTEGER PRIMARY KEY AUTOINCREMENT, "
                 "game_name VARCHAR(100) NOT NULL, "

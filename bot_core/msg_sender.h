@@ -14,7 +14,7 @@
 #include "bot_core/id.h"
 #include "bot_core/image.h"
 
-std::filesystem::path ImageAbsPath(const std::filesystem::path& rel_path);
+std::string ImageAbsPath(const std::string_view rel_path);
 
 void* OpenMessager(const char* id, bool is_uid);
 void MessagerPostText(void* p, const char* data, uint64_t len);
@@ -35,7 +35,7 @@ class Match;
 
 template <typename IdType> struct At { IdType id_; };
 template <typename IdType> struct Name { IdType id_; };
-struct Image { std::filesystem::path path_; };
+struct Image { std::string path_; };
 struct Markdown { std::string_view data_; uint32_t width_ = 600; };
 
 template <typename T> concept CanToString = requires(T&& t) { std::to_string(std::forward<T>(t)); };

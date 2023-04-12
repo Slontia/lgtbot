@@ -465,11 +465,7 @@ class TestBot : public testing::Test
             .game_path_ = "/game_path/",
             .image_path_ = "/image_path/",
             .admins_ = k_admin_qq,
-#ifdef _WIN32
-            .db_path_ = L":memory:",
-#else
             .db_path_ = ":memory:",
-#endif
         };
         bot_ = new BotCtx(option, std::unique_ptr<DBManagerBase>(new MockDBManager()));
         ASSERT_NE(bot_, nullptr) << "init bot failed";
