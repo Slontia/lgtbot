@@ -21,52 +21,9 @@
 
 #include "sqlite_modern_cpp.h"
 
-extern void LoadGameModules();
-
-const int32_t LGT_AC = -1;
-
-BotCtx::BotCtx(const BotOption& option, std::unique_ptr<DBManagerBase> db_manager)
-    : this_uid_(option.this_uid_)
-    , game_path_(std::filesystem::absolute(option.game_path_).string())
-    , conf_path_(option.conf_path_)
-    , match_manager_(*this)
-    , db_manager_(std::move(db_manager))
-{
-    LoadGameModules_(option.game_path_);
-    LoadAdmins_(option.admins_);
-    LoadConfig_();
-}
-
-void BotCtx::LoadAdmins_(const std::string_view& admins_str)
-{
-    if (admins_str.empty()) {
-        return;
-    }
-    std::string::size_type begin = 0;
-    while (true) {
-        if (begin == admins_str.size()) {
-            break;
-        }
-        const auto end = admins_str.find_first_of(',', begin);
-        if (end == std::string::npos) {
-            admins_.emplace(admins_str.substr(begin));
-            break;
-        }
-        admins_.emplace(admins_str.substr(begin, end - begin));
-        begin = end + 1;
-    }
-    for (const auto& admin : admins_) {
-        InfoLog() << "Load administor: " << admin;
-    }
-}
-
 static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, const UserID uid, const std::string& msg,
                              MsgSender& reply)
 {
-    if (uid == bot.this_uid()) {
-        ErrorLog() << "receive self request: " << msg;
-        return EC_UNEXPECTED_ERROR;
-    }
     if (std::string first_arg; !(std::stringstream(msg) >> first_arg) || first_arg.empty()) {
         reply() << "[错误] 我不理解，所以你是想表达什么？";
         return EC_REQUEST_EMPTY;
@@ -97,26 +54,49 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
     }
 }
 
-void* /*__cdecl*/ BOT_API::Init(const BotOption* option)
+LGTBot_Option LGTBot_InitOptions()
 {
-#ifdef WITH_GLOG
-    google::InitGoogleLogging("lgtbot");
-#endif
-    std::srand(std::chrono::steady_clock::now().time_since_epoch().count());
-    if (option == nullptr) {
-        return nullptr;
-    }
-    InfoLog() << "Init the bot succeed";
-    return new BotCtx(*option, SQLiteDBManager::UseDB(option->db_path_));
+    LGTBot_Option options;
+    memset(&options, 0, sizeof(options));
+    return options;
 }
 
-void /*__cdelcl*/ BOT_API::Release(void* const bot_p)
+void* LGTBot_Create(const LGTBot_Option* const options, const char** const p)
 {
-    InfoLog() << "Releasing the bot in Release";
+    static bool is_inited = false;
+    if (!is_inited) {
+#ifdef WITH_GLOG
+        google::InitGoogleLogging("lgtbot");
+#endif
+        std::srand(std::chrono::steady_clock::now().time_since_epoch().count());
+        is_inited = true;
+    }
+    const auto set_errmsg = [p](const char* const errmsg)
+        {
+            if (p) {
+                *p = errmsg;
+            }
+        };
+    if (!options) {
+        set_errmsg("the pointer to the bot options is NULL");
+        return nullptr;
+    }
+    const auto bot = BotCtx::Create(*options);
+    if (const char* const* const errmsg = std::get_if<const char*>(&bot)) {
+        set_errmsg(*errmsg);
+        return nullptr;
+    }
+    InfoLog() << "Create the bot successfully, addr:" << std::get<BotCtx*>(bot);
+    return std::get<BotCtx*>(bot);
+}
+
+void LGTBot_Release(void* const bot_p)
+{
+    InfoLog() << "Releasing the bot in Release, addr:" << bot_p;
     delete static_cast<BotCtx*>(bot_p);
 }
 
-bool /*__cdelcl*/ BOT_API::ReleaseIfNoProcessingGames(void* const bot_p)
+int LGTBot_ReleaseIfNoProcessingGames(void* const bot_p)
 {
     if (!bot_p) {
         ErrorLog() << "Release the bot with null pointer";
@@ -128,13 +108,13 @@ bool /*__cdelcl*/ BOT_API::ReleaseIfNoProcessingGames(void* const bot_p)
         InfoLog() << "ReleaseIfNoProcessingGames failed because there are processing games";
         return false;
     }
-    InfoLog() << "Releasing the bot in ReleaseIfNoProcessingGames";
+    InfoLog() << "Releasing the bot in ReleaseIfNoProcessingGames, addr:" << bot_p;
     std::ranges::for_each(matches, [](const auto& match) { match->Terminate(true); });
     delete &bot;
     return true;
 }
 
-ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const char* const uid, const char* const msg)
+ErrCode LGTBot_HandlePrivateRequest(void* const bot_p, const char* const uid, const char* const msg)
 {
     if (!bot_p) {
         ErrorLog() << "Handle private request not init failed uid=" << uid << " msg=\"" << msg << "\"";
@@ -142,26 +122,28 @@ ErrCode /*__cdecl*/ BOT_API::HandlePrivateRequest(void* const bot_p, const char*
     }
     DebugLog() << "Handle private request uid=" << uid << " msg=\"" << msg << "\"";
     BotCtx& bot = *static_cast<BotCtx*>(bot_p);
-    MsgSender sender(UserID{uid});
+    MsgSender sender = bot.MakeMsgSender(UserID{uid});
     return HandleRequest(bot, std::nullopt, uid, msg, sender);
 }
 
 class PublicReplyMsgSender : public MsgSender
 {
   public:
-    PublicReplyMsgSender(const GroupID& gid, const UserID& uid) : MsgSender(gid), uid_(uid) {}
-    MsgSenderGuard operator()() override
+    PublicReplyMsgSender(MsgSender&& msg_sender, UserID uid) : MsgSender(std::move(msg_sender)), uid_(std::move(uid)) {}
+
+    virtual MsgSenderGuard operator()() override
     {
         MsgSenderGuard guard(*this);
+        // TODO: quote the message
         guard << At(uid_) << "\n";
         return guard;
     }
+
   private:
     const UserID uid_;
 };
 
-ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const char* const gid, const char* const uid,
-                                                 const char* const msg)
+ErrCode LGTBot_HandlePublicRequest(void* const bot_p, const char* const gid, const char* const uid, const char* const msg)
 {
     if (!bot_p) {
         ErrorLog() << "Handle public request not init failed uid=" << uid << " gid=" << gid << " msg=" << msg;
@@ -169,7 +151,7 @@ ErrCode /*__cdecl*/ BOT_API::HandlePublicRequest(void* const bot_p, const char* 
     }
     DebugLog() << "Handle public request uid=" << uid << " gid=" << gid << " msg=" << msg;
     BotCtx& bot = *static_cast<BotCtx*>(bot_p);
-    PublicReplyMsgSender sender(GroupID{gid}, UserID{uid});
+    PublicReplyMsgSender sender(bot.MakeMsgSender(GroupID{gid}), UserID{uid});
     return HandleRequest(bot, gid, uid, msg, sender);
 }
 

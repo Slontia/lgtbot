@@ -649,7 +649,6 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const char* const db_name)
                 "match_id BIGINT UNSIGNED NOT NULL, "
                 "achievement_name VARCHAR(100) NOT NULL);";
         db << "CREATE INDEX IF NOT EXISTS user_id_index ON user_with_achievement(user_id);";
-        std::cout << "sss" << db_name_str << std::endl;
         return std::unique_ptr<DBManagerBase>(new SQLiteDBManager(db_name_str));
     } catch (const sqlite::sqlite_exception& e) {
         HandleError(e);

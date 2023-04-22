@@ -36,7 +36,7 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, const User
         , users_()
         , boardcast_private_sender_(MsgSenderBatchHandler(*this, false))
         , boardcast_ai_info_private_sender_(MsgSenderBatchHandler(*this, true))
-        , group_sender_(gid.has_value() ? std::optional<MsgSender>(MsgSender(*gid_, this)) : std::nullopt)
+        , group_sender_(gid.has_value() ? std::optional<MsgSender>(bot.MakeMsgSender(*gid_, this)) : std::nullopt)
         , bench_to_player_num_(0)
         , multiple_(game_handle.multiple_)
         , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")))
@@ -52,9 +52,9 @@ Match::~Match() {}
 
 bool Match::Has_(const UserID uid) const { return users_.find(uid) != users_.end(); }
 
-const char* Match::HostUserName_() const
+std::string Match::HostUserName_() const
 {
-    return GetUserName(host_uid_.GetCStr(), gid_.has_value() ? gid_->GetCStr() : nullptr);
+    return bot_.GetUserName(host_uid_.GetCStr(), gid_.has_value() ? gid_->GetCStr() : nullptr);
 }
 
 uint64_t Match::ComputerNum_() const
@@ -66,7 +66,7 @@ void Match::EmplaceUser_(const UserID uid)
 {
     const auto locked_option = bot_.option().Lock();
     const auto& ai_list = GET_OPTION_VALUE(locked_option.Get(), AI列表);
-    users_.emplace(uid, ParticipantUser(uid, std::ranges::find(ai_list, uid.GetStr()) != std::end(ai_list)));
+    users_.emplace(uid, ParticipantUser(*this, uid, std::ranges::find(ai_list, uid.GetStr()) != std::end(ai_list)));
 }
 
 Match::VariantID Match::ConvertPid(const PlayerID pid) const
@@ -222,7 +222,8 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         return EC_MATCH_NOT_HOST;
     }
     const uint64_t player_num = std::max(user_controlled_player_num(), bench_to_player_num_);
-    const std::string resource_dir = (std::filesystem::path(bot_.game_path()) / game_handle_.module_name_ / "").string();
+    const std::string resource_dir =
+        (std::filesystem::absolute(std::filesystem::path(bot_.game_path())) / game_handle_.module_name_ / "").string();
     assert(main_stage_ == nullptr);
     assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
     options_->SetPlayerNum(player_num);
@@ -390,10 +391,7 @@ const char* Match::PlayerName(const PlayerID& pid)
     if (const auto pval = std::get_if<ComputerID>(&id)) {
         return (str = "机器人" + std::to_string(*pval) + "号").c_str();
     }
-    if (!gid().has_value()) {
-        return GetUserName(std::get<UserID>(id).GetCStr(), nullptr);
-    }
-    return GetUserName(std::get<UserID>(id).GetCStr(), gid().has_value() ? gid()->GetCStr() : nullptr);
+    return (str = bot_.GetUserName(std::get<UserID>(id).GetCStr(), gid().has_value() ? gid()->GetCStr() : nullptr)).c_str();
 }
 
 const char* Match::PlayerAvatar(const PlayerID& pid, const int32_t size)
@@ -403,8 +401,7 @@ const char* Match::PlayerAvatar(const PlayerID& pid, const int32_t size)
     if (const auto pval = std::get_if<ComputerID>(&id)) {
         return "";
     }
-    str = GetUserAvatar(std::get<UserID>(id).GetCStr(), size);
-    return str.c_str();
+    return (str = bot_.GetUserAvatar(std::get<UserID>(id).GetCStr(), size)).c_str();
 }
 
 MsgSenderBase::MsgSenderGuard Match::BoardcastAtAll()

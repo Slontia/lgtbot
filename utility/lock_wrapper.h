@@ -24,6 +24,8 @@ class LockWrapper : private T
 
   public:
     using T::T;
+    LockWrapper(const T& v) : T(v) {}
+    LockWrapper(T&& v) : T(std::move(v)) {}
     LockGuard<T&> Lock() { return LockGuard<T&>(*this, m_); }
     LockGuard<const T&> Lock() const { return LockGuard<const T&>(*this, m_); }
 

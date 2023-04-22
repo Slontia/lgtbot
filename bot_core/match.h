@@ -42,26 +42,6 @@ class Overload : public Ts...
     using Ts::operator()...;
 };
 
-struct ParticipantUser
-{
-    enum class State { ACTIVE, LEFT };
-    explicit ParticipantUser(const UserID uid, const bool is_ai)
-        : uid_(uid)
-        , is_ai_(is_ai)
-        , sender_(uid)
-        , state_(State::ACTIVE)
-        , leave_when_config_changed_(true)
-        , want_interrupt_(false)
-    {}
-    UserID uid_;
-    bool is_ai_;
-    std::vector<PlayerID> pids_;
-    MsgSender sender_;
-    State state_;
-    bool leave_when_config_changed_;
-    bool want_interrupt_;
-};
-
 class Match : public MatchBase, public std::enable_shared_from_this<Match>
 {
   public:
@@ -130,6 +110,26 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     std::string BriefInfo() const;
 
    private:
+    struct ParticipantUser
+    {
+        enum class State { ACTIVE, LEFT };
+        explicit ParticipantUser(Match& match, const UserID uid, const bool is_ai)
+            : uid_(uid)
+            , is_ai_(is_ai)
+            , sender_(match.bot_.MakeMsgSender(uid, &match))
+            , state_(State::ACTIVE)
+            , leave_when_config_changed_(true)
+            , want_interrupt_(false)
+        {}
+        UserID uid_;
+        bool is_ai_;
+        std::vector<PlayerID> pids_;
+        MsgSender sender_;
+        State state_;
+        bool leave_when_config_changed_;
+        bool want_interrupt_;
+    };
+
     ErrCode CheckMultipleAllowed_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const;
 
     template <typename Logger>
@@ -155,7 +155,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     template <typename Fn>
     bool AllControlledPlayerState_(const ParticipantUser& user, Fn&& fn) const;
     bool Has_(const UserID uid) const;
-    const char* HostUserName_() const;
+    std::string HostUserName_() const;
     uint64_t ComputerNum_() const;
     void EmplaceUser_(const UserID uid);
 

@@ -65,17 +65,11 @@ ERRCODE_DEF(EC_GAME_REQUEST_UNKNOWN)
 #define BOT_CORE_H
 
 #include <stdint.h>
+#include <stddef.h>
 
-#include <map>
-#include <memory>
-#include <string>
-#include <filesystem>
-
-#include "bot_core/id.h"
-
-class GameHandle;
-
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 enum ErrCode {
 #define ERRCODE_DEF_V(errcode, value) errcode = value,
@@ -85,7 +79,7 @@ enum ErrCode {
 #undef ERRCODE_DEF
 };
 
-inline const char* errcode2str(const ErrCode errcode)
+inline const char* errcode2str(const enum ErrCode errcode)
 {
     switch (errcode) {
 #define ERRCODE_DEF(errcode) \
@@ -106,28 +100,122 @@ inline const char* errcode2str(const ErrCode errcode)
 #define DLLEXPORT(type) type
 #endif
 
-struct BotOption
-{
-    const char* this_uid_ = nullptr; // the user id of the robot, should not be null
-    const char* game_path_ = nullptr; // should not be null
-    const char* image_path_ = nullptr; // should not be null
-    const char* admins_ = nullptr; // an list for admin user id, split by ',', should not be null
-    const char* db_path_ = nullptr;
-    const char* conf_path_ = nullptr;
-};
+typedef enum { LGTBOT_MSG_TEXT, LGTBOT_MSG_USER_NAME, LGTBOT_MSG_USER_MENTION, LGTBOT_MSG_IMAGE } LGTBot_MessageType;
 
-class BOT_API
+typedef struct
 {
-   public:
-    static DLLEXPORT(void*) Init(const BotOption* option);
-    static DLLEXPORT(void) Release(void* bot);
-    static DLLEXPORT(bool) ReleaseIfNoProcessingGames(void* bot);
-    static DLLEXPORT(ErrCode) HandlePrivateRequest(void* bot, const char* uid, const char* msg);
-    static DLLEXPORT(ErrCode) HandlePublicRequest(void* bot, const char* gid, const char* uid, const char* msg);
-};
+    const char* str_;
+    LGTBot_MessageType type_;
+} LGTBot_Message;
+
+// All these callbacks should not be NULL when passed to initializing the bot.
+typedef struct
+{
+    // Get the name of the user.
+    // Inputs:
+    //   - `handler`: The user defined handler.
+    //   - `buffer`: The buffer to store the user name.
+    //   - `size`: The size of the buffer.
+    //   - `user_id`: The user ID, never be NULL.
+    void (*get_user_name)(void* handler, char* buffer, size_t size, const char* user_id);
+
+    // Get the name of the user.
+    // Inputs:
+    //   - `handler`: The user defined handler.
+    //   - `buffer`: The buffer to store the user name.
+    //   - `size`: The size of the buffer.
+    //   - `group_id`: The group ID, never not NULL.
+    //   - `user_id`: The user ID, never be NULL.
+    void (*get_user_name_in_group)(void* handler, char* bufer, size_t size, const char* group_id, const char* user_id);
+
+    // Download the avatar of the user.
+    // Inputs:
+    //   - `handler`: The user defined handler.
+    //   - `user_id`: The user ID, never be NULL.
+    //   - `dest_filename`: The filename which the downloaded avatar image saved as, never be NULL.
+    // Outputs:
+    //   If download successfully, return 1. Otherwise, return 0.
+    int (*download_user_avatar)(void* handler, const char* user_id, const char* dest_filename);
+
+    // Handle the messages sent by user.
+    // Inputs:
+    //   - `handler`: The user defined handler.
+    //   - `id`: The user ID or group ID, never be NULL.
+    //   - `is_to_user`: If is true, the `id` is user ID. Otherwise, the `id` is group ID.
+    //   - `messages`: The messages sent by the user.
+    //   - `size`: The size of the buffer.
+    void (*handle_messages)(void* handler, const char* id, const int is_to_user, const LGTBot_Message* messages, const size_t size);
+} LGTBot_Callback;
+
+typedef struct
+{
+    // The path to the game modules, be NULL if do not want to load any games.
+    const char* game_path_;
+
+    // The list for administor user ID, split by ',', be NULL if no administors.
+    const char* admins_;
+
+    // The path to the sqlite database file, be NULL if do not want to record match results.
+    const char* db_path_;
+
+    // The path to the configuration file, be NULL if use no configuration files.
+    const char* conf_path_;
+
+    // The user defined handler which will be passed to callbacks.
+    void* handler_;
+
+    // The callbacks to help sending messages.
+    LGTBot_Callback callbacks_;
+} LGTBot_Option;
+
+// Get the initialized options for the bot.
+// Outputs:
+//   The initialized options for the bot.
+LGTBot_Option LGTBot_InitOptions();
+
+// Create a new bot with the options.
+// Inputs:
+//   - `options`: The pointer to options for bot, should not be NULL.
+//   - `p`: The address of the pointer which will point to the error message if the bot is created failed.
+// Outputs:
+//   If the bot is created successfully, return the created bot. Otherwise, return NULL, and the `p`//   will point to the error message.
+DLLEXPORT(void*) LGTBot_Create(const LGTBot_Option* options, const char** p);
+
+// Release the bot.
+// Inputs:
+//   - `bot`: The pointer to the bot, should not be NULL.
+DLLEXPORT(void) LGTBot_Release(void* bot);
+
+// Release the bot if there are no processing games.
+// Inputs:
+//   - `bot`: The pointer to the bot, should not be NULL.
+// Outputs:
+//   If the bot is released successfully, return 1. Otherwise, return 0;
+DLLEXPORT(int) LGTBot_ReleaseIfNoProcessingGames(void* bot);
+
+// To make the bot handle a message sent from a user privately.
+// Inputs:
+//   - `bot`: The pointer to the bot, should not be NULL.
+//   - `user_id`: The user ID, should not be NULL.
+//   - `msg`: The message, should not be NULL.
+// Outputs:
+//   The errcode. If the message is handled well, the returned errcode should be EC_OK.
+DLLEXPORT(enum ErrCode) LGTBot_HandlePrivateRequest(void* bot, const char* user_id, const char* msg);
+
+// To make the bot handle a message sent from a user in a group publicly.
+// Inputs:
+//   - `bot`: The pointer to the bot, should not be NULL.
+//   - `group_id`: The group ID, should not be NULL.
+//   - `user_id`: The user ID, should not be NULL.
+//   - `msg`: The message, should not be NULL.
+// Outputs:
+//   The errcode. If the message is handled well, the returned errcode should be EC_OK.
+DLLEXPORT(enum ErrCode) LGTBot_HandlePublicRequest(void* bot, const char* group_id, const char* user_id, const char* msg);
 
 #undef DLLEXPORT
 
+#ifdef __cplusplus
 }
+#endif
 
 #endif

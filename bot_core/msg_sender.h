@@ -10,23 +10,13 @@
 #include <functional>
 #include <filesystem>
 #include <thread>
+#include <cstring>
 
 #include "bot_core/id.h"
 #include "bot_core/image.h"
+#include "bot_core/bot_core.h"
 
 std::string ImageAbsPath(const std::string_view rel_path);
-
-void* OpenMessager(const char* id, bool is_uid);
-void MessagerPostText(void* p, const char* data, uint64_t len);
-void MessagerPostUser(void* p, const char* uid, bool is_at);
-void MessagerPostImage(void* p, const char* path);
-void MessagerFlush(void* p);
-void CloseMessager(void* p);
-// |uid| should NOT be null
-// |gid| is null means to get the nickname of the user, otherwise, getting the group nickname of the user
-const char* GetUserName(const char* uid, const char* group_id);
-// |uid| should NOT be null
-std::string GetUserAvatar(const char* const uid, const int32_t size);
 
 class PlayerID;
 class UserID;
@@ -130,31 +120,86 @@ class EmptyMsgSender : public MsgSenderBase
 class MsgSender : public MsgSenderBase
 {
   public:
-    MsgSender(const UserID& uid, Match* const match = nullptr) : sender_(Open_(uid)), match_(match) {}
-    MsgSender(const GroupID& gid, Match* const match = nullptr) : sender_(Open_(gid)), match_(match) {}
+    MsgSender(void* handler, const LGTBot_Callback& callbacks, const UserID& uid, Match* const match = nullptr)
+        : handler_(handler), callbacks_(&callbacks), id_(uid.GetStr()), is_to_user_(true), match_(match) {}
+
+    MsgSender(void* handler, const LGTBot_Callback& callbacks, const GroupID& gid, Match* const match = nullptr)
+        : handler_(handler), callbacks_(&callbacks), id_(gid.GetStr()), is_to_user_(false), match_(match) {}
+
     MsgSender(const MsgSender&) = delete;
-    MsgSender(MsgSender&& o) : sender_(o.sender_), match_(o.match_)
+    MsgSender(MsgSender&& o) = default;
+
+    ~MsgSender()
     {
-        o.sender_ = nullptr;
-        o.match_ = nullptr;
     }
-    ~MsgSender() { CloseMessager(sender_); }
+
+    explicit MsgSender(const Match* const match = nullptr) : match_(match) {}
+
     virtual void SetMatch(const Match* const match) override { match_ = match; }
+
     virtual MsgSenderGuard operator()() override { return MsgSenderGuard(*this); }
 
   protected:
-    virtual void SaveText(const char* const data, const uint64_t len) override { MessagerPostText(sender_, data, len); }
-    virtual void SaveUser(const UserID& uid, const bool is_at) override { MessagerPostUser(sender_, uid.GetCStr(), is_at); }
+    virtual void SaveText(const char* const data, const uint64_t len) override
+    {
+        // TODO: len is useless
+        if (messages_.empty() || messages_.back().type_ != LGTBot_MessageType::LGTBOT_MSG_TEXT) {
+            messages_.emplace_back(std::string(data, len), LGTBot_MessageType::LGTBOT_MSG_TEXT);
+        } else {
+            messages_.back().str_.append(data, len);
+        }
+    }
+
+    virtual void SaveUser(const UserID& uid, const bool is_at) override
+    {
+        if (is_at) {
+            messages_.emplace_back(uid.GetStr(), LGTBot_MessageType::LGTBOT_MSG_USER_MENTION);
+            return;
+        }
+        char buffer[128];
+        if (is_to_user_) {
+            callbacks_->get_user_name(handler_, buffer, sizeof(buffer), uid.GetCStr());
+        } else {
+            callbacks_->get_user_name_in_group(handler_, buffer, sizeof(buffer), id_.c_str(), uid.GetCStr());
+        }
+        SaveText(buffer, std::strlen(buffer));
+    }
+
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override;
-    virtual void SaveImage(const char* const path) override { MessagerPostImage(sender_, path); }
-    virtual void Flush() override { MessagerFlush(sender_); }
-    void SaveText_(const std::string_view& sv) { SaveText(sv.data(), sv.size()); }
+
+    virtual void SaveImage(const char* const path) override
+    {
+        messages_.emplace_back(std::string(path), LGTBot_MessageType::LGTBOT_MSG_IMAGE);
+    }
+
+    virtual void Flush() override
+    {
+        std::vector<LGTBot_Message> raw_messages;
+        raw_messages.reserve(messages_.size());
+        for (const auto& message : messages_) {
+            raw_messages.emplace_back(message.str_.c_str(), message.type_);
+        }
+        callbacks_->handle_messages(handler_, id_.c_str(), is_to_user_, raw_messages.data(), raw_messages.size());
+        messages_.clear();
+    }
+
+    void SaveText_(const std::string_view& sv)
+    {
+        SaveText(sv.data(), sv.size());
+    }
 
   private:
-    static void* Open_(const UserID& uid) { return OpenMessager(uid.GetCStr(), true); }
-    static void* Open_(const GroupID& gid) { return OpenMessager(gid.GetCStr(), false); }
-    void* sender_;
+    struct Message
+    {
+        std::string str_;
+        LGTBot_MessageType type_;
+    };
+    void* handler_;
+    const LGTBot_Callback* callbacks_;
+    std::string id_;
+    bool is_to_user_;
     const Match* match_;
+    std::vector<Message> messages_;
 };
 
 MsgSenderBase::MsgSenderGuard::~MsgSenderGuard()

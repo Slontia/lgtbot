@@ -377,8 +377,8 @@ static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::option
         table.MergeRight(table.Row() - 1, 1, 2);
         table.GetLastRow(1).SetContent(color_header + "<font size=\"3\"> " + description + "</font>" HTML_FONT_TAIL);
     }
-    reply() << Markdown(std::string("## ") + GetUserAvatar(uid.GetCStr(), 40) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
-        GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) + "——" HTML_COLOR_FONT_HEADER(blue) +
+    reply() << Markdown(std::string("## ") + bot.GetUserAvatar(uid.GetCStr(), 40) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
+        bot.GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) + "——" HTML_COLOR_FONT_HEADER(blue) +
         gamename + HTML_FONT_TAIL "成就一览\n\n" + table.ToString(), 800);
     return EC_OK;
 }
@@ -437,8 +437,8 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
             return s;
         };
 
-    std::string html = std::string("## ") + GetUserAvatar(uid.GetCStr(), 40) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
-        GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) + "\n";
+    std::string html = std::string("## ") + bot.GetUserAvatar(uid.GetCStr(), 40) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
+        bot.GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) + "\n";
 
     html += "\n- **注册时间**：" + (profile.birth_time_.empty() ? "无" : profile.birth_time_) + "\n";
 
@@ -623,24 +623,24 @@ static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<
         reply() << "[错误] 重来失败：清除战绩，需最近三局比赛均取得正零和分的收益";
         return EC_USER_SUICIDE_FAILED;
     }
-    reply() << GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) << "，凋零！";
+    reply() << bot.GetUserName(uid.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) << "，凋零！";
     return EC_OK;
 }
 
 template <typename V>
-static std::string print_score(const V& vec, const std::optional<GroupID> gid, const std::string_view& unit = "分")
+static std::string print_score(BotCtx& bot, const V& vec, const std::optional<GroupID> gid, const std::string_view& unit = "分")
 {
     std::string s;
     for (uint64_t i = 0; i < vec.size(); ++i) {
         s += "\n" + std::to_string(i + 1) + "位：" +
-                GetUserName(vec[i].first.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) +
+                bot.GetUserName(vec[i].first.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr) +
                 "【" + std::to_string(vec[i].second) + " " + unit.data() + "】";
     }
     return s;
 };
 
 template <typename V>
-static std::string print_score_in_table(const std::string_view& score_name, const V& vec,
+static std::string print_score_in_table(BotCtx& bot, const std::string_view& score_name, const V& vec,
         const std::optional<GroupID> gid, const std::string_view& unit = "分")
 {
     html::Table table(2 + vec.size(), 3);
@@ -655,8 +655,8 @@ static std::string print_score_in_table(const std::string_view& score_name, cons
         const auto uid_cstr = vec[i].first.GetCStr();
         table.Get(2 + i, 0).SetContent(std::to_string(i + 1) + " 位");
         table.Get(2 + i, 1).SetContent(
-                "<p align=\"left\">" HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE + GetUserAvatar(uid_cstr, 30) +
-                HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE + GetUserName(uid_cstr, gid.has_value() ? gid->GetCStr() : nullptr) +
+                "<p align=\"left\">" HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE + bot.GetUserAvatar(uid_cstr, 30) +
+                HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE + bot.GetUserName(uid_cstr, gid.has_value() ? gid->GetCStr() : nullptr) +
                 "</p>");
         table.Get(2 + i, 2).SetContent(std::to_string(vec[i].second) + " " + unit.data());
     }
@@ -678,9 +678,9 @@ static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<Grou
         s += HTML_FONT_TAIL "赛季排行</h2>\n";
         html::Table table(1, 3);
         table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" width=\"1250\" ");
-        table.Get(0, 0).SetContent(print_score_in_table("零和总分", info.zero_sum_score_rank_, gid));
-        table.Get(0, 1).SetContent(print_score_in_table("头名总分", info.top_score_rank_, gid));
-        table.Get(0, 2).SetContent(print_score_in_table("游戏局数", info.match_count_rank_, gid, "场"));
+        table.Get(0, 0).SetContent(print_score_in_table(bot, "零和总分", info.zero_sum_score_rank_, gid));
+        table.Get(0, 1).SetContent(print_score_in_table(bot, "头名总分", info.top_score_rank_, gid));
+        table.Get(0, 2).SetContent(print_score_in_table(bot, "游戏局数", info.match_count_rank_, gid, "场"));
         s += "\n\n" + table.ToString() + "\n\n";
     }
     reply() << Markdown(s, 1300);
@@ -696,9 +696,9 @@ static ErrCode show_rank_time_range(BotCtx& bot, const UserID uid, const std::op
     }
     const auto info = bot.db_manager()->GetRank(
             k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()]);
-    reply() << "## 零和得分排行（" << time_range << "赛季）：\n" << print_score(info.zero_sum_score_rank_, gid);
-    reply() << "## 头名得分排行（" << time_range << "赛季）：\n" << print_score(info.top_score_rank_, gid);
-    reply() << "## 游戏局数排行（" << time_range << "赛季）：\n" << print_score(info.match_count_rank_, gid, "场");
+    reply() << "## 零和得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.zero_sum_score_rank_, gid);
+    reply() << "## 头名得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.top_score_rank_, gid);
+    reply() << "## 游戏局数排行（" << time_range << "赛季）：\n" << print_score(bot, info.match_count_rank_, gid, "场");
     return EC_OK;
 }
 
@@ -725,9 +725,9 @@ static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional
         s += HTML_FONT_TAIL "排行</h2>\n";
         html::Table table(1, 3);
         table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" width=\"1250\" ");
-        table.Get(0, 0).SetContent(print_score_in_table("等级总分", info.level_score_rank_, gid));
-        table.Get(0, 1).SetContent(print_score_in_table("加权等级总分", info.weight_level_score_rank_, gid));
-        table.Get(0, 2).SetContent(print_score_in_table("游戏局数", info.match_count_rank_, gid, "场"));
+        table.Get(0, 0).SetContent(print_score_in_table(bot, "等级总分", info.level_score_rank_, gid));
+        table.Get(0, 1).SetContent(print_score_in_table(bot, "加权等级总分", info.weight_level_score_rank_, gid));
+        table.Get(0, 2).SetContent(print_score_in_table(bot, "游戏局数", info.match_count_rank_, gid, "场"));
         s += "\n\n" + table.ToString() + "\n\n";
     }
     reply() << Markdown(s, 1300);
@@ -747,9 +747,9 @@ static ErrCode show_game_rank_range_time(BotCtx& bot, const UserID uid, const st
     }
     const auto info = bot.db_manager()->GetLevelScoreRank(game_name, k_time_range_begin_datetimes[time_range.ToUInt()],
             k_time_range_end_datetimes[time_range.ToUInt()]);
-    reply() << "## 等级得分排行（" << time_range << "赛季）：\n" << print_score(info.level_score_rank_, gid);
-    reply() << "## 加权等级得分排行（" << time_range << "赛季）：\n" << print_score(info.weight_level_score_rank_, gid);
-    reply() << "## 游戏局数排行（" << time_range << "赛季）：\n" << print_score(info.match_count_rank_, gid, "场");
+    reply() << "## 等级得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.level_score_rank_, gid);
+    reply() << "## 加权等级得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.weight_level_score_rank_, gid);
+    reply() << "## 游戏局数排行（" << time_range << "赛季）：\n" << print_score(bot, info.match_count_rank_, gid, "场");
     return EC_OK;
 }
 
@@ -768,8 +768,8 @@ static ErrCode show_honors(BotCtx& bot, const UserID uid, const std::optional<Gr
     for (const auto& info : bot.db_manager()->GetHonors()) {
         table.AppendRow();
         table.GetLastRow(0).SetContent(std::to_string(info.id_));
-        table.GetLastRow(1).SetContent(GetUserAvatar(info.uid_.GetCStr(), 25) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
-                GetUserName(info.uid_.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr));
+        table.GetLastRow(1).SetContent(bot.GetUserAvatar(info.uid_.GetCStr(), 25) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
+                bot.GetUserName(info.uid_.GetCStr(), gid.has_value() ? gid->GetCStr() : nullptr));
         table.GetLastRow(2).SetContent(info.description_);
         table.GetLastRow(3).SetContent(info.time_);
     }
@@ -884,7 +884,7 @@ static ErrCode clear_others_profile(BotCtx& bot, const UserID uid, const std::op
         reply() << "[错误] 清除失败：未知原因";
         return EC_USER_SUICIDE_FAILED;
     }
-    MsgSender{UserID{others_uid}}() << "非常抱歉，您的战绩已被强制清空，理由为「" << reason << "」\n如有疑问，请联系管理员";
+    bot.MakeMsgSender(UserID{others_uid})() << "非常抱歉，您的战绩已被强制清空，理由为「" << reason << "」\n如有疑问，请联系管理员";
     reply() << "战绩删除成功，且已通知该玩家！";
     return EC_OK;
 }

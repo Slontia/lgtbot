@@ -12,15 +12,6 @@
 
 #include "bot_core/score_calculation.h"
 
-void* OpenMessager(const char* id, bool is_uid) { return nullptr; }
-void MessagerPostText(void* p, const char* data, uint64_t len) {}
-void MessagerPostUser(void* p, char* uid, bool is_at) {}
-void MessagerPostImage(void* p, const char* path) {}
-void MessagerFlush(void* p) {}
-void CloseMessager(void* p) {}
-const char* GetUserName(const char* uid, const char* gid) { return nullptr; }
-bool DownloadUserAvatar(const char* const uid_str, const char* const dest_filename) { return false; }
-
 class TestMatchScore : public testing::Test
 {
 };

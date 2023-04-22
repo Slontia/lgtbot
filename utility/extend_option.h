@@ -49,6 +49,10 @@ class OPTION_CLASSNAME
 #undef EXTEND_OPTION
     }
 
+    OPTION_CLASSNAME(const OPTION_CLASSNAME&) = default;
+
+    OPTION_CLASSNAME(OPTION_CLASSNAME&&) = default;
+
     template <Option op>
     auto& Option2Value()
     {

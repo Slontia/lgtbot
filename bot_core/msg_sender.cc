@@ -9,18 +9,6 @@
 
 bool DownloadUserAvatar(const char* const uid, const char* const dest_filename);
 
-std::string GetUserAvatar(const char* const uid, const int32_t size)
-{
-    const auto path = (std::filesystem::current_path() / ".image" / "avatar" / uid) += ".png";
-    std::filesystem::create_directories(path.parent_path());
-    const std::string path_str = path.string();
-    if (!DownloadUserAvatar(uid, path_str.c_str())) {
-        return "";
-    }
-    return "<img src=\"file://" + path_str + "\" style=\"width:" + std::to_string(size) + "px; height:" +
-        std::to_string(size) + "px; border-radius:50%; vertical-align: middle;\"/>";
-}
-
 void MsgSender::SavePlayer(const PlayerID& pid, const bool is_at)
 {
     if (!match_ || match_->state() == Match::State::NOT_STARTED) {

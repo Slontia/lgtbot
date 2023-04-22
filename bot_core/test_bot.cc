@@ -110,72 +110,44 @@ class MockDBManager : public DBManagerBase
     std::map<UserID, std::vector<std::string>> user_achievements_;
 };
 
-struct Messager
+void HandleMessages(void* handler, const char* const id, const int is_uid, const LGTBot_Message* messages, const size_t size)
 {
-    Messager(const char* const id, const bool is_uid) : id_(id), is_uid_(is_uid) {}
-    const std::string id_;
-    const bool is_uid_;
-    std::stringstream ss_;
-};
-
-void* OpenMessager(const char* const id, const bool is_uid)
-{
-    return new Messager(id, is_uid);
-}
-
-void MessagerPostText(void* const p, const char* const data, const uint64_t len)
-{
-    Messager* const messager = static_cast<Messager*>(p);
-    messager->ss_ << std::string_view(data, len);
-}
-
-void MessagerPostUser(void* const p, const char* const uid, const bool is_at)
-{
-    Messager* const messager = static_cast<Messager*>(p);
-    if (is_at) {
-        messager->ss_ << "@" << uid;
-    } else if (messager->is_uid_) {
-        messager->ss_ << uid;
-    } else {
-        messager->ss_ << uid << "(gid=" << messager->id_ << ")";
+    std::string s = is_uid ? "[BOT -> USER_" : "[BOT -> GROUP_";
+    s.append(id);
+    s.append("]\n");
+    for (size_t i = 0; i < size; ++i) {
+        const auto& msg = messages[i];
+        switch (msg.type_) {
+        case LGTBOT_MSG_TEXT:
+            s.append(msg.str_);
+            break;
+        case LGTBOT_MSG_USER_MENTION:
+            s.append("@");
+            s.append(msg.str_);
+            break;
+        case LGTBOT_MSG_IMAGE:
+            s.append("[image=");
+            s.append(msg.str_);
+            s.append("]");
+            break;
+        default:
+            assert(false);
+        }
     }
+    std::cout << s << std::endl;
 }
 
-void MessagerPostImage(void* p, const char* path)
+void GetUserName(void* handler, char* buffer, size_t size, const char* const user_id)
 {
-    Messager* const messager = static_cast<Messager*>(p);
-    messager->ss_ << "[image=" << path << "]";
+    strncpy(buffer, user_id, size);
 }
 
-void MessagerFlush(void* p)
+void GetUserNameInGroup(void* handler, char* buffer, size_t size, const char* group_id, const char* const user_id)
 {
-    Messager* const messager = static_cast<Messager*>(p);
-    if (messager->is_uid_) {
-        std::cout << "[BOT -> USER_" << messager->id_ << "]" << std::endl << messager->ss_.str() << std::endl;
-    } else {
-        std::cout << "[BOT -> GROUP_" << messager->id_ << "]" << std::endl << messager->ss_.str() << std::endl;
-    }
-    messager->ss_.str("");
+    snprintf(buffer, size, "%s(gid=%s)", user_id, group_id);
 }
 
-void CloseMessager(void* p)
-{
-    Messager* const messager = static_cast<Messager*>(p);
-    delete messager;
-}
-
-const char* GetUserName(const char* const uid, const char* const group_id)
-{
-    thread_local static std::string str;
-    if (group_id == nullptr) {
-        str = uid;
-    } else {
-        str = std::string(uid) + "(gid=" + std::string(group_id) + ")";
-    }
-    return str.c_str();
-}
-
-bool DownloadUserAvatar(const char* const uid_str, const char* const dest_filename) { return false; }
+int DownloadUserAvatar(void* handler, const char* const uid_str, const char* const dest_filename) { return false; }
 
 class TestBot;
 
@@ -460,20 +432,29 @@ class TestBot : public testing::Test
     virtual void SetUp() override
     {
         Timer::skip_timer_ = false;
-        const BotOption option {
-            .this_uid_ = k_this_qq,
-            .game_path_ = "/game_path/",
-            .image_path_ = "/image_path/",
-            .admins_ = k_admin_qq,
-            .db_path_ = ":memory:",
-        };
-        bot_ = new BotCtx(option, std::unique_ptr<DBManagerBase>(new MockDBManager()));
-        ASSERT_NE(bot_, nullptr) << "init bot failed";
+        bot_ = new BotCtx(
+                "./",
+                "",
+                LGTBot_Callback{
+                    .get_user_name = GetUserName,
+                    .get_user_name_in_group = GetUserNameInGroup,
+                    .download_user_avatar = DownloadUserAvatar,
+                    .handle_messages = HandleMessages,
+                },
+                GameHandleMap{},
+                std::set<UserID>{k_admin_qq},
+#ifdef WITH_SQLITE
+                std::make_unique<MockDBManager>(),
+#endif
+                MutableBotOption{},
+                nlohmann::json{},
+                nullptr
+                );
     }
 
     virtual void TearDown() override
     {
-        BOT_API::Release(bot_);
+        LGTBot_Release(bot_);
     }
 
     MockDBManager& db_manager() { return static_cast<MockDBManager&>(*static_cast<BotCtx*>(bot_)->db_manager()); }
@@ -482,7 +463,7 @@ class TestBot : public testing::Test
     template <class MyMainStage = lgtbot::game::GAME_MODULE_NAME::MainStage>
     void AddGame(const char* const name, const uint64_t max_player, const GameHandle::game_options_allocator new_option)
     {
-        static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
+        static_cast<BotCtx*>(bot_)->game_handles_.emplace(name, std::make_unique<GameHandle>(
                     name, name, max_player, "这是规则介绍", std::vector<GameHandle::Achievement>{}, 1, "这是开发者",
                     "这是游戏描述", new_option,
                     [](const lgtbot::game::GameOptionBase* const options) {},
@@ -496,7 +477,7 @@ class TestBot : public testing::Test
     template <class MyMainStage = lgtbot::game::GAME_MODULE_NAME::MainStage>
     void AddGame(const char* const name, const uint64_t max_player)
     {
-        static_cast<BotCtx*>(bot_)->game_handles().emplace(name, std::make_unique<GameHandle>(
+        static_cast<BotCtx*>(bot_)->game_handles_.emplace(name, std::make_unique<GameHandle>(
                     name, name, max_player, "这是规则介绍", std::vector<GameHandle::Achievement>{}, 1, "这是开发者",
                     "这是游戏描述", []() -> lgtbot::game::GameOptionBase* { return new lgtbot::game::GAME_MODULE_NAME::GameOption(); },
                     [](const lgtbot::game::GameOptionBase* const options) { delete options; },
@@ -543,7 +524,7 @@ class TestBot : public testing::Test
         while (!substage_blocked_.load());
     }
 
-    void* bot_;
+    void* bot_ = nullptr;
 
 };
 
@@ -551,14 +532,14 @@ class TestBot : public testing::Test
 do\
 {\
   std::cout << "[USER_" << uid <<  " -> GROUP_" << gid << "]" << std::endl << msg << std::endl;\
-  ASSERT_EQ((ret), BOT_API::HandlePublicRequest(bot_, (gid), (uid), (msg)));\
+  ASSERT_EQ((ret), LGTBot_HandlePublicRequest(bot_, (gid), (uid), (msg)));\
 } while (0)
 
 #define ASSERT_PRI_MSG(ret, uid, msg)\
 do\
 {\
   std::cout << "[USER_" << uid <<  " -> BOT]" << std::endl << msg << std::endl;\
-  ASSERT_EQ((ret), BOT_API::HandlePrivateRequest(bot_, (uid), (msg)));\
+  ASSERT_EQ((ret), LGTBot_HandlePrivateRequest(bot_, (uid), (msg)));\
 } while (0)
 
 // Join Not Existing Game

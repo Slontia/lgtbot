@@ -4,6 +4,7 @@
 
 #include <gflags/gflags.h>
 
+#include <cstring>
 #include <cassert>
 #include <iostream>
 #include <sstream>
@@ -55,77 +56,60 @@ static const char* ErrCodeColor(const ErrCode rc)
 std::ostream& Error() { return std::cerr << Red() << "[ERROR] " << Default(); }
 std::ostream& Log() { return std::clog << Blue() << "[LOG] " << Default(); }
 
-struct Messager
-{
-    Messager(const char* const id, const bool is_uid) : id_(id), is_uid_(is_uid) {}
-    const std::string id_;
-    const bool is_uid_;
-    std::stringstream ss_;
-};
+// ============================
+//      Messager Callbacks
+// ============================
 
-void* OpenMessager(const char* const id, const bool is_uid)
+void HandleMessages(void* handler, const char* const id, const int is_uid, const LGTBot_Message* messages, const size_t size)
 {
-    return new Messager(id, is_uid);
-}
-
-void MessagerPostText(void* const p, const char* const data, const uint64_t len)
-{
-    Messager* const messager = static_cast<Messager*>(p);
-    messager->ss_ << std::string_view(data, len);
-}
-
-void MessagerPostUser(void* const p, const char* const uid, const bool is_at)
-{
-    Messager* const messager = static_cast<Messager*>(p);
-    messager->ss_ << LightPink();
-    if (is_at) {
-        messager->ss_ << "@" << uid;
-    } else if (messager->is_uid_) {
-        messager->ss_ << uid;
+    std::string s;
+    if (is_uid) {
+        s.append(Blue());
+        s.append("[BOT -> USER_");
     } else {
-        messager->ss_ << uid << "(gid=" << messager->id_ << ")";
+        s.append(Purple());
+        s.append("[BOT -> GROUP_");
     }
-    messager->ss_ << Default();
-}
-
-void MessagerPostImage(void* p, const char* path)
-{
-    Messager* const messager = static_cast<Messager*>(p);
-    std::string path_str(path);
-    messager->ss_ << "[image=" << std::string(path_str.begin(), path_str.end()) << "]";
-}
-
-void MessagerFlush(void* p)
-{
-    Messager* const messager = static_cast<Messager*>(p);
-    if (messager->is_uid_) {
-        std::cout << Blue() << "[BOT -> USER_" << messager->id_ << "]" << Default() << std::endl << messager->ss_.str() << std::endl;
-    } else {
-        std::cout << Purple() << "[BOT -> GROUP_" << messager->id_ << "]" << Default() << std::endl << messager->ss_.str() << std::endl;
+    s.append(id);
+    s.append("]\n");
+    s.append(Default());
+    for (size_t i = 0; i < size; ++i) {
+        const auto& msg = messages[i];
+        switch (msg.type_) {
+        case LGTBOT_MSG_TEXT:
+            s.append(msg.str_);
+            break;
+        case LGTBOT_MSG_USER_MENTION:
+            s.append(LightPink());
+            s.append("@");
+            s.append(msg.str_);
+            s.append(Default());
+            break;
+        case LGTBOT_MSG_IMAGE:
+            s.append("[image=");
+            s.append(msg.str_);
+            s.append("]");
+            break;
+        default:
+            assert(false);
+        }
     }
-    messager->ss_.str("");
+    std::cout << s << std::endl;
 }
 
-void CloseMessager(void* p)
+void GetUserName(void* handler, char* const buffer, const size_t size, const char* const user_id)
 {
-    Messager* const messager = static_cast<Messager*>(p);
-    delete messager;
+    strncpy(buffer, user_id, size);
 }
 
-const char* GetUserName(const char* uid, const char* const group_id)
+void GetUserNameInGroup(void* handler, char* const buffer, const size_t size, const char* group_id, const char* const user_id)
 {
-    thread_local static std::string str;
-    if (group_id == nullptr) {
-        str = uid;
-    } else {
-        str = std::string(uid) + "(gid=" + std::string(group_id) + ")";
-    }
-    return str.c_str();
+    snprintf(buffer, size, "%s(gid=%s)", user_id, group_id);
 }
 
 std::string ImageAbsPath(const std::string_view rel_path);
 
-bool DownloadUserAvatar(const char* const uid_str, const char* const dest_filename)
+int DownloadUserAvatar(void* handler, const char* const uid_str, const char* const dest_filename)
 {
     const std::string avatar_filename = std::string("avatar_") + uid_str;
     if (CharToImage(uid_str[0], avatar_filename) != 0) {
@@ -136,7 +120,9 @@ bool DownloadUserAvatar(const char* const uid_str, const char* const dest_filena
     return true;
 }
 
-auto init_bot(int argc, char** argv) { const char* errmsg = nullptr; }
+// ============================
+//       Handle Requests
+// ============================
 
 std::pair<std::string, std::string> cut(const std::string_view line)
 {
@@ -164,8 +150,8 @@ bool handle_request(void* bot, const std::string_view line)
         return false;
     }
 
-    ErrCode rc = gid != "-" ? BOT_API::HandlePublicRequest(bot, gid.data(), uid.data(), request_s.data())
-                            : BOT_API::HandlePrivateRequest(bot, uid.data(), request_s.data());
+    ErrCode rc = gid != "-" ? LGTBot_HandlePublicRequest(bot, gid.data(), uid.data(), request_s.data())
+                            : LGTBot_HandlePrivateRequest(bot, uid.data(), request_s.data());
     std::cout << ErrCodeColor(rc) << "Error Code: " << errcode2str(rc) << Default() << std::endl;
 
     return true;
@@ -175,17 +161,26 @@ int main(int argc, char** argv)
 {
     //std::locale::global(std::locale("")); // this line can make number with comma
     gflags::ParseCommandLineFlags(&argc, &argv, true);
-    const BotOption option {
-        .this_uid_ = FLAGS_bot_uid.c_str(),
+    const LGTBot_Option option{
         .game_path_ = FLAGS_game_path.c_str(),
-        .image_path_ = "/image_path/",
         .admins_ = FLAGS_admin_uid.c_str(),
 #ifdef WITH_SQLITE
         .db_path_ = FLAGS_db_path.empty() ? nullptr : FLAGS_db_path.c_str(),
 #endif
         .conf_path_ = FLAGS_conf_path.empty() ? nullptr : FLAGS_conf_path.c_str(),
+        .callbacks_ = LGTBot_Callback{
+            .get_user_name = GetUserName,
+            .get_user_name_in_group = GetUserNameInGroup,
+            .download_user_avatar = DownloadUserAvatar,
+            .handle_messages = HandleMessages,
+        },
     };
-    auto bot = BOT_API::Init(&option);
+    const char* errmsg = nullptr;
+    auto bot = LGTBot_Create(&option, &errmsg);
+    if (!bot) {
+        std::cerr << "[ERROR] Boot simulator failed: " << errmsg << std::endl;
+        return 1;
+    }
 
 #if __linux__
     linenoiseHistoryLoad(FLAGS_history_filename.c_str());
@@ -200,7 +195,7 @@ int main(int argc, char** argv)
         if (line.find_first_not_of(' ') == std::string_view::npos) {
             // do nothing
         } else if (line == "quit" || line == "exit") {
-            if (BOT_API::ReleaseIfNoProcessingGames(bot)) {
+            if (LGTBot_ReleaseIfNoProcessingGames(bot)) {
                 std::cout << "Bye." << std::endl;
 #if __linux__
                 linenoiseFree(line_cstr);

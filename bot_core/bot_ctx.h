@@ -23,16 +23,11 @@ using GameHandleMap = std::map<std::string, std::unique_ptr<GameHandle>>;
 class BotCtx
 {
   public:
-    BotCtx(const BotOption& option, std::unique_ptr<DBManagerBase> db_manager);
-    BotCtx(const BotCtx&) = delete;
-    BotCtx(BotCtx&&) = delete;
+    static std::variant<BotCtx*, const char*> Create(const LGTBot_Option& options);
+
     MatchManager& match_manager() { return match_manager_; }
 
-#ifdef TEST_BOT
-    auto& game_handles() { return game_handles_; }
-#else
     const auto& game_handles() const { return game_handles_; }
-#endif
 
     bool HasAdmin(const UserID uid) const { return admins_.find(uid) != admins_.end(); }
 
@@ -40,31 +35,67 @@ class BotCtx
 
     DBManagerBase* db_manager() const { return db_manager_.get(); }
 
-    const UserID this_uid() const { return this_uid_; }
-
     auto& option() { return mutable_bot_options_; }
+
     const auto& option() const { return mutable_bot_options_; }
 
     bool UpdateBotConfig(const std::string& option_name, const std::vector<std::string>& option_args);
+
     bool UpdateGameConfig(const std::string& game_name, const std::string& option_name,
             const std::vector<std::string>& option_args);
+
     bool UpdateGameMultiple(const std::string& game_name, const uint32_t multiple);
 
-  private:
-    void LoadGameModules_(const char* const games_path);
-    void LoadAdmins_(const std::string_view& admins);
-    bool LoadConfig_();
+    // TODO: I don't know why, if I put the definition into bot_ctx.cc, the compiler will report 'undefined reference' in MSYS2.
+    std::string GetUserName(const char* const user_id, const char* const group_id) const
+    {
+        constexpr static uint64_t k_buffer_size = 128;
+        char buffer[k_buffer_size];
+        assert(user_id);
+        if (group_id) {
+            callbacks_.get_user_name_in_group(handler_, buffer, k_buffer_size, group_id, user_id);
+        } else {
+            callbacks_.get_user_name(handler_, buffer, k_buffer_size, user_id);
+        }
+        return buffer;
+    }
 
-    const UserID this_uid_;
-    const std::string game_path_;
-    const char* conf_path_;
-    std::mutex mutex_;
+    std::string GetUserAvatar(const char* const user_id, const int32_t size) const;
+
+    MsgSender MakeMsgSender(const UserID& user_id, Match* const match = nullptr) const;
+    MsgSender MakeMsgSender(const GroupID& user_id, Match* const match = nullptr) const;
+
+#ifndef TEST_BOT
+  private:
+#endif
+    BotCtx(std::string game_path,
+           std::string conf_path,
+           LGTBot_Callback callbacks,
+           GameHandleMap game_handles,
+           std::set<UserID> admins,
+#ifdef WITH_SQLITE
+           std::unique_ptr<DBManagerBase> db_manager_,
+#endif
+           MutableBotOption mutable_bot_options,
+           nlohmann::json config_json,
+           void* const handler);
+
+    BotCtx(const BotCtx&) = delete;
+    BotCtx(BotCtx&&) = delete;
+
+    // The passed `BotOption` in constructor can be destructed soon, we must store the string.
+    std::string game_path_;
+    std::string conf_path_;
+    LGTBot_Callback callbacks_;
     GameHandleMap game_handles_;
     std::set<UserID> admins_;
-    MatchManager match_manager_;
 #ifdef WITH_SQLITE
     std::unique_ptr<DBManagerBase> db_manager_;
 #endif
     LockWrapper<MutableBotOption> mutable_bot_options_;
     LockWrapper<nlohmann::json> config_json_;
+    void* handler_;
+
+    MatchManager match_manager_;
+    mutable std::mutex mutex_;
 };

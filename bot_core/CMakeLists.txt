@@ -14,14 +14,13 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -latomic")
 
 list(APPEND SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/bot_core.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/bot_ctx.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/db_manager.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/match.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/match_manager.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/message_handlers.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/load_game_modules.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/score_calculation.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/config.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cc
 )
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
