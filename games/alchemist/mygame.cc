@@ -166,30 +166,6 @@ class MainStage : public MainGameStage<RoundStage>
         return players_[pid].score_;
     }
 
-    virtual bool VerdictateAchievement(const Achievement::Type::片甲不留, const PlayerID pid) const
-    {
-        const auto result = players_[pid].board_->GetAreaStatistic();
-        return IsAchievementOption_() && result.card_count_ == 0 && result.stone_count_ == 0 &&
-            players_[pid].score_ >= WinScoreThreshold(GET_OPTION_VALUE(option(), 模式));
-    }
-
-    virtual bool VerdictateAchievement(const Achievement::Type::纹丝不动, const PlayerID pid) const
-    {
-        const auto result = players_[pid].board_->GetAreaStatistic();
-        return IsAchievementOption_() && result.stone_count_ == 2 &&
-            players_[pid].score_ >= WinScoreThreshold(GET_OPTION_VALUE(option(), 模式));
-    }
-
-    virtual bool VerdictateAchievement(const Achievement::Type::超额完成（经典）, const PlayerID pid) const
-    {
-        return IsAchievementOption_() && !GET_OPTION_VALUE(option(), 模式) && players_[pid].score_ >= 12;
-    }
-
-    virtual bool VerdictateAchievement(const Achievement::Type::超额完成（竞技）, const PlayerID pid) const
-    {
-        return IsAchievementOption_() && GET_OPTION_VALUE(option(), 模式) && players_[pid].score_ >= 220;
-    }
-
     std::string BoardHtml(std::string str)
     {
         html::Table table(players_.size() / 2 + 1, 2);
@@ -210,13 +186,9 @@ class MainStage : public MainGameStage<RoundStage>
     std::vector<Player> players_;
 
   private:
-    bool IsAchievementOption_() const
-    {
-        return GET_OPTION_VALUE(option(), 种子).empty() && GET_OPTION_VALUE(option(), 颜色) == 6 &&
-            GET_OPTION_VALUE(option(), 点数) == 6;
-    }
-
     VariantSubStage NewStage_();
+
+    void MatchOver_();
 
     uint32_t round_;
     std::vector<std::optional<game_util::alchemist::Card>> cards_;
@@ -351,17 +323,42 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     return NewStage_();
 }
 
+void MainStage::MatchOver_()
+{
+    Boardcast() << Markdown(BoardHtml("## 终局"));
+    if (!GET_OPTION_VALUE(option(), 种子).empty() || GET_OPTION_VALUE(option(), 颜色) < 6 ||
+            GET_OPTION_VALUE(option(), 点数) < 6) {
+        return; // in this case, we do not save achievement
+    }
+    for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+        const auto result = players_[pid].board_->GetAreaStatistic();
+        if (result.card_count_ == 0 && result.stone_count_ == 0 &&
+                players_[pid].score_ >= WinScoreThreshold(GET_OPTION_VALUE(option(), 模式))) {
+            global_info().Achieve(pid, Achievement::片甲不留);
+        }
+        if (result.stone_count_ == 2 && players_[pid].score_ >= WinScoreThreshold(GET_OPTION_VALUE(option(), 模式))) {
+            global_info().Achieve(pid, Achievement::纹丝不动);
+        }
+        if (!GET_OPTION_VALUE(option(), 模式) && players_[pid].score_ >= 12) {
+            global_info().Achieve(pid, Achievement::超额完成（经典）);
+        }
+        if (GET_OPTION_VALUE(option(), 模式) && players_[pid].score_ >= 220) {
+            global_info().Achieve(pid, Achievement::超额完成（竞技）);
+        }
+    }
+}
+
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
 {
     if (round_ == GET_OPTION_VALUE(option(), 回合数)) {
         Boardcast() << "游戏达到最大回合数，游戏结束";
-        Boardcast() << Markdown(BoardHtml("## 终局"));
+        MatchOver_();
         return {};
     }
     if (std::any_of(players_.begin(), players_.end(),
                 [&](const Player& player) { return player.score_ >= WinScoreThreshold(GET_OPTION_VALUE(option(), 模式)); })) {
         Boardcast() << "有玩家达到胜利分数，游戏结束";
-        Boardcast() << Markdown(BoardHtml("## 终局"));
+        MatchOver_();
         return {};
     }
     return NewStage_();

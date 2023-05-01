@@ -329,7 +329,7 @@ class MainStage : public MainGameStage<SubStage>
         : GameStage(option, match,
                 MakeStageCommand("准备切换", &MainStage::ToCheckout_, VoidChecker("准备切换"), ArithChecker(0, 10)),
                 MakeStageCommand("设置玩家分数", &MainStage::Score_, VoidChecker("分数"), ArithChecker<int64_t>(-10, 10)),
-                MakeStageCommand("获得成就", &MainStage::Achievement_, VoidChecker("成就")))
+                MakeStageCommand("获得成就", &MainStage::Achievement_, VoidChecker("成就"), ArithChecker<uint8_t>(1, 10)))
         , to_checkout_(0)
         , scores_(option.PlayerNum(), 0)
     {}
@@ -347,6 +347,9 @@ class MainStage : public MainGameStage<SubStage>
             return std::make_unique<SubStage>(*this);
         }
         Boardcast() << "回合结束，游戏结束";
+        for (const PlayerID pid : achievement_pids_) {
+            global_info().Achieve(pid, Achievement::普通成就);
+        }
         return {};
     }
 
@@ -365,20 +368,17 @@ class MainStage : public MainGameStage<SubStage>
         return StageErrCode::OK;
     }
 
-    CompReqErrCode Achievement_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Achievement_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint8_t count)
     {
-        achievement_pids_.emplace(pid);
+        for (uint8_t i = 0; i < count; ++i) {
+            achievement_pids_.emplace_back(pid);
+        }
         return StageErrCode::OK;
-    }
-
-    virtual bool VerdictateAchievement(const Achievement::Type::普通成就, const PlayerID pid) const override
-    {
-        return achievement_pids_.find(pid) != achievement_pids_.end();
     }
 
     uint32_t to_checkout_;
     std::vector<int64_t> scores_;
-    std::set<PlayerID> achievement_pids_;
+    std::vector<PlayerID> achievement_pids_;
 };
 
 class AtomMainStage : public MainGameStage<>
@@ -410,11 +410,6 @@ class AtomMainStage : public MainGameStage<>
     {
         EXPECT_FALSE(is_over_);
         return StageErrCode::CHECKOUT;
-    }
-
-    virtual bool VerdictateAchievement(const Achievement::Type::普通成就, const PlayerID pid) const override
-    {
-        return false;
     }
 
     bool is_over_;
@@ -1616,16 +1611,22 @@ TEST_F(TestBot, user_interrupt_when_someone_has_hooked)
 
 TEST_F(TestBot, get_achievement)
 {
-  AddGame("测试游戏", 2);
+  AddGame("测试游戏", 3);
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, "3", "#加入 1");
   ASSERT_PRI_MSG(EC_OK, "1", "#开始");
-  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "成就");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "成就 1");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备");
-  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "2", "成就 2"); // can achieve same achievement for several times in one match
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "2", "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "3", "准备");
   ASSERT_EQ(1, db_manager().user_achievements_[UserID("1")].size());
-  ASSERT_EQ(0, db_manager().user_achievements_[UserID("2")].size());
+  ASSERT_EQ(2, db_manager().user_achievements_[UserID("2")].size());
+  ASSERT_EQ(0, db_manager().user_achievements_[UserID("3")].size());
   ASSERT_EQ("普通成就", db_manager().user_achievements_[UserID("1")][0]);
+  ASSERT_EQ("普通成就", db_manager().user_achievements_[UserID("2")][0]);
+  ASSERT_EQ("普通成就", db_manager().user_achievements_[UserID("2")][1]);
 }
 
 int main(int argc, char** argv)

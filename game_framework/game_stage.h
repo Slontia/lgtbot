@@ -168,11 +168,24 @@ class SubStageCheckoutHelper
 
 struct GlobalInfo
 {
+    using AchievementCounts = std::array<uint8_t, Achievement::Count()>;
     GlobalInfo(const uint64_t match_id, const char* const game_name, const size_t player_num)
-        : masker_(match_id, game_name, player_num), is_in_deduction_(false), bot_info_id_(0) {}
+        : masker_(match_id, game_name, player_num)
+        , is_in_deduction_(false)
+        , bot_info_id_(0)
+        , achievement_counts_(player_num)
+    {
+        for (auto& achievement_count : achievement_counts_) {
+            achievement_count.fill(0);
+        }
+    }
+
+    void Achieve(const PlayerID pid, const Achievement& achievement) { ++achievement_counts_[pid][achievement.ToUInt()]; }
+
     Masker masker_;
     bool is_in_deduction_;
     int32_t bot_info_id_;
+    std::vector<AchievementCounts> achievement_counts_;
 };
 
 template <bool IS_ATOM>
@@ -317,27 +330,9 @@ class SubStageBaseWrapper : public StageBaseWrapper<IS_ATOM>
     MainStage& main_stage_;
 };
 
-template <typename AchievementTuple, size_t I = std::tuple_size_v<AchievementTuple>>
-class AchievementVerdictatorHelper : public AchievementVerdictatorHelper<AchievementTuple, I - 1>
-{
-  protected:
-    using AchievementVerdictatorHelper<AchievementTuple, I - 1>::VerdictateAchievement;
-    virtual bool VerdictateAchievement(const std::decay_t<decltype(std::get<I - 1>(AchievementTuple{}))>, const PlayerID pid) const = 0;
-};
-
-template <typename AchievementTuple>
-class AchievementVerdictatorHelper<AchievementTuple, 0>
-{
-  protected:
-    // define this function to avoid compilation error at using statement for non-achievement games
-    void VerdictateAchievement() const {}
-};
-
 template <bool IS_ATOM>
-class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_ATOM>, public AchievementVerdictatorHelper<Achievement::Tuple::Type>
+class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_ATOM>
 {
-    using AchievementVerdictatorHelper<Achievement::Tuple::Type>::VerdictateAchievement;
-
   public:
     template <typename ...Commands>
     MainStageBaseWrapper(const GameOptionBase& option, MatchBase& match, Commands&& ...commands)
@@ -349,19 +344,14 @@ class MainStageBaseWrapper : public MainStageBase, public StageBaseWrapper<IS_AT
 
     virtual const char* const* VerdictateAchievements(const PlayerID pid) const override
     {
-        thread_local static std::array<const char*, Achievement::Count() + 1> achieved_list = {nullptr};
-        achieved_list.fill(nullptr);
-        int32_t i = 0;
-        const auto verdictate = [this, pid, &i](const auto achievement)
-            {
-                if (VerdictateAchievement(achievement, pid)) {
-                    achieved_list[i++] = Achievement(achievement).ToString();
-                }
-            };
-        std::apply([&](const auto ...achievements)
-                {
-                    (verdictate(achievements), ...);
-                }, Achievement::Tuple::Type{});
+        thread_local static std::vector<const char*> achieved_list;
+        achieved_list.clear();
+        for (const auto achievement : Achievement::Members()) {
+            for (uint8_t i = 0; i < global_info_.achievement_counts_[pid][achievement.ToUInt()]; ++i) {
+              achieved_list.emplace_back(achievement.ToString());
+            }
+        }
+        achieved_list.emplace_back(nullptr);
         return achieved_list.data();
     }
 

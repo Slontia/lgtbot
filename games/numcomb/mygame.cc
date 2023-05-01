@@ -113,31 +113,6 @@ class MainStage : public MainGameStage<RoundStage>
         return players_[pid].score_;
     }
 
-    virtual bool VerdictateAchievement(const Achievement::Type::处女蜂王, const PlayerID pid) const
-    {
-        return GET_OPTION_VALUE(option(), 种子).empty() && players_[pid].line_count_ >= 12;
-    }
-
-    virtual bool VerdictateAchievement(const Achievement::Type::蜂王, const PlayerID pid) const
-    {
-        return GET_OPTION_VALUE(option(), 种子).empty() && players_[pid].line_count_ >= 15;
-    }
-
-    virtual bool VerdictateAchievement(const Achievement::Type::幼年蜂, const PlayerID pid) const
-    {
-        return GET_OPTION_VALUE(option(), 种子).empty() && players_[pid].score_ >= 200;
-    }
-
-    virtual bool VerdictateAchievement(const Achievement::Type::青年蜂, const PlayerID pid) const
-    {
-        return GET_OPTION_VALUE(option(), 种子).empty() && players_[pid].score_ >= 250;
-    }
-
-    virtual bool VerdictateAchievement(const Achievement::Type::壮年蜂, const PlayerID pid) const
-    {
-        return GET_OPTION_VALUE(option(), 种子).empty() && players_[pid].score_ >= 300;
-    }
-
     std::string CombHtml(const std::string& str)
     {
         html::Table table(players_.size() / 2 + 1, 2);
@@ -277,11 +252,30 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
 MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
 {
-    if (round_ == GET_OPTION_VALUE(option(), 回合数)) {
-        Boardcast() << Markdown(CombHtml("## 终局"));
-        return {};
+    if (round_ < GET_OPTION_VALUE(option(), 回合数)) {
+        return NewStage_();
     }
-    return NewStage_();
+    Boardcast() << Markdown(CombHtml("## 终局"));
+    if (GET_OPTION_VALUE(option(), 种子).empty()) {
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            if (players_[pid].line_count_ >= 12) {
+                global_info().Achieve(pid, Achievement::处女蜂王);
+            }
+            if (players_[pid].line_count_ >= 15) {
+                global_info().Achieve(pid, Achievement::蜂王);
+            }
+            if (players_[pid].score_ >= 200) {
+                global_info().Achieve(pid, Achievement::幼年蜂);
+            }
+            if (players_[pid].score_ >= 250) {
+                global_info().Achieve(pid, Achievement::青年蜂);
+            }
+            if (players_[pid].score_ >= 300) {
+                global_info().Achieve(pid, Achievement::壮年蜂);
+            }
+        }
+    }
+    return {};
 }
 
 } // namespace GAME_MODULE_NAME
