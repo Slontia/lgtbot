@@ -6,14 +6,8 @@
 #error OPTION_FILENAME and OPTION_CLASSNAME is not defined
 #endif
 
-#define INIT_OPTION_DEPEND
-#define EXTEND_OPTION(_0, _1, _2, _3)
-#include OPTION_FILENAME
-#undef INIT_OPTION_DEPEND
-#undef EXTEND_OPTION
-
 #ifndef GET_OPTION_VALUE
-#define GET_OPTION_VALUE(option, name) (option).Option2Value<std::decay_t<decltype(option)>::OPTION_##name>()
+#define GET_OPTION_VALUE(option, name) (option).template Option2Value<std::decay_t<decltype(option)>::OPTION_##name>()
 #endif
 
 #ifndef GET_VALUE

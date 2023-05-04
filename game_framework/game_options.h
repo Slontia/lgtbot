@@ -17,13 +17,18 @@
 #define GAME_OPTION_FILENAME "options.h"
 #endif
 
+// Include the 'options.h' in global namespace. We can include some headers in 'options.h' with 'INIT_OPTION_DEPEND` macro.
+#define INIT_OPTION_DEPEND
+#define EXTEND_OPTION(_1, _2, _3, _4)
+#include GAME_OPTION_FILENAME
+#undef EXTEND_OPTION
+#undef INIT_OPTION_DEPEND
+
 namespace lgtbot {
 
 namespace game {
 
 namespace GAME_MODULE_NAME {
-
-// MyGameOption is a developer-defined class, so it should be put into GAME_MODULE_NAME namespace.
 
 #define OPTION_CLASSNAME MyGameOption
 #define OPTION_FILENAME GAME_OPTION_FILENAME

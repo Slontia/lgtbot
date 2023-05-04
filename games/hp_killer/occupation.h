@@ -41,8 +41,20 @@ ENUM_END(Team)
 #include <map>
 #include <bitset>
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 #define ENUM_FILE "../games/hp_killer/occupation.h"
 #include "../../utility/extend_enum.h"
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // namespace lgtbot
 
 #endif
 

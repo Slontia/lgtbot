@@ -24,6 +24,10 @@ namespace game {
 
 namespace GAME_MODULE_NAME {
 
+class MainStage;
+template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+
 const std::string k_game_name = "群雄象棋";
 const uint64_t k_max_player = 6; /* 0 means no max-player limits */
 const uint64_t k_multiple = 1;

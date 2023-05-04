@@ -12,39 +12,39 @@ class TestPoker : public testing::Test {};
 
 TEST_F(TestPoker, no_pattern_1)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_2, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_2, poker::BokaaSuit::GREEN);
     ASSERT_FALSE(hand.BestDeck().has_value());
 }
 
 TEST_F(TestPoker, no_pattern_2)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_1, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_2, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_3, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_4, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_1, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_2, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_3, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_4, poker::BokaaSuit::GREEN);
     ASSERT_FALSE(hand.BestDeck().has_value());
 }
 
 TEST_F(TestPoker, no_pattern_3)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::RED);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::PURPLE);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::BLUE);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::RED);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::PURPLE);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::BLUE);
     ASSERT_FALSE(hand.BestDeck().has_value());
 }
 
 TEST_F(TestPoker, straight_flush)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_1, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_2, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_3, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_4, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_1, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_2, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_3, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_4, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
     ASSERT_TRUE(best_deck->type_ == poker::PatternType::STRAIGHT_FLUSH) << "best_deck: " << best_deck->type_;
@@ -52,15 +52,15 @@ TEST_F(TestPoker, straight_flush)
 
 TEST_F(TestPoker, straight_flush_mix_1)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_1, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_2, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_3, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_3, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_3, poker::PokerSuit::PURPLE);
-    hand.Add(poker::PokerNumber::_3, poker::PokerSuit::RED);
-    hand.Add(poker::PokerNumber::_4, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_5, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_1, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_2, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_3, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_3, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_3, poker::BokaaSuit::PURPLE);
+    hand.Add(poker::BokaaNumber::_3, poker::BokaaSuit::RED);
+    hand.Add(poker::BokaaNumber::_4, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
     ASSERT_TRUE(best_deck->type_ == poker::PatternType::STRAIGHT_FLUSH) << "best_deck: " << best_deck->type_;
@@ -68,12 +68,12 @@ TEST_F(TestPoker, straight_flush_mix_1)
 
 TEST_F(TestPoker, four_of_a_kind)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::PURPLE);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::RED);
-    hand.Add(poker::PokerNumber::_5, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::PURPLE);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::RED);
+    hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
     ASSERT_TRUE(best_deck->type_ == poker::PatternType::FOUR_OF_A_KIND) << "best_deck: " << best_deck->type_;
@@ -81,13 +81,13 @@ TEST_F(TestPoker, four_of_a_kind)
 
 TEST_F(TestPoker, four_of_a_kind_1)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::PURPLE);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::RED);
-    hand.Add(poker::PokerNumber::_5, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_5, poker::PokerSuit::RED);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::PURPLE);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::RED);
+    hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::RED);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
     ASSERT_TRUE(best_deck->type_ == poker::PatternType::FOUR_OF_A_KIND) << "best_deck: " << best_deck->type_;
@@ -95,35 +95,35 @@ TEST_F(TestPoker, four_of_a_kind_1)
 
 TEST_F(TestPoker, four_of_a_kind_2)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_8, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_8, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_8, poker::PokerSuit::PURPLE);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::PURPLE);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::RED);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::BLUE);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_8, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_8, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_8, poker::BokaaSuit::PURPLE);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::PURPLE);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::RED);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::BLUE);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(*best_deck == (poker::Deck{poker::PatternType::FOUR_OF_A_KIND, std::array<poker::Poker, 5> {
-                poker::Poker{poker::PokerNumber::_6, poker::PokerSuit::GREEN},
-                poker::Poker{poker::PokerNumber::_6, poker::PokerSuit::RED},
-                poker::Poker{poker::PokerNumber::_6, poker::PokerSuit::BLUE},
-                poker::Poker{poker::PokerNumber::_6, poker::PokerSuit::PURPLE},
-                poker::Poker{poker::PokerNumber::_0, poker::PokerSuit::GREEN},
+    ASSERT_TRUE(*best_deck == (poker::Deck<poker::CardType::BOKAA>{poker::PatternType::FOUR_OF_A_KIND, std::array<poker::Card<poker::CardType::BOKAA>, 5> {
+                poker::Card<poker::CardType::BOKAA>{poker::BokaaNumber::_6, poker::BokaaSuit::GREEN},
+                poker::Card<poker::CardType::BOKAA>{poker::BokaaNumber::_6, poker::BokaaSuit::RED},
+                poker::Card<poker::CardType::BOKAA>{poker::BokaaNumber::_6, poker::BokaaSuit::BLUE},
+                poker::Card<poker::CardType::BOKAA>{poker::BokaaNumber::_6, poker::BokaaSuit::PURPLE},
+                poker::Card<poker::CardType::BOKAA>{poker::BokaaNumber::_X, poker::BokaaSuit::GREEN},
             }})) << "Actual: " << *best_deck;
 }
 
 TEST_F(TestPoker, full_house)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::PURPLE);
-    hand.Add(poker::PokerNumber::_5, poker::PokerSuit::RED);
-    hand.Add(poker::PokerNumber::_5, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::PURPLE);
+    hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::RED);
+    hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
     ASSERT_TRUE(best_deck->type_ == poker::PatternType::FULL_HOUSE) << "best_deck: " << best_deck->type_;;
@@ -131,12 +131,12 @@ TEST_F(TestPoker, full_house)
 
 TEST_F(TestPoker, flush)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_1, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_2, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_3, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_4, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_1, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_2, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_3, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_4, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::GREEN);
     ASSERT_TRUE(hand.BestDeck().has_value());
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
@@ -145,14 +145,14 @@ TEST_F(TestPoker, flush)
 
 TEST_F(TestPoker, flush_mix_1)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_2, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_3, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_4, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::RED);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::PURPLE);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_2, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_3, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_4, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::RED);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::PURPLE);
     ASSERT_TRUE(hand.BestDeck().has_value());
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
@@ -161,12 +161,12 @@ TEST_F(TestPoker, flush_mix_1)
 
 TEST_F(TestPoker, straight)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_1, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_2, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_3, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_4, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_1, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_2, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_3, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_4, poker::BokaaSuit::GREEN);
     ASSERT_TRUE(hand.BestDeck().has_value());
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
@@ -175,13 +175,13 @@ TEST_F(TestPoker, straight)
 
 TEST_F(TestPoker, straight_mix_1)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_1, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_2, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_3, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_4, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_4, poker::PokerSuit::RED);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_1, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_2, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_3, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_4, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_4, poker::BokaaSuit::RED);
     ASSERT_TRUE(hand.BestDeck().has_value());
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
@@ -190,12 +190,12 @@ TEST_F(TestPoker, straight_mix_1)
 
 TEST_F(TestPoker, three_of_a_kind)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::PURPLE);
-    hand.Add(poker::PokerNumber::_5, poker::PokerSuit::RED);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::PURPLE);
+    hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::RED);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
     ASSERT_TRUE(best_deck->type_ == poker::PatternType::THREE_OF_A_KIND) << "best_deck: " << best_deck->type_;;
@@ -203,12 +203,12 @@ TEST_F(TestPoker, three_of_a_kind)
 
 TEST_F(TestPoker, two_pairs)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_5, poker::PokerSuit::PURPLE);
-    hand.Add(poker::PokerNumber::_5, poker::PokerSuit::RED);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::PURPLE);
+    hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::RED);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
     ASSERT_TRUE(best_deck->type_ == poker::PatternType::TWO_PAIRS) << "best_deck: " << best_deck->type_;;
@@ -216,12 +216,12 @@ TEST_F(TestPoker, two_pairs)
 
 TEST_F(TestPoker, one_pair)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_5, poker::PokerSuit::PURPLE);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::RED);
-    hand.Add(poker::PokerNumber::_7, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::PURPLE);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::RED);
+    hand.Add(poker::BokaaNumber::_7, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
     ASSERT_TRUE(best_deck->type_ == poker::PatternType::ONE_PAIR) << "best_deck: " << best_deck->type_;;
@@ -229,12 +229,12 @@ TEST_F(TestPoker, one_pair)
 
 TEST_F(TestPoker, high_card)
 {
-    poker::Hand hand;
-    hand.Add(poker::PokerNumber::_0, poker::PokerSuit::GREEN);
-    hand.Add(poker::PokerNumber::_4, poker::PokerSuit::BLUE);
-    hand.Add(poker::PokerNumber::_6, poker::PokerSuit::PURPLE);
-    hand.Add(poker::PokerNumber::_7, poker::PokerSuit::RED);
-    hand.Add(poker::PokerNumber::_8, poker::PokerSuit::GREEN);
+    poker::Hand<poker::CardType::BOKAA> hand;
+    hand.Add(poker::BokaaNumber::_X, poker::BokaaSuit::GREEN);
+    hand.Add(poker::BokaaNumber::_4, poker::BokaaSuit::BLUE);
+    hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::PURPLE);
+    hand.Add(poker::BokaaNumber::_7, poker::BokaaSuit::RED);
+    hand.Add(poker::BokaaNumber::_8, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
     ASSERT_TRUE(best_deck->type_ == poker::PatternType::HIGH_CARD) << "best_deck: " << best_deck->type_;;
@@ -242,19 +242,19 @@ TEST_F(TestPoker, high_card)
 
 TEST_F(TestPoker, compare_flushes)
 {
-    poker::Hand hand_1;
-    hand_1.Add(poker::PokerNumber::_0, poker::PokerSuit::RED);
-    hand_1.Add(poker::PokerNumber::_7, poker::PokerSuit::RED);
-    hand_1.Add(poker::PokerNumber::_3, poker::PokerSuit::RED);
-    hand_1.Add(poker::PokerNumber::_2, poker::PokerSuit::RED);
-    hand_1.Add(poker::PokerNumber::_1, poker::PokerSuit::RED);
+    poker::Hand<poker::CardType::BOKAA> hand_1;
+    hand_1.Add(poker::BokaaNumber::_X, poker::BokaaSuit::RED);
+    hand_1.Add(poker::BokaaNumber::_7, poker::BokaaSuit::RED);
+    hand_1.Add(poker::BokaaNumber::_3, poker::BokaaSuit::RED);
+    hand_1.Add(poker::BokaaNumber::_2, poker::BokaaSuit::RED);
+    hand_1.Add(poker::BokaaNumber::_1, poker::BokaaSuit::RED);
     const auto best_deck_1 = hand_1.BestDeck();
-    poker::Hand hand_2;
-    hand_2.Add(poker::PokerNumber::_0, poker::PokerSuit::BLUE);
-    hand_2.Add(poker::PokerNumber::_9, poker::PokerSuit::BLUE);
-    hand_2.Add(poker::PokerNumber::_8, poker::PokerSuit::BLUE);
-    hand_2.Add(poker::PokerNumber::_7, poker::PokerSuit::BLUE);
-    hand_2.Add(poker::PokerNumber::_2, poker::PokerSuit::BLUE);
+    poker::Hand<poker::CardType::BOKAA> hand_2;
+    hand_2.Add(poker::BokaaNumber::_X, poker::BokaaSuit::BLUE);
+    hand_2.Add(poker::BokaaNumber::_9, poker::BokaaSuit::BLUE);
+    hand_2.Add(poker::BokaaNumber::_8, poker::BokaaSuit::BLUE);
+    hand_2.Add(poker::BokaaNumber::_7, poker::BokaaSuit::BLUE);
+    hand_2.Add(poker::BokaaNumber::_2, poker::BokaaSuit::BLUE);
     const auto best_deck_2 = hand_2.BestDeck();
     ASSERT_TRUE(best_deck_1.has_value());
     ASSERT_TRUE(best_deck_2.has_value());

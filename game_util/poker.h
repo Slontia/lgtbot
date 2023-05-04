@@ -6,15 +6,34 @@
 #ifdef ENUM_MEMBER
 #ifdef ENUM_END
 
+ENUM_BEGIN(BokaaSuit)
+ENUM_MEMBER(BokaaSuit, PURPLE)
+ENUM_MEMBER(BokaaSuit, BLUE)
+ENUM_MEMBER(BokaaSuit, RED)
+ENUM_MEMBER(BokaaSuit, GREEN)
+ENUM_END(BokaaSuit)
+
+ENUM_BEGIN(BokaaNumber)
+ENUM_MEMBER(BokaaNumber, _1)
+ENUM_MEMBER(BokaaNumber, _2)
+ENUM_MEMBER(BokaaNumber, _3)
+ENUM_MEMBER(BokaaNumber, _4)
+ENUM_MEMBER(BokaaNumber, _5)
+ENUM_MEMBER(BokaaNumber, _6)
+ENUM_MEMBER(BokaaNumber, _7)
+ENUM_MEMBER(BokaaNumber, _8)
+ENUM_MEMBER(BokaaNumber, _9)
+ENUM_MEMBER(BokaaNumber, _X)
+ENUM_END(BokaaNumber)
+
 ENUM_BEGIN(PokerSuit)
-ENUM_MEMBER(PokerSuit, PURPLE)
-ENUM_MEMBER(PokerSuit, BLUE)
-ENUM_MEMBER(PokerSuit, RED)
-ENUM_MEMBER(PokerSuit, GREEN)
+ENUM_MEMBER(PokerSuit, CLUBS)
+ENUM_MEMBER(PokerSuit, DIAMONDS)
+ENUM_MEMBER(PokerSuit, HEARTS)
+ENUM_MEMBER(PokerSuit, SPADES)
 ENUM_END(PokerSuit)
 
 ENUM_BEGIN(PokerNumber)
-ENUM_MEMBER(PokerNumber, _1)
 ENUM_MEMBER(PokerNumber, _2)
 ENUM_MEMBER(PokerNumber, _3)
 ENUM_MEMBER(PokerNumber, _4)
@@ -23,8 +42,13 @@ ENUM_MEMBER(PokerNumber, _6)
 ENUM_MEMBER(PokerNumber, _7)
 ENUM_MEMBER(PokerNumber, _8)
 ENUM_MEMBER(PokerNumber, _9)
-ENUM_MEMBER(PokerNumber, _0)
+ENUM_MEMBER(PokerNumber, _10)
+ENUM_MEMBER(PokerNumber, _J)
+ENUM_MEMBER(PokerNumber, _Q)
+ENUM_MEMBER(PokerNumber, _K)
+ENUM_MEMBER(PokerNumber, _A)
 ENUM_END(PokerNumber)
+
 
 ENUM_BEGIN(PatternType)
 ENUM_MEMBER(PatternType, HIGH_CARD)
@@ -73,122 +97,149 @@ namespace poker {
 #define ENUM_FILE "../game_util/poker.h"
 #include "../utility/extend_enum.h"
 
-struct Poker
+enum class CardType { POKER, BOKAA };
+
+template <CardType k_type> struct Types;
+
+template <>
+struct Types<CardType::BOKAA>
 {
-    auto operator<=>(const Poker&) const = default;
-    std::string ToString() const;
-    std::string ToHtml() const;
-    PokerNumber number_;
-    PokerSuit suit_;
+    using NumberType = BokaaNumber;
+    using SuitType = BokaaSuit;
+    static constexpr BokaaNumber k_max_number_ = BokaaNumber::_X;
+    static constexpr const char* const k_regex = "(.*)([Xx1-9])";
+    static inline const std::map<std::string, BokaaSuit> k_parse_suit_map{
+        {"绿", BokaaSuit::GREEN},
+        {"星", BokaaSuit::GREEN},
+        {"★",  BokaaSuit::GREEN},
+        {"☆",  BokaaSuit::GREEN},
+        {"红", BokaaSuit::RED},
+        {"方", BokaaSuit::RED},
+        {"■",  BokaaSuit::RED},
+        {"□",  BokaaSuit::RED},
+        {"蓝", BokaaSuit::BLUE},
+        {"角", BokaaSuit::BLUE},
+        {"▲",  BokaaSuit::BLUE},
+        {"△",  BokaaSuit::BLUE},
+        {"紫", BokaaSuit::PURPLE},
+        {"圆", BokaaSuit::PURPLE},
+        {"●",  BokaaSuit::PURPLE},
+        {"○",  BokaaSuit::PURPLE},
+    };
+    static constexpr const char* const k_colored_suit_str[BokaaNumber::Count()] = {
+        [BokaaSuit(BokaaSuit::PURPLE).ToUInt()] = HTML_COLOR_FONT_HEADER(purple) "●",
+        [BokaaSuit(BokaaSuit::BLUE).ToUInt()]   = HTML_COLOR_FONT_HEADER(blue) "▲",
+        [BokaaSuit(BokaaSuit::RED).ToUInt()]    = HTML_COLOR_FONT_HEADER(red) "■",
+        [BokaaSuit(BokaaSuit::GREEN).ToUInt()]  = HTML_COLOR_FONT_HEADER(green) "★",
+    };
+    static constexpr const char* const k_suit_str[BokaaNumber::Count()] = {
+        [BokaaSuit(BokaaSuit::PURPLE).ToUInt()] = HTML_COLOR_FONT_HEADER(purple) "○",
+        [BokaaSuit(BokaaSuit::BLUE).ToUInt()]   = HTML_COLOR_FONT_HEADER(blue) "△",
+        [BokaaSuit(BokaaSuit::RED).ToUInt()]    = HTML_COLOR_FONT_HEADER(red) "□",
+        [BokaaSuit(BokaaSuit::GREEN).ToUInt()]  = HTML_COLOR_FONT_HEADER(green) "☆",
+    };
 };
 
-void swap(Poker& _1, Poker& _2)
+template <>
+struct Types<CardType::POKER>
 {
-    std::swap(const_cast<PokerNumber&>(_1.number_), const_cast<PokerNumber&>(_2.number_));
-    std::swap(const_cast<PokerSuit&>(_1.suit_), const_cast<PokerSuit&>(_2.suit_));
+    using NumberType = PokerNumber;
+    using SuitType = PokerSuit;
+    static constexpr PokerNumber k_max_number_ = PokerNumber::_A;
+    static constexpr const char* const k_regex = "(.*)([AaJjQqKk1-9]|10)";
+    static inline const std::map<std::string, PokerSuit> k_parse_suit_map{
+        {"黑桃", PokerSuit::SPADES},
+        {"♠",    PokerSuit::SPADES},
+        {"红桃", PokerSuit::HEARTS},
+        {"红心", PokerSuit::HEARTS},
+        {"♥",    PokerSuit::HEARTS},
+        {"方片", PokerSuit::DIAMONDS},
+        {"方板", PokerSuit::DIAMONDS},
+        {"♦",    PokerSuit::DIAMONDS},
+        {"梅花", PokerSuit::CLUBS},
+        {"♣",    PokerSuit::CLUBS},
+    };
+    static constexpr const char* const k_colored_suit_str[PokerNumber::Count()] = {
+        [PokerSuit(PokerSuit::CLUBS).ToUInt()]    = HTML_COLOR_FONT_HEADER(black) "♣",
+        [PokerSuit(PokerSuit::DIAMONDS).ToUInt()] = HTML_COLOR_FONT_HEADER(red) "♦",
+        [PokerSuit(PokerSuit::HEARTS).ToUInt()]   = HTML_COLOR_FONT_HEADER(red) "♥",
+        [PokerSuit(PokerSuit::SPADES).ToUInt()]   = HTML_COLOR_FONT_HEADER(black) "♠",
+    };
+    static constexpr const char* const k_suit_str[PokerNumber::Count()] = {
+        [PokerSuit(PokerSuit::CLUBS).ToUInt()]    = "♧",
+        [PokerSuit(PokerSuit::DIAMONDS).ToUInt()] = "♢",
+        [PokerSuit(PokerSuit::HEARTS).ToUInt()]   = "♡",
+        [PokerSuit(PokerSuit::SPADES).ToUInt()]   = "♤",
+    };
+};
+
+template <CardType k_type>
+struct Card
+{
+    auto operator<=>(const Card&) const = default;
+    std::string ToString() const;
+    std::string ToHtml() const;
+    Types<k_type>::NumberType number_;
+    Types<k_type>::SuitType suit_;
+};
+
+template <CardType k_type>
+void swap(Card<k_type>& _1, Card<k_type>& _2)
+{
+    std::swap(const_cast<Types<k_type>::NumberType&>(_1.number_), const_cast<Types<k_type>::NumberType&>(_2.number_));
+    std::swap(const_cast<Types<k_type>::SuitType&>(_1.suit_), const_cast<Types<k_type>::SuitType&>(_2.suit_));
 }
 
-std::vector<Poker> ShuffledPokers(const std::string_view& sv = "")
+template <CardType k_type>
+std::vector<Card<k_type>> ShuffledPokers(const std::string_view& sv = "")
 {
-    std::vector<Poker> pokers;
-    for (const auto& number : PokerNumber::Members()) {
-        for (const auto& suit : PokerSuit::Members()) {
-            pokers.emplace_back(number, suit);
+    std::vector<Card<k_type>> cards;
+    for (const auto& number : Types<k_type>::NumberType::Members()) {
+        for (const auto& suit : Types<k_type>::SuitType::Members()) {
+            cards.emplace_back(number, suit);
         }
     }
     if (sv.empty()) {
         std::random_device rd;
         std::mt19937 g(rd());
-        std::shuffle(pokers.begin(), pokers.end(), g);
+        std::shuffle(cards.begin(), cards.end(), g);
     } else {
         std::seed_seq seed(sv.begin(), sv.end());
         std::mt19937 g(seed);
-        std::shuffle(pokers.begin(), pokers.end(), g);
+        std::shuffle(cards.begin(), cards.end(), g);
     }
-    return pokers;
+    return cards;
 }
 
-std::string Poker::ToHtml() const
+template <CardType k_type>
+std::string Card<k_type>::ToHtml() const
 {
-    std::string s;
-    switch (suit_) {
-        case PokerSuit::GREEN: s += HTML_COLOR_FONT_HEADER(green) "★"; break;
-        case PokerSuit::RED: s += HTML_COLOR_FONT_HEADER(red) "■"; break;
-        case PokerSuit::BLUE: s += HTML_COLOR_FONT_HEADER(blue) "▲"; break;
-        case PokerSuit::PURPLE: s += HTML_COLOR_FONT_HEADER(purple) "●"; break;
-    }
-    switch (number_) {
-        case PokerNumber::_0: s += "X"; break;
-        case PokerNumber::_1: s += "1"; break;
-        case PokerNumber::_2: s += "2"; break;
-        case PokerNumber::_3: s += "3"; break;
-        case PokerNumber::_4: s += "4"; break;
-        case PokerNumber::_5: s += "5"; break;
-        case PokerNumber::_6: s += "6"; break;
-        case PokerNumber::_7: s += "7"; break;
-        case PokerNumber::_8: s += "8"; break;
-        case PokerNumber::_9: s += "9"; break;
-    }
-    s += HTML_FONT_TAIL;
-    return s;
+    return std::string(Types<k_type>::k_colored_suit_str[suit_.ToUInt()]) + (number_.ToString() + 1) + HTML_FONT_TAIL; // skip the '_' character
 }
 
-template <typename Sender>
-Sender& operator<<(Sender& sender, const Poker& poker)
+template <typename Sender, CardType k_type>
+Sender& operator<<(Sender& sender, const Card<k_type>& poker)
 {
-    switch (poker.suit_) {
-        case PokerSuit::GREEN: sender << "☆"; break;
-        case PokerSuit::RED: sender << "□"; break;
-        case PokerSuit::BLUE: sender << "△"; break;
-        case PokerSuit::PURPLE: sender << "○"; break;
-    }
-    switch (poker.number_) {
-        case PokerNumber::_0: sender << "X"; break;
-        case PokerNumber::_1: sender << "1"; break;
-        case PokerNumber::_2: sender << "2"; break;
-        case PokerNumber::_3: sender << "3"; break;
-        case PokerNumber::_4: sender << "4"; break;
-        case PokerNumber::_5: sender << "5"; break;
-        case PokerNumber::_6: sender << "6"; break;
-        case PokerNumber::_7: sender << "7"; break;
-        case PokerNumber::_8: sender << "8"; break;
-        case PokerNumber::_9: sender << "9"; break;
-    }
+    sender << Types<k_type>::k_suit_str[poker.suit_.ToUInt()] << (poker.number_.ToString() + 1); // skip the '_' character
     return sender;
 }
 
-std::string Poker::ToString() const
+template <CardType k_type>
+std::string Card<k_type>::ToString() const
 {
     std::stringstream ss;
     ss << *this;
     return ss.str();
 }
 
-template <typename String, typename Sender>
-std::optional<PokerSuit> ParseSuit(const String& s, Sender&& sender)
+template <typename String, typename Sender, CardType k_type>
+std::optional<typename Types<k_type>::SuitType> ParseSuit(const String& s, Sender&& sender)
 {
-    static const std::map<std::string, PokerSuit> str2suit = {
-        {"绿", PokerSuit::GREEN},
-        {"星", PokerSuit::GREEN},
-        {"★", PokerSuit::GREEN},
-        {"☆", PokerSuit::GREEN},
-        {"红", PokerSuit::RED},
-        {"方", PokerSuit::RED},
-        {"■", PokerSuit::RED},
-        {"□", PokerSuit::RED},
-        {"蓝", PokerSuit::BLUE},
-        {"角", PokerSuit::BLUE},
-        {"▲", PokerSuit::BLUE},
-        {"△", PokerSuit::BLUE},
-        {"紫", PokerSuit::PURPLE},
-        {"圆", PokerSuit::PURPLE},
-        {"●", PokerSuit::PURPLE},
-        {"○", PokerSuit::PURPLE},
-    };
-    const auto it = str2suit.find(s);
-    if (it == str2suit.end()) {
+    static const auto& k_parse_suit_map = Types<k_type>::k_parse_suit_map;
+    const auto it = k_parse_suit_map.find(s);
+    if (it == k_parse_suit_map.end()) {
         sender << "非预期的花色\'" << s << "\'，期望为：";
-        for (const auto& [str, _] : str2suit) {
+        for (const auto& [str, _] : k_parse_suit_map) {
             sender << "\'" << str << "\' ";
         }
         return std::nullopt;
@@ -197,56 +248,50 @@ std::optional<PokerSuit> ParseSuit(const String& s, Sender&& sender)
     }
 }
 
-template <typename String, typename Sender>
-std::optional<PokerNumber> ParseNumber(const String& s, Sender&& sender)
+template <typename Sender, CardType k_type>
+void ShowExpectedNumberStrs_(Sender&& sender)
 {
-    static const std::map<std::string, PokerNumber> str2num = {
-        {"X", PokerNumber::_0},
-        {"x", PokerNumber::_0},
-        {"0", PokerNumber::_0},
-        {"1", PokerNumber::_1},
-        {"2", PokerNumber::_2},
-        {"3", PokerNumber::_3},
-        {"4", PokerNumber::_4},
-        {"5", PokerNumber::_5},
-        {"6", PokerNumber::_6},
-        {"7", PokerNumber::_7},
-        {"8", PokerNumber::_8},
-        {"9", PokerNumber::_9},
-    };
-    const auto it = str2num.find(s);
-    if (it == str2num.end()) {
-        sender << "非预期的点数\'" << s << "\'，期望为：";
-        for (const auto& [str, _] : str2num) {
-            sender << "\'" << str << "\' ";
-        }
-        return std::nullopt;
-    } else {
-        return it->second;
+    for (const auto& number : Types<k_type>::NumberType::Members()) {
+        sender << "\'" << (number.ToString() + 1) << "\' "; // skip the '_' character
     }
 }
 
-template <typename String, typename Sender>
-std::optional<Poker> Parse(const String& s, Sender&& sender)
+template <typename String, typename Sender, CardType k_type>
+std::optional<typename Types<k_type>::NumberType> ParseNumber(const String& s, Sender&& sender)
+{
+    std::string number_str = "_" + std::string(s);
+    number_str[1] = std::toupper(number_str[1]); // lower case is expected
+    const auto parse_ret = Types<k_type>::NumberType::Parse(number_str);
+    if (parse_ret.has_value()) {
+        sender << "非预期的点数\'" << s << "\'，期望为：";
+        ShowExpectedNumberStrs_<Sender, k_type>(sender);
+    }
+    return parse_ret;
+}
+
+template <typename String, typename Sender, CardType k_type>
+std::optional<Card<k_type>> Parse(const String& s, Sender&& sender)
 {
     using namespace std::literals;
     std::smatch match_ret;
-    PokerNumber number_;
-    PokerSuit suit_;
-    if (!std::regex_match(s, match_ret, std::regex("(.*)([Xx1-9])"))) {
-        sender << "非法的点数，需为 1~9 或 X 中一种";
+    typename Types<k_type>::NumberType number_;
+    typename Types<k_type>::SuitType suit_;
+    if (!std::regex_match(s, match_ret, std::regex(Types<k_type>::k_regex))) {
+        sender << "非预期的点数，期望为：";
+        ShowExpectedNumberStrs_<Sender, k_type>(sender);
         return std::nullopt;
     }
     assert(match_ret.size() == 3);
-    if (const auto suit = ParseSuit(match_ret[1], sender); !suit.has_value()) {
+    if (const auto suit = ParseSuit<std::smatch::value_type, Sender, k_type>(match_ret[1], sender); !suit.has_value()) {
         return std::nullopt;
-    } else if (const auto number = ParseNumber(match_ret[2], sender); !suit.has_value()) {
+    } else if (const auto number = ParseNumber<std::smatch::value_type, Sender, k_type>(match_ret[2], sender); !suit.has_value()) {
         return std::nullopt;
     } else {
-        return Poker(*number, *suit);
+        return Card<k_type>(*number, *suit);
     }
 }
 
+template <CardType k_type>
 struct Deck
 {
     Deck& operator=(const Deck& deck)
@@ -263,7 +308,7 @@ struct Deck
         } else if (type_ > d.type_) {
             return 1;
         }
-        static const auto cmp = [](const Poker& _1, const Poker& _2) { return _1.number_ < _2.number_; };
+        static const auto cmp = [](const Card<k_type>& _1, const Card<k_type>& _2) { return _1.number_ < _2.number_; };
         if (std::lexicographical_compare(pokers_.begin(), pokers_.end(), d.pokers_.begin(), d.pokers_.end(), cmp)) {
             return -1;
         } else if (std::equal(pokers_.begin(), pokers_.end(), d.pokers_.begin(), d.pokers_.end(), cmp)) {
@@ -274,10 +319,11 @@ struct Deck
     }
     const char* TypeName() const;
     const PatternType type_;
-    const std::array<Poker, 5> pokers_;
+    const std::array<Card<k_type>, 5> pokers_;
 };
 
-const char* Deck::TypeName() const
+template <CardType k_type>
+const char* Deck<k_type>::TypeName() const
 {
     switch (type_) {
         case PatternType::HIGH_CARD: return "高牌";
@@ -289,7 +335,7 @@ const char* Deck::TypeName() const
         case PatternType::FULL_HOUSE: return "满堂红";
         case PatternType::FOUR_OF_A_KIND: return "四条";
         case PatternType::STRAIGHT_FLUSH:
-            if (pokers_.front().number_ == PokerNumber::_0) {
+            if (pokers_.front().number_ == Types<k_type>::k_max_number_) {
                 return "皇家同花顺";
             } else {
                 return "同花顺";
@@ -298,8 +344,8 @@ const char* Deck::TypeName() const
     return "【错误：未知的牌型】";
 }
 
-template <typename Sender>
-Sender& operator<<(Sender& sender, const Deck& deck)
+template <typename Sender, CardType k_type>
+Sender& operator<<(Sender& sender, const Deck<k_type>& deck)
 {
     sender << "[" << deck.TypeName() << "]";
     for (const auto& poker : deck.pokers_) {
@@ -308,12 +354,16 @@ Sender& operator<<(Sender& sender, const Deck& deck)
     return sender;
 }
 
+template <CardType k_type>
 class Hand
 {
+    using NumberType = Types<k_type>::NumberType;
+    using SuitType = Types<k_type>::SuitType;
+
    public:
     Hand() : pokers_{{false}}, need_refresh_(false) {}
 
-    bool Add(const PokerNumber& number, const PokerSuit& suit)
+    bool Add(const NumberType& number, const SuitType& suit)
     {
         const auto old_value = std::exchange(pokers_[static_cast<uint32_t>(number)][static_cast<uint32_t>(suit)], true);
         if (old_value == false) {
@@ -323,9 +373,9 @@ class Hand
         return false;
     }
 
-    bool Add(const Poker& poker) { return Add(poker.number_, poker.suit_); }
+    bool Add(const Card<k_type>& poker) { return Add(poker.number_, poker.suit_); }
 
-    bool Remove(const PokerNumber& number, const PokerSuit& suit)
+    bool Remove(const NumberType& number, const SuitType& suit)
     {
         const auto old_value = std::exchange(pokers_[static_cast<uint32_t>(number)][static_cast<uint32_t>(suit)], false);
         if (old_value == true) {
@@ -335,14 +385,14 @@ class Hand
         return false;
     }
 
-    bool Remove(const Poker& poker) { return Remove(poker.number_, poker.suit_); }
+    bool Remove(const Card<k_type>& poker) { return Remove(poker.number_, poker.suit_); }
 
-    bool Has(const PokerNumber& number, const PokerSuit& suit) const
+    bool Has(const NumberType& number, const SuitType& suit) const
     {
         return pokers_[static_cast<uint32_t>(number)][static_cast<uint32_t>(suit)];
     }
 
-    bool Has(const Poker& poker) const { return Has(poker.number_, poker.suit_); }
+    bool Has(const Card<k_type>& poker) const { return Has(poker.number_, poker.suit_); }
 
     bool Empty() const
     {
@@ -354,10 +404,10 @@ class Hand
     template <typename Sender>
     friend Sender& operator<<(Sender& sender, const Hand& hand)
     {
-        for (const auto& number : PokerNumber::Members()) {
-            for (const auto& suit : PokerSuit::Members()) {
+        for (const auto& number : NumberType::Members()) {
+            for (const auto& suit : SuitType::Members()) {
                 if (hand.Has(number, suit)) {
-                    sender << Poker(number, suit) << " ";
+                    sender << Card<k_type>(number, suit) << " ";
                 }
             }
         }
@@ -371,24 +421,24 @@ class Hand
     std::string ToHtml() const
     {
         std::string s;
-        for (const auto& number : PokerNumber::Members()) {
-            for (const auto& suit : PokerSuit::Members()) {
+        for (const auto& number : NumberType::Members()) {
+            for (const auto& suit : SuitType::Members()) {
                 if (Has(number, suit)) {
-                    s += Poker(number, suit).ToHtml() + " ";
+                    s += Card<k_type>(number, suit).ToHtml() + " ";
                 }
             }
         }
         return s;
     }
 
-    const std::optional<Deck>& BestDeck() const
+    const std::optional<Deck<k_type>>& BestDeck() const
     {
         if (!need_refresh_) {
             return best_deck_;
         }
         need_refresh_ = false;
         best_deck_ = std::nullopt;
-        const auto update_deck = [this](const std::optional<Deck>& deck) {
+        const auto update_deck = [this](const std::optional<Deck<k_type>>& deck) {
             if (!deck.has_value()) {
                 return;
             } else if (!best_deck_.has_value() || *best_deck_ < *deck) {
@@ -396,7 +446,7 @@ class Hand
             }
         };
 
-        for (auto suit_it = PokerSuit::Members().rbegin(); suit_it != PokerSuit::Members().rend(); ++suit_it) {
+        for (auto suit_it = SuitType::Members().rbegin(); suit_it != SuitType::Members().rend(); ++suit_it) {
             update_deck(BestFlushPattern_<true>(*suit_it));
         }
         if (best_deck_.has_value()) {
@@ -408,7 +458,7 @@ class Hand
             return best_deck_;
         }
 
-        for (auto suit_it = PokerSuit::Members().rbegin(); suit_it != PokerSuit::Members().rend(); ++suit_it) {
+        for (auto suit_it = SuitType::Members().rbegin(); suit_it != SuitType::Members().rend(); ++suit_it) {
             update_deck(BestFlushPattern_<false>(*suit_it));
         }
         if (best_deck_.has_value() && best_deck_->type_ >= PatternType::FLUSH) {
@@ -421,64 +471,64 @@ class Hand
     }
 
    private:
-    std::optional<Deck> BestNonFlushNonPairPattern_() const {
-        const auto get_poker = [&pokers = pokers_](const PokerNumber number) -> std::optional<Poker> {
-            for (auto suit_it = PokerSuit::Members().rbegin(); suit_it != PokerSuit::Members().rend(); ++suit_it) {
+    std::optional<Deck<k_type>> BestNonFlushNonPairPattern_() const {
+        const auto get_poker = [&pokers = pokers_](const NumberType number) -> std::optional<Card<k_type>> {
+            for (auto suit_it = SuitType::Members().rbegin(); suit_it != SuitType::Members().rend(); ++suit_it) {
                 if (pokers[static_cast<uint32_t>(number)][static_cast<uint32_t>(*suit_it)]) {
-                    return Poker(number, *suit_it);
+                    return Card<k_type>(number, *suit_it);
                 }
             }
             return std::nullopt;
         };
         const auto deck = CollectNonPairDeck_<true>(get_poker);
         if (deck.has_value()) {
-            return Deck(PatternType::STRAIGHT, *deck);
+            return Deck<k_type>(PatternType::STRAIGHT, *deck);
         } else {
             return std::nullopt;
         }
     }
 
     template <bool FIND_STRAIGHT>
-    std::optional<Deck> BestFlushPattern_(const PokerSuit suit) const
+    std::optional<Deck<k_type>> BestFlushPattern_(const SuitType suit) const
     {
-        const auto get_poker = [&suit, &pokers = pokers_](const PokerNumber number) -> std::optional<Poker> {
+        const auto get_poker = [&suit, &pokers = pokers_](const NumberType number) -> std::optional<Card<k_type>> {
             if (pokers[static_cast<uint32_t>(number)][static_cast<uint32_t>(suit)]) {
-                return Poker(number, suit);
+                return Card<k_type>(number, suit);
             } else {
                 return std::nullopt;
             }
         };
         const auto deck = CollectNonPairDeck_<FIND_STRAIGHT>(get_poker);
         if (deck.has_value()) {
-            return Deck(PatternType::Condition(FIND_STRAIGHT, PatternType::STRAIGHT_FLUSH, PatternType::FLUSH), *deck);
+            return Deck<k_type>(PatternType::Condition(FIND_STRAIGHT, PatternType::STRAIGHT_FLUSH, PatternType::FLUSH), *deck);
         } else {
             return std::nullopt;
         }
     }
 
     template <bool FIND_STRAIGHT>
-    static std::optional<std::array<Poker, 5>> CollectNonPairDeck_(const auto& get_poker)
+    static std::optional<std::array<Card<k_type>, 5>> CollectNonPairDeck_(const auto& get_poker)
     {
-        std::vector<Poker> pokers;
-        for (auto it = PokerNumber::Members().rbegin(); it != PokerNumber::Members().rend(); ++it) {
+        std::vector<Card<k_type>> pokers;
+        for (auto it = NumberType::Members().rbegin(); it != NumberType::Members().rend(); ++it) {
             const auto poker = get_poker(*it);
             if (poker.has_value()) {
                 pokers.emplace_back(*poker);
                 if (pokers.size() == 5) {
-                    return std::array<Poker, 5>{pokers[0], pokers[1], pokers[2], pokers[3], pokers[4]};
+                    return std::array<Card<k_type>, 5>{pokers[0], pokers[1], pokers[2], pokers[3], pokers[4]};
                 }
             } else if (FIND_STRAIGHT) {
                 pokers.clear();
             }
         }
-        if (const auto poker = get_poker(PokerNumber::_0); FIND_STRAIGHT && pokers.size() == 4 && poker.has_value()) {
-            return std::array<Poker, 5>{pokers[0], pokers[1], pokers[2], pokers[3], *poker};
+        if (const auto poker = get_poker(Types<k_type>::k_max_number_); FIND_STRAIGHT && pokers.size() == 4 && poker.has_value()) {
+            return std::array<Card<k_type>, 5>{pokers[0], pokers[1], pokers[2], pokers[3], *poker};
         } else {
             return std::nullopt;
         }
     }
 
-    std::optional<Deck> BestPairPattern_() const
+    std::optional<Deck<k_type>> BestPairPattern_() const
     {
         // If poker_ is AA22233334, the same_number_poker_counts will be:
         // [0]: A 4 3 2 (at least has one)
@@ -488,9 +538,9 @@ class Hand
         // Then we go through from the back of poker_number to fill the deck.
         // When at [3], the deck become 3333?
         // When at [2], the deck become 3333A, which is the result deck.
-        std::array<std::deque<PokerNumber>, PokerSuit::Count()> same_number_poker_counts_accurate;
-        std::array<std::deque<PokerNumber>, PokerSuit::Count()> same_number_poker_counts;
-        for (const auto number : PokerNumber::Members()) {
+        std::array<std::deque<NumberType>, SuitType::Count()> same_number_poker_counts_accurate;
+        std::array<std::deque<NumberType>, SuitType::Count()> same_number_poker_counts;
+        for (const auto number : NumberType::Members()) {
             const uint64_t count = std::count(pokers_[static_cast<uint32_t>(number)].begin(),
                                               pokers_[static_cast<uint32_t>(number)].end(), true);
             if (count > 0) {
@@ -500,12 +550,12 @@ class Hand
                 }
             }
         }
-        std::set<PokerNumber> already_used_numbers;
-        std::vector<Poker> pokers;
+        std::set<NumberType> already_used_numbers;
+        std::vector<Card<k_type>> pokers;
 
-        const auto fill_pair_to_deck = [&](const PokerNumber& number)
+        const auto fill_pair_to_deck = [&](const NumberType& number)
         {
-            for (auto suit_it = PokerSuit::Members().rbegin();  suit_it != PokerSuit::Members().rend(); ++suit_it) {
+            for (auto suit_it = SuitType::Members().rbegin();  suit_it != SuitType::Members().rend(); ++suit_it) {
                 if (pokers_[static_cast<uint32_t>(number)][static_cast<uint32_t>(*suit_it)]) {
                     pokers.emplace_back(number, *suit_it);
                     if (pokers.size() == 5) {
@@ -518,7 +568,7 @@ class Hand
         const auto fill_best_pair_to_deck = [&]()
         {
             // fill big pair poker first
-            for (int64_t i = std::min(PokerSuit::Count(), 5 - pokers.size()) - 1; i >= 0; --i) {
+            for (int64_t i = std::min(SuitType::Count(), 5 - pokers.size()) - 1; i >= 0; --i) {
                 const auto& owned_numbers = same_number_poker_counts[i];
                 // fill big number poker first
                 for (auto number_it = owned_numbers.rbegin(); number_it != owned_numbers.rend(); ++number_it) {
@@ -536,12 +586,12 @@ class Hand
         if (pokers.size() < 5) {
             return std::nullopt;
         }
-        return Deck(PairPatternType_(same_number_poker_counts_accurate),
-                    std::array<Poker, 5>{pokers[0], pokers[1], pokers[2], pokers[3], pokers[4]});
+        return Deck<k_type>(PairPatternType_(same_number_poker_counts_accurate),
+                    std::array<Card<k_type>, 5>{pokers[0], pokers[1], pokers[2], pokers[3], pokers[4]});
     }
 
     static PatternType PairPatternType_(
-            const std::array<std::deque<PokerNumber>, PokerSuit::Count()>& same_number_poker_counts)
+            const std::array<std::deque<NumberType>, SuitType::Count()>& same_number_poker_counts)
     {
         if (!same_number_poker_counts[4 - 1].empty()) {
             return PatternType::FOUR_OF_A_KIND;
@@ -559,8 +609,8 @@ class Hand
         }
     }
 
-    std::array<std::array<bool, PokerSuit::Count()>, PokerNumber::Count()> pokers_;
-    mutable std::optional<Deck> best_deck_;
+    std::array<std::array<bool, SuitType::Count()>, NumberType::Count()> pokers_;
+    mutable std::optional<Deck<k_type>> best_deck_;
     mutable bool need_refresh_;
 };
 

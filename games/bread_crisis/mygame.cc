@@ -12,6 +12,10 @@ namespace game {
 
 namespace GAME_MODULE_NAME {
 
+class MainStage;
+template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+
 const std::string k_game_name =
     "面包危机";                   // the game name which should be unique among all the games
 const uint64_t k_max_player = 0;  // 0 indicates no max-player limits

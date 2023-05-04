@@ -29,8 +29,20 @@ ENUM_END(GameMap)
 #include <map>
 #include <bitset>
 
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
 #define ENUM_FILE "../games/laser_chess/options.h"
 #include "../../utility/extend_enum.h"
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // lgtbot
 
 #endif
 

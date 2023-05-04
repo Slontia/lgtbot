@@ -8,9 +8,9 @@
 #include <set>
 #include <ranges>
 
+#include "game_util/poker.h"
 #include "game_framework/game_stage.h"
 #include "utility/html.h"
-#include "game_util/poker.h"
 #include "game_util/bet_pool.h"
 
 using namespace lgtbot::game_util::bet_pool;
@@ -21,6 +21,10 @@ namespace lgtbot {
 namespace game {
 
 namespace GAME_MODULE_NAME {
+
+class MainStage;
+template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
 
 const std::string k_game_name = "幸运波卡";
 const uint64_t k_max_player = 4; /* 0 means no max-player limits */
@@ -89,13 +93,14 @@ static constexpr const uint32_t k_mode_show_some_public_pokers = 0;
 static constexpr const uint32_t k_mode_show_max_poker_each_hand = 1;
 static constexpr const uint32_t k_mode_show_hiden_pokers_group = 2;
 
+template <poker::CardType k_type>
 struct PlayerHand
 {
     static constexpr const uint32_t DISCARD_ALL = 3;
     static constexpr const uint32_t DISCARD_ALL_IMMUTBLE = 4;
     static constexpr const uint32_t DISCARD_NOT_CHOOSE = 5;
 
-    PlayerHand(const uint32_t id, const PlayerID& pid, std::array<poker::Poker, k_hand_poker_num> hand)
+    PlayerHand(const uint32_t id, const PlayerID& pid, std::array<poker::Card<k_type>, k_hand_poker_num> hand)
         : id_(id)
         , pid_(pid)
         , hand_([&hand] { std::sort(hand.begin(), hand.end()); return hand; }())
@@ -109,7 +114,7 @@ struct PlayerHand
 
     const uint32_t id_;
     const PlayerID pid_;
-    const std::array<poker::Poker, k_hand_poker_num> hand_;
+    const std::array<poker::Card<k_type>, k_hand_poker_num> hand_;
 
     int32_t immutable_coins_;
     int32_t mutable_coins_;
@@ -118,12 +123,13 @@ struct PlayerHand
     uint32_t discard_idx_;
 };
 
-std::optional<poker::Deck> GetBestDeck(const PlayerHand& hand, const std::vector<poker::Poker>& public_pokers)
+template <poker::CardType k_type>
+std::optional<poker::Deck<k_type>> GetBestDeck(const PlayerHand<k_type>& hand, const std::vector<poker::Card<k_type>>& public_pokers)
 {
     if (hand.discard_idx_ >= k_hand_poker_num) {
         return std::nullopt;
     }
-    poker::Hand poker_hand;
+    poker::Hand<k_type> poker_hand;
     for (const auto& poker : hand.hand_) {
         poker_hand.Add(poker);
     }
@@ -134,9 +140,10 @@ std::optional<poker::Deck> GetBestDeck(const PlayerHand& hand, const std::vector
     return poker_hand.BestDeck();
 }
 
+template <poker::CardType k_type>
 struct PlayerRoundInfo
 {
-    PlayerRoundInfo(const PlayerID& pid, const std::string& player_name, const int64_t score, std::vector<PlayerHand>& hands)
+    PlayerRoundInfo(const PlayerID& pid, const std::string& player_name, const int64_t score, std::vector<PlayerHand<k_type>>& hands)
         : pid_(pid), player_name_(player_name), score_(score), score_change_(0), remain_coins_(0), hands_(hands)
     {
     }
@@ -148,10 +155,10 @@ struct PlayerRoundInfo
         if (remain_coins_ > 0) {
             return "您还存在未分配完的筹码 " + std::to_string(remain_coins_) + " 枚，无法准备";
         }
-        if (!is_first && std::any_of(hands_.begin(), hands_.end(), [pid = pid_](const PlayerHand& hand)
+        if (!is_first && std::any_of(hands_.begin(), hands_.end(), [pid = pid_](const PlayerHand<k_type>& hand)
                     {
                         return hand.pid_ == pid && // is my hand
-                               hand.discard_idx_ == PlayerHand::DISCARD_NOT_CHOOSE && // has not been chose
+                               hand.discard_idx_ == PlayerHand<k_type>::DISCARD_NOT_CHOOSE && // has not been chose
                                hand.immutable_coins_ + hand.mutable_coins_ > 0; // not bet in first round
                     })) {
             return "您还有未完成选牌的牌组，无法准备";
@@ -166,7 +173,7 @@ struct PlayerRoundInfo
 
     std::string Fold(const uint32_t hand_id, const int64_t coins, const int64_t scores, const bool is_mutable)
     {
-        return Reset_(hand_id, coins, scores, is_mutable ? PlayerHand::DISCARD_ALL : PlayerHand::DISCARD_ALL_IMMUTBLE);
+        return Reset_(hand_id, coins, scores, is_mutable ? PlayerHand<k_type>::DISCARD_ALL : PlayerHand<k_type>::DISCARD_ALL_IMMUTBLE);
     }
 
     void RandomAct(const bool is_first)
@@ -176,13 +183,13 @@ struct PlayerRoundInfo
             if (hand.pid_ != pid_) {
                 continue;
             }
-            if (hand.discard_idx_ != PlayerHand::DISCARD_ALL && hand.discard_idx_ != PlayerHand::DISCARD_ALL_IMMUTBLE) {
+            if (hand.discard_idx_ != PlayerHand<k_type>::DISCARD_ALL && hand.discard_idx_ != PlayerHand<k_type>::DISCARD_ALL_IMMUTBLE) {
                 const auto coins =
                     rand() % ((is_first ? remain_coins_ : std::min(remain_coins_, static_cast<int64_t>(hand.immutable_coins_))) + 1);
                 remain_coins_ -= coins;
                 hand.mutable_coins_ += coins;
             }
-            if (!is_first && hand.discard_idx_ == PlayerHand::DISCARD_NOT_CHOOSE) {
+            if (!is_first && hand.discard_idx_ == PlayerHand<k_type>::DISCARD_NOT_CHOOSE) {
                 hand.discard_idx_ = rand() % k_hand_poker_num; // TODO: choose the best deck
             }
         }
@@ -196,7 +203,7 @@ struct PlayerRoundInfo
             return;
         }
         for (auto& hand : hands_) {
-            if (hand.pid_ == pid_ && hand.discard_idx_ != PlayerHand::DISCARD_ALL && hand.discard_idx_ != PlayerHand::DISCARD_ALL_IMMUTBLE) {
+            if (hand.pid_ == pid_ && hand.discard_idx_ != PlayerHand<k_type>::DISCARD_ALL && hand.discard_idx_ != PlayerHand<k_type>::DISCARD_ALL_IMMUTBLE) {
                 teller(pid_) << "[警告] 您存在未用完的筹码 " << remain_coins_ << " 枚，默认全部下注到牌组 " << HandID2Str(hand.id_) << " 上";
                 hand.mutable_coins_ += remain_coins_;
                 remain_coins_ = 0;
@@ -207,11 +214,11 @@ struct PlayerRoundInfo
 
     std::string Reset_(const uint32_t hand_id, const int64_t coins, const int64_t scores, const uint32_t discard_idx)
     {
-        PlayerHand& hand = hands_[hand_id];
+        PlayerHand<k_type>& hand = hands_[hand_id];
         if (hand.pid_ != pid_) {
             return "您所选择牌组本非本人牌组";
         }
-        if (hand.discard_idx_ == PlayerHand::DISCARD_ALL_IMMUTBLE) {
+        if (hand.discard_idx_ == PlayerHand<k_type>::DISCARD_ALL_IMMUTBLE) {
             return "该牌组已被弃置，无法变动";
         }
         const int64_t offset = hand.mutable_coins_ + hand.mutable_score_ - coins - scores;
@@ -228,7 +235,7 @@ struct PlayerRoundInfo
         return {};
     }
 
-    std::string ToHtml(const bool show_coins, const bool show_all_pokers, const std::vector<poker::Poker>& public_pokers) const
+    std::string ToHtml(const bool show_coins, const bool show_all_pokers, const std::vector<poker::Card<k_type>>& public_pokers) const
     {
         std::string str;
         str += "### " + player_name_ + "（当前积分：" + std::to_string(score_);
@@ -282,8 +289,8 @@ struct PlayerRoundInfo
             {
                 std::string hand_str;
                 const bool is_fold =
-                    hand.discard_idx_ == PlayerHand::DISCARD_ALL_IMMUTBLE ||
-                    hand.discard_idx_ == PlayerHand::DISCARD_ALL ||
+                    hand.discard_idx_ == PlayerHand<k_type>::DISCARD_ALL_IMMUTBLE ||
+                    hand.discard_idx_ == PlayerHand<k_type>::DISCARD_ALL ||
                     (show_deck && hand.immutable_coins_ + hand.mutable_coins_ == 0);
                 for (uint32_t i = 0; i < hand.hand_.size(); ++i) {
                     hand_str += !show_all_pokers && i == hand.hand_.size() - 1 ? k_unknown_poker :
@@ -330,14 +337,14 @@ struct PlayerRoundInfo
     const int64_t score_;
     int64_t score_change_;
     int64_t remain_coins_;
-    std::vector<PlayerHand>& hands_;
+    std::vector<PlayerHand<k_type>>& hands_;
     std::string html_;
 };
 
-class BetStage;
-class RoundStage;
+template <poker::CardType k_type> class BetStage;
+template <poker::CardType k_type> class RoundStage;
 
-class MainStage : public MainGameStage<RoundStage>
+class MainStage : public MainGameStage<RoundStage<poker::CardType::BOKAA>, RoundStage<poker::CardType::POKER>>
 {
   public:
     MainStage(const GameOption& option, MatchBase& match)
@@ -349,13 +356,18 @@ class MainStage : public MainGameStage<RoundStage>
 
     virtual VariantSubStage OnStageBegin() override;
 
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
+    virtual VariantSubStage NextSubStage(RoundStage<poker::CardType::BOKAA>& sub_stage, const CheckoutReason reason) override;
+
+    virtual VariantSubStage NextSubStage(RoundStage<poker::CardType::POKER>& sub_stage, const CheckoutReason reason) override;
 
     int64_t PlayerScore(const PlayerID pid) const { return player_scores_[pid]; }
 
     int64_t& PlayerScoreRef(const PlayerID pid) { return player_scores_[pid]; }
 
   private:
+    template <poker::CardType k_type>
+    VariantSubStage NextSubStage_(RoundStage<k_type>& sub_stage, const CheckoutReason reason);
+
     std::vector<int64_t> player_scores_;
     uint32_t round_;
 };
@@ -373,18 +385,19 @@ std::optional<uint64_t> ToHandID(const std::string& str)
     }
 }
 
+template <poker::CardType k_type>
 class BetStage : public SubGameStage<>
 {
   public:
-    BetStage(MainStage& main_stage, const bool is_first, std::vector<PlayerHand>& hands, std::vector<PlayerRoundInfo>& info)
+    BetStage(MainStage& main_stage, const bool is_first, std::vector<PlayerHand<k_type>>& hands, std::vector<PlayerRoundInfo<k_type>>& info)
         : GameStage(main_stage, is_first ? "首轮下注" : "次轮下注",
                 is_first ?
-                MakeStageCommand("对某个牌组下注一定金额", &BetStage::Bet_,
+                this->MakeStageCommand("对某个牌组下注一定金额", &BetStage::Bet_,
                     AnyArg("牌组", "A"), ArithChecker<uint32_t>(0, 100000, "金币数")) :
-                MakeStageCommand("对某个牌组下注一定金额，并决定出一张**不使用**的牌", &BetStage::BetAndChoose_,
+                this->MakeStageCommand("对某个牌组下注一定金额，并决定出一张**不使用**的牌", &BetStage::BetAndChoose_,
                     AnyArg("牌组", "A"), ArithChecker<uint32_t>(0, 100000, "金币数"), AnyArg("扑克", "红3")),
-                MakeStageCommand("弃掉一个牌组", &BetStage::Fold_, AnyArg("牌组", "A"), VoidChecker("弃牌")),
-                MakeStageCommand("完成行动", &BetStage::Prepare_, VoidChecker("准备")))
+                this->MakeStageCommand("弃掉一个牌组", &BetStage::Fold_, AnyArg("牌组", "A"), VoidChecker("弃牌")),
+                this->MakeStageCommand("完成行动", &BetStage::Prepare_, VoidChecker("准备")))
         , is_first_(is_first), hands_(hands), player_round_infos_(info)
     {
     }
@@ -425,7 +438,7 @@ class BetStage : public SubGameStage<>
         if (!hand_id.has_value()) {
             return StageErrCode::FAILED;
         }
-        if (const auto errmsg = player_round_infos_[pid].Bet(*hand_id, coins, PlayerHand::DISCARD_NOT_CHOOSE); !errmsg.empty()) {
+        if (const auto errmsg = player_round_infos_[pid].Bet(*hand_id, coins, PlayerHand<k_type>::DISCARD_NOT_CHOOSE); !errmsg.empty()) {
             reply() << "[错误] 行动失败：" << errmsg;
             return StageErrCode::FAILED;
         }
@@ -443,7 +456,7 @@ class BetStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
         std::stringstream ss;
-        const auto poker = poker::Parse(poker_str, ss);
+        const auto poker = poker::Parse<std::string, std::stringstream&, k_type>(poker_str, ss);
         if (!poker.has_value()) {
             reply() << "弃牌失败：非法的扑克名「" << poker_str << "」，" << ss.str();
             return StageErrCode::FAILED;
@@ -527,29 +540,33 @@ class BetStage : public SubGameStage<>
     }
 
     const bool is_first_;
-    std::vector<PlayerHand>& hands_;
-    std::vector<PlayerRoundInfo>& player_round_infos_;
+    std::vector<PlayerHand<k_type>>& hands_;
+    std::vector<PlayerRoundInfo<k_type>>& player_round_infos_;
 };
 
-class RoundStage : public SubGameStage<BetStage>
+template <poker::CardType k_type>
+class RoundStage : public SubGameStage<BetStage<k_type>>
 {
+    using VariantSubStage = SubGameStage<BetStage<k_type>>::VariantSubStage;
+    using GameStage = SubGameStage<BetStage<k_type>>;
+
   public:
     RoundStage(MainStage& main_stage, const uint32_t round)
         : GameStage(main_stage, "第 " + std::to_string(round + 1) + " 回合",
-                MakeStageCommand("通过图片查看各玩家手牌及金币情况", &RoundStage::Status_, VoidChecker("赛况")))
-        , is_first_(true), player_htmls_(option().PlayerNum())
+                this->MakeStageCommand("通过图片查看各玩家手牌及金币情况", &RoundStage::Status_, VoidChecker("赛况")))
+        , is_first_(true), player_htmls_(this->option().PlayerNum())
     {
-        const auto shuffled_pokers = poker::ShuffledPokers(GET_OPTION_VALUE(option(), 种子).empty() ? "" : GET_OPTION_VALUE(option(), 种子) + std::to_string(round));
-        const auto player_num = option().PlayerNum();
+        const auto shuffled_pokers = poker::ShuffledPokers<k_type>(GET_OPTION_VALUE(this->option(), 种子).empty() ? "" : GET_OPTION_VALUE(this->option(), 种子) + std::to_string(round));
+        const auto player_num = this->option().PlayerNum();
         const uint32_t player_hand_num = PlayerHandNum(player_num);
         auto it = shuffled_pokers.cbegin();
         for (PlayerID pid = 0; pid < player_num; ++pid) {
             for (uint32_t i = 0; i < player_hand_num; ++i) {
-                hands_.emplace_back(pid * player_hand_num + i, pid, std::array<poker::Poker, k_hand_poker_num>{*it++, *it++, *it++});
+                hands_.emplace_back(pid * player_hand_num + i, pid, std::array<poker::Card<k_type>, k_hand_poker_num>{*it++, *it++, *it++});
             }
-            player_round_infos_.emplace_back(pid, PlayerAvatar(pid, 50) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + PlayerName(pid), main_stage.PlayerScore(pid), hands_);
+            player_round_infos_.emplace_back(pid, this->PlayerAvatar(pid, 50) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + this->PlayerName(pid), main_stage.PlayerScore(pid), hands_);
         }
-        for (uint64_t i = 0; i < GET_OPTION_VALUE(option(), 公共牌数); ++i) {
+        for (uint64_t i = 0; i < GET_OPTION_VALUE(this->option(), 公共牌数); ++i) {
             public_pokers_.emplace_back(*it++);
         }
     }
@@ -557,15 +574,15 @@ class RoundStage : public SubGameStage<BetStage>
     virtual VariantSubStage OnStageBegin() override
     {
         for (auto& info : player_round_infos_) {
-            info.SetRemainCoins(GET_OPTION_VALUE(option(), 首轮筹码) * PlayerHandNum(option().PlayerNum()));
+            info.SetRemainCoins(GET_OPTION_VALUE(this->option(), 首轮筹码) * PlayerHandNum(this->option().PlayerNum()));
         }
         SavePlayerHtmls_();
-        Group() << Markdown{MiddleHtml_(true), k_markdown_width_};
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            Tell(pid) << Markdown{PrivateHtml_(pid, true), k_markdown_width_};
+        this->Group() << Markdown{MiddleHtml_(true), k_markdown_width_};
+        for (PlayerID pid = 0; pid < this->option().PlayerNum(); ++pid) {
+            this->Tell(pid) << Markdown{PrivateHtml_(pid, true), k_markdown_width_};
         }
-        Boardcast() << "请各位玩家私信裁判进行第一轮下注，您可通过「帮助」命令查看命令格式";
-        return std::make_unique<BetStage>(main_stage(), is_first_, hands_, player_round_infos_);
+        this->Boardcast() << "请各位玩家私信裁判进行第一轮下注，您可通过「帮助」命令查看命令格式";
+        return std::make_unique<BetStage<k_type>>(this->main_stage(), is_first_, hands_, player_round_infos_);
     }
 
     struct DeckHelper
@@ -576,13 +593,13 @@ class RoundStage : public SubGameStage<BetStage>
                     deck_.has_value() && !o.deck_.has_value() ? 1 :
                    !deck_.has_value() &&  o.deck_.has_value() ? -1 : 0;
         }
-        std::optional<poker::Deck> deck_;
+        std::optional<poker::Deck<k_type>> deck_;
     };
 
-    virtual VariantSubStage NextSubStage(BetStage& sub_stage, const CheckoutReason reason) override
+    virtual VariantSubStage NextSubStage(BetStage<k_type>& sub_stage, const CheckoutReason reason) override
     {
         for (auto& player_info : player_round_infos_) {
-            player_info.ClearRemainCoins([this](const PlayerID pid) { return Tell(pid); });
+            player_info.ClearRemainCoins([this](const PlayerID pid) { return this->Tell(pid); });
         }
         for (auto& hand : hands_) {
             hand.immutable_coins_ += hand.mutable_coins_;
@@ -593,29 +610,29 @@ class RoundStage : public SubGameStage<BetStage>
         if (is_first_) {
             is_first_ = false;
             for (auto& info : player_round_infos_) {
-                info.SetRemainCoins(GET_OPTION_VALUE(option(), 次轮筹码) * PlayerHandNum(option().PlayerNum()));
+                info.SetRemainCoins(GET_OPTION_VALUE(this->option(), 次轮筹码) * PlayerHandNum(this->option().PlayerNum()));
             }
             SavePlayerHtmls_();
             for (auto& hand : hands_) {
-                if (hand.discard_idx_ == PlayerHand::DISCARD_ALL) {
+                if (hand.discard_idx_ == PlayerHand<k_type>::DISCARD_ALL) {
                     player_round_infos_[hand.pid_].Fold(
                             hand.id_,
-                            GET_OPTION_VALUE(option(), 次轮筹码) - GET_OPTION_VALUE(option(), 次轮弃牌得分),
-                            GET_OPTION_VALUE(option(), 次轮弃牌得分),
+                            GET_OPTION_VALUE(this->option(), 次轮筹码) - GET_OPTION_VALUE(this->option(), 次轮弃牌得分),
+                            GET_OPTION_VALUE(this->option(), 次轮弃牌得分),
                             false /* is_mutable */);
                 }
             }
-            Boardcast() << "第一轮下注结束，公布各玩家选择：";
-            Group() << Markdown{MiddleHtml_(false), k_markdown_width_};
-            for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-                Tell(pid) << Markdown{PrivateHtml_(pid, false), k_markdown_width_};
+            this->Boardcast() << "第一轮下注结束，公布各玩家选择：";
+            this->Group() << Markdown{MiddleHtml_(false), k_markdown_width_};
+            for (PlayerID pid = 0; pid < this->option().PlayerNum(); ++pid) {
+                this->Tell(pid) << Markdown{PrivateHtml_(pid, false), k_markdown_width_};
             }
-            Boardcast() << "请各位玩家私信裁判进行第二轮下注，并决定**不参与**决胜的卡牌，您可通过「帮助」命令查看命令格式";
-            return std::make_unique<BetStage>(main_stage(), is_first_, hands_, player_round_infos_);
+            this->Boardcast() << "请各位玩家私信裁判进行第二轮下注，并决定**不参与**决胜的卡牌，您可通过「帮助」命令查看命令格式";
+            return std::make_unique<BetStage<k_type>>(this->main_stage(), is_first_, hands_, player_round_infos_);
         } else {
             std::map<uint64_t, CallBetPoolInfo<DeckHelper>> decks;
             for (auto& hand : hands_) {
-                if (hand.discard_idx_ == PlayerHand::DISCARD_NOT_CHOOSE) {
+                if (hand.discard_idx_ == PlayerHand<k_type>::DISCARD_NOT_CHOOSE) {
                     hand.discard_idx_ = 0;
                 }
                 decks.emplace(hand.id_, CallBetPoolInfo{
@@ -631,14 +648,14 @@ class RoundStage : public SubGameStage<BetStage>
             for (const auto& hand : hands_) {
                 player_round_infos_[hand.pid_].score_change_ += hand.immutable_score_ + hand.mutable_score_;
             }
-            Boardcast() << "第二轮下注结束，公布各玩家选择：";
-            Group() << Markdown{EndHtml_() + BetResultHtml_(bet_rets), k_markdown_width_};
-            for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-                Tell(pid) << Markdown{EndHtml_() + BetResultHtml_(bet_rets), k_markdown_width_};
+            this->Boardcast() << "第二轮下注结束，公布各玩家选择：";
+            this->Group() << Markdown{EndHtml_() + BetResultHtml_(bet_rets), k_markdown_width_};
+            for (PlayerID pid = 0; pid < this->option().PlayerNum(); ++pid) {
+                this->Tell(pid) << Markdown{EndHtml_() + BetResultHtml_(bet_rets), k_markdown_width_};
             }
-            Boardcast() << "回合结束";
+            this->Boardcast() << "回合结束";
             for (const auto& info : player_round_infos_) {
-                main_stage().PlayerScoreRef(info.pid_) += info.score_change_;
+                this->main_stage().PlayerScoreRef(info.pid_) += info.score_change_;
             }
             return nullptr;
         }
@@ -647,15 +664,15 @@ class RoundStage : public SubGameStage<BetStage>
   private:
     void SavePlayerHtmls_()
     {
-        for (const PlayerRoundInfo& info : player_round_infos_) {
-            player_htmls_[info.pid_] = info.ToHtml(false, GET_OPTION_VALUE(option(), 模式) == k_mode_show_max_poker_each_hand, {});
+        for (const PlayerRoundInfo<k_type>& info : player_round_infos_) {
+            player_htmls_[info.pid_] = info.ToHtml(false, GET_OPTION_VALUE(this->option(), 模式) == k_mode_show_max_poker_each_hand, {});
         }
     }
 
     std::string MiddleHtml_(const bool is_first) const
     {
         std::string s = MiddleHeadHtml_(is_first);
-        for (PlayerID p = 0; p < option().PlayerNum(); ++p) {
+        for (PlayerID p = 0; p < this->option().PlayerNum(); ++p) {
             s += player_htmls_[p] + "\n\n";
         }
         return s;
@@ -663,7 +680,7 @@ class RoundStage : public SubGameStage<BetStage>
 
     std::string EndHtml_() const
     {
-        std::string s = HeadHtml_(GET_OPTION_VALUE(option(), 公共牌数), false) + "\n\n";
+        std::string s = HeadHtml_(GET_OPTION_VALUE(this->option(), 公共牌数), false) + "\n\n";
         for (const auto& info : player_round_infos_) {
             s += info.ToHtml(false, true, public_pokers_) + "\n\n";
         }
@@ -674,7 +691,7 @@ class RoundStage : public SubGameStage<BetStage>
     {
         std::string s = MiddleHeadHtml_(is_first);
         s += player_round_infos_[pid].ToHtml(true, true, {}) + "\n\n";
-        for (PlayerID p = 0; p < option().PlayerNum(); ++p) {
+        for (PlayerID p = 0; p < this->option().PlayerNum(); ++p) {
             if (p != pid) {
                 s += player_htmls_[p] + "\n\n";
             }
@@ -685,13 +702,13 @@ class RoundStage : public SubGameStage<BetStage>
     std::string MiddleHeadHtml_(const bool is_first) const
     {
         const uint32_t show_public_num =
-            GET_OPTION_VALUE(option(), 模式) != k_mode_show_some_public_pokers ? (is_first ? 0 : 1) : (is_first ? 2 : 3);
-        return HeadHtml_(show_public_num, GET_OPTION_VALUE(option(), 模式) == k_mode_show_hiden_pokers_group) + "\n\n";
+            GET_OPTION_VALUE(this->option(), 模式) != k_mode_show_some_public_pokers ? (is_first ? 0 : 1) : (is_first ? 2 : 3);
+        return HeadHtml_(show_public_num, GET_OPTION_VALUE(this->option(), 模式) == k_mode_show_hiden_pokers_group) + "\n\n";
     }
 
     std::string HeadHtml_(const uint32_t show_public_num, const bool show_hiden_pokers) const
     {
-        std::string s = "<center>\n\n## " + name() + "\n\n</center>\n\n<center>\n\n**第" + (is_first_ ? "一" : "二") + "轮下注**</center>\n\n";
+        std::string s = "<center>\n\n## " + this->name() + "\n\n</center>\n\n<center>\n\n**第" + (is_first_ ? "一" : "二") + "轮下注**</center>\n\n";
         s += "<center><font size=\"4\">\n\n**公共牌：";
         for (uint32_t i = 0; i < show_public_num; ++i) {
             s += public_pokers_[i].ToHtml() + HTML_ESCAPE_SPACE;
@@ -702,7 +719,7 @@ class RoundStage : public SubGameStage<BetStage>
         s += "**\n\n</font></center>\n\n";
         if (show_hiden_pokers) {
             s += "<center>隐藏牌：";
-            std::vector<poker::Poker> hiden_pokers = public_pokers_;
+            std::vector<poker::Card<k_type>> hiden_pokers = public_pokers_;
             for (const auto& hand : hands_) {
                 hiden_pokers.emplace_back(hand.hand_[k_hand_poker_num - 1]);
             }
@@ -746,9 +763,9 @@ class RoundStage : public SubGameStage<BetStage>
         return StageErrCode::OK;
     }
 
-    std::vector<PlayerHand> hands_;
-    std::vector<PlayerRoundInfo> player_round_infos_;
-    std::vector<poker::Poker> public_pokers_;
+    std::vector<PlayerHand<k_type>> hands_;
+    std::vector<PlayerRoundInfo<k_type>> player_round_infos_;
+    std::vector<poker::Card<k_type>> public_pokers_;
     std::vector<std::string> player_htmls_;
     bool is_first_;
     static constexpr uint32_t k_markdown_width_ = 650;
@@ -757,13 +774,31 @@ class RoundStage : public SubGameStage<BetStage>
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
-    return std::make_unique<RoundStage>(*this, round_);
+    if (GET_OPTION_VALUE(option(), 卡牌) == poker::CardType::BOKAA) {
+        return std::make_unique<RoundStage<poker::CardType::BOKAA>>(*this, round_);
+    } else if (GET_OPTION_VALUE(option(), 卡牌) == poker::CardType::POKER) {
+        return std::make_unique<RoundStage<poker::CardType::POKER>>(*this, round_);
+    } else {
+        assert(false);
+        return {};
+    }
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
+MainStage::VariantSubStage MainStage::NextSubStage(RoundStage<poker::CardType::BOKAA>& sub_stage, const CheckoutReason reason)
+{
+    return NextSubStage_(sub_stage, reason);
+}
+
+MainStage::VariantSubStage MainStage::NextSubStage(RoundStage<poker::CardType::POKER>& sub_stage, const CheckoutReason reason)
+{
+    return NextSubStage_(sub_stage, reason);
+}
+
+template <poker::CardType k_type>
+MainStage::VariantSubStage MainStage::NextSubStage_(RoundStage<k_type>& sub_stage, const CheckoutReason reason)
 {
     if ((++round_) < GET_OPTION_VALUE(option(), 轮数)) {
-        return std::make_unique<RoundStage>(*this, round_);
+        return std::make_unique<RoundStage<k_type>>(*this, round_);
     }
     return {};
 }

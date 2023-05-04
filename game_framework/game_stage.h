@@ -701,15 +701,6 @@ class GameStage<MainStage>
     std::optional<std::chrono::time_point<std::chrono::steady_clock>> finish_time_;
 };
 
-class MainStage;
-
-template <typename... SubStages>
-using SubGameStage = GameStage<MainStage, SubStages...>;
-
-template <typename... SubStages>
-using MainGameStage = GameStage<void, SubStages...>;
-
-
 } // namespace GAME_MODULE_NAME
 
 } // namespace game

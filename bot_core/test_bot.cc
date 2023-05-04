@@ -178,6 +178,8 @@ bool GameOption::ToValid(MsgSenderBase& reply) { return true; }
 uint64_t GameOption::BestPlayerNum() const { return 2; }
 
 class MainStage;
+template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
 
 class SubStage : public SubGameStage<>
 {
