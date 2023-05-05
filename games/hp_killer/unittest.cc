@@ -490,7 +490,7 @@ GAME_TEST(5, traitor_can_heavy_hurt_cure_after_killer_dead)
 
 GAME_TEST(5, killer_cannot_win_when_two_civilians_and_one_traitor_dead)
 {
-    ASSERT_PUB_MSG(OK, 0, "身份列表 替身 杀手 圣女 平民 内奸");
+    ASSERT_PUB_MSG(OK, 0, "身份列表 平民 杀手 圣女 平民 内奸");
     START_GAME();
     ASSERT_TIMEOUT(CONTINUE);
     for (uint32_t i = 0; i < 4; ++i) {
@@ -663,7 +663,7 @@ GAME_TEST(5, ghost_attact_sorcerer_ghost_also_be_hurted)
 
 GAME_TEST(5, assassin_hurt_little_blood)
 {
-    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 平民 替身 替身 刺客");
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 平民 平民 替身 刺客");
     ASSERT_PRI_MSG(OK, 0, "血量 15");
     START_GAME();
     ASSERT_TIMEOUT(CONTINUE);
@@ -942,6 +942,18 @@ GAME_TEST(5, twin_change_team_from_the_next_round_on)
     ASSERT_PRI_MSG(OK, 3, "攻击 C 15"); // civilian twin dead
     ASSERT_TIMEOUT(CHECKOUT);
     ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
+GAME_TEST(5, all_civilian_dead_killer_win)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 双子（邪） 双子（正） 平民 守卫");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 0, "攻击 D 15");
+    ASSERT_PRI_MSG(OK, 1, "攻击 E 15");
+    ASSERT_PRI_MSG(OK, 3, "攻击 B 15"); // civilian twin become killer team, no alive civilian team members any more
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(1, 1, 0, 0, 0);
 }
 
 } // namespace GAME_MODULE_NAME

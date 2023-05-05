@@ -344,6 +344,7 @@ class RoleBase
     Occupation GetOccupation() const { return occupation_; }
     Team GetTeam() const { return team_; }
     void SetNextRoundTeam(const Team team) { next_round_team_ = team; }
+    Team GetNextRoundTeam() const { return next_round_team_; }
     int32_t GetHp() const { return hp_; }
     bool CanAct() const { return can_act_; }
     bool IsAlive() const { return is_alive_; }
@@ -1056,6 +1057,7 @@ class MainStage : public MainGameStage<>
     {
         bool killer_dead = true;
         bool traitor_dead = true;
+        bool all_civilian_team_dead_next_round = true;
         uint32_t civilian_dead_count = 0;
         uint32_t civilian_team_dead_count = 0;
         role_manager_.Foreach([&](const auto& role)
@@ -1067,6 +1069,10 @@ class MainStage : public MainGameStage<>
                     if (role.GetOccupation() == Occupation::杀手) {
                         killer_dead = false;
                     }
+                    if (role.GetNextRoundTeam() == Team::平民) {
+                        // civilian twin can convert to killer team next round, so we check the next-round team instead of current team
+                        all_civilian_team_dead_next_round = false;
+                    }
                     return;
                 } else if (role.GetTeam() == Team::平民) {
                     ++civilian_team_dead_count;
@@ -1076,7 +1082,8 @@ class MainStage : public MainGameStage<>
                 }
             });
         bool civilian_lost = civilian_dead_count >= k_civilian_dead_threshold ||
-            civilian_team_dead_count >= k_civilian_team_dead_threshold;
+                             civilian_team_dead_count >= k_civilian_team_dead_threshold ||
+                             all_civilian_team_dead_next_round;
         bool killer_lost = killer_dead;
         bool traitor_lost = traitor_dead;
 
