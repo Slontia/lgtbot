@@ -281,6 +281,37 @@ class KiriStage : public SubGameStage<>
     Mahjong17Steps& game_table_;
 
   private:
+    void Achieve_(const PlayerID pid)
+    {
+        if (!GET_OPTION_VALUE(option(), 种子).empty()) {
+            return; // no achievements for game with a seed
+        }
+        for (const Yaku yaku : game_table_.GetYakumanYakus(pid)) {
+            if (yaku == Yaku::国士无双) {
+                global_info().Achieve(pid, Achievement::国士无双);
+            } else if (yaku == Yaku::九莲宝灯) {
+                global_info().Achieve(pid, Achievement::九莲宝灯);
+            } else if (yaku == Yaku::字一色) {
+                global_info().Achieve(pid, Achievement::字一色);
+            } else if (yaku == Yaku::小四喜) {
+                global_info().Achieve(pid, Achievement::小四喜);
+            } else if (yaku == Yaku::大四喜) {
+                global_info().Achieve(pid, Achievement::大四喜);
+            } else if (yaku == Yaku::大三元) {
+                global_info().Achieve(pid, Achievement::大三元);
+            } else if (yaku == Yaku::清老头) {
+                global_info().Achieve(pid, Achievement::清老头);
+            } else if (yaku == Yaku::四暗刻) {
+                global_info().Achieve(pid, Achievement::四暗刻);
+            } else if (yaku == Yaku::绿一色) {
+                global_info().Achieve(pid, Achievement::绿一色);
+            } else if (yaku == Yaku::役满) {
+                global_info().Achieve(pid, Achievement::累计役满);
+            }
+        }
+
+    }
+
     bool OnOver_()
     {
         const auto state = game_table_.RoundOver();
@@ -300,6 +331,7 @@ class KiriStage : public SubGameStage<>
             for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
                 main_stage().players_[pid].score_ += game_table_.PointChange(pid);
                 player_scores.emplace_back(pid, main_stage().players_[pid].score_);
+                Achieve_(pid);
             }
             std::ranges::sort(player_scores, [](const auto& _1, const auto& _2) { return _1.second > _2.second; });
             auto sender = Boardcast();

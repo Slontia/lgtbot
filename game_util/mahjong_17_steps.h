@@ -284,6 +284,24 @@ class Mahjong17Steps
                round_ == k_max_round_ ? (is_flow_ = true, GameState::FLOW) : GameState::CONTINUE;
     }
 
+    std::set<Yaku> GetYakumanYakus(const uint64_t pid) const
+    {
+        std::set<Yaku> result;
+        for (const RonInfo& ron_info : players_[pid].ron_infos_) {
+            bool has_yakuman_yaku = false;
+            for (const Yaku yaku : ron_info.counter_.yakus) {
+                if (yaku > Yaku::满贯) {
+                    has_yakuman_yaku = true;
+                    result.emplace(yaku);
+                }
+            }
+            if (!has_yakuman_yaku && ron_info.counter_.fan >= 13) {
+                result.emplace(Yaku::役满); // indicate accumulate yakuman
+            }
+        }
+        return result;
+    }
+
     int32_t PointChange(const uint64_t pid) const { return players_[pid].point_; }
 
     // Step state
@@ -382,6 +400,7 @@ class Mahjong17Steps
         player.river_.emplace_back(*player.kiri_);
     }
 
+    // fill ron_infos_ for the player
     void MakeRonInfoForRounOver_(const uint64_t this_pid)
     {
         Player& this_player = players_[this_pid];
@@ -414,6 +433,7 @@ class Mahjong17Steps
                 [&](const auto& info) { return info.counter_.score1 == max_ron_point; });
         for (auto& info : this_player.ron_infos_) {
             if (info.counter_.score1 == max_ron_point) {
+                // sharing the points to multiple players who lose the game
                 info.counter_.score2 = ((max_ron_point / 100 + max_ron_count - 1) / max_ron_count) * 100;
                 this_player.point_ += info.counter_.score2;
                 players_[info.loser_].point_ -= info.counter_.score2;
@@ -586,8 +606,7 @@ class Mahjong17Steps
         if (!with_inner_dora) {
             counter.fan -= std::erase(counter.yakus, Yaku::里宝牌);
         }
-        const bool has_yaku_man = std::ranges::any_of(counter.yakus,
-                [](const Yaku yaku) { return yaku > Yaku::满贯 && yaku < Yaku::双倍役满; });
+        const bool has_yaku_man = std::ranges::any_of(counter.yakus, [](const Yaku yaku) { return yaku > Yaku::满贯; });
         if (ron_occu == RonOccu::ROUND_1 && !has_yaku_man &&
                 std::ranges::none_of(counter.yakus, [](const Yaku yaku) { return yaku == Yaku::一发; })) {
             counter.yakus.emplace_back(Yaku::一发);
