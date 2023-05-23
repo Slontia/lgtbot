@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <optional>
+#include <span>
 
 namespace lgtbot {
 
@@ -20,6 +22,7 @@ namespace bet_pool {
 template <typename T>
 struct CallBetPoolInfo
 {
+    uint64_t id_;
     int64_t coins_;
     T obj_;
 };
@@ -31,25 +34,26 @@ struct CallBetPoolResult
     std::set<uint64_t> participant_ids_;
 };
 
-template <typename T>
-std::vector<CallBetPoolResult> CallBetPool(const std::map<uint64_t, CallBetPoolInfo<T>>& infos)
+template <typename BetInfos, typename Compare = std::less<>>
+std::vector<CallBetPoolResult> CallBetPool(const BetInfos& infos, const Compare& compare = std::less<>())
 {
+    using T = std::decay_t<decltype((*infos.begin()).obj_)>;
     std::vector<CallBetPoolResult> result;
 
     // prepare datas
-    std::map<T, std::set<uint64_t>> rank_map; // value is id
+    std::map<T, std::set<uint64_t>, Compare> rank_map(compare); // value is id
     struct CoinInfo
     {
         uint64_t id_;
         int64_t remain_coins_;
-        const T* obj_;
+        T obj_;
     };
     std::vector<CoinInfo> coin_infos;
     std::set<uint64_t> remain_ids;
-    for (const auto& [id, info] : infos) {
-        rank_map[info.obj_].emplace(id);
-        coin_infos.emplace_back(CoinInfo{.id_ = id, .remain_coins_ = info.coins_, .obj_ = &info.obj_});
-        remain_ids.emplace(id);
+    for (const auto& info : infos) {
+        rank_map[info.obj_].emplace(info.id_);
+        coin_infos.emplace_back(CoinInfo{.id_ = info.id_, .remain_coins_ = info.coins_, .obj_ = info.obj_});
+        remain_ids.emplace(info.id_);
     }
     std::sort(coin_infos.begin(), coin_infos.end(), [](const auto& _1, const auto& _2) { return _1.remain_coins_ < _2.remain_coins_; });
 
@@ -65,7 +69,8 @@ std::vector<CallBetPoolResult> CallBetPool(const std::map<uint64_t, CallBetPoolI
             std::for_each(it, coin_infos.end(),
                     [coins = info.remain_coins_](auto& each_info) { each_info.remain_coins_ -= coins; });
         }
-        if (const auto rank_map_it = rank_map.find(*info.obj_); rank_map_it->second.size() == 1) {
+        assert(info.remain_coins_ == 0);
+        if (const auto rank_map_it = rank_map.find(info.obj_); rank_map_it->second.size() == 1) {
             rank_map.erase(rank_map_it);
         } else {
             rank_map_it->second.erase(info.id_);

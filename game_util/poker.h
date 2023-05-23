@@ -133,10 +133,10 @@ struct Types<CardType::BOKAA>
         [BokaaSuit(BokaaSuit::GREEN).ToUInt()]  = HTML_COLOR_FONT_HEADER(green) "★",
     };
     static constexpr const char* const k_suit_str[BokaaNumber::Count()] = {
-        [BokaaSuit(BokaaSuit::PURPLE).ToUInt()] = HTML_COLOR_FONT_HEADER(purple) "○",
-        [BokaaSuit(BokaaSuit::BLUE).ToUInt()]   = HTML_COLOR_FONT_HEADER(blue) "△",
-        [BokaaSuit(BokaaSuit::RED).ToUInt()]    = HTML_COLOR_FONT_HEADER(red) "□",
-        [BokaaSuit(BokaaSuit::GREEN).ToUInt()]  = HTML_COLOR_FONT_HEADER(green) "☆",
+        [BokaaSuit(BokaaSuit::PURPLE).ToUInt()] = "○",
+        [BokaaSuit(BokaaSuit::BLUE).ToUInt()]   = "△",
+        [BokaaSuit(BokaaSuit::RED).ToUInt()]    = "□",
+        [BokaaSuit(BokaaSuit::GREEN).ToUInt()]  = "☆",
     };
 };
 
@@ -217,19 +217,17 @@ std::string Card<k_type>::ToHtml() const
     return std::string(Types<k_type>::k_colored_suit_str[suit_.ToUInt()]) + (number_.ToString() + 1) + HTML_FONT_TAIL; // skip the '_' character
 }
 
-template <typename Sender, CardType k_type>
-Sender& operator<<(Sender& sender, const Card<k_type>& poker)
-{
-    sender << Types<k_type>::k_suit_str[poker.suit_.ToUInt()] << (poker.number_.ToString() + 1); // skip the '_' character
-    return sender;
-}
-
 template <CardType k_type>
 std::string Card<k_type>::ToString() const
 {
-    std::stringstream ss;
-    ss << *this;
-    return ss.str();
+    return std::string(Types<k_type>::k_suit_str[suit_.ToUInt()]) + (number_.ToString() + 1); // skip the '_' character
+}
+
+template <typename Sender, CardType k_type>
+Sender& operator<<(Sender& sender, const Card<k_type>& poker)
+{
+    sender << poker.ToString();
+    return sender;
 }
 
 template <typename String, typename Sender, CardType k_type>
@@ -294,32 +292,96 @@ std::optional<Card<k_type>> Parse(const String& s, Sender&& sender)
 template <CardType k_type>
 struct Deck
 {
+    using Pokers = std::array<Card<k_type>, 5>;
+
     Deck& operator=(const Deck& deck)
     {
         this->~Deck();
         new(this) Deck(deck.type_, deck.pokers_);
         return *this;
     }
-    auto operator<=>(const Deck&) const = default;
-    int CompareIgnoreSuit(const Deck& d) const
+
+    auto operator<=>(const Deck& d) const { return Compare(d); }
+
+    auto operator==(const Deck& d) const { return Compare(d) == std::strong_ordering::equal; }
+
+    std::strong_ordering Compare(const Deck& d, const bool ignore_suit = false) const
     {
         if (type_ < d.type_) {
-            return -1;
+            return std::strong_ordering::less;
         } else if (type_ > d.type_) {
-            return 1;
+            return std::strong_ordering::greater;
         }
-        static const auto cmp = [](const Card<k_type>& _1, const Card<k_type>& _2) { return _1.number_ < _2.number_; };
-        if (std::lexicographical_compare(pokers_.begin(), pokers_.end(), d.pokers_.begin(), d.pokers_.end(), cmp)) {
-            return -1;
-        } else if (std::equal(pokers_.begin(), pokers_.end(), d.pokers_.begin(), d.pokers_.end(), cmp)) {
-            return 0;
+        static const auto get_number = std::views::transform([](const poker::Card<k_type>& card) { return card.number_; });
+        static const auto get_suit = std::views::transform([](const poker::Card<k_type>& card) { return card.suit_; });
+        const auto ret = ComparePokers_(pokers_ | get_number, d.pokers_ | get_number);
+        if (ret != std::strong_ordering::equal || ignore_suit) {
+            return ret;
+        }
+        return ComparePokers_(pokers_ | get_suit, d.pokers_ | get_suit);
+    }
+
+    std::strong_ordering CompareIgnoreSuit(const Deck& d) const { return Compare(d, true); }
+
+    const char* TypeName() const;
+
+    std::string ToString() const
+    {
+        std::string s = std::string("[") + TypeName() + "]";
+        for (const auto& poker : pokers_) {
+            s += " " + poker.ToString();
+        }
+        return s;
+    }
+
+    const PatternType type_;
+    const Pokers pokers_;
+
+  private:
+    template <typename Range>
+    static std::strong_ordering ComparePokers_(const Range& _1, const Range& _2)
+    {
+        if (std::ranges::lexicographical_compare(_1, _2)) {
+            return std::strong_ordering::less;
+        } else if (std::ranges::equal(_1, _2)) {
+            return std::strong_ordering::equal;
         } else {
-            return 1;
+            return std::strong_ordering::greater;
         }
     }
-    const char* TypeName() const;
-    const PatternType type_;
-    const std::array<Card<k_type>, 5> pokers_;
+};
+
+template <CardType k_type>
+struct OptionalDeck : public std::optional<Deck<k_type>>
+{
+    using std::optional<Deck<k_type>>::optional;
+
+    OptionalDeck(const OptionalDeck&) = default;
+
+    OptionalDeck(OptionalDeck&&) = default;
+
+    OptionalDeck& operator=(const OptionalDeck&) = default;
+
+    OptionalDeck& operator=(OptionalDeck&&) = default;
+
+    auto operator<=>(const OptionalDeck& o) const
+    {
+        return Compare_(o, [](const Deck<k_type>& _1, const Deck<k_type>& _2) { return _1 <=> _2; });
+    }
+
+    std::strong_ordering CompareIgnoreSuit(const OptionalDeck& o) const
+    {
+        return Compare_(o, [](const Deck<k_type>& _1, const Deck<k_type>& _2) { return _1.CompareIgnoreSuit(_2); });
+    }
+
+  private:
+    template <typename Compare>
+    std::strong_ordering Compare_(const OptionalDeck& o, const Compare& cmp) const
+    {
+        return  this->has_value() &&  o.has_value() ? cmp(**this, *o)         :
+                this->has_value() && !o.has_value() ? std::strong_ordering::greater :
+               !this->has_value() &&  o.has_value() ? std::strong_ordering::less    : std::strong_ordering::equal;
+    }
 };
 
 template <CardType k_type>
@@ -347,10 +409,7 @@ const char* Deck<k_type>::TypeName() const
 template <typename Sender, CardType k_type>
 Sender& operator<<(Sender& sender, const Deck<k_type>& deck)
 {
-    sender << "[" << deck.TypeName() << "]";
-    for (const auto& poker : deck.pokers_) {
-        sender << " " << poker;
-    }
+    sender << deck.ToString();
     return sender;
 }
 
@@ -404,13 +463,7 @@ class Hand
     template <typename Sender>
     friend Sender& operator<<(Sender& sender, const Hand& hand)
     {
-        for (const auto& number : NumberType::Members()) {
-            for (const auto& suit : SuitType::Members()) {
-                if (hand.Has(number, suit)) {
-                    sender << Card<k_type>(number, suit) << " ";
-                }
-            }
-        }
+        sender << hand.ToString();
         const auto& best_deck = hand.BestDeck();
         if (best_deck.has_value()) {
             sender << "（" << *best_deck << "）";
@@ -418,31 +471,20 @@ class Hand
         return sender;
     }
 
-    std::string ToHtml() const
-    {
-        std::string s;
-        for (const auto& number : NumberType::Members()) {
-            for (const auto& suit : SuitType::Members()) {
-                if (Has(number, suit)) {
-                    s += Card<k_type>(number, suit).ToHtml() + " ";
-                }
-            }
-        }
-        return s;
-    }
+    std::string ToHtml() const { return ToString_<true>(); }
 
-    const std::optional<Deck<k_type>>& BestDeck() const
+    std::string ToString() const { return ToString_<false>(); }
+
+    const OptionalDeck<k_type>& BestDeck() const
     {
         if (!need_refresh_) {
             return best_deck_;
         }
         need_refresh_ = false;
         best_deck_ = std::nullopt;
-        const auto update_deck = [this](const std::optional<Deck<k_type>>& deck) {
-            if (!deck.has_value()) {
-                return;
-            } else if (!best_deck_.has_value() || *best_deck_ < *deck) {
-                best_deck_.emplace(*deck);
+        const auto update_deck = [this](const OptionalDeck<k_type>& deck) {
+            if (deck > best_deck_) {
+                best_deck_ = deck;
             }
         };
 
@@ -471,7 +513,26 @@ class Hand
     }
 
    private:
-    std::optional<Deck<k_type>> BestNonFlushNonPairPattern_() const {
+    template <bool TO_HTML>
+    std::string ToString_() const
+    {
+        std::string s;
+        for (const auto& number : NumberType::Members()) {
+            for (const auto& suit : SuitType::Members()) {
+                if (!Has(number, suit)) {
+                    continue;
+                }
+                if constexpr (TO_HTML) {
+                    s += Card<k_type>(number, suit).ToHtml() + " ";
+                } else {
+                    s += Card<k_type>(number, suit).ToString() + " ";
+                }
+            }
+        }
+        return s;
+    }
+
+    OptionalDeck<k_type> BestNonFlushNonPairPattern_() const {
         const auto get_poker = [&pokers = pokers_](const NumberType number) -> std::optional<Card<k_type>> {
             for (auto suit_it = SuitType::Members().rbegin(); suit_it != SuitType::Members().rend(); ++suit_it) {
                 if (pokers[static_cast<uint32_t>(number)][static_cast<uint32_t>(*suit_it)]) {
@@ -480,16 +541,16 @@ class Hand
             }
             return std::nullopt;
         };
-        const auto deck = CollectNonPairDeck_<true>(get_poker);
-        if (deck.has_value()) {
-            return Deck<k_type>(PatternType::STRAIGHT, *deck);
+        const auto cards = CollectNonPairDeck_<true>(get_poker);
+        if (cards.has_value()) {
+            return Deck<k_type>(PatternType::STRAIGHT, *cards);
         } else {
             return std::nullopt;
         }
     }
 
     template <bool FIND_STRAIGHT>
-    std::optional<Deck<k_type>> BestFlushPattern_(const SuitType suit) const
+    OptionalDeck<k_type> BestFlushPattern_(const SuitType suit) const
     {
         const auto get_poker = [&suit, &pokers = pokers_](const NumberType number) -> std::optional<Card<k_type>> {
             if (pokers[static_cast<uint32_t>(number)][static_cast<uint32_t>(suit)]) {
@@ -498,9 +559,9 @@ class Hand
                 return std::nullopt;
             }
         };
-        const auto deck = CollectNonPairDeck_<FIND_STRAIGHT>(get_poker);
-        if (deck.has_value()) {
-            return Deck<k_type>(PatternType::Condition(FIND_STRAIGHT, PatternType::STRAIGHT_FLUSH, PatternType::FLUSH), *deck);
+        const auto cards = CollectNonPairDeck_<FIND_STRAIGHT>(get_poker);
+        if (cards.has_value()) {
+            return Deck<k_type>(PatternType::Condition(FIND_STRAIGHT, PatternType::STRAIGHT_FLUSH, PatternType::FLUSH), *cards);
         } else {
             return std::nullopt;
         }
@@ -528,7 +589,7 @@ class Hand
         }
     }
 
-    std::optional<Deck<k_type>> BestPairPattern_() const
+    OptionalDeck<k_type> BestPairPattern_() const
     {
         // If poker_ is AA22233334, the same_number_poker_counts will be:
         // [0]: A 4 3 2 (at least has one)
@@ -610,7 +671,7 @@ class Hand
     }
 
     std::array<std::array<bool, SuitType::Count()>, NumberType::Count()> pokers_;
-    mutable std::optional<Deck<k_type>> best_deck_;
+    mutable OptionalDeck<k_type> best_deck_;
     mutable bool need_refresh_;
 };
 

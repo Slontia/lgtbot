@@ -155,7 +155,7 @@ class Masker
 };
 
 template <typename RetType>
-using GameCommand = Command<RetType(const uint64_t, const bool, MsgSenderBase&)>;
+using GameCommand = Command<RetType(const uint64_t pid, const bool is_public, MsgSenderBase& reply)>;
 
 enum class CheckoutReason { BY_REQUEST, BY_TIMEOUT, BY_LEAVE, SKIP };
 
@@ -291,13 +291,40 @@ class StageBaseWrapper : virtual public StageBase
         return outstr;
     }
 
+    bool IsReady(const PlayerID pid) const { return masker().Get(pid).is_ready_; }
+    bool IsAllReady() const { return IsInDeduction() || masker().IsReady(); }
+
   protected:
+    enum CommandFlag : uint8_t
+    {
+        PRIVATE_ONLY = 0x01,
+        UNREADY_ONLY = 0x02,
+    };
+
     template <typename Stage, typename RetType, typename... Args, typename... Checkers>
     GameCommand<RetType> MakeStageCommand(const char* const description, RetType (Stage::*cb)(Args...),
             Checkers&&... checkers)
     {
-        return GameCommand<RetType>(description, std::bind_front(cb, static_cast<Stage*>(this)),
-                std::forward<Checkers>(checkers)...);
+        return MakeStageCommand(description, 0, cb, std::forward<Checkers>(checkers)...);
+    }
+
+    template <typename Stage, typename RetType, typename... Args, typename... Checkers>
+    GameCommand<RetType> MakeStageCommand(const char* const description, const uint8_t flags, RetType (Stage::*cb)(Args...),
+            Checkers&&... checkers)
+    {
+        auto callback = [flags, cb, this]<typename ...CbArgs>(const uint64_t pid, const bool is_public, MsgSenderBase& reply, CbArgs&& ...args) -> RetType
+        {
+            if ((flags & CommandFlag::PRIVATE_ONLY) && is_public) {
+                reply() << "[错误] 请私信执行该指令";
+                return StageErrCode::FAILED;
+            }
+            if ((flags & CommandFlag::UNREADY_ONLY) && this->IsReady(pid)) {
+                reply() << "[错误] 您已完成行动";
+                return StageErrCode::FAILED;
+            }
+            return std::invoke(cb, static_cast<Stage*>(this), pid, is_public, reply, std::forward<CbArgs>(args)...);
+        };
+        return GameCommand<RetType>(description, std::move(callback), std::forward<Checkers>(checkers)...);
     }
 
     template <typename Logger>
@@ -382,15 +409,7 @@ class GameStage<MainStage, SubStages...>
     {
         StageLog_(InfoLog()) << "HandleStageBegin begin";
         sub_stage_ = OnStageBegin();
-        std::visit(
-                [this](auto&& sub_stage)
-                {
-                    sub_stage->HandleStageBegin();
-                    if (sub_stage->IsOver()) {
-                        StageLog_(WarnLog()) << "begin substage skipped";
-                        this->CheckoutSubStage(CheckoutReason::SKIP);
-                    }
-                }, sub_stage_);
+        std::visit([this](auto&& sub_stage) { SwitchSubStage_(sub_stage, "begin"); }, sub_stage_);
     }
 
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public,
@@ -464,23 +483,7 @@ class GameStage<MainStage, SubStages...>
         }
 #endif
         Base::masker().Clear();
-        std::visit(
-                [this](auto&& sub_stage)
-                {
-                    if (!sub_stage) {
-                        StageLog_(InfoLog()) << "checkout no more substages";
-                        Over();
-                    } else {
-                        sub_stage->HandleStageBegin();
-                        if (sub_stage->IsOver()) {
-                            StageLog_(WarnLog()) << "checkout substage skipped";
-                            this->CheckoutSubStage(CheckoutReason::SKIP);
-                        } else {
-                            StageLog_(InfoLog()) << "checkout substage to \"" << sub_stage->name() << "\"";
-                        }
-                    }
-                },
-                sub_stage_);
+        std::visit([this](auto&& sub_stage) { SwitchSubStage_(sub_stage, "checkout"); }, sub_stage_);
     }
 
     const GameOption& option() const { return static_cast<const GameOption&>(Base::option_); }
@@ -496,6 +499,23 @@ class GameStage<MainStage, SubStages...>
     // CompStage cannot checkout by itself so return type is void
     virtual void OnPlayerLeave(const PlayerID pid) {}
     virtual CompReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::OK; }
+
+    template <typename Stage>
+    void SwitchSubStage_(Stage&& sub_stage, const char* const tag)
+    {
+        if (!sub_stage) {
+            StageLog_(InfoLog()) << tag << " no more substages";
+            Over();
+        } else {
+            sub_stage->HandleStageBegin();
+            if (sub_stage->IsOver()) {
+                StageLog_(WarnLog()) << tag << " substage skipped";
+                this->CheckoutSubStage(CheckoutReason::SKIP);
+            } else {
+                StageLog_(InfoLog()) << tag << " substage to \"" << sub_stage->name() << "\"";
+            }
+        }
+    }
 
     template <typename Logger>
     Logger& StageLog_(Logger&& logger) const { return Base::StageLog(logger) << "[complex_stage] "; }
@@ -613,8 +633,9 @@ class GameStage<MainStage>
     void ClearReady() { Base::masker().Clear(); }
     void ClearReady(const PlayerID pid) { Base::masker().Unset(pid); }
     void SetReady(const PlayerID pid) { Base::masker().Set(pid, true); }
-    bool IsReady(const PlayerID pid) const { return Base::masker().Get(pid).is_ready_; }
-    bool IsAllReady() const { return Base::IsInDeduction() || Base::masker().IsReady(); }
+
+    using Base::IsReady;
+    using Base::IsAllReady;
 
     void HookUnreadyPlayers() const
     {

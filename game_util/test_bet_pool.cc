@@ -13,8 +13,8 @@ using namespace lgtbot::game_util::bet_pool;
 
 TEST(TestBetPool, only_one_bet)
 {
-    const auto ret = CallBetPool<char>(std::map<uint64_t, CallBetPoolInfo<char>>{
-                {1, CallBetPoolInfo<char>{.coins_ = 10, .obj_ = 'A'}},
+    const auto ret = CallBetPool(std::vector<CallBetPoolInfo<char>>{
+                CallBetPoolInfo<char>{.id_ = 1, .coins_ = 10, .obj_ = 'A'},
             });
     ASSERT_EQ(1, ret.size());
     ASSERT_EQ(10, ret[0].total_coins_);
@@ -24,9 +24,9 @@ TEST(TestBetPool, only_one_bet)
 
 TEST(TestBetPool, two_diff_bet_winner_bet_more)
 {
-    const auto ret = CallBetPool<char>(std::map<uint64_t, CallBetPoolInfo<char>>{
-                {1, CallBetPoolInfo<char>{.coins_ = 10, .obj_ = 'A'}},
-                {2, CallBetPoolInfo<char>{.coins_ = 12, .obj_ = 'B'}},
+    const auto ret = CallBetPool(std::vector<CallBetPoolInfo<char>>{
+                CallBetPoolInfo<char>{.id_ = 1, .coins_ = 10, .obj_ = 'A'},
+                CallBetPoolInfo<char>{.id_ = 2, .coins_ = 12, .obj_ = 'B'},
             });
     ASSERT_EQ(2, ret.size());
     ASSERT_EQ(20, ret[0].total_coins_);
@@ -39,9 +39,9 @@ TEST(TestBetPool, two_diff_bet_winner_bet_more)
 
 TEST(TestBetPool, two_diff_bet_winner_bet_less)
 {
-    const auto ret = CallBetPool<char>(std::map<uint64_t, CallBetPoolInfo<char>>{
-                {1, CallBetPoolInfo<char>{.coins_ = 12, .obj_ = 'A'}},
-                {2, CallBetPoolInfo<char>{.coins_ = 10, .obj_ = 'B'}},
+    const auto ret = CallBetPool(std::vector<CallBetPoolInfo<char>>{
+                CallBetPoolInfo<char>{.id_ = 1, .coins_ = 12, .obj_ = 'A'},
+                CallBetPoolInfo<char>{.id_ = 2, .coins_ = 10, .obj_ = 'B'},
             });
     ASSERT_EQ(2, ret.size());
     ASSERT_EQ(20, ret[0].total_coins_);
@@ -54,9 +54,9 @@ TEST(TestBetPool, two_diff_bet_winner_bet_less)
 
 TEST(TestBetPool, two_diff_bet_winner_bet_same)
 {
-    const auto ret = CallBetPool<char>(std::map<uint64_t, CallBetPoolInfo<char>>{
-                {1, CallBetPoolInfo<char>{.coins_ = 10, .obj_ = 'A'}},
-                {2, CallBetPoolInfo<char>{.coins_ = 10, .obj_ = 'B'}},
+    const auto ret = CallBetPool(std::vector<CallBetPoolInfo<char>>{
+                CallBetPoolInfo<char>{.id_ = 1, .coins_ = 10, .obj_ = 'A'},
+                CallBetPoolInfo<char>{.id_ = 2, .coins_ = 10, .obj_ = 'B'},
             });
     ASSERT_EQ(1, ret.size());
     ASSERT_EQ(20, ret[0].total_coins_);
@@ -66,10 +66,10 @@ TEST(TestBetPool, two_diff_bet_winner_bet_same)
 
 TEST(TestBetPool, three_diff_two_winners)
 {
-    const auto ret = CallBetPool<char>(std::map<uint64_t, CallBetPoolInfo<char>>{
-                {1, CallBetPoolInfo<char>{.coins_ = 30, .obj_ = 'A'}},
-                {2, CallBetPoolInfo<char>{.coins_ = 20, .obj_ = 'B'}},
-                {3, CallBetPoolInfo<char>{.coins_ = 10, .obj_ = 'B'}},
+    const auto ret = CallBetPool(std::vector<CallBetPoolInfo<char>>{
+                CallBetPoolInfo<char>{.id_ = 1, .coins_ = 30, .obj_ = 'A'},
+                CallBetPoolInfo<char>{.id_ = 2, .coins_ = 20, .obj_ = 'B'},
+                CallBetPoolInfo<char>{.id_ = 3, .coins_ = 10, .obj_ = 'B'},
             });
     ASSERT_EQ(3, ret.size());
     ASSERT_EQ(30, ret[0].total_coins_);

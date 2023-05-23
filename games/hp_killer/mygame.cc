@@ -1409,7 +1409,7 @@ class MainStage : public MainGameStage<>
             return StageErrCode::FAILED;
         }
         if (IsReady(pid)) {
-            reply() << "行动失败：您已经完成本回合行动了";
+            reply() << "行动失败：您已完成行动，或您不需要行动";
             return StageErrCode::FAILED;
         }
         auto& role = role_manager_.GetRole(pid);

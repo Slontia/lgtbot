@@ -11,6 +11,10 @@ namespace game {
 
 namespace GAME_MODULE_NAME {
 
+class MainStage;
+template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+
 const std::string k_game_name = "测试游戏"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 0; // 0 indicates no max-player limits
 const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game

@@ -258,7 +258,33 @@ TEST_F(TestPoker, compare_flushes)
     const auto best_deck_2 = hand_2.BestDeck();
     ASSERT_TRUE(best_deck_1.has_value());
     ASSERT_TRUE(best_deck_2.has_value());
-    ASSERT_TRUE(*best_deck_2 < *best_deck_1); // the greatest poker RED 0 is greater than BLUE 0, so deck 1 is greater
+    ASSERT_TRUE(*best_deck_2 > *best_deck_1);
+}
+
+TEST_F(TestPoker, compare_not_ignore_suit_should_check_suit_only_if_numbers_are_same)
+{
+    poker::Hand<poker::CardType::POKER> hand_1;
+    hand_1.Add(poker::PokerNumber::_6, poker::PokerSuit::CLUBS);
+    hand_1.Add(poker::PokerNumber::_7, poker::PokerSuit::DIAMONDS);
+    hand_1.Add(poker::PokerNumber::_10, poker::PokerSuit::SPADES);
+    hand_1.Add(poker::PokerNumber::_10, poker::PokerSuit::HEARTS);
+    hand_1.Add(poker::PokerNumber::_K, poker::PokerSuit::CLUBS);
+    hand_1.Add(poker::PokerNumber::_J, poker::PokerSuit::CLUBS);
+    hand_1.Add(poker::PokerNumber::_K, poker::PokerSuit::HEARTS);
+    const auto best_deck_1 = hand_1.BestDeck();
+    poker::Hand<poker::CardType::POKER> hand_2;
+    hand_2.Add(poker::PokerNumber::_6, poker::PokerSuit::CLUBS);
+    hand_2.Add(poker::PokerNumber::_7, poker::PokerSuit::DIAMONDS);
+    hand_2.Add(poker::PokerNumber::_10, poker::PokerSuit::SPADES);
+    hand_2.Add(poker::PokerNumber::_10, poker::PokerSuit::HEARTS);
+    hand_2.Add(poker::PokerNumber::_K, poker::PokerSuit::CLUBS);
+    hand_2.Add(poker::PokerNumber::_2, poker::PokerSuit::CLUBS);
+    hand_2.Add(poker::PokerNumber::_K, poker::PokerSuit::SPADES);
+    const auto best_deck_2 = hand_2.BestDeck();
+    ASSERT_TRUE(best_deck_1.has_value());
+    ASSERT_TRUE(best_deck_2.has_value());
+    ASSERT_TRUE(best_deck_2->CompareIgnoreSuit(*best_deck_1) < 0);
+    ASSERT_TRUE(*best_deck_2 < *best_deck_1);
 }
 
 int main(int argc, char** argv)

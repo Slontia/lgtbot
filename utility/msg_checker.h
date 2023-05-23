@@ -790,7 +790,7 @@ class Command<UserResult(UserArgs...)>
 
       private:
         const char* const description_;
-        const Callback callback_;
+        const std::decay_t<Callback> callback_;
         const std::tuple<Checkers...> checkers_;
     };
 

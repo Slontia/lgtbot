@@ -24,8 +24,8 @@ option(WITH_GLOG "build with glog" TRUE)
 option(WITH_SQLITE "build with sqlite" TRUE)
 
 # 'char' type in arm machines is 'unsigned char', we should define it as 'signed char'
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsigned-char")
-SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsigned-char")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsigned-char -g")
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsigned-char -g")
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/include)
 
@@ -34,8 +34,8 @@ if (WITH_IMAGE)
 endif()
 
 if (WITH_GCOV)
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage -lgcov --coverage")
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -fprofile-arcs -ftest-coverage -lgcov --coverage")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -fprofile-arcs -ftest-coverage -lgcov --coverage")
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -fprofile-arcs -ftest-coverage -lgcov --coverage")
   SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage -lgcov")
 endif()
 

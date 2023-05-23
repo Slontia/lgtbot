@@ -124,10 +124,10 @@ struct PlayerHand
 };
 
 template <poker::CardType k_type>
-std::optional<poker::Deck<k_type>> GetBestDeck(const PlayerHand<k_type>& hand, const std::vector<poker::Card<k_type>>& public_pokers)
+poker::OptionalDeck<k_type> GetBestDeck(const PlayerHand<k_type>& hand, const std::vector<poker::Card<k_type>>& public_pokers)
 {
     if (hand.discard_idx_ >= k_hand_poker_num) {
-        return std::nullopt;
+        return std::nullopt; // the hand is discarded, regard as the minimal hand
     }
     poker::Hand<k_type> poker_hand;
     for (const auto& poker : hand.hand_) {
@@ -585,17 +585,6 @@ class RoundStage : public SubGameStage<BetStage<k_type>>
         return std::make_unique<BetStage<k_type>>(this->main_stage(), is_first_, hands_, player_round_infos_);
     }
 
-    struct DeckHelper
-    {
-        auto operator<=>(const DeckHelper& o) const
-        {
-            return  deck_.has_value() &&  o.deck_.has_value() ? deck_->CompareIgnoreSuit(*o.deck_) :
-                    deck_.has_value() && !o.deck_.has_value() ? 1 :
-                   !deck_.has_value() &&  o.deck_.has_value() ? -1 : 0;
-        }
-        std::optional<poker::Deck<k_type>> deck_;
-    };
-
     virtual VariantSubStage NextSubStage(BetStage<k_type>& sub_stage, const CheckoutReason reason) override
     {
         for (auto& player_info : player_round_infos_) {
@@ -630,16 +619,17 @@ class RoundStage : public SubGameStage<BetStage<k_type>>
             this->Boardcast() << "请各位玩家私信裁判进行第二轮下注，并决定**不参与**决胜的卡牌，您可通过「帮助」命令查看命令格式";
             return std::make_unique<BetStage<k_type>>(this->main_stage(), is_first_, hands_, player_round_infos_);
         } else {
-            std::map<uint64_t, CallBetPoolInfo<DeckHelper>> decks;
+            std::vector<CallBetPoolInfo<poker::OptionalDeck<k_type>>> decks;
             for (auto& hand : hands_) {
                 if (hand.discard_idx_ == PlayerHand<k_type>::DISCARD_NOT_CHOOSE) {
                     hand.discard_idx_ = 0;
                 }
-                decks.emplace(hand.id_, CallBetPoolInfo{
+                decks.emplace_back(CallBetPoolInfo{
+                        .id_ = hand.id_,
                         .coins_ = hand.immutable_coins_,
-                        .obj_ = DeckHelper{GetBestDeck(hand, public_pokers_)}});
+                        .obj_ = GetBestDeck(hand, public_pokers_)});
             }
-            const auto bet_rets = CallBetPool(decks);
+            const auto bet_rets = CallBetPool(decks, [](const auto& _1, const auto& _2) { return _1.CompareIgnoreSuit(_2) < 0; });
             for (const auto& ret : bet_rets) {
                 for (const auto& hand_id : ret.winner_ids_) {
                     hands_[hand_id].mutable_score_ += ret.total_coins_ / ret.winner_ids_.size();
@@ -732,7 +722,7 @@ class RoundStage : public SubGameStage<BetStage<k_type>>
         return s;
     }
 
-    std::string BetResultHtml_(const std::vector<CallBetPoolResult>& bet_ret) const
+    static std::string BetResultHtml_(const std::vector<CallBetPoolResult>& bet_ret)
     {
         std::string s;
         const auto print_ids = [&s](const std::set<uint64_t>& ids)
