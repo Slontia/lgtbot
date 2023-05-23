@@ -264,6 +264,8 @@ class RoleBase
     RoleBase(RoleBase&&) = delete;
 
   public:
+    virtual ~RoleBase() {}
+
     virtual bool Act(const HurtAction& action, MsgSenderBase& reply);
 
     virtual bool Act(const CureAction& action, MsgSenderBase& reply);
