@@ -23,6 +23,9 @@ using GameHandleMap = std::map<std::string, std::unique_ptr<GameHandle>>;
 class BotCtx
 {
   public:
+    BotCtx(const BotCtx&) = delete;
+    BotCtx(BotCtx&&) = delete;
+
     static std::variant<BotCtx*, const char*> Create(const LGTBot_Option& options);
 
     MatchManager& match_manager() { return match_manager_; }
@@ -70,6 +73,7 @@ class BotCtx
 #endif
     BotCtx(std::string game_path,
            std::string conf_path,
+           std::string image_path,
            LGTBot_Callback callbacks,
            GameHandleMap game_handles,
            std::set<UserID> admins,
@@ -80,21 +84,19 @@ class BotCtx
            nlohmann::json config_json,
            void* const handler);
 
-    BotCtx(const BotCtx&) = delete;
-    BotCtx(BotCtx&&) = delete;
-
     // The passed `BotOption` in constructor can be destructed soon, we must store the string.
-    std::string game_path_;
-    std::string conf_path_;
-    LGTBot_Callback callbacks_;
-    GameHandleMap game_handles_;
-    std::set<UserID> admins_;
+    const std::string game_path_;
+    const std::string conf_path_;
+    const std::string image_path_;
+    const LGTBot_Callback callbacks_;
+    const GameHandleMap game_handles_;
+    const std::set<UserID> admins_;
 #ifdef WITH_SQLITE
-    std::unique_ptr<DBManagerBase> db_manager_;
+    const std::unique_ptr<DBManagerBase> db_manager_;
 #endif
     LockWrapper<MutableBotOption> mutable_bot_options_;
     LockWrapper<nlohmann::json> config_json_;
-    void* handler_;
+    void* const handler_;
 
     MatchManager match_manager_;
     mutable std::mutex mutex_;

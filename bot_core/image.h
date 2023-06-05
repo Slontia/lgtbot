@@ -20,23 +20,17 @@ static bool enable_markdown_to_image = true;
 
 inline const std::string k_markdown2image_path = (std::filesystem::current_path() / "markdown2image").string(); // TODO: config
 
-inline std::string ImageAbsPath(const std::string_view rel_path)
-{
-    return (std::filesystem::current_path() / ".image" / "gen" / rel_path += ".png").string();
-}
-
-inline int MarkdownToImage(const std::string& markdown, const std::string_view rel_path, const uint32_t width)
+inline int MarkdownToImage(const std::string& markdown, const std::string& path, const uint32_t width)
 {
     if (!enable_markdown_to_image) {
         return false;
     }
-    const auto abs_path = ImageAbsPath(rel_path);
-    if (std::filesystem::exists(abs_path)) {
+    if (std::filesystem::exists(path)) {
         // TODO: print debug msg
         // return 0;
     }
-    std::filesystem::create_directories(std::filesystem::path(abs_path).parent_path());
-    const std::string cmd = k_markdown2image_path + " --output " + abs_path + " --width " + std::to_string(width) + " --nowith_css --noprint_info";
+    std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+    const std::string cmd = k_markdown2image_path + " --output " + path + " --width " + std::to_string(width) + " --nowith_css --noprint_info";
     FILE* fp = popen(cmd.c_str(), "w");
     if (fp == nullptr) {
         ErrorLog() << "Draw image failed cmd=\'" << cmd;
@@ -48,7 +42,7 @@ inline int MarkdownToImage(const std::string& markdown, const std::string_view r
     return 0;
 }
 
-inline int CharToImage(const char ch, const std::string_view rel_path)
+inline int CharToImage(const char ch, const std::string& path)
 {
-    return MarkdownToImage(std::string("<style>html,body{color:#fdf3dd; background:#783623;}</style> <p align=\"middle\"><font size=\"6\"><b>") + ch + "</b></font></p>", rel_path, 85);
+    return MarkdownToImage(std::string("<style>html,body{color:#fdf3dd; background:#783623;}</style> <p align=\"middle\"><font size=\"6\"><b>") + ch + "</b></font></p>", path, 85);
 }

@@ -149,17 +149,20 @@ typedef struct
 
 typedef struct
 {
-    // The path to the game modules, be NULL if do not want to load any games.
+    // The path to the game modules, be NULL if we do not want to load any games.
     const char* game_path_;
+
+    // The path to the sqlite database file, be NULL if we do not want to record match results.
+    const char* db_path_;
+
+    // The path to the configuration file, be NULL if we use no configuration files.
+    const char* conf_path_;
+
+    // The path to the images, be NULL if we save image in default path.
+    const char* image_path_;
 
     // The list for administor user ID, split by ',', be NULL if no administors.
     const char* admins_;
-
-    // The path to the sqlite database file, be NULL if do not want to record match results.
-    const char* db_path_;
-
-    // The path to the configuration file, be NULL if use no configuration files.
-    const char* conf_path_;
 
     // The user defined handler which will be passed to callbacks.
     void* handler_;

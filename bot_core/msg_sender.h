@@ -16,8 +16,6 @@
 #include "bot_core/image.h"
 #include "bot_core/bot_core.h"
 
-std::string ImageAbsPath(const std::string_view rel_path);
-
 class PlayerID;
 class UserID;
 class GroupID;
@@ -84,14 +82,7 @@ class MsgSenderBase
     virtual void SaveUser(const UserID& id, const bool is_at) = 0;
     virtual void SavePlayer(const PlayerID& id, const bool is_at) = 0;
     virtual void SaveImage(const char* const path) = 0;
-    virtual void SaveMarkdown(const char* const markdown, const uint32_t width)
-    {
-        std::stringstream ss;
-        ss << std::this_thread::get_id();
-        const std::string tmp_image_name = ss.str();
-        MarkdownToImage(markdown, tmp_image_name, width);
-        SaveImage(ImageAbsPath(tmp_image_name).c_str());
-    }
+    virtual void SaveMarkdown(const char* const markdown, const uint32_t width) = 0;
     virtual void Flush() = 0;
 };
 
@@ -109,6 +100,7 @@ class EmptyMsgSender : public MsgSenderBase
     virtual void SaveUser(const UserID& uid, const bool is_at) override {}
     virtual void SavePlayer(const PlayerID& pid, const bool is_at) override {}
     virtual void SaveImage(const char* const path) override {};
+    virtual void SaveMarkdown(const char* const markdown, const uint32_t width) override {};
     virtual void Flush() override {}
     virtual void SetMatch(const Match* const match) override {}
 
@@ -120,11 +112,11 @@ class EmptyMsgSender : public MsgSenderBase
 class MsgSender : public MsgSenderBase
 {
   public:
-    MsgSender(void* handler, const LGTBot_Callback& callbacks, const UserID& uid, Match* const match = nullptr)
-        : handler_(handler), callbacks_(&callbacks), id_(uid.GetStr()), is_to_user_(true), match_(match) {}
+    MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const UserID& uid, Match* const match = nullptr)
+        : handler_(handler), image_path_(&image_path), callbacks_(&callbacks), id_(uid.GetStr()), is_to_user_(true), match_(match) {}
 
-    MsgSender(void* handler, const LGTBot_Callback& callbacks, const GroupID& gid, Match* const match = nullptr)
-        : handler_(handler), callbacks_(&callbacks), id_(gid.GetStr()), is_to_user_(false), match_(match) {}
+    MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const GroupID& gid, Match* const match = nullptr)
+        : handler_(handler), image_path_(&image_path), callbacks_(&callbacks), id_(gid.GetStr()), is_to_user_(false), match_(match) {}
 
     MsgSender(const MsgSender&) = delete;
     MsgSender(MsgSender&& o) = default;
@@ -172,6 +164,19 @@ class MsgSender : public MsgSenderBase
         messages_.emplace_back(std::string(path), LGTBot_MessageType::LGTBOT_MSG_IMAGE);
     }
 
+    virtual void SaveMarkdown(const char* const markdown, const uint32_t width)
+    {
+        if (!image_path_) {
+            return;
+        }
+        std::stringstream ss;
+        ss << std::this_thread::get_id();
+        const std::string path =
+            (std::filesystem::path(*image_path_) / "gen" / ss.str() += ".png").string();
+        MarkdownToImage(markdown, path, width);
+        SaveImage(path.c_str());
+    }
+
     virtual void Flush() override
     {
         std::vector<LGTBot_Message> raw_messages;
@@ -195,6 +200,7 @@ class MsgSender : public MsgSenderBase
         LGTBot_MessageType type_;
     };
     void* handler_;
+    const std::string* image_path_;
     const LGTBot_Callback* callbacks_;
     std::string id_;
     bool is_to_user_;
@@ -286,6 +292,11 @@ class MsgSenderBatch : public MsgSenderBase
     {
         fn_([&](MsgSenderBase& sender) { sender.Flush(); });
     }
+
+    virtual void SaveMarkdown(const char* const markdown, const uint32_t width) override
+    {
+        fn_([&](MsgSenderBase& sender) { sender.SaveMarkdown(markdown, width); });
+    };
 
     virtual void SetMatch(const Match* const match) override
     {

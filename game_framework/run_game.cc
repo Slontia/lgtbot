@@ -14,6 +14,7 @@ DEFINE_uint64(player, 0, "Player number: if set to 0, best player num will be se
 DEFINE_uint64(repeat, 1, "Repeat times: if set to 0, will run unlimitedly");
 DEFINE_string(resource_dir, "./resource_dir/", "The path of game image resources");
 DEFINE_bool(gen_image, false, "Whether generate image or not");
+DEFINE_string(image_path, "./.lgtbot_image/", "The path of directory to store generated images");
 
 extern bool enable_markdown_to_image;
 
@@ -27,10 +28,10 @@ class RunGameMockMatch : public MockMatch
         if (!FLAGS_gen_image) {
             return "";
         }
-        const std::string avatar_filename = "avatar_" + std::to_string(pid);
+        const std::string avatar_filename = (image_path() / "avatar" / (std::to_string(pid) + ".png")).string();
         CharToImage('0' + pid, avatar_filename);
         thread_local static std::string str;
-        str = "<img src=\"file://" + ImageAbsPath(avatar_filename) + "\" style=\"width:" + std::to_string(size) + "px; height:" +
+        str = "<img src=\"file://" + avatar_filename + "\" style=\"width:" + std::to_string(size) + "px; height:" +
             std::to_string(size) + "px; border-radius:50%; vertical-align: middle;\"/>";
         return str.c_str();
     }
@@ -44,19 +45,22 @@ namespace GAME_MODULE_NAME {
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
 
-std::string ImageAbsPath(const std::string_view rel_path);
-
-int Run()
+int Run(const uint64_t index)
 {
-    RunGameMockMatch match(FLAGS_player);
+    static const auto image_path_base = std::filesystem::absolute(FLAGS_image_path) /
+        std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
 
-    enable_markdown_to_image = FLAGS_gen_image;
+    const auto image_path = image_path_base / std::to_string(index);
+
+    RunGameMockMatch match(image_path, FLAGS_player);
+
+    enable_markdown_to_image = FLAGS_gen_image && !FLAGS_image_path.empty();
 
     GameOption option;
     option.SetPlayerNum(FLAGS_player);
     option.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").string().c_str());
 
-    MockMsgSender sender;
+    MockMsgSender sender(image_path);
     std::unique_ptr<MainStageBase> main_stage(MakeMainStage(sender, option, match));
     if (!main_stage) {
         std::cerr << "Start Game Failed!" << std::endl;
@@ -105,7 +109,7 @@ int main(int argc, char** argv)
     }
 
     for (uint64_t i = 0; i < FLAGS_repeat; ++i) {
-        lgtbot::game::GAME_MODULE_NAME::Run();
+        lgtbot::game::GAME_MODULE_NAME::Run(i);
     }
 
     return 0;

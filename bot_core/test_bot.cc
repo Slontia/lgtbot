@@ -430,8 +430,9 @@ class TestBot : public testing::Test
     {
         Timer::skip_timer_ = false;
         bot_ = new BotCtx(
-                "./",
-                "",
+                "./", // game_path
+                "", // conf_path
+                "", // image_path
                 LGTBot_Callback{
                     .get_user_name = GetUserName,
                     .get_user_name_in_group = GetUserNameInGroup,
@@ -460,7 +461,7 @@ class TestBot : public testing::Test
     template <class MyMainStage = lgtbot::game::GAME_MODULE_NAME::MainStage>
     void AddGame(const char* const name, const uint64_t max_player, const GameHandle::game_options_allocator new_option)
     {
-        static_cast<BotCtx*>(bot_)->game_handles_.emplace(name, std::make_unique<GameHandle>(
+        const_cast<GameHandleMap&>(static_cast<BotCtx*>(bot_)->game_handles_).emplace(name, std::make_unique<GameHandle>(
                     name, name, max_player, "这是规则介绍", std::vector<GameHandle::Achievement>{}, 1, "这是开发者",
                     "这是游戏描述", new_option,
                     [](const lgtbot::game::GameOptionBase* const options) {},
@@ -474,7 +475,7 @@ class TestBot : public testing::Test
     template <class MyMainStage = lgtbot::game::GAME_MODULE_NAME::MainStage>
     void AddGame(const char* const name, const uint64_t max_player)
     {
-        static_cast<BotCtx*>(bot_)->game_handles_.emplace(name, std::make_unique<GameHandle>(
+        const_cast<GameHandleMap&>(static_cast<BotCtx*>(bot_)->game_handles_).emplace(name, std::make_unique<GameHandle>(
                     name, name, max_player, "这是规则介绍", std::vector<GameHandle::Achievement>{}, 1, "这是开发者",
                     "这是游戏描述", []() -> lgtbot::game::GameOptionBase* { return new lgtbot::game::GAME_MODULE_NAME::GameOption(); },
                     [](const lgtbot::game::GameOptionBase* const options) { delete options; },

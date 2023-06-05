@@ -26,6 +26,7 @@ DEFINE_bool(color, true, "Enable color");
 DEFINE_string(bot_uid, "this_bot", "The UserID of bot");
 DEFINE_string(admin_uid, "admin", "The UserID of administor");
 DEFINE_string(conf_path, "", "The path of the configuration file");
+DEFINE_string(image_path, "", "The path of the directory to save images");
 
 #ifdef WITH_SQLITE
 DEFINE_string(db_path, "simulator.db", "Name of database");
@@ -107,16 +108,12 @@ void GetUserNameInGroup(void* handler, char* const buffer, const size_t size, co
     snprintf(buffer, size, "%s(gid=%s)", user_id, group_id);
 }
 
-std::string ImageAbsPath(const std::string_view rel_path);
-
 int DownloadUserAvatar(void* handler, const char* const uid_str, const char* const dest_filename)
 {
-    const std::string avatar_filename = std::string("avatar_") + uid_str;
-    if (CharToImage(uid_str[0], avatar_filename) != 0) {
+    if (CharToImage(uid_str[0], dest_filename) != 0) {
         std::cerr << "Generate avatar failed for user: " << uid_str << std::endl;
         return false;
     }
-    std::filesystem::copy(ImageAbsPath(avatar_filename), dest_filename, std::filesystem::copy_options::update_existing);
     return true;
 }
 
@@ -163,11 +160,12 @@ int main(int argc, char** argv)
     gflags::ParseCommandLineFlags(&argc, &argv, true);
     const LGTBot_Option option{
         .game_path_ = FLAGS_game_path.c_str(),
-        .admins_ = FLAGS_admin_uid.c_str(),
 #ifdef WITH_SQLITE
         .db_path_ = FLAGS_db_path.empty() ? nullptr : FLAGS_db_path.c_str(),
 #endif
         .conf_path_ = FLAGS_conf_path.empty() ? nullptr : FLAGS_conf_path.c_str(),
+        .image_path_ = FLAGS_image_path.empty() ? nullptr : FLAGS_image_path.c_str(),
+        .admins_ = FLAGS_admin_uid.c_str(),
         .callbacks_ = LGTBot_Callback{
             .get_user_name = GetUserName,
             .get_user_name_in_group = GetUserNameInGroup,

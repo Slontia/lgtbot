@@ -207,6 +207,7 @@ static std::variant<nlohmann::json, const char*> LoadConfig(const char* const co
 
 BotCtx::BotCtx(std::string game_path,
                std::string conf_path,
+               std::string image_path,
                LGTBot_Callback callbacks,
                GameHandleMap game_handles,
                std::set<UserID> admins,
@@ -218,6 +219,7 @@ BotCtx::BotCtx(std::string game_path,
                void* const handler)
     : game_path_(std::move(game_path))
     , conf_path_(std::move(conf_path))
+    , image_path_(std::move(image_path))
     , callbacks_(std::move(callbacks))
     , game_handles_(std::move(game_handles))
     , admins_(std::move(admins))
@@ -257,6 +259,7 @@ std::variant<BotCtx*, const char*> BotCtx::Create(const LGTBot_Option& options)
     return new BotCtx(
             options.game_path_ ? options.game_path_ : "",
             options.conf_path_ ? options.conf_path_ : "",
+            options.image_path_ ? options.image_path_ : (std::filesystem::current_path() / ".lgtbot_image").string(),
             options.callbacks_,
             std::move(std::get<GameHandleMap>(game_handles)),
             options.admins_ ? SplitIdsByComma(options.admins_) : std::set<UserID>{},
@@ -322,7 +325,7 @@ bool BotCtx::UpdateGameMultiple(const std::string& game_name, const uint32_t mul
 
 std::string BotCtx::GetUserAvatar(const char* const user_id, const int32_t size) const
 {
-    const auto path = (std::filesystem::current_path() / ".image" / "avatar" / user_id) += ".png";
+    const auto path = (std::filesystem::absolute(image_path_) / "avatar" / user_id) += ".png";
     std::filesystem::create_directories(path.parent_path());
     const std::string path_str = path.string();
     if (!callbacks_.download_user_avatar(handler_, user_id, path_str.c_str())) {
@@ -334,10 +337,10 @@ std::string BotCtx::GetUserAvatar(const char* const user_id, const int32_t size)
 
 MsgSender BotCtx::MakeMsgSender(const UserID& user_id, Match* const match) const
 {
-    return MsgSender(handler_, callbacks_, user_id, match);
+    return MsgSender(handler_, image_path_, callbacks_, user_id, match);
 }
 
 MsgSender BotCtx::MakeMsgSender(const GroupID& group_id, Match* const match) const
 {
-    return MsgSender(handler_, callbacks_, group_id, match);
+    return MsgSender(handler_, image_path_, callbacks_, group_id, match);
 }
