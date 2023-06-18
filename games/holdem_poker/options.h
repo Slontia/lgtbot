@@ -15,6 +15,6 @@ EXTEND_OPTION("随机种子", 种子, (AnyArg("种子", "我是随便输入的�
 EXTEND_OPTION("使用的卡牌类型", 卡牌, (AlterChecker<game_util::poker::CardType>(std::map<std::string, game_util::poker::CardType>{
                 { "波卡", game_util::poker::CardType::BOKAA },
                 { "扑克", game_util::poker::CardType::POKER },
-            })), game_util::poker::CardType::POKER)
+            })), game_util::poker::CardType::BOKAA)
 
 #endif

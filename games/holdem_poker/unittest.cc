@@ -108,6 +108,7 @@ GAME_TEST(3, all_allin_except_raise_highest_will_finish_game)
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
     ASSERT_PUB_MSG(OK, 0, "底注变化 5 10");
     ASSERT_PUB_MSG(OK, 0, "底注变化局数 2");
+    ASSERT_PUB_MSG(OK, 0, "卡牌 扑克");
     START_GAME();
 
     ALL_CHECK_FOR_ONE_GAME(); // chips = {115, 95, 95}
@@ -174,6 +175,7 @@ GAME_TEST(5, fold_when_timeout)
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
     ASSERT_PUB_MSG(OK, 0, "底注变化 5 10");
     ASSERT_PUB_MSG(OK, 0, "底注变化局数 2");
+    ASSERT_PUB_MSG(OK, 0, "卡牌 扑克");
     START_GAME();
 
     // preflop
@@ -205,6 +207,7 @@ GAME_TEST(5, allin_when_cant_afford_base_chips)
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
     ASSERT_PUB_MSG(OK, 0, "底注变化 5 100");
     ASSERT_PUB_MSG(OK, 0, "底注变化局数 1");
+    ASSERT_PUB_MSG(OK, 0, "卡牌 扑克");
     START_GAME();
 
     // preflop -- bet
@@ -279,6 +282,7 @@ GAME_TEST(2, one_of_two_players_allin_open_card_directly)
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
     ASSERT_PUB_MSG(OK, 0, "底注变化 50 5");
     ASSERT_PUB_MSG(OK, 0, "底注变化局数 1");
+    ASSERT_PUB_MSG(OK, 0, "卡牌 扑克");
     START_GAME();
 
     ALL_CHECK_FOR_ONE_GAME();

@@ -420,7 +420,9 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         , open_public_cards_num_(0)
     {
         Boardcast() << name() << "开始，将私信各位玩家手牌信息";
-        const auto shuffled_pokers = poker::ShuffledPokers<k_type>(GET_OPTION_VALUE(option(), 种子) + std::to_string(round));
+        const auto& seed_in_option = GET_OPTION_VALUE(option(), 种子);
+        const auto shuffled_pokers = poker::ShuffledPokers<k_type>(
+                 seed_in_option.empty() ? "" : (seed_in_option + std::to_string(round)));
         auto poker_it = shuffled_pokers.begin();
         // fill `public_cards_`
         for (auto& card : public_cards_) {
