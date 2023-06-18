@@ -231,4 +231,5 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 #endif
 
     bool is_in_deduction_;
+    std::string saved_image_path_;
 };

@@ -432,7 +432,7 @@ class TestBot : public testing::Test
         bot_ = new BotCtx(
                 "./", // game_path
                 "", // conf_path
-                "", // image_path
+                "/tmp/lgtbot_test_bot", // image_path
                 LGTBot_Callback{
                     .get_user_name = GetUserName,
                     .get_user_name_in_group = GetUserNameInGroup,

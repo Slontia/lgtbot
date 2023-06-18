@@ -23,7 +23,7 @@ namespace GAME_MODULE_NAME {
 
 DEFINE_string(resource_dir, "./resource_dir/", "The path of game image resources");
 DEFINE_bool(gen_image, false, "Whether generate image or not");
-DEFINE_string(image_path, "./.lgtbot_image/", "The path of directory to store generated images");
+DEFINE_string(image_dir, "./.lgtbot_image/", "The path of directory to store generated images");
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
 
@@ -41,7 +41,7 @@ class TestGame : public MockMatch, public testing::Test
     using AchievementsArray = std::array<std::vector<std::string>, k_player_num>;
 
     TestGame()
-        : MockMatch(std::filesystem::path(FLAGS_image_path) / g_begin_timestamp / ::testing::UnitTest::GetInstance()->current_test_info()->name(), k_player_num)
+        : MockMatch(std::filesystem::path(FLAGS_image_dir) / g_begin_timestamp / ::testing::UnitTest::GetInstance()->current_test_info()->name(), k_player_num)
         , timer_started_(false) {}
 
     virtual ~TestGame() {}
@@ -51,9 +51,10 @@ class TestGame : public MockMatch, public testing::Test
 #ifdef WITH_GLOG
         google::InitGoogleLogging(::testing::UnitTest::GetInstance()->current_test_info()->name());
 #endif
-        enable_markdown_to_image = FLAGS_gen_image && !FLAGS_image_path.empty();
+        enable_markdown_to_image = FLAGS_gen_image && !FLAGS_image_dir.empty();
         option_.SetPlayerNum(k_player_num);
         option_.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").string().c_str());
+        option_.SetSavedImageDir(std::filesystem::absolute(image_dir()).string().c_str());
     }
 
     virtual void TearDown() override
@@ -67,7 +68,7 @@ class TestGame : public MockMatch, public testing::Test
 
     bool StartGame()
     {
-        MockMsgSender sender(image_path());
+        MockMsgSender sender(image_dir());
         main_stage_.reset(MakeMainStage(sender, option_, *this));
         if (main_stage_) {
             main_stage_->HandleStageBegin();
@@ -148,7 +149,7 @@ class TestGame : public MockMatch, public testing::Test
 
     StageErrCode Request_(const PlayerID pid, const std::string& msg, const bool is_public)
     {
-        MockMsgSender sender(image_path(), pid, is_public);
+        MockMsgSender sender(image_dir(), pid, is_public);
         assert(!main_stage_ || !main_stage_->IsOver());
         const auto rc =
             main_stage_  ? main_stage_->HandleRequest(msg.c_str(), pid, is_public, sender)

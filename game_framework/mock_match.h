@@ -13,15 +13,15 @@
 class MockMsgSender : public MsgSenderBase
 {
   public:
-    MockMsgSender(std::filesystem::path image_path)
-        : image_path_(std::move(image_path))
+    MockMsgSender(std::filesystem::path image_dir)
+        : image_dir_(std::move(image_dir))
         , is_public_(true)
         , image_no_(0)
     {
     }
 
-    MockMsgSender(std::filesystem::path image_path, const PlayerID pid, const bool is_public)
-        : image_path_(std::move(image_path))
+    MockMsgSender(std::filesystem::path image_dir, const PlayerID pid, const bool is_public)
+        : image_dir_(std::move(image_dir))
         , pid_(pid)
         , is_public_(is_public)
         , image_no_(0)
@@ -66,10 +66,10 @@ class MockMsgSender : public MsgSenderBase
 
     virtual void SaveMarkdown(const char* const markdown, const uint32_t width)
     {
-        if (image_path_.empty()) {
+        if (image_dir_.empty()) {
             return;
         }
-        const std::string path = (image_path_ / std::to_string(++image_no_) += ".png").string();
+        const std::string path = (image_dir_ / std::to_string(++image_no_) += ".png").string();
         MarkdownToImage(markdown, path, width);
         SaveImage(path.c_str());
     }
@@ -90,7 +90,7 @@ class MockMsgSender : public MsgSenderBase
     virtual void SetMatch(const Match* const) override {}
 
   private:
-    const std::filesystem::path image_path_;
+    const std::filesystem::path image_dir_;
     const std::optional<PlayerID> pid_;
     const bool is_public_;
     std::stringstream ss_;
@@ -100,9 +100,9 @@ class MockMsgSender : public MsgSenderBase
 class MockMatch : public MatchBase
 {
   public:
-    MockMatch(const std::filesystem::path& image_path, const uint64_t player_num)
-        : image_path_(image_path)
-        , boardcast_sender_(image_path_)
+    MockMatch(const std::filesystem::path& image_dir, const uint64_t player_num)
+        : image_dir_(image_dir)
+        , boardcast_sender_(image_dir_)
         , is_eliminated_(player_num, false) {}
 
     virtual ~MockMatch() {}
@@ -111,7 +111,7 @@ class MockMatch : public MatchBase
 
     virtual MsgSenderBase& TellMsgSender(const PlayerID pid) override
     {
-        return tell_senders_.try_emplace(pid, MockMsgSender(image_path_, pid, false)).first->second;
+        return tell_senders_.try_emplace(pid, MockMsgSender(image_dir_, pid, false)).first->second;
     }
 
     virtual MockMsgSender& GroupMsgSender() override { return boardcast_sender_; }
@@ -149,10 +149,10 @@ class MockMatch : public MatchBase
 
     bool IsEliminated(const PlayerID pid) const { return is_eliminated_[pid]; }
 
-    const std::filesystem::path image_path() const { return image_path_; }
+    const std::filesystem::path image_dir() const { return image_dir_; }
 
   private:
-    const std::string image_path_;
+    const std::string image_dir_;
     MockMsgSender boardcast_sender_;
     std::map<uint64_t, MockMsgSender> tell_senders_;
     std::vector<bool> is_eliminated_;

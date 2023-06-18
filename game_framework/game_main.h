@@ -76,16 +76,17 @@ struct GlobalGameOption
 class GameOptionBase
 {
   public:
-    GameOptionBase(const uint64_t size) : size_(size), player_num_(0), resource_dir_(nullptr) {}
+    GameOptionBase() {}
     virtual ~GameOptionBase() {}
 
     virtual bool SetOption(const char* const msg) = 0;
-    void SetPlayerNum(const uint64_t player_num) { player_num_ = player_num; }
+    virtual void SetPlayerNum(const uint64_t player_num) = 0;
     virtual void SetResourceDir(const char* const resource_dir) = 0;
+    virtual void SetSavedImageDir(const char* const saved_image_dir) = 0;
 
-    uint64_t Size() const { return size_; }
-    uint64_t PlayerNum() const { return player_num_; }
+    virtual uint64_t PlayerNum() const = 0;
     virtual const char* ResourceDir() const = 0;
+    virtual const char* SavedImageDir() const = 0;
 
     virtual bool ToValid(MsgSenderBase& reply) = 0;
     virtual uint64_t BestPlayerNum() const = 0;
@@ -98,11 +99,6 @@ class GameOptionBase
     virtual const char* const* Content() const = 0;
 
     GlobalGameOption global_options_;
-
-  private:
-    const uint64_t size_;
-    uint64_t player_num_;
-    const char* resource_dir_;
 };
 
 class StageBase

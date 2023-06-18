@@ -729,6 +729,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
 
         // save image
         sender << Markdown(Html_(&player_win_infos, false) + "\n\n" + BetResultHtml_(bet_rets)); // `Html_` must be called before `Reset`
+        SaveMarkdown(Html_(&player_win_infos, true));
 
         // reset chip info for each player
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
@@ -744,6 +745,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         raise_chips_ = std::max(raise_chips_, max_raise_chips);
         html_ = Html_(nullptr, false);
         Boardcast() << Markdown(html_);
+        SaveMarkdown(Html_(nullptr, true));
         if (max_raise_chips > 0 && !std::ranges::all_of(main_stage().GetPlayerChipInfos(),
                     [&](const PlayerChipInfo& chip_info) { return AchieveMaxBet(chip_info, bet_chips_); })) {
             // players have not reach a consensus, continue raising

@@ -39,10 +39,6 @@ namespace GAME_MODULE_NAME {
 class GameOption : public GameOptionBase, public MyGameOption
 {
   public:
-    GameOption() : GameOptionBase(Count()) {};
-
-    virtual ~GameOption() {}
-
     virtual bool SetOption(const char* const msg) override
     {
         MsgReader msg_reader(msg);
@@ -54,7 +50,21 @@ class GameOption : public GameOptionBase, public MyGameOption
         resource_dir_ = resource_dir;
     }
 
+    virtual void SetPlayerNum(const uint64_t player_num)
+    {
+        player_num_ = player_num;
+    }
+
+    virtual void SetSavedImageDir(const char* const saved_image_dir)
+    {
+        saved_image_dir_ = saved_image_dir;
+    }
+
+    virtual uint64_t PlayerNum() const { return player_num_; }
+
     virtual const char* ResourceDir() const { return resource_dir_.c_str(); }
+
+    virtual const char* SavedImageDir() const { return saved_image_dir_.c_str(); }
 
     virtual const char* Info() const override
     {
@@ -102,7 +112,9 @@ class GameOption : public GameOptionBase, public MyGameOption
     virtual uint64_t BestPlayerNum() const;
 
   private:
+    uint64_t player_num_ = 0;
     std::string resource_dir_;
+    std::string saved_image_dir_;
 };
 
 } // namespace GAME_MODULE_NAME

@@ -174,6 +174,7 @@ struct GlobalInfo
         , is_in_deduction_(false)
         , bot_info_id_(0)
         , achievement_counts_(player_num)
+        , saved_image_no_(0)
     {
         for (auto& achievement_count : achievement_counts_) {
             achievement_count.fill(0);
@@ -186,6 +187,7 @@ struct GlobalInfo
     bool is_in_deduction_;
     int32_t bot_info_id_;
     std::vector<AchievementCounts> achievement_counts_;
+    int32_t saved_image_no_;
 };
 
 template <bool IS_ATOM>
@@ -293,6 +295,13 @@ class StageBaseWrapper : virtual public StageBase
 
     bool IsReady(const PlayerID pid) const { return masker().Get(pid).is_ready_; }
     bool IsAllReady() const { return IsInDeduction() || masker().IsReady(); }
+
+    int SaveMarkdown(const std::string& markdown, const uint32_t width = 800)
+    {
+        const std::filesystem::path path = std::filesystem::path(option_.SavedImageDir()) /
+            ("match_saved_" + std::to_string(global_info_.saved_image_no_ ++) + ".png");
+        return MarkdownToImage(markdown, path.string(), width);
+    }
 
   protected:
     enum CommandFlag : uint8_t

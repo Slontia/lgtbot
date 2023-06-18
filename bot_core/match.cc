@@ -222,12 +222,15 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         return EC_MATCH_NOT_HOST;
     }
     const uint64_t player_num = std::max(user_controlled_player_num(), bench_to_player_num_);
-    const std::string resource_dir =
-        (std::filesystem::absolute(std::filesystem::path(bot_.game_path())) / game_handle_.module_name_ / "").string();
+    const std::string resource_dir = (std::filesystem::absolute(bot_.game_path()) / game_handle_.module_name_ / "").string();
+    const std::string saved_image_dir =
+        (std::filesystem::absolute(bot_.image_path()) / "matches" /
+         (std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + "_" + game_handle_.module_name_)).string();
     assert(main_stage_ == nullptr);
     assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
     options_->SetPlayerNum(player_num);
     options_->SetResourceDir(resource_dir.c_str());
+    options_->SetSavedImageDir(saved_image_dir.c_str());
     options_->global_options_.public_timer_alert_ = GET_OPTION_VALUE(bot_.option().Lock().Get(), 计时公开提示);
     if (!(main_stage_ = game_handle_.make_main_stage(reply, *options_, *this))) {
         reply() << "[错误] 开始失败：不符合游戏参数的预期";

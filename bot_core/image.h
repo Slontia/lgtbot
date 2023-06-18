@@ -6,6 +6,7 @@
 
 #include <string>
 #include <filesystem>
+#include <cassert>
 
 #include <sys/stat.h>
 #include <dirent.h>
@@ -22,6 +23,7 @@ inline const std::string k_markdown2image_path = (std::filesystem::current_path(
 
 inline int MarkdownToImage(const std::string& markdown, const std::string& path, const uint32_t width)
 {
+    assert(!path.empty());
     if (!enable_markdown_to_image) {
         return false;
     }

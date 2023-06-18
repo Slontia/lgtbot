@@ -36,6 +36,8 @@ class BotCtx
 
     const std::string& game_path() const { return game_path_; }
 
+    const std::string& image_path() const { return image_path_; }
+
     DBManagerBase* db_manager() const { return db_manager_.get(); }
 
     auto& option() { return mutable_bot_options_; }
