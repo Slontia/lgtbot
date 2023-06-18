@@ -296,7 +296,7 @@ class StageBaseWrapper : virtual public StageBase
     bool IsReady(const PlayerID pid) const { return masker().Get(pid).is_ready_; }
     bool IsAllReady() const { return IsInDeduction() || masker().IsReady(); }
 
-    int SaveMarkdown(const std::string& markdown, const uint32_t width = 800)
+    int SaveMarkdown(const std::string& markdown, const uint32_t width = 600)
     {
         const std::filesystem::path path = std::filesystem::path(option_.SavedImageDir()) /
             ("match_saved_" + std::to_string(global_info_.saved_image_no_ ++) + ".png");

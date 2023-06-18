@@ -75,6 +75,7 @@ ENUM_END(PatternType)
 #include <optional>
 #include <string>
 #include <vector>
+#include <span>
 #include <map>
 #include <set>
 #include <regex>
@@ -369,9 +370,14 @@ struct OptionalDeck : public std::optional<Deck<k_type>>
         return Compare_(o, [](const Deck<k_type>& _1, const Deck<k_type>& _2) { return _1 <=> _2; });
     }
 
+    std::strong_ordering Compare(const OptionalDeck& o, const bool ignore_suit = false) const
+    {
+        return Compare_(o, [ignore_suit](const Deck<k_type>& _1, const Deck<k_type>& _2) { return _1.Compare(_2, ignore_suit); });
+    }
+
     std::strong_ordering CompareIgnoreSuit(const OptionalDeck& o) const
     {
-        return Compare_(o, [](const Deck<k_type>& _1, const Deck<k_type>& _2) { return _1.CompareIgnoreSuit(_2); });
+        return Compare(o, true);
     }
 
   private:
@@ -674,6 +680,70 @@ class Hand
     mutable OptionalDeck<k_type> best_deck_;
     mutable bool need_refresh_;
 };
+
+template <CardType k_type>
+void UpdatePossibility(const std::vector<Hand<k_type>>& hands, const bool ignore_suit, std::vector<double>& points) {
+    assert(hands.size() == points.size());
+    assert(!hands.empty());
+    const auto decks = hands | std::views::transform([](const Hand<k_type>& hand) { return hand.BestDeck(); });
+    const auto best_deck = std::ranges::max_element(decks,
+            [ignore_suit](const auto& _1, const auto& _2) { return _1.Compare(_2, ignore_suit) < 0; });
+    const auto best_num = std::ranges::count_if(decks.begin(), decks.end(),
+            [ignore_suit, &best_deck](const auto& deck) { return deck.Compare(*best_deck, ignore_suit) == 0; });
+    assert(best_num > 0);
+    // share 1 point for each winner deck
+    for (uint32_t i = 0; i < decks.size(); ++i) {
+        if (decks[i].Compare(*best_deck, ignore_suit) == 0) {
+            points[i] += double(1) / double(best_num);
+        }
+    }
+}
+
+template <CardType k_type>
+void UpdatePossibility(std::vector<Hand<k_type>>& hands, const std::span<Card<k_type>>& possible_hid_cards,
+        const uint32_t hid_card_num, const bool ignore_suit, std::vector<double>& points)
+{
+    assert(possible_hid_cards.size() >= hid_card_num);
+    assert(!hands.empty());
+    if (hid_card_num == 0) {
+        UpdatePossibility(hands, ignore_suit, points);
+        return;
+    }
+    const auto limit = possible_hid_cards.size() - hid_card_num + 1;
+    for (size_t i = 0; i < limit; ++i) {
+        const auto card = possible_hid_cards[i];
+        for (auto& hand : hands) {
+            assert(!hand.Has(card));
+            hand.Add(card);
+        }
+        UpdatePossibility(hands, possible_hid_cards.subspan(i + 1), hid_card_num - 1, ignore_suit, points);
+        for (auto& hand : hands) {
+            hand.Remove(card);
+        }
+    }
+}
+
+template <CardType k_type>
+std::vector<double> WinPossibility(const std::vector<Hand<k_type>>& hands, const std::span<Card<k_type>>& possible_hid_cards,
+        const uint32_t hid_card_num, const bool ignore_suit = false)
+{
+    if (hands.empty()) {
+        return {};
+    }
+    std::vector<double> points(hands.size(), 0);
+    auto hands_cpy = hands;
+    UpdatePossibility(hands_cpy, possible_hid_cards, hid_card_num, ignore_suit, points);
+    double total_point = 1;
+    for (uint32_t i = 0; i < hid_card_num; ++i) {
+        total_point *= possible_hid_cards.size() - i;
+    }
+    total_point /= std::tgamma(hid_card_num + 1);
+    // normalize each point to [0~1] as the real possibiliy
+    for (double& point : points) {
+        point /= total_point;
+    }
+    return points;
+}
 
 } // namespace poker
 

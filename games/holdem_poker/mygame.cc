@@ -78,14 +78,14 @@ struct PlayerChipInfo
 const char* Action2Str(const int action)
 {
     static constexpr const char* k_strs[] = {
-        [PlayerChipInfo::CALL] = "CALL",
-        [PlayerChipInfo::RAISE] = "RAISE",
-        [PlayerChipInfo::BET] = "BET",
-        [PlayerChipInfo::CHECK] = "CHECK",
-        [PlayerChipInfo::ALLIN] = "ALL IN",
-        [PlayerChipInfo::FOLD] = "FOLD",
-        [PlayerChipInfo::BLIND] = "BLIND",
-        [PlayerChipInfo::NO_ACTION] = "NO_ACTION",
+        [PlayerChipInfo::CALL] = "(Call)",
+        [PlayerChipInfo::RAISE] = "(Raise)",
+        [PlayerChipInfo::BET] = "(Bet)",
+        [PlayerChipInfo::CHECK] = "(Check)",
+        [PlayerChipInfo::ALLIN] = "(All In)",
+        [PlayerChipInfo::FOLD] = "(Fold)",
+        [PlayerChipInfo::BLIND] = "(Blind)",
+        [PlayerChipInfo::NO_ACTION] = "",
     };
     return k_strs[action];
 }
@@ -106,6 +106,14 @@ void Consume(PlayerChipInfo& info, const int32_t chips)
     info.last_bet_chips_ = info.bet_chips_;
     info.bet_chips_ += chips;
     info.remain_chips_ -= chips;
+}
+
+void NoAction(PlayerChipInfo& info)
+{
+    info.last_bet_chips_ = info.bet_chips_;
+    if (info.action_ != PlayerChipInfo::FOLD && info.action_ != PlayerChipInfo::ALLIN) {
+        info.action_ = PlayerChipInfo::NO_ACTION;
+    }
 }
 
 bool AchieveMaxBet(const PlayerChipInfo& info, const int32_t max_bet_chips)
@@ -219,7 +227,7 @@ class RaiseStage : public SubGameStage<>
             const auto& chip_info = main_stage().GetPlayerChipInfo(pid);
             if (AchieveMaxBet(chip_info, bet_chips_)) {
                 // if has no remain chips or raises highest chips, need not take action
-                main_stage().GetPlayerChipInfo(pid).action_ = PlayerChipInfo::NO_ACTION;
+                NoAction(main_stage().GetPlayerChipInfo(pid));
                 SetReady(pid);
             }
         }
@@ -286,6 +294,7 @@ class RaiseStage : public SubGameStage<>
     AtomReqErrCode Fold_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+        chip_info.last_bet_chips_ = chip_info.bet_chips_;
         chip_info.action_ = PlayerChipInfo::FOLD;
         chip_info.is_fold_ = true;
         reply() << "弃牌成功";
@@ -334,7 +343,7 @@ class BetStage : public SubGameStage<>
             const auto& chip_info = main_stage().GetPlayerChipInfo(pid);
             if (chip_info.remain_chips_ == 0 || chip_info.is_fold_) {
                 // if has no remain chips or raises highest chips, need not take action
-                main_stage().GetPlayerChipInfo(pid).action_ = PlayerChipInfo::NO_ACTION;
+                NoAction(main_stage().GetPlayerChipInfo(pid));
                 SetReady(pid);
             }
         }
@@ -347,10 +356,8 @@ class BetStage : public SubGameStage<>
         if (IsReady(pid)) {
             return StageErrCode::OK;
         }
-        if (rand() % 2) {
+        if (rand() % 2 || StageErrCode::READY != Bet_(pid, false, reply, base_chips_)) {
             Check_(pid, false, reply);
-        } else {
-            Bet_(pid, false, reply, base_chips_);
         }
         return StageErrCode::READY;
     }
@@ -384,6 +391,7 @@ class BetStage : public SubGameStage<>
     AtomReqErrCode Check_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+        chip_info.last_bet_chips_ = chip_info.bet_chips_;
         chip_info.action_ = PlayerChipInfo::CHECK;
         reply() << "您选择不下注";
         return StageErrCode::READY;
@@ -436,8 +444,8 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
             if (!main_stage.GetPlayerChipInfo(pid).is_fold_) {
                 Tell(pid) << "您的手牌是 " << player_hand_infos_[pid].ToString();
             }
-
         }
+        std::copy(poker_it, shuffled_pokers.end(), std::back_inserter(unused_cards_));
     }
 
     virtual VariantSubStage OnStageBegin() override
@@ -448,6 +456,9 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
             info.action_ = info.bet_chips_ == 0    ? PlayerChipInfo::NO_ACTION :
                            info.remain_chips_ == 0 ? PlayerChipInfo::ALLIN     : PlayerChipInfo::BLIND;
         }
+        html_ = Html_(nullptr, false);
+        Boardcast() << Markdown(html_);
+        SaveMarkdown(Html_(nullptr, true));
         if (TryOpenCard_()) {
             return {};
         }
@@ -479,6 +490,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
 
         std::array<poker::Card<k_type>, 2> hand_;
         poker::OptionalDeck<k_type> deck_;
+        double win_possibility_ = 0;
     };
 
     const char* StateName_() const { return k_state_names_[open_public_cards_num_]; }
@@ -502,19 +514,17 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
     }
 
     // If `win_info` is not null, show winner players' deck and all public cards.
-    // If `show_hand` is true, show players' hand.
-    std::string PlayerHtml_(const PlayerID pid, const PlayerWinInfo* const win_info, const bool show_hand, const int32_t highest_remain_chips) const
+    // If `win_possibility` is not null, show players' hand and win possibilities.
+    std::pair<std::string, const char*> PlayerHtml_(const PlayerID pid, const PlayerWinInfo* const win_info, const bool show_hand) const
     {
         const auto& chip_info = this->main_stage().GetPlayerChipInfo(pid);
         // mark the name of players obtain the highest chips red
-        std::string s = chip_info.remain_chips_ == highest_remain_chips ? HTML_COLOR_FONT_HEADER(red) :
-                        chip_info.is_fold_                              ? HTML_COLOR_FONT_HEADER(grey) : HTML_COLOR_FONT_HEADER(black);
-        s += PlayerHeader_(pid);
+        std::string s = PlayerHeader_(pid);
         s += HTML_FONT_TAIL "\n\n<center>\n\n";
         if (chip_info.bet_chips_ == 0) {
             // the player is elimindated iff he did not bet base chips
             s += HTML_COLOR_FONT_HEADER(grey) "已淘汰" HTML_FONT_TAIL;
-            return s;
+            return {s, "#d1d1d1"};
         }
         const bool chip_increased = win_info && win_info->remain_chips_before_open_ < chip_info.remain_chips_;
         if (chip_increased) {
@@ -523,54 +533,88 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         } else {
             s += "可支配筹码：" HTML_COLOR_FONT_HEADER(green) "**" + std::to_string(chip_info.remain_chips_) + "**" HTML_FONT_TAIL "\n\n";
         }
-        if (chip_info.bet_chips_ > 0) {
-            s += "当前下注：";
-            s += chip_info.is_fold_ ? HTML_COLOR_FONT_HEADER(grey) : HTML_COLOR_FONT_HEADER(blue);
-            s += "**" + std::to_string(chip_info.bet_chips_) + "**" HTML_FONT_TAIL "\n\n";
+        s += "当前下注：**";
+        if (!win_info && chip_info.last_bet_chips_ != chip_info.bet_chips_) {
+            s += std::to_string(chip_info.last_bet_chips_) + " → ";
         }
+        const char* bg_color = nullptr;
+        if (chip_info.is_fold_) {
+            s += HTML_COLOR_FONT_HEADER(grey);
+            bg_color = "#d1d1d1";
+        } else if (chip_info.bet_chips_ == bet_chips_ || chip_info.action_ == PlayerChipInfo::ALLIN) {
+            s += HTML_COLOR_FONT_HEADER(blue);
+            bg_color = "#d2d2fb";
+        } else {
+            s += HTML_COLOR_FONT_HEADER(red);
+            bg_color = "#f8d8d7";
+        }
+        s += std::to_string(chip_info.bet_chips_);
+        s += "** ";
+        if (!win_info) {
+            s += Action2Str(chip_info.action_);
+        }
+        s += HTML_FONT_TAIL;
+        s += "\n\n";
         const auto& hand_info = player_hand_infos_[pid];
+        s += "<font size=\"5\">";
+#define DECK_INFO_HEADER(color) HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE  "<span style=\"background-color:" #color "; text-align:center;\"><font size=\"5\">" HTML_COLOR_FONT_HEADER(white) HTML_ESCAPE_SPACE
+#define DECK_INFO_TAIL HTML_ESCAPE_SPACE HTML_FONT_TAIL "</font></span>" ;
         if (win_info && win_info->is_winner_) {
-            s += hand_info.ToHtml() + HTML_COLOR_FONT_HEADER(blue) " (" + hand_info.deck_->TypeName() + ")" HTML_FONT_TAIL + "\n\n";
+            s += hand_info.ToHtml() + DECK_INFO_HEADER(#f3b13d) + hand_info.deck_->TypeName() + DECK_INFO_TAIL "\n\n";
         } else if (show_hand) {
             if (chip_info.is_fold_) {
                 s += HTML_COLOR_FONT_HEADER(grey) + hand_info.ToString();
             } else if (win_info) { // `win_info` not null means opening cards
-                s += hand_info.ToHtml() + HTML_COLOR_FONT_HEADER(blue) " (" + hand_info.deck_->TypeName() + ")" HTML_FONT_TAIL;
-            } else {
                 s += hand_info.ToHtml();
-                // TODO: show win possibiliy
+                s += DECK_INFO_HEADER(#63c187);
+                s += hand_info.deck_->TypeName();
+                s += DECK_INFO_TAIL;
+            } else if (hand_info.win_possibility_ == 0) {
+                s += hand_info.ToHtml();
+            } else {
+                std::stringstream ss;
+                ss << std::setiosflags(std::ios::fixed) << std::setprecision(1) << (hand_info.win_possibility_ * 100);
+                s += hand_info.ToHtml();
+                s += hand_info.win_possibility_ > 0.5 ? DECK_INFO_HEADER(#f3b13d) : DECK_INFO_HEADER(#63c187);
+                s += ss.str();
+                s += "%" DECK_INFO_TAIL;
             }
             s += "\n\n";
         } else if (win_info) { // `win_info` not null means opening cards
             s += HTML_COLOR_FONT_HEADER(grey) "不公布手牌" HTML_FONT_TAIL "\n\n";
         }
-        s += "<font size=\"4\">";
-        if (win_info) { // `win_info` not null means opening cards
-            // do nothing
-        } else if (chip_info.action_ == PlayerChipInfo::CHECK) {
-            s += Action2Str(chip_info.action_);
-        } else if (chip_info.is_fold_) {
-            s += "FOLD";
-        } else if (chip_info.action_ == PlayerChipInfo::NO_ACTION) {
-            s += HTML_ESCAPE_SPACE;
-        } else {
-            // mark the action of players bet the highest chips red
-            const bool need_marked = chip_info.bet_chips_ == bet_chips_ &&
-                (chip_info.action_ == PlayerChipInfo::RAISE || chip_info.action_ == PlayerChipInfo::BET);
-            if (need_marked) {
-                s += HTML_COLOR_FONT_HEADER(red);
-            }
-            s += Action2Str(chip_info.action_);
-            s += HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE + std::to_string(chip_info.last_bet_chips_) + " → " +
-                std::to_string(chip_info.bet_chips_);
-            if (need_marked) {
-                s += HTML_FONT_TAIL;
-            }
-        }
+#undef DECK_INFO_TAIL
+#undef DECK_INFO_HEADER
         s += "</font>\n\n";
 
         s += "</center>\n\n";
-        return s;
+        return {s, bg_color};
+    }
+
+    void RefreshWinPossibility_()
+    {
+        std::vector<poker::Hand<k_type>> hands;
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            if (main_stage().GetPlayerChipInfo(pid).is_fold_) {
+                continue;
+            }
+            hands.emplace_back();
+            for (const auto& card : player_hand_infos_[pid].hand_) {
+                hands.back().Add(card);
+            }
+            for (uint32_t i = 0; i < open_public_cards_num_; ++i) {
+                hands.back().Add(public_cards_[i]);
+            }
+        }
+        std::vector<poker::Card<k_type>> possible_hid_cards = unused_cards_;
+        for (uint32_t i = open_public_cards_num_; i < k_public_card_num; ++i) {
+            possible_hid_cards.emplace_back(public_cards_[i]);
+        }
+        const auto possibilities = poker::WinPossibility(hands, std::span(possible_hid_cards), k_public_card_num - open_public_cards_num_, true /*ignore_suit*/);
+        auto it = possibilities.begin();
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            player_hand_infos_[pid].win_possibility_ = main_stage().GetPlayerChipInfo(pid).is_fold_ ? 0 : *(it++);
+        }
     }
 
     std::string Html_(const std::array<PlayerWinInfo, k_max_player>* const player_win_infos, const bool show_hand)
@@ -598,38 +642,39 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         s += "\n\n</font>";
 
         // show header -- cur base/bet/raise chips
-        s += "**底注：" HTML_COLOR_FONT_HEADER(blue) + std::to_string(base_chips_) + HTML_FONT_TAIL;
+        s += "**底注：" + std::to_string(base_chips_);
         s += HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE "最高下注：" HTML_COLOR_FONT_HEADER(blue);
         s += std::to_string(bet_chips_) + HTML_FONT_TAIL;
-        s += HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE "加注下限：" HTML_COLOR_FONT_HEADER(blue);
-        s += std::to_string(raise_chips_) + HTML_FONT_TAIL;
-        s += "**";
-        s += "</center>\n\n";
+        s += HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE "加注下限：";
+        s += std::to_string(raise_chips_);
+        s += "**</center>\n\n";
 
         // show player infos
         static constexpr const uint32_t k_table_column = 2;
         html::Table player_table(0, k_table_column);
-        player_table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\" ");
-        const int32_t max_remain_chips =
-            std::ranges::max(chip_infos | std::views::transform([](const auto& info) { return info.remain_chips_; }));
-        const auto append_players_info = [&](const bool is_eliminated)
-            {
-                uint32_t i = 0;
-                for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-                    if (is_eliminated ^ (main_stage().GetPlayerChipInfo(pid).bet_chips_ == 0)) {
-                        continue;
-                    }
-                    if (i % k_table_column == 0) {
-                        player_table.AppendRow();
-                    }
-                    player_table.GetLastRow(i % k_table_column).SetContent(PlayerHtml_(
-                                pid, player_win_infos ? &player_win_infos->at(pid) : nullptr, show_hand, max_remain_chips));
-                    i++;
-                }
-            };
-        append_players_info(false);
-        append_players_info(true);
+        player_table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\" width=\"550\" style=\"table-layout:fixed\"");
+        uint32_t i = 0;
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            if (main_stage().GetPlayerChipInfo(pid).bet_chips_ == 0) {
+                continue;
+            }
+            if (i % k_table_column == 0) {
+                player_table.AppendRow();
+            }
+            auto [content, bg_color] = PlayerHtml_(pid, player_win_infos ? &player_win_infos->at(pid) : nullptr, show_hand);
+            player_table.GetLastRow(i % k_table_column).SetContent(std::move(content));
+            player_table.GetLastRow(i % k_table_column).SetColor(bg_color);
+            i++;
+        }
         s += player_table.ToString();
+
+        s += "\n\n已淘汰玩家：";
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            if ((main_stage().GetPlayerChipInfo(pid).bet_chips_ == 0)) {
+                s += this->PlayerAvatar(pid, 30);
+                s += HTML_ESCAPE_SPACE;
+            }
+        }
 
         return s;
     }
@@ -728,8 +773,9 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         }
 
         // save image
-        sender << Markdown(Html_(&player_win_infos, false) + "\n\n" + BetResultHtml_(bet_rets)); // `Html_` must be called before `Reset`
-        SaveMarkdown(Html_(&player_win_infos, true));
+        const auto bet_result_html = "\n\n" + BetResultHtml_(bet_rets);
+        sender << Markdown(Html_(&player_win_infos, false) + bet_result_html); // `Html_` must be called before `Reset`
+        SaveMarkdown(Html_(&player_win_infos, true) + bet_result_html);
 
         // reset chip info for each player
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
@@ -743,6 +789,9 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
     {
         bet_chips_ += max_raise_chips;
         raise_chips_ = std::max(raise_chips_, max_raise_chips);
+        if (open_public_cards_num_ > 0) {
+            RefreshWinPossibility_();
+        }
         html_ = Html_(nullptr, false);
         Boardcast() << Markdown(html_);
         SaveMarkdown(Html_(nullptr, true));
@@ -784,6 +833,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
     std::array<poker::Card<k_type>, k_public_card_num> public_cards_;
     std::vector<PlayerHandInfo> player_hand_infos_;
     std::string html_;
+    std::vector<poker::Card<k_type>> unused_cards_;
 };
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
