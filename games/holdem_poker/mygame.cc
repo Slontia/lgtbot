@@ -21,11 +21,11 @@ class MainStage;
 template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
 
-const std::string k_game_name = "决胜德州"; // the game name which should be unique among all the games
+const std::string k_game_name = "德州波卡"; // the game name which should be unique among all the games
 constexpr uint64_t k_max_player = 15;
 const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "森高";
-const std::string k_description = "同时下注或加注的德州扑克游戏";
+const std::string k_description = "同时下注或加注的德州波卡游戏";
 
 std::string GameOption::StatusInfo() const
 {
@@ -55,6 +55,8 @@ uint64_t GameOption::BestPlayerNum() const { return 10; }
 
 static constexpr const uint32_t k_public_card_num = 5;
 static constexpr const uint32_t k_private_card_num = 5;
+
+static constexpr const uint32_t k_markdown_width = 700;
 
 struct PlayerChipInfo
 {
@@ -224,15 +226,15 @@ class RaiseStage : public SubGameStage<>
     virtual void OnStageBegin() override
     {
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            const auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+            auto& chip_info = main_stage().GetPlayerChipInfo(pid);
             if (AchieveMaxBet(chip_info, bet_chips_)) {
                 // if has no remain chips or raises highest chips, need not take action
-                NoAction(main_stage().GetPlayerChipInfo(pid));
+                NoAction(chip_info);
                 SetReady(pid);
             }
         }
         StartTimer(GET_OPTION_VALUE(option(), 时限));
-        Boardcast() << "请私信裁判行动，您的行动可以是 <call> <raise 筹码数> <fold> <allin> 中的一种";
+        Boardcast() << "请未达到最高下注额的玩家，私信裁判行动，您的行动可以是 <call> <raise 加注部分筹码数> <fold> <allin> 中的一种";
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
@@ -340,10 +342,10 @@ class BetStage : public SubGameStage<>
     virtual void OnStageBegin() override
     {
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            const auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+            auto& chip_info = main_stage().GetPlayerChipInfo(pid);
             if (chip_info.remain_chips_ == 0 || chip_info.is_fold_) {
                 // if has no remain chips or raises highest chips, need not take action
-                NoAction(main_stage().GetPlayerChipInfo(pid));
+                NoAction(chip_info);
                 SetReady(pid);
             }
         }
@@ -458,9 +460,9 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
             info.action_ = info.bet_chips_ == 0    ? PlayerChipInfo::NO_ACTION :
                            info.remain_chips_ == 0 ? PlayerChipInfo::ALLIN     : PlayerChipInfo::BLIND;
         }
-        html_ = Html_(nullptr, false);
-        Boardcast() << Markdown(html_);
-        SaveMarkdown(Html_(nullptr, true));
+        html_ = Html_(nullptr, false, false);
+        Boardcast() << Markdown(html_, k_markdown_width);
+        SaveMarkdown(Html_(nullptr, true, false), k_markdown_width);
         if (TryOpenCard_()) {
             return {};
         }
@@ -499,10 +501,10 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
 
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        if (!html_.empty()) {
+        if (html_.empty()) {
             reply() << "本局还未开始下注";
         } else {
-            reply() << Markdown(html_);
+            reply() << Markdown(html_, k_markdown_width);
         }
         if (!is_public) {
             reply() << "您的手牌是 " << player_hand_infos_[pid].ToString();
@@ -517,7 +519,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
 
     // If `win_info` is not null, show winner players' deck and all public cards.
     // If `win_possibility` is not null, show players' hand and win possibilities.
-    std::pair<std::string, const char*> PlayerHtml_(const PlayerID pid, const PlayerWinInfo* const win_info, const bool show_hand) const
+    std::pair<std::string, const char*> PlayerHtml_(const PlayerID pid, const PlayerWinInfo* const win_info, const bool show_hand, const bool with_bg_color) const
     {
         const auto& chip_info = this->main_stage().GetPlayerChipInfo(pid);
         // mark the name of players obtain the highest chips red
@@ -528,27 +530,26 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
             s += HTML_COLOR_FONT_HEADER(grey) "已淘汰" HTML_FONT_TAIL;
             return {s, "#d1d1d1"};
         }
-        const bool chip_increased = win_info && win_info->remain_chips_before_open_ < chip_info.remain_chips_;
-        if (chip_increased) {
+        if (win_info && win_info->remain_chips_before_open_ < chip_info.remain_chips_) {
             s += "可支配筹码：**" + std::to_string(win_info->remain_chips_before_open_) + " → " HTML_COLOR_FONT_HEADER(green) +
                 std::to_string(chip_info.remain_chips_) + "**" HTML_FONT_TAIL "\n\n";
         } else {
             s += "可支配筹码：" HTML_COLOR_FONT_HEADER(green) "**" + std::to_string(chip_info.remain_chips_) + "**" HTML_FONT_TAIL "\n\n";
         }
         s += "当前下注：**";
-        if (!win_info && chip_info.last_bet_chips_ != chip_info.bet_chips_) {
+        if (with_bg_color && !win_info && chip_info.last_bet_chips_ != chip_info.bet_chips_) {
             s += std::to_string(chip_info.last_bet_chips_) + " → ";
         }
         const char* bg_color = nullptr;
         if (chip_info.is_fold_) {
             s += HTML_COLOR_FONT_HEADER(grey);
-            bg_color = "#d1d1d1";
-        } else if (chip_info.bet_chips_ == bet_chips_ || chip_info.action_ == PlayerChipInfo::ALLIN) {
+            bg_color = "#F5F5F5";
+        } else if ((with_bg_color && chip_info.bet_chips_ == bet_chips_) || chip_info.action_ == PlayerChipInfo::ALLIN) {
             s += HTML_COLOR_FONT_HEADER(blue);
-            bg_color = "#d2d2fb";
-        } else {
+            bg_color = "#EBEDFB";
+        } else if (with_bg_color) {
             s += HTML_COLOR_FONT_HEADER(red);
-            bg_color = "#f8d8d7";
+            bg_color = "#FBEBEB";
         }
         s += std::to_string(chip_info.bet_chips_);
         s += "** ";
@@ -559,8 +560,8 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         s += "\n\n";
         const auto& hand_info = player_hand_infos_[pid];
         s += "<font size=\"5\">";
-#define DECK_INFO_HEADER(color) HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE  "<span style=\"background-color:" #color "; text-align:center;\"><font size=\"5\">" HTML_COLOR_FONT_HEADER(white) HTML_ESCAPE_SPACE
-#define DECK_INFO_TAIL HTML_ESCAPE_SPACE HTML_FONT_TAIL "</font></span>" ;
+#define DECK_INFO_HEADER(color) HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE  "<font size=\"4\"><span style=\"background-color:" #color "; text-align:center;\">" HTML_COLOR_FONT_HEADER(white) HTML_ESCAPE_SPACE
+#define DECK_INFO_TAIL HTML_ESCAPE_SPACE HTML_FONT_TAIL "</span></font>" ;
         if (win_info && win_info->is_winner_) {
             s += hand_info.ToHtml() + DECK_INFO_HEADER(#f3b13d) + hand_info.deck_->TypeName() + DECK_INFO_TAIL "\n\n";
         } else if (show_hand) {
@@ -619,7 +620,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         }
     }
 
-    std::string Html_(const std::array<PlayerWinInfo, k_max_player>* const player_win_infos, const bool show_hand)
+    std::string Html_(const std::array<PlayerWinInfo, k_max_player>* const player_win_infos, const bool show_hand, const bool with_bg_color)
     {
         static const std::string k_unknown_poker = HTML_COLOR_FONT_HEADER(grey) "�?" HTML_FONT_TAIL;
 
@@ -654,7 +655,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         // show player infos
         static constexpr const uint32_t k_table_column = 2;
         html::Table player_table(0, k_table_column);
-        player_table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\" width=\"550\" style=\"table-layout:fixed\"");
+        player_table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\" width=\"650\" style=\"table-layout:fixed\"");
         uint32_t i = 0;
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             if (main_stage().GetPlayerChipInfo(pid).bet_chips_ == 0) {
@@ -663,9 +664,11 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
             if (i % k_table_column == 0) {
                 player_table.AppendRow();
             }
-            auto [content, bg_color] = PlayerHtml_(pid, player_win_infos ? &player_win_infos->at(pid) : nullptr, show_hand);
+            auto [content, bg_color] = PlayerHtml_(pid, player_win_infos ? &player_win_infos->at(pid) : nullptr, show_hand, with_bg_color);
             player_table.GetLastRow(i % k_table_column).SetContent(std::move(content));
-            player_table.GetLastRow(i % k_table_column).SetColor(bg_color);
+            if (bg_color) {
+                player_table.GetLastRow(i % k_table_column).SetColor(bg_color);
+            }
             i++;
         }
         s += player_table.ToString();
@@ -776,8 +779,8 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
 
         // save image
         const auto bet_result_html = "\n\n" + BetResultHtml_(bet_rets);
-        sender << Markdown(Html_(&player_win_infos, false) + bet_result_html); // `Html_` must be called before `Reset`
-        SaveMarkdown(Html_(&player_win_infos, true) + bet_result_html);
+        sender << Markdown(Html_(&player_win_infos, false, false) + bet_result_html, k_markdown_width); // `Html_` must be called before `Reset`
+        SaveMarkdown(Html_(&player_win_infos, true, false) + bet_result_html, k_markdown_width);
 
         // reset chip info for each player
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
@@ -794,9 +797,9 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         if (open_public_cards_num_ > 0) {
             RefreshWinPossibility_();
         }
-        html_ = Html_(nullptr, false);
-        Boardcast() << Markdown(html_);
-        SaveMarkdown(Html_(nullptr, true));
+        html_ = Html_(nullptr, false, true);
+        Boardcast() << Markdown(html_, k_markdown_width);
+        SaveMarkdown(Html_(nullptr, true, true), k_markdown_width);
         if (max_raise_chips > 0 && !std::ranges::all_of(main_stage().GetPlayerChipInfos(),
                     [&](const PlayerChipInfo& chip_info) { return AchieveMaxBet(chip_info, bet_chips_); })) {
             // players have not reach a consensus, continue raising
@@ -817,6 +820,14 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         for (uint32_t i = 0; i < open_public_cards_num_; ++i) {
             sender << public_cards_[i].ToString() << " ";
         }
+
+        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+            NoAction(main_stage().GetPlayerChipInfo(pid));
+        }
+        html_ = Html_(nullptr, false, false);
+        sender << Markdown(html_, k_markdown_width);
+        SaveMarkdown(Html_(nullptr, true, false), k_markdown_width);
+
         return std::make_unique<BetStage>(this->main_stage(), StateName_(), base_chips_);
     }
 
