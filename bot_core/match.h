@@ -186,7 +186,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     class MsgSenderBatchHandler
     {
       public:
-        MsgSenderBatchHandler(Match& match, const bool ai_only) : match_(match) {};
+        MsgSenderBatchHandler(Match& match, const bool ai_only) : match_(match), ai_only_(ai_only) {};
 
         template <typename Fn>
         void operator()(Fn&& fn)
