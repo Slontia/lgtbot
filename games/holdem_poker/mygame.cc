@@ -195,13 +195,13 @@ class RaiseStage : public SubGameStage<>
     RaiseStage(MainStage& main_stage, const char* const state, const int32_t bet_chips, const int32_t raise_chips)
         : GameStage(main_stage, std::string(state) + " 加注阶段",
                 MakeStageCommand("投入所有的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
-                    &RaiseStage::AllIn_, VoidChecker("allin")),
+                    &RaiseStage::AllIn_, VoidChecker("allin", "a")),
                 MakeStageCommand("跟注，并加注一定的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,  &RaiseStage::Raise_,
-                    VoidChecker("raise"), ArithChecker<int32_t>(1, INT32_MAX, "筹码数")),
+                    VoidChecker("raise", "r"), ArithChecker<int32_t>(1, INT32_MAX, "筹码数")),
                 MakeStageCommand("跟注（筹码不足时会 all in）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
-                    &RaiseStage::Call_, VoidChecker("call")),
+                    &RaiseStage::Call_, VoidChecker("call", "c")),
                 MakeStageCommand("弃牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &RaiseStage::Fold_,
-                    VoidChecker("fold")))
+                    VoidChecker("fold", "f")))
         , bet_chips_(bet_chips)
         , raise_chips_(raise_chips)
         , max_raise_chips_(0)
@@ -211,7 +211,7 @@ class RaiseStage : public SubGameStage<>
     int32_t MaxRaiseChips() const { return max_raise_chips_; }
 
   private:
-    virtual CheckoutErrCode OnTimeout() override
+    void FoldForUnreadyPlayers_()
     {
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             if (!IsReady(pid)) {
@@ -220,7 +220,17 @@ class RaiseStage : public SubGameStage<>
                 Hook(pid);
             }
         }
+    }
+
+    virtual CheckoutErrCode OnTimeout() override
+    {
+        FoldForUnreadyPlayers_();
         return StageErrCode::CHECKOUT;
+    }
+
+    virtual void OnAllPlayerReady()
+    {
+        FoldForUnreadyPlayers_();
     }
 
     virtual void OnStageBegin() override
@@ -314,11 +324,11 @@ class BetStage : public SubGameStage<>
     BetStage(MainStage& main_stage, const char* const state, const uint32_t base_chips)
         : GameStage(main_stage, std::string(state) + " 下注阶段",
                 MakeStageCommand("投入所有的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
-                    &BetStage::AllIn_, VoidChecker("allin")),
+                    &BetStage::AllIn_, VoidChecker("allin", "a")),
                 MakeStageCommand("下注一定的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &BetStage::Bet_,
-                    VoidChecker("bet"), ArithChecker<int32_t>(1, INT32_MAX, "筹码数")),
+                    VoidChecker("bet", "b"), ArithChecker<int32_t>(1, INT32_MAX, "筹码数")),
                 MakeStageCommand("过牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &BetStage::Check_,
-                    VoidChecker("check")))
+                    VoidChecker("check", "c")))
         , max_raise_chips_(0)
         , base_chips_(base_chips)
     {
@@ -327,7 +337,7 @@ class BetStage : public SubGameStage<>
     int32_t MaxRaiseChips() const { return max_raise_chips_; }
 
   private:
-    virtual CheckoutErrCode OnTimeout() override
+    void CheckForUnreadyPlayers_()
     {
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             if (!IsReady(pid)) {
@@ -336,7 +346,17 @@ class BetStage : public SubGameStage<>
                 Hook(pid);
             }
         }
+    }
+
+    virtual CheckoutErrCode OnTimeout() override
+    {
+        CheckForUnreadyPlayers_();
         return StageErrCode::CHECKOUT;
+    }
+
+    virtual void OnAllPlayerReady()
+    {
+        CheckForUnreadyPlayers_();
     }
 
     virtual void OnStageBegin() override
@@ -409,7 +429,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
   public:
     // round is started from 1
     RoundStage(MainStage& main_stage, const uint64_t round)
-        : GameStage(main_stage, "第 " + std::to_string(round) + " 局",
+        : GameStage(main_stage, "第 " + std::to_string(round) + " / " + std::to_string(GET_OPTION_VALUE(main_stage.option(), 局数)) + " 局",
                 MakeStageCommand("查看当前游戏进展情况", &RoundStage::Status_, VoidChecker("赛况")))
         , base_chips_([&]()
                 {
@@ -543,8 +563,9 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         const char* bg_color = nullptr;
         if (chip_info.is_fold_) {
             s += HTML_COLOR_FONT_HEADER(grey);
-            bg_color = "#F5F5F5";
-        } else if ((with_bg_color && chip_info.bet_chips_ == bet_chips_) || chip_info.action_ == PlayerChipInfo::ALLIN) {
+            bg_color = "#EFEFEF";
+        } else if ((with_bg_color && chip_info.bet_chips_ == bet_chips_) ||
+                (!win_info && chip_info.action_ == PlayerChipInfo::ALLIN)) {
             s += HTML_COLOR_FONT_HEADER(blue);
             bg_color = "#EBEDFB";
         } else if (with_bg_color) {
@@ -624,7 +645,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
     {
         static const std::string k_unknown_poker = HTML_COLOR_FONT_HEADER(grey) "�?" HTML_FONT_TAIL;
 
-        std::string s = "## " + this->name() + "\n\n";
+        std::string s = "## " + this->name() + "：" + StateName_() + " 阶段\n\n";
 
         // show header -- public cards
         s += "<center>";
@@ -720,46 +741,58 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         // player raise highest cannot fold, so it is impossible that all players fold
         assert(fold_player_num != option().PlayerNum());
 
-        if (allin_player_num < option().PlayerNum() - 1 &&
-                fold_player_num < option().PlayerNum() - 1 &&
-                open_public_cards_num_ < k_public_card_num) {
+        if (allin_player_num + fold_player_num < option().PlayerNum() - 1 && open_public_cards_num_ < k_public_card_num) {
             return false;
         }
 
-        auto sender = Boardcast();
-        sender << "筹码数达成共识，现在开牌：\n";
-
-        // get open card result
-        const auto bet_rets = CallBetPool(std::views::iota(0ull, static_cast<uint64_t>(option().PlayerNum())) |
-                    std::views::transform([&](const uint64_t pid)
-                    {
-                        return CallBetPoolInfo{
-                            .id_ = pid,
-                            .coins_ = main_stage().GetPlayerChipInfo(pid).bet_chips_,
-                            .obj_ = main_stage().GetPlayerChipInfo(pid).is_fold_ ? std::nullopt
-                                : player_hand_infos_[pid].deck_,
-                        };
-                    }),
-                    [](const auto& _1, const auto& _2) { return _1.CompareIgnoreSuit(_2) < 0; } // ignore suit
-                );
-
-        // update remain chips for each player
+        // record remain chips for each player
         int32_t lost_chips = 0;
         std::array<PlayerWinInfo, k_max_player> player_win_infos;
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             player_win_infos[pid].remain_chips_before_open_ = main_stage().GetPlayerChipInfo(pid).remain_chips_;
         }
-        for (const auto& ret : bet_rets) {
-            for (const PlayerID pid : ret.winner_ids_) {
+
+        auto sender = Boardcast();
+        std::string bet_result_html;
+        if (fold_player_num == option().PlayerNum() - 1) { // do not open card
+            sender << "仅剩一人未弃牌，本局结束\n";
+            for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
                 auto& info = main_stage().GetPlayerChipInfo(pid);
-                info.remain_chips_ += ret.total_coins_ / ret.winner_ids_.size();
-                lost_chips += ret.total_coins_ % ret.winner_ids_.size();
-                if (ret.participant_ids_.size() > ret.winner_ids_.size()) {
-                    // the player has won chips from other players
-                    player_win_infos[pid].is_winner_ = true;
+                if (!info.is_fold_) {
+                    const auto& player_chip_infos = main_stage().GetPlayerChipInfos();
+                    info.remain_chips_ += std::accumulate(player_chip_infos.begin(), player_chip_infos.end(), 0,
+                            [](const int32_t total, const PlayerChipInfo& chip_info) { return total + chip_info.bet_chips_; });
                 }
             }
+        } else {
+            sender << "筹码数达成共识，现在开牌：\n";
+            // update remain chips for each other
+            const auto bet_rets = CallBetPool(std::views::iota(0ull, static_cast<uint64_t>(option().PlayerNum())) |
+                        std::views::transform([&](const uint64_t pid)
+                        {
+                            return CallBetPoolInfo{
+                                .id_ = pid,
+                                .coins_ = main_stage().GetPlayerChipInfo(pid).bet_chips_,
+                                .obj_ = main_stage().GetPlayerChipInfo(pid).is_fold_ ? std::nullopt
+                                    : player_hand_infos_[pid].deck_,
+                            };
+                        }),
+                        [](const auto& _1, const auto& _2) { return _1.CompareIgnoreSuit(_2) < 0; } // ignore suit
+                    );
+            for (const auto& ret : bet_rets) {
+                for (const PlayerID pid : ret.winner_ids_) {
+                    auto& info = main_stage().GetPlayerChipInfo(pid);
+                    info.remain_chips_ += ret.total_coins_ / ret.winner_ids_.size();
+                    lost_chips += ret.total_coins_ % ret.winner_ids_.size();
+                    if (ret.participant_ids_.size() > ret.winner_ids_.size() && fold_player_num < option().PlayerNum() - 1) {
+                        // the player has won chips from other players, and not all other players are fold, so we need open card
+                        player_win_infos[pid].is_winner_ = true;
+                    }
+                }
+            }
+            bet_result_html = "\n\n" + BetResultHtml_(bet_rets);
         }
+
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             auto& info = main_stage().GetPlayerChipInfo(pid);
             if (info.remain_chips_ == 0 && info.bet_chips_ > 0) { // the remain chips become 0 in this round
@@ -778,7 +811,6 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         }
 
         // save image
-        const auto bet_result_html = "\n\n" + BetResultHtml_(bet_rets);
         sender << Markdown(Html_(&player_win_infos, false, false) + bet_result_html, k_markdown_width); // `Html_` must be called before `Reset`
         SaveMarkdown(Html_(&player_win_infos, true, false) + bet_result_html, k_markdown_width);
 

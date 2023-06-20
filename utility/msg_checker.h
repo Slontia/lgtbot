@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <functional>
 #include <iostream>
 #include <map>
@@ -312,27 +313,37 @@ class BasicChecker : public MsgArgChecker<T>
 
 using VoidChecker = MsgArgChecker<void>;
 
-// Require: the argument is equal to <const_arg>
-// Return: nothing
 template <>
 class MsgArgChecker<void> final
 {
    public:
     typedef void arg_type;
-    /* const_arg cannot contain spaces or be empty */
-    MsgArgChecker(std::string const_arg) : const_arg_(std::move(const_arg)) {}
+
+    MsgArgChecker(const MsgArgChecker&) = default;
+    MsgArgChecker(MsgArgChecker&&) = default;
+
+    // the element in const_arg should not contain spaces or be empty */
+    template <typename Arg, typename ...Args>
+    MsgArgChecker(Arg&& optional_str, Args&&... optional_strs)
+        : optional_strs_{std::forward<Arg>(optional_str), std::forward<Args>(optional_strs)...}
+        , format_info_(
+                std::string(sizeof...(Args) > 0 ? ("[") : "") +
+                (optional_str + ... + (std::string("|") + optional_strs)) +
+                (sizeof...(Args) > 0 ? "]" : "")) {}
+
     ~MsgArgChecker() {}
     bool Check(MsgReader& reader) const
     {
-        return reader.HasNext() && reader.NextArg() == const_arg_;
+        return reader.HasNext() && std::ranges::find(optional_strs_, reader.NextArg()) != optional_strs_.end();
     }
-    std::string FormatInfo() const { return const_arg_; };
-    std::string EscapedFormatInfo() const { return const_arg_; };
-    std::string ColoredFormatInfo() const { return const_arg_; };
-    std::string ExampleInfo() const { return const_arg_; };
+    std::string FormatInfo() const { return format_info_; };
+    std::string EscapedFormatInfo() const { return format_info_; };
+    std::string ColoredFormatInfo() const { return format_info_; };
+    std::string ExampleInfo() const { return optional_strs_.front(); };
 
    private:
-    const std::string const_arg_;
+    const std::vector<std::string> optional_strs_;
+    const std::string format_info_;
 };
 
 template <typename Checker> requires std::is_base_of_v<MsgArgChecker<typename Checker::arg_type>, Checker>
@@ -780,7 +791,7 @@ class Command<UserResult(UserArgs...)>
                 std::apply([this, &outstr](const auto&... checkers) { ((outstr += checkers.FormatInfo() + " "), ...); }, checkers_);
             }
             // If all checkers are void checker, the format info and example info are same.
-            if (with_example && !(std::is_void_v<typename Checkers::arg_type> && ...)) {
+            if (with_example) {
                 outstr += "\n    - 例如：";
                 std::apply([this, &outstr](const auto&... checkers) { ((outstr += checkers.ExampleInfo() + " "), ...); },
                         checkers_);

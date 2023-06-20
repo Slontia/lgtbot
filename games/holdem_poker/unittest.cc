@@ -120,6 +120,27 @@ GAME_TEST(3, all_allin_except_raise_highest_will_finish_game)
     ASSERT_SCORE(300, 0, 0);
 }
 
+GAME_TEST(3, all_allin_or_fold_except_raise_highest_will_finish_game)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 2");
+    ASSERT_PUB_MSG(OK, 0, "筹码 100");
+    ASSERT_PUB_MSG(OK, 0, "种子 ABC");
+    ASSERT_PUB_MSG(OK, 0, "底注变化 5 10");
+    ASSERT_PUB_MSG(OK, 0, "底注变化局数 2");
+    ASSERT_PUB_MSG(OK, 0, "卡牌 扑克");
+    START_GAME();
+
+    ALL_CHECK_FOR_ONE_GAME(); // chips = {115, 95, 95}
+
+    ASSERT_PRI_MSG(OK, 0, "bet 100"); // 5 -> 105
+    ASSERT_PRI_MSG(OK, 1, "allin"); // 5 -> 95
+    ASSERT_PRI_MSG(CHECKOUT, 2, "check"); // 5
+                                          //
+    ASSERT_PRI_MSG(CHECKOUT, 2, "fold"); // 5
+
+    ASSERT_SCORE(210, 0, 90);
+}
+
 GAME_TEST(3, cannot_act_after_fold)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
@@ -166,6 +187,39 @@ GAME_TEST(5, check_when_timeout)
     }
 
     ASSERT_SCORE(120, 95, 95, 95, 95);
+}
+
+GAME_TEST(5, check_when_timeout_and_then_fold)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "筹码 100");
+    ASSERT_PUB_MSG(OK, 0, "种子 ABC");
+    ASSERT_PUB_MSG(OK, 0, "底注变化 5 10");
+    ASSERT_PUB_MSG(OK, 0, "底注变化局数 2");
+    ASSERT_PUB_MSG(OK, 0, "卡牌 扑克");
+    START_GAME();
+
+    // preflop
+    for (uint64_t pid = 2; pid < option_.PlayerNum(); ++pid) {
+        ASSERT_PRI_MSG(OK, pid, "check");
+    }
+    ASSERT_PRI_MSG(OK, 1, "bet 5"); // 5 -> 10
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    for (uint64_t pid = 3; pid < option_.PlayerNum(); ++pid) {
+        ASSERT_PRI_MSG(OK, pid, "call");
+    }
+    ASSERT_PRI_MSG(CHECKOUT, 2, "call");
+
+    // flop, turn, river
+    for (uint32_t i = 0; i < 3; ++i) {
+        for (uint64_t pid = 1; pid < option_.PlayerNum() - 1; ++pid) {
+            ASSERT_PRI_MSG(OK, pid, "check");
+        }
+        ASSERT_PRI_MSG(CHECKOUT, option_.PlayerNum() - 1, "check");
+    }
+
+    ASSERT_SCORE(95, 90, 135, 90, 90);
 }
 
 GAME_TEST(5, fold_when_timeout)
