@@ -215,6 +215,11 @@ DLLEXPORT(enum ErrCode) LGTBot_HandlePrivateRequest(void* bot, const char* user_
 //   The errcode. If the message is handled well, the returned errcode should be EC_OK.
 DLLEXPORT(enum ErrCode) LGTBot_HandlePublicRequest(void* bot, const char* group_id, const char* user_id, const char* msg);
 
+// Get version.
+// Output:
+//   The version of the bot.
+DLLEXPORT(const char*) LGTBot_Version();
+
 #undef DLLEXPORT
 
 #ifdef __cplusplus

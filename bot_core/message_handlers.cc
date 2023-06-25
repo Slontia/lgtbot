@@ -402,13 +402,15 @@ static ErrCode show_game_options(BotCtx& bot, const UserID uid, const std::optio
 
 static ErrCode about(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
-    reply() << "LGTBot 内测版本 Beta-v0.1.0"
-               "\n"
-               "\n作者：森高（QQ：654867229）"
-               "\nGitHub：http://github.com/slontia/lgtbot"
-               "\n"
-               "\n若您使用中遇到任何 BUG 或其它问题，欢迎私信作者，或前往 GitHub 主页提 issue"
-               "\n本项目仅供娱乐和技术交流，请勿用于商业用途，健康游戏，拒绝赌博";
+    auto sender = reply();
+    sender << "LGTBot ";
+    sender << LGTBot_Version();
+    sender << "\n"
+              "\n作者：森高（QQ：654867229）"
+              "\nGitHub：http://github.com/slontia/lgtbot"
+              "\n"
+              "\n若您使用中遇到任何 BUG 或其它问题，欢迎私信作者，或前往 GitHub 主页提 issue"
+              "\n本项目仅供娱乐和技术交流，请勿用于商业用途，健康游戏，拒绝赌博";
     return EC_OK;
 }
 
