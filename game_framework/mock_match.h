@@ -101,7 +101,7 @@ class MockMatch : public MatchBase
 {
   public:
     MockMatch(const std::filesystem::path& image_dir, const uint64_t player_num)
-        : image_dir_(image_dir)
+        : image_dir_(image_dir.string())
         , boardcast_sender_(image_dir_)
         , is_eliminated_(player_num, false) {}
 

@@ -22,8 +22,10 @@ add_custom_target(make_output_dir ALL
 
 if (WITH_GLOG)
     find_package(glog REQUIRED)
-    # list(APPEND GAME_THIRD_PARTIES glog) # bot_core has already link glog
     add_definitions(-DWITH_GLOG)
+    if (CMAKE_SYSTEM_NAME MATCHES "Windows")
+        list(APPEND GAME_THIRD_PARTIES glog) # bot_core has already link glog
+    endif()
 endif()
 
 foreach (GAME_DIR ${GAME_DIRS})

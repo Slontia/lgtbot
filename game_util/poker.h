@@ -85,7 +85,7 @@ ENUM_END(PatternType)
 #include <utility> // g++12 has a bug which will cause 'exchange' is not a member of 'std'
 #include <algorithm>
 #include <bitset>
-
+#include <ranges>
 
 #include "utility/html.h"
 

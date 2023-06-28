@@ -58,10 +58,8 @@ list(APPEND THIRD_PARTIES gflags)
 
 add_library(bot_core_static STATIC ${SOURCE_FILES})
 target_link_libraries(bot_core_static ${THIRD_PARTIES})
-if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-  add_library(bot_core SHARED ${SOURCE_FILES})
-  target_link_libraries(bot_core ${THIRD_PARTIES})
-endif()
+add_library(bot_core SHARED ${SOURCE_FILES})
+target_link_libraries(bot_core ${THIRD_PARTIES})
 
 if (WITH_TEST)
   enable_testing()

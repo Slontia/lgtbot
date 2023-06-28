@@ -26,20 +26,27 @@ LGTBot 是一个基于 C++ 实现的，用于在 **聊天室** 或 **其它通�
 请确保您的编译器支持 **C++20** 语法，建议使用 g++10 以上版本
 
     # 安装依赖库（Ubuntu 系统）
-	$ sudo apt-get install -y libgoogle-glog-dev libgflags-dev libgtest-dev libsqlite3-dev libqt5webkit5-dev
+    sudo apt-get install -y libgoogle-glog-dev libgflags-dev libgtest-dev libsqlite3-dev libqt5webkit5-dev
 
-	# 完整克隆本项目
-	$ git clone github.com/slontia/lgtbot
+    # 安装依赖库（Windows 系统 + MSYS2 MinGW 终端，注意不要使用 MSYS2 MSYS 终端）
+    pacman -Su git mingw-w64-x86_64-cmake mingw-w64-x86_64-make mingw-w64-x86_64-gcc mingw-w64-x86_64-qtwebkit mingw-w64-x86_64-gflags mingw-w64-x86_64-gtest mingw-w64-x86_64-glog 
+
+    # 完整克隆本项目
+    git clone github.com/slontia/lgtbot
 
     # 安装子模块
-    $ git submodule update --init --recursive
+    git submodule update --init --recursive
 
-	# 构建二进制路径
-	$ mkdir build
+    # 构建二进制路径
+    mkdir build
 
-	# 编译项目
-    $ cmake .. -DWITH_GCOV=OFF -DWITH_ASAN=OFF -DWITH_GLOG=OFF -DWITH_SQLITE=ON -DWITH_TEST=ON -DWITH_SIMULATOR=ON -DWITH_GAMES=ON
-	$ make
+    # 编译项目（Ubuntu 系统）
+    cmake .. -DWITH_GCOV=OFF -DWITH_ASAN=OFF -DWITH_GLOG=OFF -DWITH_SQLITE=ON -DWITH_TEST=ON -DWITH_GAMES=ON
+    make
+
+    # 编译项目（Windows 系统 + MSYS2 MinGW 终端）
+    cmake -G "MSYS Makefiles" .. -DWITH_GCOV=OFF -DWITH_ASAN=OFF -DWITH_GLOG=OFF -DWITH_SQLITE=ON -DWITH_TEST=ON -DWITH_GAMES=ON -DCMAKE_MAKE_PROGRAM=mingw32-make.exe
+    mingw32-make
 
 ## 3 项目组成
 
