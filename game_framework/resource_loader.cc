@@ -33,11 +33,13 @@ namespace GAME_MODULE_NAME {
 
 #ifdef _WIN32
 
-HMODULE hModule;
-
 std::string LoadText(const int idr_rule, const char* type)
 {
-    if (hModule == NULL) return "hmod is NULL";
+    HMODULE hModule;
+    GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        reinterpret_cast<LPCTSTR>(&LoadText), &hModule);
+
+    if (hModule == NULL) return "hmod is NULL: " + std::to_string(GetLastError());
 
     HRSRC hRsrc = FindResource(hModule, MAKEINTRESOURCE(idr_rule), type);
     if (NULL == hRsrc) return "FindResource failed: " + std::to_string(GetLastError());

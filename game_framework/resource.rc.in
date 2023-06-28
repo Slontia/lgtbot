@@ -1,0 +1,3 @@
+#define IDR_TEXT1_RULE 101
+
+IDR_TEXT1_RULE Text "@GAME_DIR@/rule.md"
