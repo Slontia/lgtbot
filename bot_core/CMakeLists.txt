@@ -14,14 +14,15 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -latomic")
 
 # generate version info
 EXECUTE_PROCESS(
-    COMMAND git describe --tags
+    COMMAND git describe --tags --always
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     OUTPUT_VARIABLE MAGE_VERSION_GIT_HEAD_VERSION
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_VARIABLE GET_GIT_VERSION_FAILED
 )
 if (GET_GIT_VERSION_FAILED)
-    message(FATAL_ERROR ${GET_GIT_VERSION_FAILED})
+    message("-- Get Git Describe failed, will sign unpublished version: ${GET_GIT_VERSION_FAILED}")
+    set(MAKE_VERSiON_GIT_HEAD_VERSION "<unpublished version>")
 else()
     message("-- Current Git Describe: ${MAGE_VERSION_GIT_HEAD_VERSION}")
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/version.cc.in" "${CMAKE_CURRENT_BINARY_DIR}/version.cc")
