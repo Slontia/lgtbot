@@ -174,7 +174,7 @@ static void SetPointColor(html::Box& box, const int point, const char* const fon
 
 static std::string ImageStr(const std::string& image_path, const std::string& name)
 {
-    return std::string("![](file://") + image_path + "/" + name + ".png)";
+    return std::string("![](file:///") + image_path + "/" + name + ".png)";
 }
 
 class ThreeRoundTable

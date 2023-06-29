@@ -331,7 +331,7 @@ std::string BotCtx::GetUserAvatar(const char* const user_id, const int32_t size)
     if (!callbacks_.download_user_avatar(handler_, user_id, path_str.c_str())) {
         CharToImage(user_id[0], path_str);
     }
-    return "<img src=\"file://" + path_str + "\" style=\"width:" + std::to_string(size) + "px; height:" +
+    return "<img src=\"file:///" + path_str + "\" style=\"width:" + std::to_string(size) + "px; height:" +
         std::to_string(size) + "px; border-radius:50%; vertical-align: middle;\"/>";
 }
 

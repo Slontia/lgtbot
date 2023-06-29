@@ -328,7 +328,7 @@ class MainStage : public MainGameStage<>
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(pid, 0).SetContent(
-                        std::string("![](file://") + option().ResourceDir() + (black_pid_ == pid ? "c_b.bmp)" : "c_w.bmp)"));
+                        std::string("![](file:///") + option().ResourceDir() + (black_pid_ == pid ? "c_b.bmp)" : "c_w.bmp)"));
                 if (turn_pid_ == pid) {
                     player_table.Get(pid, 1).SetContent(HTML_COLOR_FONT_HEADER(red) " **" + PlayerName(pid) + "** " HTML_FONT_TAIL);
                 } else {

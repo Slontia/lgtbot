@@ -190,7 +190,7 @@ class MainStage : public MainGameStage<>
         player_table.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
         const auto print_player = [&](const PlayerID pid)
             {
-                player_table.Get(0, 0 + pid * 2).SetContent(std::string("![](file://") + option().ResourceDir() +
+                player_table.Get(0, 0 + pid * 2).SetContent(std::string("![](file:///") + option().ResourceDir() +
                         (PlayerIDToChessType_(pid) == ChessType::BLACK ? "black" : "white") + ".png)");
                 player_table.Get(0, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
                 player_table.Get(1, 1 + pid * 2).SetContent("棋子数量： " HTML_COLOR_FONT_HEADER(yellow) + std::to_string(player_scores_[pid]) + HTML_FONT_TAIL);

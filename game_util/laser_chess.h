@@ -528,7 +528,7 @@ class Board
                 const auto& area = GetArea_(Coor{m - 1, n - 1});
                 table.Get(m, n).SetColor(area.GetState() != Area::IDL ?
                         ((m % 2) ^ (n % 2) ? "eade00" : "fff860") : ((m % 2) ^ (n % 2) ? "#bcbcbc" : "d4d4d4"));
-                table.Get(m, n).SetContent("![](file://" + image_path_ + "/" + area.Image() + ".png)");
+                table.Get(m, n).SetContent("![](file:///" + image_path_ + "/" + area.Image() + ".png)");
             }
         }
         for (int32_t m = 0; m < max_m_; ++m) {

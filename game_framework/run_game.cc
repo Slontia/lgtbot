@@ -31,7 +31,7 @@ class RunGameMockMatch : public MockMatch
         const std::string avatar_filename = (image_dir() / ("avatar_" + std::to_string(pid) + ".png")).string();
         CharToImage('0' + pid, avatar_filename);
         thread_local static std::string str;
-        str = "<img src=\"file://" + avatar_filename + "\" style=\"width:" + std::to_string(size) + "px; height:" +
+        str = "<img src=\"file:///" + avatar_filename + "\" style=\"width:" + std::to_string(size) + "px; height:" +
             std::to_string(size) + "px; border-radius:50%; vertical-align: middle;\"/>";
         return str.c_str();
     }

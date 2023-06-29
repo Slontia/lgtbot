@@ -316,7 +316,7 @@ class Board
                 });
     }
 
-    std::string Image_(std::string name) const { return "![](file://" + image_path_ + "/" + std::move(name) + ".bmp)"; }
+    std::string Image_(std::string name) const { return "![](file:///" + image_path_ + "/" + std::move(name) + ".bmp)"; }
 
     const std::string image_path_;
     const BoardOptions options_;

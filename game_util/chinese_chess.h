@@ -407,7 +407,7 @@ class BoardMgr
   private:
     std::string JiangImage_(const KingdomId kingdom_id) const
     {
-        return "![](file://" + image_path_ + "/0_jiang_" + std::to_string(kingdom_id.ToUInt()) + ".png)";
+        return "![](file:///" + image_path_ + "/0_jiang_" + std::to_string(kingdom_id.ToUInt()) + ".png)";
     }
 
     std::string ChessAndPlayerHtml_(const KingdomId kingdom_id) const
@@ -747,7 +747,7 @@ std::string HalfBoard::Move(const uint32_t player_id, const Coor& src, const Coo
 std::string HalfBoard::ToHtml(const HalfBoard& b1, const HalfBoard& b2, const std::string& image_path,
         const std::vector<std::unique_ptr<KingdomInfo>>& kingdoms, const bool with_highlight)
 {
-    const std::string image_prefix = "![](file://" + image_path + "/";
+    const std::string image_prefix = "![](file:///" + image_path + "/";
     const auto board_image = [&image_prefix, with_highlight](const bool highlight, const int32_t m, const int32_t n)
         {
             return image_prefix + std::to_string(highlight && with_highlight) + "_board_" +

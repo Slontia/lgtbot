@@ -852,11 +852,11 @@ class Mahjong17Steps
 
     std::string Image_(const Tile& tile, const TileStyle style) const
     {
-        return "![](file://" + option_.image_path_ + "/" + static_cast<char>(style) + "_" + tile.to_simple_string() + ".png)";
+        return "![](file:///" + option_.image_path_ + "/" + static_cast<char>(style) + "_" + tile.to_simple_string() + ".png)";
     }
     std::string BackImage_(const TileStyle style) const
     {
-        return "![](file://" + option_.image_path_ + "/" + static_cast<char>(style) + "_back.png)";
+        return "![](file:///" + option_.image_path_ + "/" + static_cast<char>(style) + "_back.png)";
     }
 
     const Mahjong17StepsOption option_;

@@ -134,7 +134,7 @@ class Board
     std::string ToHtml() const { return table_.ToString(); }
 
   private:
-    std::string Image_(std::string name) { return "![](file://" + image_path_ + "/" + std::move(name) + ".png)"; }
+    std::string Image_(std::string name) { return "![](file:///" + image_path_ + "/" + std::move(name) + ".png)"; }
 
     int IsAdjCardsOk_(const uint32_t row, const uint32_t col, const Card card) const
     {

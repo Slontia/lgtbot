@@ -155,7 +155,7 @@ class MainStage : public MainGameStage<>
   private:
     std::string Image_(const AppleType apple_type, const int size) const
     {
-        return std::string("![](file://") + option().ResourceDir() + "/" + AppleTypeName(apple_type) + "_" + std::to_string(size) + ".png)";
+        return std::string("![](file:///") + option().ResourceDir() + "/" + AppleTypeName(apple_type) + "_" + std::to_string(size) + ".png)";
     }
 
     std::array<int, k_apple_type_num> AppleCounts_() const

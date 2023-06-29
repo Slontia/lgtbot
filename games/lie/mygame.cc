@@ -128,7 +128,7 @@ class MyTable
   private:
     std::string Image_(std::string name) const
     {
-        return std::string("![](file://") + option_.ResourceDir() + "/" + std::move(name) + ".png)";
+        return std::string("![](file:///") + option_.ResourceDir() + "/" + std::move(name) + ".png)";
     }
 
     void DrawLose_(const bool with_light)

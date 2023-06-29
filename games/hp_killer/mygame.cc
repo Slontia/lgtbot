@@ -1262,7 +1262,7 @@ class MainStage : public MainGameStage<>
 
     std::string Image_(const char* const name, const int32_t width) const
     {
-        return std::string("<img src=\"file://") + option().ResourceDir() + "/" + name + ".png\" style=\"width:" +
+        return std::string("<img src=\"file:///") + option().ResourceDir() + "/" + name + ".png\" style=\"width:" +
             std::to_string(width) + "px; vertical-align: middle;\">";
     }
 

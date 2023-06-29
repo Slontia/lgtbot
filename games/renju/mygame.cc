@@ -187,7 +187,7 @@ class MainStage : public MainGameStage<>
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(1, 0 + pid * 2).SetContent(
-                        std::string("![](file://") + option().ResourceDir() + (pid == 0 ? "c_b.bmp)" : "c_w.bmp)"));
+                        std::string("![](file:///") + option().ResourceDir() + (pid == 0 ? "c_b.bmp)" : "c_w.bmp)"));
                 player_table.MergeDown(1, 0 + pid * 2, 2);
                 player_table.Get(1, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
                 if (!GET_OPTION_VALUE(option(), pass胜利)) {

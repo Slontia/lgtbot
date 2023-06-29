@@ -209,7 +209,7 @@ class Board
                            box.cur_type_ == ChessType::WHITE ? "white" :
                            box.cur_type_ == ChessType::CRASH ? "crash" : "none";
         table_box.SetColor(color);
-        table_box.SetContent("![](file://" + image_path_ + "/" + image + ".png)");
+        table_box.SetContent("![](file:///" + image_path_ + "/" + image + ".png)");
     }
 
     constexpr static int32_t k_size_ = 8;

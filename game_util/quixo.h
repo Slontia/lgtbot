@@ -73,7 +73,7 @@ class Board
         table.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
         const auto set_image = [&](const uint32_t row, const uint32_t col, std::string name)
             {
-                table.Get(row, col).SetContent("![](file://" + image_path_ + "/" + std::move(name) + ".png)");
+                table.Get(row, col).SetContent("![](file:///" + image_path_ + "/" + std::move(name) + ".png)");
             };
         for (uint32_t i = 0; i < 5; ++i) {
             set_image(0, 1 + i, "num_" + std::to_string(0 + i));

@@ -263,7 +263,7 @@ class Comb
     static constexpr uint32_t k_max_row = k_size * 4 + 2;
     static constexpr uint32_t k_max_column = k_size * 2 + 1;
 
-    std::string Image_(std::string name) { return "![](file://" + image_path_ + std::move(name) + ".png)"; }
+    std::string Image_(std::string name) { return "![](file:///" + image_path_ + std::move(name) + ".png)"; }
 
     template <Direct direct>
     FillResult CheckOneDirect_(const Coordinate coordinate)

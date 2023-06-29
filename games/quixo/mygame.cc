@@ -139,7 +139,7 @@ class MainStage : public MainGameStage<>
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(0, 0 + pid * 2).SetContent(
-                        std::string("![](file://") + option().ResourceDir() +
+                        std::string("![](file:///") + option().ResourceDir() +
                         (pid == cur_pid() ? std::string("box_") + static_cast<char>(cur_type()) : "empty") +
                         ".png)");
                 player_table.Get(0, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");

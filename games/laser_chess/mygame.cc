@@ -199,7 +199,7 @@ class MainStage : public MainGameStage<>
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(0, 0 + pid * 2).SetContent(
-                        std::string("![](file://") + option().ResourceDir() + std::string("king_") + bool_to_rb(pid) + ".png)");
+                        std::string("![](file:///") + option().ResourceDir() + std::string("king_") + bool_to_rb(pid) + ".png)");
                 player_table.Get(0, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
                 player_table.Get(1, 1 + pid * 2).SetContent("棋子数量： " HTML_COLOR_FONT_HEADER(blue) + std::to_string(board_.ChessCount(pid)) + HTML_FONT_TAIL);
             };
