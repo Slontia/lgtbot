@@ -30,7 +30,7 @@ template <typename... SubStages> using MainGameStage = GameStage<void, SubStages
 
 const std::string k_game_name = "群雄象棋";
 const uint64_t k_max_player = 6; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+const uint64_t k_multiple = 2;
 const std::string k_developer = "森高";
 const std::string k_description = "多个帝国共同参与，定时重组棋盘的象棋游戏";
 
