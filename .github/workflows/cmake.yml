@@ -35,7 +35,7 @@ jobs:
        CXX:  g++-10
 
     - name: Build
-      run: cmake --build build --config ${{env.BUILD_TYPE}} -j5
+      run: cmake --build build --config ${{env.BUILD_TYPE}} -j15
       shell: bash
       env:
        CC:   gcc-10
@@ -75,7 +75,7 @@ jobs:
 
     - name: Build
       working-directory: build
-      run: mingw32-make -j5
+      run: mingw32-make -j15
 
     - name: Test
       working-directory: build

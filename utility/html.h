@@ -8,6 +8,7 @@
 #include <vector>
 #include <stdexcept>
 #include <cassert>
+#include <cstdint>
 
 #define HTML_COLOR_FONT_HEADER(color) "<font color=" #color ">"
 #define HTML_SIZE_FONT_HEADER(size) "<font size=\"" #size "\">"

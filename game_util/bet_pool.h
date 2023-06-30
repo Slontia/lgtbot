@@ -12,6 +12,7 @@
 #include <iostream>
 #include <optional>
 #include <span>
+#include <cstdint>
 
 namespace lgtbot {
 
