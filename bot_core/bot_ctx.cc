@@ -160,6 +160,15 @@ static std::variant<nlohmann::json, const char*> LoadConfig(const char* const co
     if (!conf_path) {
         return nlohmann::json{};
     }
+    if (!std::filesystem::exists(conf_path)) {
+        std::ofstream file(conf_path); // create file if not exists
+        if (!file) {
+            ErrorLog() << "LoadConfig create config file failed, reason: '" << std::strerror(errno) << "', conf_path: '"
+                    << conf_path << "'";
+            return "LoadConfig: create configuration file failed";
+        }
+        file << "{}";
+    }
     std::ifstream f(conf_path);
     if (!f) {
         ErrorLog() << "LoadConfig open config file failed, reason: '" << std::strerror(errno) << "', conf_path: '"
@@ -170,9 +179,9 @@ static std::variant<nlohmann::json, const char*> LoadConfig(const char* const co
     nlohmann::json j;
     try {
         f >> j;
-    } catch (...) {
-        ErrorLog() << "LoadConfig parse config file failed conf_path: '" << conf_path << "'";
-        return false;
+    } catch (const std::exception& e) {
+        ErrorLog() << "LoadConfig parse config file failed, conf_path: \"" << conf_path << "\", errmsg: " << "\"" << e.what() << "\"";
+        return "LoadConfig: parse configuration file failed";
     }
     for (const auto& [option_name, value] : j["bot"]["options"].items()) {
         MsgReader msg_reader(value.get<std::string>());
@@ -303,24 +312,39 @@ static void UpdateConfig_(nlohmann::json& json, const std::string& option_name, 
 
 bool BotCtx::UpdateBotConfig(const std::string& option_name, const std::vector<std::string>& option_args)
 {
-    auto locked_config_json = config_json_.Lock();
-    UpdateConfig_(locked_config_json.Get()["bot"]["options"], option_name, option_args);
-    return SaveConfig_(locked_config_json.Get(), conf_path_);
+    try {
+        auto locked_config_json = config_json_.Lock();
+        UpdateConfig_(locked_config_json.Get()["bot"]["options"], option_name, option_args);
+        return SaveConfig_(locked_config_json.Get(), conf_path_);
+    } catch (const std::exception& e) {
+        ErrorLog() << "UpdateBotConfig failed: " << e.what();
+        return false;
+    }
 }
 
 bool BotCtx::UpdateGameConfig(const std::string& game_name, const std::string& option_name,
         const std::vector<std::string>& option_args)
 {
-    auto locked_config_json = config_json_.Lock();
-    UpdateConfig_(locked_config_json.Get()["games"][game_name]["options"], option_name, option_args);
-    return SaveConfig_(locked_config_json.Get(), conf_path_);
+    try {
+        auto locked_config_json = config_json_.Lock();
+        UpdateConfig_(locked_config_json.Get()["games"][game_name]["options"], option_name, option_args);
+        return SaveConfig_(locked_config_json.Get(), conf_path_);
+    } catch (const std::exception& e) {
+        ErrorLog() << "UpdateGameConfig failed: " << e.what();
+        return false;
+    }
 }
 
 bool BotCtx::UpdateGameMultiple(const std::string& game_name, const uint32_t multiple)
 {
-    auto locked_config_json = config_json_.Lock();
-    locked_config_json.Get()["games"][game_name]["multiple"] = multiple;
-    return SaveConfig_(locked_config_json.Get(), conf_path_);
+    try {
+        auto locked_config_json = config_json_.Lock();
+        locked_config_json.Get()["games"][game_name]["multiple"] = multiple;
+        return SaveConfig_(locked_config_json.Get(), conf_path_);
+    } catch (const std::exception& e) {
+        ErrorLog() << "UpdateGameMultiple failed: " << e.what();
+        return false;
+    }
 }
 
 std::string BotCtx::GetUserAvatar(const char* const user_id, const int32_t size) const
