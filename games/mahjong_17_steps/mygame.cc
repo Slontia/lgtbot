@@ -143,6 +143,7 @@ class PrepareStage : public SubGameStage<>
     {
         StartTimer(GET_OPTION_VALUE(option(), 配牌时限));
         Boardcast() << "请私信裁判进行配牌，时限 " << GET_OPTION_VALUE(option(), 配牌时限) << " 秒";
+        SaveMarkdown(game_table_.SpecHtml());
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             Tell(pid) << Markdown(game_table_.PrepareHtml(pid));
             Tell(pid) << "请配牌，您可通过「帮助」命令查看命令格式";
@@ -267,6 +268,7 @@ class KiriStage : public SubGameStage<>
     void SendInfo_()
     {
         Group() << Markdown(game_table_.PublicHtml());
+        SaveMarkdown(game_table_.SpecHtml());
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             Tell(pid) << Markdown(game_table_.KiriHtml(pid));
         }

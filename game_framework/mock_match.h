@@ -16,7 +16,6 @@ class MockMsgSender : public MsgSenderBase
     MockMsgSender(std::filesystem::path image_dir)
         : image_dir_(std::move(image_dir))
         , is_public_(true)
-        , image_no_(0)
     {
     }
 
@@ -24,7 +23,6 @@ class MockMsgSender : public MsgSenderBase
         : image_dir_(std::move(image_dir))
         , pid_(pid)
         , is_public_(is_public)
-        , image_no_(0)
     {
     }
 
@@ -90,11 +88,11 @@ class MockMsgSender : public MsgSenderBase
     virtual void SetMatch(const Match* const) override {}
 
   private:
+    static inline std::atomic<uint64_t> image_no_ = 0;
     const std::filesystem::path image_dir_;
     const std::optional<PlayerID> pid_;
     const bool is_public_;
     std::stringstream ss_;
-    uint64_t image_no_;
 };
 
 class MockMatch : public MatchBase
@@ -111,7 +109,11 @@ class MockMatch : public MatchBase
 
     virtual MsgSenderBase& TellMsgSender(const PlayerID pid) override
     {
-        return tell_senders_.try_emplace(pid, MockMsgSender(image_dir_, pid, false)).first->second;
+        auto it = tell_senders_.find(pid);
+        if (it == tell_senders_.end()) {
+            it = tell_senders_.try_emplace(pid, image_dir_, pid, false).first;
+        }
+        return it->second;
     }
 
     virtual MockMsgSender& GroupMsgSender() override { return boardcast_sender_; }

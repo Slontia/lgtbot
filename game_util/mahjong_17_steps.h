@@ -361,7 +361,7 @@ class Mahjong17Steps
         s += "<br />\n\n" + RiverHtml_(pid) + "\n\n";
         for (uint32_t other_pid = 0; other_pid < option_.player_descs_.size(); ++other_pid) {
             if (pid != other_pid) {
-                s += PlayerHtml_(other_pid) + "\n\n";
+                s += PlayerHtml_(other_pid, false) + "\n\n";
             }
         }
 
@@ -371,9 +371,19 @@ class Mahjong17Steps
     // Step state
     std::string PublicHtml() const
     {
-        std::string s = TitleHtml_() + "\n\n";
+        std::string s = TitleHtml_() + "\n\n" + DoraHtml_(false) + "\n\n";
         for (uint64_t pid = 0; pid < option_.player_descs_.size(); ++pid) {
-            s += PlayerHtml_(pid) + "\n\n";
+            s += PlayerHtml_(pid, false) + "\n\n";
+        }
+        return s + StyleHtml_();
+    }
+
+    // Step state
+    std::string SpecHtml() const
+    {
+        std::string s = TitleHtml_() + "\n\n" + DoraHtml_(false) + "\n\n";
+        for (uint64_t pid = 0; pid < option_.player_descs_.size(); ++pid) {
+            s += PlayerHtml_(pid, true) + "\n\n";
         }
         return s + StyleHtml_();
     }
@@ -444,7 +454,7 @@ class Mahjong17Steps
         return true;
     }
 
-    std::string PlayerHtml_(const uint64_t pid) const
+    std::string PlayerHtml_(const uint64_t pid, const bool show_all_info) const
     {
         std::string s;
         s += PlayerNameHtml_(pid) + "\n\n";
@@ -454,10 +464,15 @@ class Mahjong17Steps
             s += DoraHtml_(true) + "\n\n" + HandHtmlAll_(pid, TileStyle::FORWARD) + "\n\n" + RonInfoHtml_(pid) + "\n\n<br />\n\n";
         } else if (is_flow_) {
             s += HandHtmlAll_(pid, TileStyle::FORWARD) + "\n\n<br />\n\n";
+        } else if (show_all_info) {
+            s += HandHtmlAll_(pid, TileStyle::SMALL_HAND) + "\n\n<br />\n\n";
         } else {
             s += HandHtmlBack_(pid) + "\n\n<br />\n\n";
         }
         s += RiverHtml_(pid);
+        if (show_all_info) {
+            s += "\n\n" + YamaHtmlForSpec_(pid);
+        }
         return s;
     }
 
@@ -682,6 +697,20 @@ class Mahjong17Steps
         for (const auto& tile : player.yama_) {
             table.Get(i / k_col_size * 2, i % k_col_size).SetContent(tile.to_simple_string());
             table.Get(i / k_col_size * 2 + 1, i % k_col_size).SetContent(Image_(tile, TileStyle::HAND));
+            ++i;
+        }
+        return "<center>\n\n **剩余牌山** </center>\n\n" + table.ToString();
+    }
+
+    std::string YamaHtmlForSpec_(const uint64_t pid) const
+    {
+        static constexpr const uint32_t k_col_size = 13;
+        const Player& player = players_[pid];
+        html::Table table((k_yama_tile_num_ + k_col_size - 1) / k_col_size, std::min(static_cast<size_t>(k_col_size), player.yama_.size()));
+        table.SetTableStyle(" align=\"center\" cellpadding=\"3\" cellspacing=\"0\" ");
+        uint32_t i = 0;
+        for (const auto& tile : player.yama_) {
+            table.Get(i / k_col_size, i % k_col_size).SetContent(Image_(tile, TileStyle::SMALL_HAND));
             ++i;
         }
         return "<center>\n\n **剩余牌山** </center>\n\n" + table.ToString();
