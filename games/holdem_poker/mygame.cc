@@ -856,6 +856,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             NoAction(main_stage().GetPlayerChipInfo(pid));
         }
+        RefreshWinPossibility_();
         html_ = Html_(nullptr, false, false);
         sender << Markdown(html_, k_markdown_width);
         SaveMarkdown(Html_(nullptr, true, false), k_markdown_width);
