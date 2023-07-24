@@ -135,7 +135,8 @@ class PrepareStage : public SubGameStage<>
                     MakeStageCommand("将手牌放回牌山", &PrepareStage::Remove_,
                         VoidChecker("移除"), AnyArg("要移除的牌（无空格）", "1p44m")),
                     MakeStageCommand("完成配牌，宣布立直", &PrepareStage::Finish_, VoidChecker("立直")),
-                    MakeStageCommand("查看当前手牌配置情况", &PrepareStage::Info_, VoidChecker("赛况")))
+                    MakeStageCommand("查看当前手牌配置情况", &PrepareStage::Info_, VoidChecker("赛况"),
+                        OptionalDefaultChecker<BoolChecker>(true, "图片", "文字")))
             , game_table_(game_table)
     {}
 
@@ -201,13 +202,17 @@ class PrepareStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool show_image)
     {
         if (is_public) {
             reply() << "请私信裁判查看手牌和牌山情况";
             return StageErrCode::FAILED;
         }
-        reply() << Markdown(game_table_.PrepareHtml(pid));
+        if (show_image) {
+            reply() << Markdown(game_table_.PrepareHtml(pid));
+        } else {
+            reply() << game_table_.PrepareString(pid);
+        }
         return StageErrCode::OK;
     }
 
@@ -219,7 +224,8 @@ class KiriStage : public SubGameStage<>
    public:
     KiriStage(MainStage& main_stage, Mahjong17Steps& game_table)
             : GameStage(main_stage, "切牌阶段",
-                    MakeStageCommand("查看各个玩家舍牌情况", &KiriStage::Info_, VoidChecker("赛况")),
+                    MakeStageCommand("查看各个玩家舍牌情况", &KiriStage::Info_, VoidChecker("赛况"),
+                        OptionalDefaultChecker<BoolChecker>(true, "图片", "文字")),
                     MakeStageCommand("从牌山中切出该牌", &KiriStage::Kiri_, AnyArg("舍牌", "2s")))
             , game_table_(game_table)
     {}
@@ -255,12 +261,16 @@ class KiriStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool show_image)
     {
-        if (is_public) {
+        if (is_public && show_image) {
             reply() << Markdown(game_table_.PublicHtml());
-        } else {
+        } else if (!is_public && show_image) {
             reply() << Markdown(game_table_.KiriHtml(pid));
+        } else if (is_public && !show_image) {
+            reply() << game_table_.PublicString();
+        } else {
+            reply() << game_table_.KiriString(pid);
         }
         return StageErrCode::OK;
     }

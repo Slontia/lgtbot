@@ -332,6 +332,31 @@ class Mahjong17Steps
         return s + StyleHtml_();
     }
 
+    std::string PrepareString(const uint64_t pid) const
+    {
+        const Player& player = players_[pid];
+        std::string s = TitleString_() + "\n" + DoraString_() + "\n\n" + PlayerNameString_(pid) + "\n" + HandStringPrepare_(pid);
+        if (player.hand_.size() != k_hand_tile_num_) {
+            // no nothing
+        } else if (player.listen_tiles_.empty()) {
+            s += "\n   - 未构成听牌牌型";
+        } else {
+            for (auto [basetile, counter] : player.listen_tiles_) {
+                counter = UpdateCounterResult_(counter, false, RonOccu::NORMAL, false);
+                s += "\n   - 听 ";
+                s += Tile{basetile, 0}.to_simple_string();
+                s += "：";
+                s += std::to_string(counter.score1);
+                s += " 点";
+                if (counter.score1 < option_.ron_required_point_) {
+                    s += "（无法和牌）";
+                }
+            }
+        }
+        s += "\n" + YamaString_(pid);
+        return s;
+    }
+
     enum class TileStyle { HAND = '0', FORWARD = '1', LEFT = '2', SMALL_HAND = '3' };
 
     // Step state
@@ -368,6 +393,18 @@ class Mahjong17Steps
         return s + StyleHtml_();
     }
 
+    std::string KiriString(const uint64_t pid)
+    {
+        std::string s = TitleString_() + "\n" + DoraString_() + "\n\n" + PlayerNameString_(pid) + "\n" + HandStringAll_(pid) +
+            "\n" + YamaString_(pid) + "\n" + RiverString_(pid);
+        for (uint32_t other_pid = 0; other_pid < option_.player_descs_.size(); ++other_pid) {
+            if (pid != other_pid) {
+                s +=  "\n\n" + PlayerString_(other_pid);
+            }
+        }
+        return s;
+    }
+
     // Step state
     std::string PublicHtml() const
     {
@@ -376,6 +413,16 @@ class Mahjong17Steps
             s += PlayerHtml_(pid, false) + "\n\n";
         }
         return s + StyleHtml_();
+    }
+
+    // Step state
+    std::string PublicString() const
+    {
+        std::string s = TitleString_() + "\n" + DoraString_();
+        for (uint64_t pid = 0; pid < option_.player_descs_.size(); ++pid) {
+            s += "\n\n" + PlayerString_(pid);
+        }
+        return s;
     }
 
     // Step state
@@ -476,10 +523,20 @@ class Mahjong17Steps
         return s;
     }
 
+    std::string PlayerString_(const uint64_t pid) const
+    {
+        return PlayerNameString_(pid) + "\n" + HandStringBack_(pid) + "\n" + RiverString_(pid);
+    }
+
     std::string TitleHtml_() const
     {
         return "<center><font size=\"7\">" + option_.name_ + "</font></center> \n\n " +
             "<center><font size=\"6\"> 第 " + std::to_string(round_) + " 巡 </font></center>";
+    }
+
+    std::string TitleString_() const
+    {
+        return option_.name_ + " - 第 " + std::to_string(round_) + " 巡";
     }
 
     std::string RiverHtml_(const uint64_t pid) const
@@ -501,6 +558,19 @@ class Mahjong17Steps
         }
         table.Get(0, 0).SetContent(s);
         return table.ToString();
+    }
+
+    std::string RiverString_(const uint64_t pid) const
+    {
+        std::string s = "- 舍牌：";
+        const auto& river = players_[pid].river_;
+        for (uint32_t i = 0; i < river.size(); ++i) {
+            s += river[i].to_simple_string() + " ";
+            if (i == 5 || i == 11) {
+                s += "\n";
+            }
+        }
+        return s;
     }
 
     std::string RonInfoHtml_(const uint64_t pid) const
@@ -539,6 +609,12 @@ class Mahjong17Steps
         return s;
     }
 
+    std::string PlayerNameString_(const uint64_t pid) const
+    {
+        return "## " + wind2str(option_.player_descs_[pid].wind_) + "家：" + option_.player_descs_[pid].name_ +
+            "（" + std::to_string(option_.player_descs_[pid].base_point_) + "）";
+    }
+
     std::string DoraHtml_(const bool show_inner_dora) const
     {
         const std::string head_str = "<center>\n\n" + BackImage_(TileStyle::FORWARD) + BackImage_(TileStyle::FORWARD);
@@ -560,6 +636,16 @@ class Mahjong17Steps
         return final_str;
     }
 
+    std::string DoraString_() const
+    {
+        std::string s = "宝牌指示牌：";
+        for (const auto& [dora, inner_dora] : doras_) {
+            s += dora.to_simple_string();
+            s += ' ';
+        }
+        return s;
+    }
+
     std::string HandHtmlPrepare_(const uint64_t pid) const
     {
         const Player& player = players_[pid];
@@ -579,6 +665,16 @@ class Mahjong17Steps
         return str;
     }
 
+    std::string HandStringPrepare_(const uint64_t pid) const
+    {
+        std::string s = "- 手牌 (" + std::to_string(players_[pid].hand_.size()) + " / 13)：";
+        for (const auto& tile : players_[pid].hand_) {
+            s += tile.to_simple_string();
+            s += ' ';
+        }
+        return s;
+    }
+
     std::string HandHtmlAll_(const uint64_t pid, const TileStyle style) const
     {
         const Player& player = players_[pid];
@@ -592,6 +688,16 @@ class Mahjong17Steps
         }
         str += table.ToString();
         return str;
+    }
+
+    std::string HandStringAll_(const uint64_t pid) const
+    {
+        std::string s = "- 手牌：";
+        for (const auto& tile : players_[pid].hand_) {
+            s += tile.to_simple_string();
+            s += ' ';
+        }
+        return s;
     }
 
     std::string HandHtmlBack_(const uint64_t pid) const
@@ -612,6 +718,18 @@ class Mahjong17Steps
         }
         str += table.ToString();
         return str;
+    }
+
+    std::string HandStringBack_(const uint64_t pid) const
+    {
+        std::string s = "- 透明手牌：";
+        for (const auto& tile : players_[pid].hand_) {
+            if (tile.toumei) {
+                s += tile.to_simple_string();
+                s += ' ';
+            }
+        }
+        return s;
     }
 
     enum class RonOccu { NORMAL, ROUND_1, ROUND_17 };
@@ -700,6 +818,16 @@ class Mahjong17Steps
             ++i;
         }
         return "<center>\n\n **剩余牌山** </center>\n\n" + table.ToString();
+    }
+
+    std::string YamaString_(const uint64_t pid) const
+    {
+        std::string s = "- 剩余牌山：";
+        for (const auto& tile : players_[pid].yama_) {
+            s += tile.to_simple_string();
+            s += ' ';
+        }
+        return s;
     }
 
     std::string YamaHtmlForSpec_(const uint64_t pid) const
