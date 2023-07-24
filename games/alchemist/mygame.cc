@@ -140,8 +140,6 @@ class MainStage : public MainGameStage<RoundStage>
             }
         }
 
-        // TODO: handle fushu is zero
-
         std::uniform_int_distribution<uint32_t> distrib(0, game_util::alchemist::Board::k_size - 1);
         const auto set_stone = [this](const uint32_t row, const uint32_t col)
             {
@@ -212,7 +210,7 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "本回合卡片如下，请公屏或私信裁判设置坐标：";
+        Boardcast() << "本回合卡片为 " << ImageName() << "，请公屏或私信裁判设置坐标：";
         SendInfo(BoardcastMsgSender());
         StartTimer(GET_OPTION_VALUE(option(), 局时));
     }
@@ -305,10 +303,15 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
+    std::string ImageName() const
+    {
+        return card_.has_value() ? card_->ImageName() : "erase";
+    }
+
     void SendInfo(MsgSenderBase& sender)
     {
         sender() << Markdown(board_html_);
-        sender() << Image(std::string(option().ResourceDir() + (card_.has_value() ? card_->ImageName() : "erase")) + ".png");
+        sender() << Image(std::string(option().ResourceDir() + ImageName()) + ".png");
     }
 
     const std::optional<game_util::alchemist::Card> card_;

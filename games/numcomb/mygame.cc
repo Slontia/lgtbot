@@ -156,7 +156,7 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "本回合砖块如下，请公屏或私信裁判设置数字：";
+        Boardcast() << "本回合砖块为 " << card_.ImageName() << "，请公屏或私信裁判设置数字：";
         SendInfo(BoardcastMsgSender());
         StartTimer(GET_OPTION_VALUE(option(), 局时));
     }
