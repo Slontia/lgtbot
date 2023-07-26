@@ -64,7 +64,8 @@ class MainStage : public MainGameStage<RoundStage>
 {
   public:
     MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match, MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
+        : GameStage(option, match, MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况"),
+            OptionalDefaultChecker<BoolChecker>(true, "图片", "文字")))
         , round_(0)
         , player_scores_(option.PlayerNum(), 0)
     {
@@ -88,7 +89,7 @@ class MainStage : public MainGameStage<RoundStage>
 //---------------------------------------------------------------------------//
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply){
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool show_image){
 
          string s = "";
          s += "乌合之众: \n第" + str(round_) + " / " + str(GET_OPTION_VALUE(option(), 回合数)) + " 回合\n\n";
@@ -99,9 +100,13 @@ class MainStage : public MainGameStage<RoundStage>
          s += "出题者：" + (question -> author) + "\n";
          s += "题目：" + (question -> title) + "\n";
          Boardcast() << s;
-         Boardcast() << Markdown(question -> Markdown());
 
-
+         if (show_image) {
+            Boardcast() << Markdown(question -> Markdown());
+         } else {
+            Boardcast() << question -> String();
+         }
+         
         return StageErrCode::OK;
     }
 
