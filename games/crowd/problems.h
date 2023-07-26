@@ -207,6 +207,28 @@ public:
 	
 	    return md;
 	}
+	
+	string String(){
+		string str = "";
+		for(auto text:texts)
+		{
+		    str += "　";
+		    str += text;
+			str += "\n";
+		}
+		str += "\n";
+		int count = 0;
+		for(auto option:options)
+		{
+		    str += (char)(count + 'A');
+			str += ": ";
+		    count++;
+		    str += option;
+			str += "\n";
+		}
+		return str;
+	}
+	
 };
 
 class QE : public Question

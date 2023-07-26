@@ -210,7 +210,7 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "本回合卡片为 " << ImageName() << "，请公屏或私信裁判设置坐标：";
+        Boardcast() << "本回合卡片为 " << (card_.has_value() ? card_->String() : "骷髅") << "，请公屏或私信裁判设置坐标：";
         SendInfo(BoardcastMsgSender());
         StartTimer(GET_OPTION_VALUE(option(), 局时));
     }

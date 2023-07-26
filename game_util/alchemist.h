@@ -37,6 +37,28 @@ class Card
         return std::string("card_") + static_cast<char>(color_) + static_cast<char>(point_);
     }
 
+    std::string String() const
+    {
+        std::string str = "";
+        switch(color_){
+            case lgtbot::game_util::alchemist::Color::RED: str += "红";break;
+            case lgtbot::game_util::alchemist::Color::ORANGE: str += "橙";break;
+            case lgtbot::game_util::alchemist::Color::YELLOW: str += "黄";break;
+            case lgtbot::game_util::alchemist::Color::BLUE: str += "蓝";break;
+            case lgtbot::game_util::alchemist::Color::GREY: str += "灰";break;
+            case lgtbot::game_util::alchemist::Color::PURPLE: str += "紫";break;
+        }
+        switch(point_){
+            case lgtbot::game_util::alchemist::Point::ONE: str += "1";break;
+            case lgtbot::game_util::alchemist::Point::TWO: str += "2";break;
+            case lgtbot::game_util::alchemist::Point::THREE: str += "3";break;
+            case lgtbot::game_util::alchemist::Point::FOUR: str += "4";break;
+            case lgtbot::game_util::alchemist::Point::FIVE: str += "5";break;
+            case lgtbot::game_util::alchemist::Point::SIX: str += "6";break;
+        }
+        return str;
+    }
+
   private:
     Color color_;
     Point point_;
