@@ -1247,12 +1247,10 @@ class MainStage : public MainGameStage<>
         case 8: return make_roles(std::initializer_list<std::initializer_list<Occupation>>{
                     {Occupation::杀手, Occupation::替身, Occupation::刺客, Occupation::侦探, Occupation::圣女, Occupation::守卫, Occupation::平民, Occupation::平民, Occupation::人偶},
                     {Occupation::杀手, Occupation::替身, Occupation::恶灵, Occupation::侦探, Occupation::圣女, Occupation::灵媒, Occupation::平民, Occupation::平民},
-                    {Occupation::杀手, Occupation::替身, Occupation::双子（邪）, Occupation::侦探, Occupation::圣女, Occupation::双子（正）, Occupation::平民, Occupation::平民}
                 });
         case 9: return make_roles(std::initializer_list<std::initializer_list<Occupation>>{
                     {Occupation::杀手, Occupation::替身, Occupation::刺客, Occupation::侦探, Occupation::圣女, Occupation::守卫, Occupation::平民, Occupation::平民, Occupation::内奸},
                     {Occupation::杀手, Occupation::替身, Occupation::恶灵, Occupation::侦探, Occupation::圣女, Occupation::灵媒, Occupation::平民, Occupation::平民, Occupation::内奸},
-                    {Occupation::杀手, Occupation::替身, Occupation::双子（邪）, Occupation::侦探, Occupation::圣女, Occupation::双子（正）, Occupation::平民, Occupation::平民, Occupation::内奸}
                 });
         default:
             assert(false);
