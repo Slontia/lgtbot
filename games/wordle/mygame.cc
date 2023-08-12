@@ -148,7 +148,7 @@ class MainStage : public MainGameStage<RoundStage>
      */
 
     // All words
-    set<string> wordList[10];
+    set<string> wordList[15];
 
     // check if game ends.
     bool gameEnd;
@@ -250,6 +250,39 @@ class RoundStage : public SubGameStage<>
 
         for(int i = 0; i < l; i++) s += ' ';
 
+        if(l == 2)
+        {
+            if(r == 1) s = "nm";
+            if(r == 2) s = "as";
+            if(r == 3) s = "er";
+            if(r == 4) s = "ok";
+            if(r == 5) s = "th";
+            if(r == 6) s = "li";
+            if(r == 7) s = "fg";
+            if(r == 8) s = "wy";
+            if(r == 9) s = "pu";
+            if(r == 10) s = a;
+        }
+        if(l == 3)
+        {
+            if(r == 1) s = "one";
+            if(r == 2) s = "car";
+            if(r == 3) s = "bug";
+            if(r == 4) s = "mod";
+            if(r == 5) s = "tax";
+            if(r == 6) s = "why";
+            if(r == 7) s = "zip";
+            if(r == 8) s = a;
+        }
+        if(l == 4)
+        {
+            if(r == 1) s = "dust";
+            if(r == 2) s = "grow";
+            if(r == 3) s = "evil";
+            if(r == 4) s = "back";
+            if(r == 5) s = "hymn";
+            if(r == 6) s = a;
+        }
         if(l == 5)
         {
             if(r == 1) s = "crane";
@@ -283,6 +316,39 @@ class RoundStage : public SubGameStage<>
             if(r == 5) s = "waymarks";
             if(r == 6) s = "jarovize";
             if(r == 7) s = a;
+        }
+        if(l == 9)
+        {
+            if(r == 1) s = "excellent";
+            if(r == 2) s = "colourful";
+            if(r == 3) s = "abolished";
+            if(r == 4) s = "overtrump";
+            if(r == 5) s = "quickwork";
+            if(r == 6) s = "jargonize";
+            if(r == 7) s = "keybutton";
+            if(r == 8) s = a;
+        }
+        if(l == 10)
+        {
+            if(r == 1) s = "philosophy";
+            if(r == 2) s = "adjudgment";
+            if(r == 3) s = "workaholic";
+            if(r == 4) s = "verifiable";
+            if(r == 5) s = "equestrian";
+            if(r == 6) s = "execration";
+            if(r == 7) s = "zoological";
+            if(r == 8) s = a;
+        }
+        if(l == 11)
+        {
+            if(r == 1) s = "abstraction";
+            if(r == 2) s = "dependingly";
+            if(r == 3) s = "chairmaking";
+            if(r == 4) s = "injunctions";
+            if(r == 5) s = "quoteworthy";
+            if(r == 6) s = "effectively";
+            if(r == 7) s = "externalize";
+            if(r == 8) s = a;
         }
 
 
@@ -570,13 +636,26 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     }
 
     int hard = GET_OPTION_VALUE(option(), 高难);
+    int mode = GET_OPTION_VALUE(option(), 随机);
     if(hard == 1)
     {
         fclose(fp);
         fp = fopen((string(option().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
         if(fp == NULL)
         {
-            Boardcast() << "[错误] 单词列表不存在。(GH)";
+            Boardcast() << "[错误] 单词列表不存在。(G)";
+            gameEnd = 1;
+            return make_unique<RoundStage>(*this, ++round_);
+        }
+    }
+
+    if(hard == 2)
+    {
+        fclose(fp);
+        fp = fopen((string(option().ResourceDir())+("wordsHard.txt")).c_str(),"r");
+        if(fp == NULL)
+        {
+            Boardcast() << "[错误] 单词列表不存在。(H)";
             gameEnd = 1;
             return make_unique<RoundStage>(*this, ++round_);
         }
@@ -588,7 +667,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
         string addS = "";
         int len = strlen(word);
 
-        if(len < 5 || len > 8) continue;
+        if(len < 2 || len > 11) continue;
 
         for(int i = 0; i < len; i++)
         {
@@ -607,20 +686,41 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     while(fin != 0 && fin < 100)
     {
 
-        // len : 5 -> 8
-
         wordLength = GET_OPTION_VALUE(option(), 长度);
 
+        if((wordLength >= 2 && wordLength <= 4 || wordLength >= 9 && wordLength <= 11) && hard == 1)
+        {
+            Boardcast() << "[警告] 配置「高难 1」不支持此单词长度，将自动在5-8中随机单词长度";
+            wordLength = 0;
+        }
 
         if(wordLength == 0)
         {
-            int r = rand() % 100;
-            if(r <= -1);
-            else if(r <= 39) wordLength = 5;
-            else if(r <= 56) wordLength = 6;
-            else if(r <= 82) wordLength = 7;
-            else if(r <= 100) wordLength = 8;
+            int r = rand() % 100 + 1;
+            if(hard == 2 || mode == 2)
+            {
+                if(r <= -1);
+                else if(r <= 5) wordLength = 2;
+                else if(r <= 13) wordLength = 3;
+                else if(r <= 25) wordLength = 4;
+                else if(r <= 55) wordLength = 5;
+                else if(r <= 70) wordLength = 6;
+                else if(r <= 80) wordLength = 7;
+                else if(r <= 88) wordLength = 8;
+                else if(r <= 93) wordLength = 9;
+                else if(r <= 97) wordLength = 10;
+                else if(r <= 100) wordLength = 11;
+            }
+            else
+            {
+                if(r <= -1);
+                else if(r <= 40) wordLength = 5;
+                else if(r <= 57) wordLength = 6;
+                else if(r <= 83) wordLength = 7;
+                else if(r <= 100) wordLength = 8;
+            }
         }
+
         // l=length
         int l = wordLength;
 
@@ -693,7 +793,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     // 3. init UI
 
-    UI = "<table style=\"text-align:center\"><tbody>";
+    UI = "<table style=\"text-align:center;margin:0 auto\"><tbody>";
     UI += "<tr>";
     UI += "<td bgcolor=\"#FFFFFF\"><font size=7>　</font></td>";
     for(int i = 0; i < wordLength; i++)
@@ -718,12 +818,26 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     // 5. extend wordlist
     if(hard == 0)
     {
-        fp = fopen((string(option().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
-        if(fp == NULL)
+        if(mode == 1)
         {
-            Boardcast() << "[错误] 单词列表不存在。(G)";
-            gameEnd = 1;
-            return make_unique<RoundStage>(*this, ++round_);
+            fp = fopen((string(option().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
+            if(fp == NULL)
+            {
+                Boardcast() << "[错误] 单词列表不存在。(G)";
+                gameEnd = 1;
+                return make_unique<RoundStage>(*this, ++round_);
+            }
+        }
+
+        if(mode == 2 || (wordLength >= 2 && wordLength <= 4 || wordLength >= 9 && wordLength <= 11))
+        {
+            fp = fopen((string(option().ResourceDir())+("wordsHard.txt")).c_str(),"r");
+            if(fp == NULL)
+            {
+                Boardcast() << "[错误] 单词列表不存在。(H)";
+                gameEnd = 1;
+                return make_unique<RoundStage>(*this, ++round_);
+            }
         }
 
     //    char word[50];
@@ -732,7 +846,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
             string addS = "";
             int len = strlen(word);
 
-            if(len < 4 || len > 8) continue;
+            if(len < 2 || len > 11) continue;
 
             for(int i = 0; i < len; i++)
             {
@@ -748,10 +862,19 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     // 5. Boardcast the game start
     Boardcast() << "本局游戏参与玩家： \n" << PlayerName(0) << "\n" << PlayerName(1);
-    Boardcast() << "本局游戏双方单词长度： " + to_string(wordLength);
+    Boardcast() << "本局游戏双方单词长度： " + to_string(wordLength) + (wordLength <= 4? "\n本局不告知双方单词":"");
 
-    Tell(0) << "你的单词是：" << player_word_[0];
-    Tell(1) << "你的单词是：" << player_word_[1];
+    if(player_word_[0] == "" || player_word_[1] == "")
+    {
+        Boardcast() << "[错误] 获取双方玩家单词失败，游戏将自动结束。";
+        gameEnd = 1;
+        return make_unique<RoundStage>(*this, ++round_);
+    }
+
+    if(wordLength > 4){
+        Tell(0) << "你的单词是：" << player_word_[0];
+        Tell(1) << "你的单词是：" << player_word_[1];
+    }
 
     return make_unique<RoundStage>(*this, ++round_);
 }
@@ -762,7 +885,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 //    Boardcast()<<to_string(round_)<<to_string(player_wins_[0])<<to_string(player_wins_[1]);
 
-    if (round_ < GET_OPTION_VALUE(option(), 回合数) && !gameEnd ) {
+    if (round_ <= GET_OPTION_VALUE(option(), 回合数) && !gameEnd ) {
         return make_unique<RoundStage>(*this, round_);
     }
 
