@@ -15,6 +15,7 @@ DEFINE_uint64(repeat, 1, "Repeat times: if set to 0, will run unlimitedly");
 DEFINE_string(resource_dir, "./resource_dir/", "The path of game image resources");
 DEFINE_bool(gen_image, false, "Whether generate image or not");
 DEFINE_string(image_dir, "./.lgtbot_image/", "The path of directory to store generated images");
+DEFINE_bool(input_options, false, "Input the game options by stdin");
 
 extern bool enable_markdown_to_image;
 
@@ -54,12 +55,21 @@ int Run(const uint64_t index)
 
     RunGameMockMatch match(image_dir, FLAGS_player);
 
-    enable_markdown_to_image = FLAGS_gen_image && !FLAGS_image_dir.empty();
-
     GameOption option;
     option.SetPlayerNum(FLAGS_player);
     option.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").string().c_str());
     option.SetSavedImageDir(image_dir.string().c_str());
+
+    if (FLAGS_input_options) {
+        const auto cin_g = std::cin.tellg();
+        for (std::string line; std::getline(std::cin, line); ) {
+            if (!option.SetOption(line.c_str())) {
+                std::cerr << "Unexpected option: " << line << std::endl;
+                return -1;
+            }
+        }
+        std::cin.seekg(cin_g);
+    }
 
     MockMsgSender sender(image_dir);
     std::unique_ptr<MainStageBase> main_stage(MakeMainStage(sender, option, match));
@@ -108,6 +118,7 @@ int main(int argc, char** argv)
     if (FLAGS_player == 0) {
         FLAGS_player = lgtbot::game::GAME_MODULE_NAME::GameOption().BestPlayerNum();
     }
+    enable_markdown_to_image = FLAGS_gen_image && !FLAGS_image_dir.empty();
 
     for (uint64_t i = 0; i < FLAGS_repeat; ++i) {
         lgtbot::game::GAME_MODULE_NAME::Run(i);
