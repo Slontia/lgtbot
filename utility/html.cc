@@ -28,6 +28,9 @@ std::string Table::ToString() const
             if (!box.color_.empty()) {
                 outstr += " bgcolor=\"" + box.color_ + "\"";
             }
+            if (!box.style_.empty()) {
+                outstr += " " + box.style_;
+            }
             if (box.merge_num_ > 1) {
                 outstr += (box.merge_direct_ == Box::MergeDirect::TO_BOTTOM ? " rowspan=\"" : " colspan=\"");
                 outstr += std::to_string(box.merge_num_) + "\"";

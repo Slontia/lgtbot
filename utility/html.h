@@ -49,6 +49,13 @@ class Box
         return *this;
     }
 
+    template <typename String>
+    Box& SetStyle(String&& str)
+    {
+        style_ = std::forward<String>(str);
+        return *this;
+    }
+
     bool IsVisable() const { return merge_num_ >= 1; }
 
   private:
@@ -56,6 +63,7 @@ class Box
     MergeDirect merge_direct_;
     std::string content_;
     std::string color_;
+    std::string style_;
 };
 
 class Table
