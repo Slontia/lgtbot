@@ -6,9 +6,21 @@ enum class Type : int { ROCK = 0, PAPER = 1, SCISSOR = 2, BLANK = 3 };
 
 struct Card
 {
+    std::weak_ordering operator<=>(const Card& c) const
+    {
+        // ignore `has_star_` because it is unexpected that two cards have the same type and point but different stars.
+        return type_ == c.type_ ? (point_ <=> c.point_) : (type_ <=> c.type_);
+    }
+
+    bool operator==(const Card& c) const
+    {
+        // ignore `has_star_` because it is unexpected that two cards have the same type and point but different stars.
+        return type_ == c.type_ && point_ == c.point_;
+    }
+
     Type type_;
     int point_; // 0 indicate a negative point card
-    auto operator<=>(const Card&) const = default;
+    bool has_star_ = false;
 };
 
 class CardChecker : public MsgArgChecker<Card>
@@ -85,3 +97,5 @@ constexpr const uint32_t k_round_num = 9;
 EXTEND_OPTION("每回合出牌时间", 时限, (ArithChecker<uint32_t>(10, 300, "时间（秒）")), 90)
 EXTEND_OPTION("设置双方的手牌（空表示随机手牌）", 手牌, (OptionalChecker<FixedSizeRepeatableChecker<CardChecker>>(k_round_num)), std::nullopt)
 EXTEND_OPTION("固定左拳为上一回合未打出的牌", 固定左拳, (BoolChecker("开启", "关闭")), true)
+EXTEND_OPTION("带有星星标记的牌", 星卡, (RepeatableChecker<CardChecker>()), (std::vector<Card>{
+        Card{Type::PAPER, 3}, Card{Type::SCISSOR, 6}, Card{Type::ROCK, 9}, Card{Type::BLANK, 5}}))

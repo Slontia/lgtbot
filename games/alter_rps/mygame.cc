@@ -74,8 +74,15 @@ enum class CardState { UNUSED, USED, CHOOSED };
 std::string CardName(const Card& card)
 {
     static CardChecker checker;
-    return checker.ArgString(card);
+    return checker.ArgString(card) + (card.has_star_ ? "（星卡）" : "");
+}
 
+static std::string StarsString(const uint32_t n) {
+    std::string s;
+    for (uint32_t i = 0; i < n; ++i) {
+        s += "★";
+    }
+    return s;
 }
 
 using CardMap = std::map<Card, CardState>;
@@ -83,9 +90,13 @@ using CardMap = std::map<Card, CardState>;
 static CardMap GetCardMap(const GameOption& option)
 {
     CardMap cards;
+    const auto emplace_card = [&](const auto& card) {
+        const auto& king_cards = GET_OPTION_VALUE(option, 星卡);
+        cards.emplace(Card{card.type_, card.point_, std::ranges::find(king_cards, card) != std::end(king_cards)}, CardState::UNUSED);
+    };
     if (GET_OPTION_VALUE(option, 手牌).has_value()) {
         for (const auto& card : *GET_OPTION_VALUE(option, 手牌)) {
-            cards.emplace(card, CardState::UNUSED);
+            emplace_card(card);
         }
         return cards;
     }
@@ -109,7 +120,7 @@ static CardMap GetCardMap(const GameOption& option)
         const auto& card = shuffled_cards[i];
         const auto card_num = ++type_count[static_cast<int>(card.type_)];
         if (card_num <= max_num_each_type) {
-            cards.emplace(card, CardState::UNUSED);
+            emplace_card(card);
         }
         if (card_num == max_num_each_type) {
             --max_num_each_type;
@@ -124,6 +135,7 @@ struct Player
         : cards_(std::move(cards))
         , win_count_(0)
         , score_(0)
+        , stars_(0)
     {}
 
     CardMap cards_;
@@ -132,6 +144,7 @@ struct Player
     CardMap::iterator alter_;
     int win_count_;
     int score_;
+    int stars_;
 };
 
 template <bool INCLUDE_CHOOSED>
@@ -168,9 +181,9 @@ static const char* const k_color_bgs[k_card_type_num] = {
     [static_cast<int>(Type::BLANK)] = "white",
 };
 
-static void SetPointColor(html::Box& box, const int point, const char* const fg_color, const char* const bg_color)
+static void SetPointColor(html::Box& box, const int point, const char* const fg_color, const char* const bg_color, const bool with_star)
 {
-    box.SetContent(std::string("<font color=") + fg_color + ">" + " **" + (point == 0 ? "-" : std::to_string(point)) + "** " HTML_FONT_TAIL);
+    box.SetContent(std::string("<font color=") + fg_color + ">" + " **" + (point == 0 ? "-" : std::to_string(point)) + (with_star ? "★" : "") + "** " HTML_FONT_TAIL);
     box.SetColor(bg_color);
     box.SetStyle(std::string("style=\"border: 2px solid ") + fg_color + ";\"");
 }
@@ -232,27 +245,28 @@ class ThreeRoundTable
         table_.Get(row, col).SetContent(Image_(type2char[static_cast<int>(card.type_)] + std::to_string(with_color)));
 
         if (!with_color) {
-            SetPointColor(table_.Get(row + 1, col), card.point_, k_non_color_fg, k_non_color_bg);
+            SetPointColor(table_.Get(row + 1, col), card.point_, k_non_color_fg, k_non_color_bg, card.has_star_);
         } else {
             SetPointColor(table_.Get(row + 1, col), card.point_, k_color_fgs[static_cast<int>(card.type_)],
-                    k_color_bgs[static_cast<int>(card.type_)]);
+                    k_color_bgs[static_cast<int>(card.type_)], card.has_star_);
         }
     }
 
-    void SetScore(const PlayerID pid, const uint32_t round_idx, const uint32_t old_score, const uint32_t point)
+    void SetScore(const PlayerID pid, const uint32_t round_idx, const int32_t old_score, const int32_t old_stars,
+            const int32_t card_point, const bool card_has_star)
     {
         const uint32_t row = 3 + pid * 2;
         const uint32_t col = round_idx * 3;
         table_.Get(row, col)
-              .SetContent(std::to_string(old_score) + " →" HTML_COLOR_FONT_HEADER(green) " **" +
-                          std::to_string(old_score + point) + "** " + HTML_FONT_TAIL);
+              .SetContent(std::to_string(old_score) + StarsString(old_stars) + " →" HTML_COLOR_FONT_HEADER(green) " **" +
+                          std::to_string(old_score + card_point) + StarsString(old_stars + card_has_star) + "** " + HTML_FONT_TAIL);
     }
 
-    void SetScore(const PlayerID pid, const uint32_t round_idx, const uint32_t score)
+    void SetScore(const PlayerID pid, const uint32_t round_idx, const int32_t score, const int32_t stars)
     {
         const uint32_t row = 3 + pid * 2;
         const uint32_t col = round_idx * 3;
-        table_.Get(row, col).SetContent(" **" + std::to_string(score) + "** ");
+        table_.Get(row, col).SetContent(" **" + std::to_string(score) + StarsString(stars) + "** ");
     }
 
     std::string ToHtml() const { return "<style> .bordered-cell { border: 2px solid black; } </style>" + table_.ToString(); }
@@ -303,23 +317,28 @@ class MainStage : public MainGameStage<RoundStage>
                 sender << "平局！";
                 players_[0].win_count_ = 0;
                 players_[1].win_count_ = 0;
-                tables_[(round_ - 1) / 3].SetScore(0, (round_ - 1) % 3, players_[0].score_);
-                tables_[(round_ - 1) / 3].SetScore(1, (round_ - 1) % 3, players_[1].score_);
+                tables_[(round_ - 1) / 3].SetScore(0, (round_ - 1) % 3, players_[0].score_, players_[0].stars_);
+                tables_[(round_ - 1) / 3].SetScore(1, (round_ - 1) % 3, players_[1].score_, players_[1].stars_);
             } else {
                 const PlayerID winner = ret > 0 ? 0 : 1;
                 const int winner_card_point = players_[winner].alter_->first.point_;
                 const int loser_card_point = players_[1 - winner].alter_->first.point_;
                 const int point = loser_card_point == 0 ? -winner_card_point : loser_card_point;
-                tables_[(round_ - 1) / 3].SetScore(1 - winner, (round_ - 1) % 3, players_[1 - winner].score_);
-                tables_[(round_ - 1) / 3].SetScore(winner, (round_ - 1) % 3, players_[winner].score_, point);
+                const bool has_star = players_[1 - winner].alter_->first.has_star_;
+                tables_[(round_ - 1) / 3].SetScore(1 - winner, (round_ - 1) % 3, players_[1 - winner].score_, players_[1 - winner].stars_);
+                tables_[(round_ - 1) / 3].SetScore(winner, (round_ - 1) % 3, players_[winner].score_, players_[winner].stars_, point, has_star);
                 ++(players_[winner].win_count_);
                 players_[1 - winner].win_count_ = 0;
                 players_[winner].score_ += point;
-                sender << Name(winner) << "胜利，获得" << point << "分";
+                sender << Name(winner) << "胜利，获得 " << point << " 分";
+                if (has_star) {
+                    sender << "和 1 颗星";
+                    players_[winner].stars_++;
+                }
             }
             sender << "\n\n当前分数：\n"
-                << At(PlayerID(0)) << "：" << players_[0].score_ << "\n"
-                << At(PlayerID(1)) << "：" << players_[1].score_;
+                << At(PlayerID(0)) << "：" << players_[0].score_ << StarsString(players_[0].stars_) << "\n"
+                << At(PlayerID(1)) << "：" << players_[1].score_ << StarsString(players_[1].stars_);
         }
     }
 
@@ -348,7 +367,7 @@ class MainStage : public MainGameStage<RoundStage>
             const int type_idx = static_cast<int>(card.type_);
             SetPointColor(table.Get(k_table_header_rows + count, type_idx), card.point_,
                     used ? k_non_color_fg : k_color_fgs[static_cast<int>(card.type_)],
-                    used ? k_non_color_bg : k_color_bgs[type_idx]);
+                    used ? k_non_color_bg : k_color_bgs[type_idx], card.has_star_);
             is_remains[type_idx] |= !used;
             ++count;
         }
@@ -701,6 +720,11 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
     check_win_count(0) || check_win_count(1); // the last card also need check
     ShowInfo();
+
+    if (players_[0].stars_ != players_[1].stars_) {
+        players_[0].score_ = players_[0].stars_;
+        players_[1].score_ = players_[1].stars_;
+    }
     return {};
 }
 

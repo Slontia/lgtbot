@@ -291,6 +291,28 @@ GAME_TEST(2, negative_point_card)
     ASSERT_SCORE(-12, 0);
 }
 
+GAME_TEST(2, player_has_more_star_win)
+{
+    ASSERT_PRI_MSG(OK, 0, "手牌 石头1 剪刀7 布1 石头2 剪刀9 布2 石头4 剪刀10 布4");
+    ASSERT_PRI_MSG(OK, 0, "固定左拳 开启");
+    ASSERT_PRI_MSG(OK, 0, "星卡 布1");
+    START_GAME();
+
+    ONE_STATE("剪刀7", "石头1"); // 0, 7
+    ONE_ROUND_FIXED_LEFT_HAND("剪刀9", "石头2"); // 0, 9
+    ONE_ROUND_FIXED_LEFT_HAND("剪刀10", "剪刀10"); // 0, 10
+
+    ONE_ROUND_FIXED_LEFT_HAND("布2", "布1"); // 1★, 0
+    ONE_ROUND_FIXED_LEFT_HAND("布1", "石头4"); // 4, 0
+
+    ONE_ROUND_FIXED_LEFT_HAND("布4", "剪刀9"); // 0, 4
+    ONE_ROUND_FIXED_LEFT_HAND("石头1", "布2"); // 0, 1
+    ONE_ROUND_FIXED_LEFT_HAND("石头4", "剪刀7"); // 7, 0
+    ONE_ROUND_FIXED_LEFT_HAND("石头2", "布4"); // 0, 2
+
+    ASSERT_SCORE(1, 0);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
