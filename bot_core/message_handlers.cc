@@ -283,24 +283,43 @@ static ErrCode join_public(BotCtx& bot, const UserID uid, const std::optional<Gr
     return EC_OK;
 }
 
-static ErrCode show_private_matches(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                                    MsgSenderBase& reply)
+static ErrCode show_matches(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
-    uint64_t count = 0;
-    auto sender = reply();
     const auto matches = bot.match_manager().Matches();
-    for (const auto& match : matches) {
-        if (match->IsPrivate() && match->state() == Match::State::NOT_STARTED) {
-            ++count;
-            sender << match->game_handle().name_ << " - [房主ID] " << match->host_uid() << " - [比赛ID] "
-                   << match->MatchId() << "\n";
+    const auto show_table = [&](const bool is_private)
+    {
+        html::Table table(1, 6);
+        table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\"");
+        table.Get(0, 0).SetContent("**序号**");
+        table.Get(0, 1).SetContent(is_private ? "**ID**" : "**房间**");
+        table.Get(0, 2).SetContent("**房主**");
+        table.Get(0, 3).SetContent("**游戏**");
+        table.Get(0, 4).SetContent("**人数**");
+        table.Get(0, 5).SetContent("**状态**");
+        for (const auto& match : matches) {
+            const auto gid = match->gid();
+            if (is_private ^ gid.has_value()) {
+                table.AppendRow();
+                table.GetLastRow(0).SetContent(std::to_string(table.Row() - 1));
+                if (gid.has_value()) {
+                    table.GetLastRow(1).SetContent(gid->GetStr());
+                } else {
+                    table.GetLastRow(1).SetContent(std::to_string(match->MatchId()));
+                }
+                const auto uid = match->HostUserId();
+                table.GetLastRow(2).SetContent(bot.GetUserAvatar(uid.GetCStr(), 25) + HTML_ESCAPE_SPACE + bot.GetUserName(uid.GetCStr(), nullptr));
+                table.GetLastRow(3).SetContent(match->game_handle().name_);
+                table.GetLastRow(4).SetContent(std::to_string(match->UserNum()));
+                const auto state = match->state();
+                table.GetLastRow(5).SetContent(
+                        state == Match::NOT_STARTED ? HTML_COLOR_FONT_HEADER(red) "未开始" HTML_FONT_TAIL :
+                        state == Match::IS_STARTED  ? HTML_COLOR_FONT_HEADER(green) "进行中" HTML_FONT_TAIL :
+                                                      HTML_COLOR_FONT_HEADER(blue) "已结束" HTML_FONT_TAIL);
+            }
         }
-    }
-    if (count == 0) {
-        sender << "当前无未开始的私密比赛";
-    } else {
-        sender << "共" << count << "场";
-    }
+        return table.Row() > 1 ? table.ToString() : "当前无比赛";
+    };
+    reply() << Markdown("## 赛事列表\n\n### 公开赛事\n\n" + show_table(true) + "\n\n### 私密赛事\n\n" + show_table(false), 800);
     return EC_OK;
 }
 
@@ -793,7 +812,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
             make_command("查看游戏配置信息（游戏名称可以通过「#游戏列表」查看）", show_game_options, VoidChecker("#配置"),
                         AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("查看已加入，或该房间正在进行的比赛信息", show_match_info, VoidChecker("#游戏信息")),
-            make_command("查看当前所有未开始的私密比赛", show_private_matches, VoidChecker("#私密游戏列表")),
+            make_command("查看比赛列表", show_matches, VoidChecker("#赛事列表")),
             make_command("关于机器人", about, VoidChecker("#关于")),
         }
     },

@@ -97,7 +97,7 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, std::optional<
     }
     bench_to_player_num_ = *bench_to_player_num;
     KickForConfigChange_();
-    sender << "设置成功！\n\n" << BriefInfo();
+    sender << "设置成功！\n\n" << BriefInfo_();
     return EC_OK;
 }
 
@@ -206,7 +206,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         return EC_GAME_REQUEST_NOT_FOUND;
     }
     KickForConfigChange_();
-    reply() << "设置成功！目前配置：" << OptionInfo_() << "\n\n" << BriefInfo();
+    reply() << "设置成功！目前配置：" << OptionInfo_() << "\n\n" << BriefInfo_();
     return EC_GAME_REQUEST_OK;
 }
 
@@ -288,7 +288,7 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
     }
     EmplaceUser_(uid);
-    Boardcast() << "玩家 " << At(uid) << " 加入了游戏\n\n" << BriefInfo();
+    Boardcast() << "玩家 " << At(uid) << " 加入了游戏\n\n" << BriefInfo_();
     return EC_OK;
 }
 
@@ -314,7 +314,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
         match_manager().UnbindMatch(uid);
         users_.erase(uid);
         reply() << "退出成功";
-        Boardcast() << "玩家 " << At(uid) << " 退出了游戏\n\n" << BriefInfo();
+        Boardcast() << "玩家 " << At(uid) << " 退出了游戏\n\n" << BriefInfo_();
         if (users_.empty()) {
             Boardcast() << "所有玩家都退出了游戏，游戏解散";
             Unbind_();
@@ -578,9 +578,9 @@ void Match::ShowInfo(MsgSenderBase& reply) const
     } else {
         sender << game_handle().max_player_;
     }
-    sender << "人\n房主：" << Name(host_uid());
+    sender << "人\n房主：" << Name(host_uid_);
     if (state() == Match::State::IS_STARTED) {
-        const auto num = PlayerNum();
+        const auto num = players_.size();
         sender << "\n玩家列表：" << num << "人";
         for (uint64_t pid = 0; pid < num; ++pid) {
             sender << "\n" << pid << "号：" << Name(PlayerID{pid});
@@ -594,6 +594,12 @@ void Match::ShowInfo(MsgSenderBase& reply) const
 }
 
 std::string Match::BriefInfo() const
+{
+    std::lock_guard l(mutex_);
+    return BriefInfo_();
+}
+
+std::string Match::BriefInfo_() const
 {
     return "游戏名称：" + game_handle().name_ +
         "\n- 倍率：" + std::to_string(multiple_) +
@@ -624,7 +630,7 @@ void Match::OnGameOver_()
     {
         auto sender = Boardcast();
         sender << "游戏结束，公布分数：\n";
-        for (PlayerID pid = 0; pid < PlayerNum(); ++pid) {
+        for (PlayerID pid = 0; pid < players_.size(); ++pid) {
             const auto score = main_stage_->PlayerScore(pid);
             sender << At(pid) << " " << score << "\n";
             const auto id = ConvertPid(pid);

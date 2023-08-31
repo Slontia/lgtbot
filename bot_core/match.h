@@ -93,7 +93,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     bool SwitchHost();
 
     bool IsPrivate() const { return !gid_.has_value(); }
-    auto PlayerNum() const { return players_.size(); }
+    auto UserNum() const { return std::lock_guard(mutex_), users_.size(); }
 
     VariantID ConvertPid(const PlayerID pid) const;
 
@@ -101,11 +101,9 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     const GameHandle& game_handle() const { return game_handle_; }
     std::optional<GroupID> gid() const { return gid_; }
-    UserID host_uid() const { return host_uid_; }
+    UserID HostUserId() const { return std::lock_guard(mutex_), host_uid_; }
     const State state() const { return state_; }
     MatchManager& match_manager() { return bot_.match_manager(); }
-
-    const uint64_t user_controlled_player_num() const { return users_.size() * player_num_each_user_; }
 
     std::string BriefInfo() const;
 
@@ -145,6 +143,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         return logger;
     }
 
+    const uint64_t user_controlled_player_num() const { return users_.size() * player_num_each_user_; }
+    std::string BriefInfo_() const;
     void OnGameOver_();
     void Help_(MsgSenderBase& reply, const bool text_mode);
     void Routine_();
