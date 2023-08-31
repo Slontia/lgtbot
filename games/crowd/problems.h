@@ -107,6 +107,8 @@ public:
 	{
 		vars.clear();
 	} 
+
+    virtual ~Question() {};
 	
 	int id;
 	string author;
@@ -229,6 +231,9 @@ public:
 		return str;
 	}
 	
+    static double MaxPlayerScore(const std::vector<Player>& players) {
+        return std::ranges::max_element(players, [](const Player& p1, const Player& p2) { return p1.score < p2.score; })->score;
+    }
 };
 
 class QE : public Question
@@ -1607,6 +1612,322 @@ public:
 				tempScore[i] = need[i];
 			}
 		}
+	}
+};
+
+class Q35 : public Question
+{
+public:
+	Q35()
+	{
+		id = 35;
+		author = "纤光";
+		title = "选举";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("选择一项。");
+	}
+	virtual void initOptions() override
+	{
+        win_score_ = double(playerNum) / double(2);
+		options.push_back("支持票：平分 " + str(win_score_) + " 分，+1");
+		options.push_back("反对票：反对票不少于支持票时，A 项得分取反，反之 -2");
+		options.push_back("弃权：弃权票为最多之一时，-1");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abc");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+        if (optionCount[2] == maxSelect) {
+            tempScore[2] = -1;
+        }
+        if (optionCount[1] >= optionCount[0]) {
+            tempScore[0] = -win_score_ / double(optionCount[0]);
+        } else {
+            tempScore[0] = win_score_ / double(optionCount[0]);
+            tempScore[1] = -2;
+        }
+	}
+
+private:
+    double win_score_;
+};
+
+class Q36 : public Question
+{
+public:
+	Q36()
+	{
+		id = 36;
+		author = "纤光";
+		title = "种姓制度";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("选择一项。");
+	}
+	virtual void initOptions() override
+	{
+		options.push_back("首陀罗：+0.5");
+		options.push_back("吠舍：如果有人选A，+1");
+		options.push_back("刹帝利：如果选A和B的人数不少于一半，+1.5");
+		options.push_back("婆罗门：如果只有你一人选此项，+2");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abcd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+        tempScore[0] = 0.5;
+        if (optionCount[0] > 0) {
+            tempScore[1] = 1;
+        }
+        if ((optionCount[0] + optionCount[1]) * 2 >= playerNum) {
+            tempScore[2] = 1.5;
+        }
+        if (optionCount[3] == 1) {
+            tempScore[3] = 2;
+        }
+	}
+};
+
+class Q37 : public Question
+{
+public:
+	Q37()
+	{
+		id = 37;
+		author = "纤光";
+		title = "魔镜";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("选择一项。");
+	}
+	virtual void initOptions() override
+	{
+		options.push_back("恰有两人选此项，你们的分数互换");
+		options.push_back("恰有一人选此项，将你的分数取绝对值");
+        options.push_back("恰有一人选此项，在结算完上述两个选项后，分数最高者-2");
+		options.push_back("+0.5");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abcd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+        if (optionCount[0] == 2) {
+            Player* p = nullptr;
+			for (int i = 0; i < playerNum; i++) {
+                if (players[i].select != 0) {
+                    continue;
+                }
+                if (p == nullptr) {
+                    p = &players[i];
+                } else {
+                    std::swap(p->score, players[i].score);
+                }
+            }
+        }
+        if (optionCount[1] == 1) {
+			for (int i = 0; i < playerNum; i++) {
+                if (players[i].select == 1 && players[i].score < 0) {
+                    players[i].score *= -1;
+                }
+            }
+        }
+        if (optionCount[2] == 1) {
+            const double max_score = MaxPlayerScore(players);
+            for (auto& player : players) {
+                if (player.score == max_score) {
+                    player.score -= 2;
+                }
+            }
+        }
+        tempScore[3] = 0.5;
+	}
+};
+
+class Q38 : public Question
+{
+public:
+	Q38()
+	{
+		id = 38;
+		author = "纤光";
+		title = "丘比特之箭";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("选择一项。");
+	}
+	virtual void initOptions() override
+	{
+		options.push_back("恰有两人选此项，+2，否则-1");
+		options.push_back("+0.5，结算完成后，不考虑其他选项的结算，若你是分数最高的人，再-2");
+		options.push_back("若恰有两个选项选择人数相同，+2");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abc");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+        tempScore[0] = optionCount[0] == 2 ? 2 : -1;
+        for (auto& player : players) {
+            if (player.select == 1) {
+                player.score += 0.5;
+            }
+        }
+        const double max_score = MaxPlayerScore(players);
+        for (auto& player : players) {
+            if (player.select == 1 && player.score == max_score) {
+                player.score -= 2;
+            }
+        }
+        if (optionCount[0] == optionCount[1] || optionCount[1] == optionCount[2] || optionCount[0] == optionCount[2]) {
+            tempScore[2] = 2;
+        }
+	}
+};
+
+class Q39 : public Question
+{
+public:
+	Q39()
+	{
+		id = 39;
+		author = "纤光";
+		title = "囚徒困境";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("选择一项。");
+	}
+	virtual void initOptions() override
+	{
+        options.push_back("认罪：-1，但若所有人都认罪，改为分数最高的人分数清零");
+        options.push_back("不认罪：-2，但若所有人都不认罪，改为+2");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("ab");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+        if (optionCount[0] == players.size()) {
+            const double max_score = MaxPlayerScore(players);
+            for (auto& player : players) {
+                if (player.score == max_score) {
+                    player.score = 0;
+                }
+            }
+        } else if (optionCount[1] == players.size()) {
+            for (auto& player : players) {
+                player.score += 2;
+            }
+        } else {
+            tempScore[0] = -1;
+            tempScore[1] = -2;
+        }
+	}
+};
+
+class Q40 : public Question
+{
+public:
+	Q40()
+	{
+		id = 40;
+		author = "纤光";
+		title = "大乐透";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("选择一项。");
+	}
+	virtual void initOptions() override
+	{
+        options.push_back("头奖：当BD没有人选且AC项都有人选时，+4");
+        options.push_back("二等奖：当仅一人选此项时，+2");
+        options.push_back("三等奖：当无人选A 时，+1");
+        options.push_back("安慰奖：+0.5");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abcd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+        if (optionCount[0] > 0 && optionCount[1] == 0 && optionCount[2] > 0 && optionCount[3] == 0) {
+            tempScore[0] = 4;
+        }
+        if (optionCount[1] == 1) {
+            tempScore[1] = 2;
+        }
+        if (optionCount[0] == 0) {
+            tempScore[2] = 1;
+        }
+        tempScore[3] = 0.5;
+	}
+};
+
+class Q41 : public Question
+{
+public:
+	Q41()
+	{
+		id = 41;
+		author = "纤光";
+		title = "狼人杀";
+	}
+	
+	virtual void initTexts() override
+	{
+		texts.push_back("选择一项。");
+	}
+	virtual void initOptions() override
+	{
+        options.push_back("平民：若无人选此项，所有狼人+1");
+        options.push_back("狼人：当狼人最多时，所有狼人+1");
+        options.push_back("预言家：当狼人最多时，+2");
+        options.push_back("女巫：恰有一人选此项，所有狼人-2");
+        options.push_back("猎人：-2，此外恰有一人选此项，本题所有得分取反");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abcde");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+        if (optionCount[0] == 0) {
+            tempScore[1] += 1;
+        }
+        const bool wolf_is_max_count = optionCount[1] == *std::ranges::max_element(optionCount);
+        if (wolf_is_max_count) {
+            tempScore[1] += 1;
+            tempScore[2] = 2;
+        }
+        if (optionCount[3] == 1) {
+            tempScore[1] -= 2;
+        }
+        tempScore[4] = -2;
+        if (optionCount[4] == 1) {
+            for (auto& temp_score : tempScore) {
+                temp_score *= -1;
+            }
+        }
 	}
 };
 

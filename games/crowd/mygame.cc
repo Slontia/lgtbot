@@ -124,6 +124,8 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
+        constexpr static uint32_t k_question_num = 41;
+
         Question *& q = main_stage().question;
 
 
@@ -131,51 +133,60 @@ class RoundStage : public SubGameStage<>
         int count = 0;
         while(r == -1 || main_stage().used.find(r) != main_stage().used.end())
         {
-            r = rand() % 34 + 1;
+            r = rand() % k_question_num;
             if(count++ > 1000) break;
         }
         main_stage().used.insert(r);
 
 
         if(GET_OPTION_VALUE(option(), 测试) != 0)
-            r = GET_OPTION_VALUE(option(), 测试);
-        if(r > 34)
-            r = 1;
+            r = GET_OPTION_VALUE(option(), 测试) - 1;
 
-        if(r == 1) q = new Q1();
-        if(r == 2) q = new Q2();
-        if(r == 3) q = new Q3();
-        if(r == 4) q = new Q4();
-        if(r == 5) q = new Q5();
-        if(r == 6) q = new Q6();
-        if(r == 7) q = new Q7();
-        if(r == 8) q = new Q8();
-        if(r == 9) q = new Q9();
-        if(r == 10) q = new Q10();
-        if(r == 11) q = new Q11();
-        if(r == 12) q = new Q12();
-        if(r == 13) q = new Q13();
-        if(r == 14) q = new Q14();
-        if(r == 15) q = new Q15();
-        if(r == 16) q = new Q16();
-        if(r == 17) q = new Q17();
-        if(r == 18) q = new Q18();
-        if(r == 19) q = new Q19();
-        if(r == 20) q = new Q20();
-        if(r == 21) q = new Q21();
-        if(r == 22) q = new Q22();
-        if(r == 23) q = new Q23();
-        if(r == 24) q = new Q24();
-        if(r == 25) q = new Q25();
-        if(r == 26) q = new Q26();
-        if(r == 27) q = new Q27();
-        if(r == 28) q = new Q28();
-        if(r == 29) q = new Q29();
-        if(r == 30) q = new Q30();
-        if(r == 31) q = new Q31();
-        if(r == 32) q = new Q32();
-        if(r == 33) q = new Q33();
-        if(r == 34) q = new Q34();
+        static const std::array<Question*(*)(), k_question_num> create_question{
+            []() -> Question* { return new Q1(); },
+            []() -> Question* { return new Q2(); },
+            []() -> Question* { return new Q3(); },
+            []() -> Question* { return new Q4(); },
+            []() -> Question* { return new Q5(); },
+            []() -> Question* { return new Q6(); },
+            []() -> Question* { return new Q7(); },
+            []() -> Question* { return new Q8(); },
+            []() -> Question* { return new Q9(); },
+            []() -> Question* { return new Q10(); },
+            []() -> Question* { return new Q11(); },
+            []() -> Question* { return new Q12(); },
+            []() -> Question* { return new Q13(); },
+            []() -> Question* { return new Q14(); },
+            []() -> Question* { return new Q15(); },
+            []() -> Question* { return new Q16(); },
+            []() -> Question* { return new Q17(); },
+            []() -> Question* { return new Q18(); },
+            []() -> Question* { return new Q19(); },
+            []() -> Question* { return new Q20(); },
+            []() -> Question* { return new Q21(); },
+            []() -> Question* { return new Q22(); },
+            []() -> Question* { return new Q23(); },
+            []() -> Question* { return new Q24(); },
+            []() -> Question* { return new Q25(); },
+            []() -> Question* { return new Q26(); },
+            []() -> Question* { return new Q27(); },
+            []() -> Question* { return new Q28(); },
+            []() -> Question* { return new Q29(); },
+            []() -> Question* { return new Q30(); },
+            []() -> Question* { return new Q31(); },
+            []() -> Question* { return new Q32(); },
+            []() -> Question* { return new Q33(); },
+            []() -> Question* { return new Q34(); },
+            []() -> Question* { return new Q35(); },
+            []() -> Question* { return new Q36(); },
+            []() -> Question* { return new Q37(); },
+            []() -> Question* { return new Q38(); },
+            []() -> Question* { return new Q39(); },
+            []() -> Question* { return new Q40(); },
+            []() -> Question* { return new Q41(); },
+        };
+
+        q = create_question[r]();
 
         if(q == NULL)
         {
@@ -254,6 +265,8 @@ class RoundStage : public SubGameStage<>
         q -> calc(p);
         q -> quickScore(p);
 
+        for(int i = 0; i < option().PlayerNum(); i++)
+            std::cout << i << " " << p[i].score << std::endl;
 
         int specialRule_ = GET_OPTION_VALUE(option(), 特殊规则);
         specialRule(p, specialRule_, "roundEnd");

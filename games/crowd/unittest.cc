@@ -1507,6 +1507,173 @@ GAME_TEST(6, Q34_Basic_AAABBC){
         ASSERT_PRI_MSG(CHECKOUT, 5, "C");
         ASSERT_SCORE(0,0,0,200,200,100);}
 
+GAME_TEST(6, Q35_Basic_AABBCC){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 35"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "A");
+        ASSERT_PRI_MSG(OK, 2, "B");
+        ASSERT_PRI_MSG(OK, 3, "B");
+        ASSERT_PRI_MSG(OK, 4, "C");
+        ASSERT_PRI_MSG(CHECKOUT, 5, "C");
+        ASSERT_SCORE(-150,-150,0,0,-100,-100);}
+
+GAME_TEST(6, Q35_Basic_AAABBC){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 35"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "A");
+        ASSERT_PRI_MSG(OK, 2, "A");
+        ASSERT_PRI_MSG(OK, 3, "B");
+        ASSERT_PRI_MSG(OK, 4, "B");
+        ASSERT_PRI_MSG(CHECKOUT, 5, "C");
+        ASSERT_SCORE(100,100,100,-200,-200,0);}
+
+GAME_TEST(6, Q36_Basic_ABCCCD){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 36"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "B");
+        ASSERT_PRI_MSG(OK, 2, "B");
+        ASSERT_PRI_MSG(OK, 3, "C");
+        ASSERT_PRI_MSG(OK, 4, "C");
+        ASSERT_PRI_MSG(CHECKOUT, 5, "D");
+        ASSERT_SCORE(50,100,100,150,150,200);}
+
+GAME_TEST(6, Q36_Basic_BBCCCD){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 36"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "B");
+        ASSERT_PRI_MSG(OK, 1, "B");
+        ASSERT_PRI_MSG(OK, 2, "C");
+        ASSERT_PRI_MSG(OK, 3, "C");
+        ASSERT_PRI_MSG(OK, 4, "C");
+        ASSERT_PRI_MSG(CHECKOUT, 5, "D");
+        ASSERT_SCORE(0,0,0,0,0,200);}
+
+GAME_TEST(5, Q37_Basic_ADDDD_AABDD){
+    ASSERT_PUB_MSG(OK, 0, "回合数 2"); ASSERT_PUB_MSG(OK, 0, "测试 37"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "D");
+        ASSERT_PRI_MSG(OK, 2, "D");
+        ASSERT_PRI_MSG(OK, 3, "D");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "D");
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "A");
+        ASSERT_PRI_MSG(OK, 2, "B");
+        ASSERT_PRI_MSG(OK, 3, "D");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "D");
+        ASSERT_SCORE(50,0,50,100,100);}
+
+GAME_TEST(5, Q37_Basic_CDDDD_AAAAB_AAABB){
+    ASSERT_PUB_MSG(OK, 0, "回合数 3"); ASSERT_PUB_MSG(OK, 0, "测试 37"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "C");
+        ASSERT_PRI_MSG(OK, 1, "D");
+        ASSERT_PRI_MSG(OK, 2, "D");
+        ASSERT_PRI_MSG(OK, 3, "D");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "D");
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "A");
+        ASSERT_PRI_MSG(OK, 2, "A");
+        ASSERT_PRI_MSG(OK, 3, "A");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "B");
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "A");
+        ASSERT_PRI_MSG(OK, 2, "A");
+        ASSERT_PRI_MSG(OK, 3, "B");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "B");
+        ASSERT_SCORE(-200,-150,-150,-150,150);}
+
+GAME_TEST(5, Q38_Basic_ABBBC){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 38"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "B");
+        ASSERT_PRI_MSG(OK, 2, "B");
+        ASSERT_PRI_MSG(OK, 3, "B");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "C");
+        ASSERT_SCORE(-100,-150,-150,-150,200);}
+
+GAME_TEST(5, Q38_Basic_AABBC){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 38"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "A");
+        ASSERT_PRI_MSG(OK, 2, "B");
+        ASSERT_PRI_MSG(OK, 3, "B");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "C");
+        ASSERT_SCORE(200,200,-150,-150,200);}
+
+GAME_TEST(5, Q39_Basic_BBBBB){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 39"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "B");
+        ASSERT_PRI_MSG(OK, 1, "B");
+        ASSERT_PRI_MSG(OK, 2, "B");
+        ASSERT_PRI_MSG(OK, 3, "B");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "B");
+        ASSERT_SCORE(200,200,200,200,200);}
+
+GAME_TEST(5, Q39_Basic_ABBBB){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 39"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "B");
+        ASSERT_PRI_MSG(OK, 2, "B");
+        ASSERT_PRI_MSG(OK, 3, "B");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "B");
+        ASSERT_SCORE(-100,-200,-200,-200,-200);}
+
+GAME_TEST(5, Q39_Basic_AABBB){
+    ASSERT_PUB_MSG(OK, 0, "回合数 2"); ASSERT_PUB_MSG(OK, 0, "测试 39"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "A");
+        ASSERT_PRI_MSG(OK, 2, "B");
+        ASSERT_PRI_MSG(OK, 3, "B");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "B");
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "A");
+        ASSERT_PRI_MSG(OK, 2, "A");
+        ASSERT_PRI_MSG(OK, 3, "A");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "A");
+        ASSERT_SCORE(0,0,-200,-200,-200);}
+
+GAME_TEST(5, Q40_Basic_AACCC){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 40"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "A");
+        ASSERT_PRI_MSG(OK, 2, "C");
+        ASSERT_PRI_MSG(OK, 3, "C");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "C");
+        ASSERT_SCORE(400,400,0,0,0);}
+
+GAME_TEST(5, Q40_Basic_AABCD){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 40"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "A");
+        ASSERT_PRI_MSG(OK, 2, "B");
+        ASSERT_PRI_MSG(OK, 3, "C");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "D");
+        ASSERT_SCORE(0,0,200,0,50);}
+
+GAME_TEST(5, Q41_Basic_BBBCC){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 41"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "B");
+        ASSERT_PRI_MSG(OK, 1, "B");
+        ASSERT_PRI_MSG(OK, 2, "B");
+        ASSERT_PRI_MSG(OK, 3, "C");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "C");
+        ASSERT_SCORE(200,200,200,200,200);}
+
+GAME_TEST(5, Q41_Basic_ABCDE){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 41"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "A");
+        ASSERT_PRI_MSG(OK, 1, "B");
+        ASSERT_PRI_MSG(OK, 2, "C");
+        ASSERT_PRI_MSG(OK, 3, "D");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "E");
+        ASSERT_SCORE(0,100,-200,0,200);}
+
+GAME_TEST(5, Q41_Basic_ABCEE){
+    ASSERT_PUB_MSG(OK, 0, "回合数 1"); ASSERT_PUB_MSG(OK, 0, "测试 41"); StartGame();
+        ASSERT_PRI_MSG(OK, 0, "B");
+        ASSERT_PRI_MSG(OK, 1, "D");
+        ASSERT_PRI_MSG(OK, 2, "D");
+        ASSERT_PRI_MSG(OK, 3, "E");
+        ASSERT_PRI_MSG(CHECKOUT, 4, "E");
+        ASSERT_SCORE(100,0,0,-200,-200);}
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
