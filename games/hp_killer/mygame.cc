@@ -615,10 +615,16 @@ class AssassinRole : public RoleBase
             reply() << "攻击失败：需要至少攻击 1 名角色";
             return false;
         }
-        for (const auto& token : action.tokens_) {
-            if (!role_manager_.GetRole(token).IsAlive()) {
-                reply() << "攻击失败：角色 " << token.ToChar() << " 已经死亡";
+        for (uint32_t i = 0; i < action.tokens_.size(); ++i) {
+            if (!role_manager_.GetRole(action.tokens_[i]).IsAlive()) {
+                reply() << "攻击失败：角色 " << action.tokens_[i].ToChar() << " 已经死亡";
                 return false;
+            }
+            for (uint32_t j = i + 1; j < action.tokens_.size(); ++j) {
+                if (action.tokens_[i] == action.tokens_[j]) {
+                    reply() << "攻击失败：无法多次攻击同一名角色 " << action.tokens_[i].ToChar();
+                    return false;
+                }
             }
         }
         int32_t max_target_num = 0;
@@ -754,6 +760,10 @@ class GuardRole : public RoleBase
             return false;
         }
         for (const auto& [token, hp] : action.token_hps_) {
+            if (!role_manager_.GetRole(token).IsAlive()) {
+                reply() << "盾反失败：角色 " << token.ToChar() << " 已经死亡";
+                return false;
+            }
             if (GetHpFromMultiTargetAction(token, last_hp_tokens_) != nullptr) {
                 reply() << "盾反失败：您上一回合盾反过角色 " << token.ToChar() << " 了，您无法连续两回合盾反同一角色";
                 return false;

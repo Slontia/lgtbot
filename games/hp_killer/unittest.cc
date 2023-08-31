@@ -739,6 +739,15 @@ GAME_TEST(5, DISABLED_assassin_cannot_hurt_guard_and_killer_team)
     ASSERT_PRI_MSG(OK, 3, "pass");
 }
 
+GAME_TEST(5, assassin_cannot_hurt_same_role)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 恶灵 守卫 刺客");
+    ASSERT_PRI_MSG(OK, 0, "血量 1");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(FAILED, 4, "攻击 A B B C D 5");
+}
+
 GAME_TEST(5, guard_invalid_shield_anti)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 恶灵 守卫 平民");
