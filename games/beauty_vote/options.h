@@ -1,0 +1,6 @@
+EXTEND_OPTION("回合数", 回合数, (ArithChecker<uint32_t>(1, 40, "回合数")), 40)
+EXTEND_OPTION("玩家初始血量", 血量, (ArithChecker<uint32_t>(1, 20, "血量")), 10)
+EXTEND_OPTION("最大可提交数字", 最大数字, (ArithChecker<uint32_t>(10, 10000, "最大数字")), 100)
+EXTEND_OPTION("设置 撞车 特则出现的回合数", 撞车, (ArithChecker<uint32_t>(1, 40, "回合数")), 4)
+EXTEND_OPTION("设置 红心 特则出现的回合数", 红心, (ArithChecker<uint32_t>(1, 40, "回合数")), 6)
+EXTEND_OPTION("每回合时间限制", 时限, (ArithChecker<uint32_t>(10, 3600, "超时时间（秒）")), 150)
