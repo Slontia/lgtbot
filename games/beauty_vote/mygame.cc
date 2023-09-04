@@ -274,6 +274,7 @@ class RoundStage : public SubGameStage<>
             }
             for (int i = 0; i < win.size(); i++) {
                 main_stage().player_hp_[win[i]]++;
+                main_stage().player_scores_[win[i]]++;
             }
         } else {
             for (int i = 0; i < option().PlayerNum(); i++) {
