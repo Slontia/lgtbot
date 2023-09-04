@@ -72,6 +72,7 @@ class MainStage : public MainGameStage<RoundStage>
     string Board = "";   // 赛况
     int alive_;   // 存活数
     double x;   // X
+    double x1;   // 电脑随机用
     int on_crash = 0;   // 判断启用撞车
     int on_red = 0;   // 判断启用红心
     int first = 0;   // 判断决胜规则
@@ -162,12 +163,29 @@ class RoundStage : public SubGameStage<>
     {
         int num;
         if (main_stage().round_ == 1) {
-            num = rand() % (GET_OPTION_VALUE(option(),最大数字) / 2);
+            num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.11) + (int)(GET_OPTION_VALUE(option(),最大数字) * 0.15);
         } else {
-            num = rand() % 25 - 15 + main_stage().x;
-            if (num < 0) {
-                num = rand() % 21 + GET_OPTION_VALUE(option(),最大数字) - 20;
+            if (main_stage().x < (GET_OPTION_VALUE(option(),最大数字) * 0.07) && rand() % 10 < 3) {
+                num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.10) + (int)(GET_OPTION_VALUE(option(),最大数字) * 0.21);
+            } else if (main_stage().x > (GET_OPTION_VALUE(option(),最大数字) * 0.23)) {
+                num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.09) + (int)(GET_OPTION_VALUE(option(),最大数字) * 0.07);
+            } else {
+                if (main_stage().round_ == 2) {
+                    double x = main_stage().x * 0.8;
+                    num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.13) + (int)x - (int)(GET_OPTION_VALUE(option(),最大数字) * 0.06);
+                } else {
+                    num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.11) + (int)(main_stage().x * main_stage().x / main_stage().x1) - (int)(GET_OPTION_VALUE(option(),最大数字) * 0.05);
+                }
             }
+        }
+        if (num < 0) {
+            num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.05) + (int)(GET_OPTION_VALUE(option(),最大数字) * 0.96);
+        } else if (num > GET_OPTION_VALUE(option(),最大数字)) {
+            num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.03);
+        }
+        if (main_stage().alive_ == 2) {
+            num = rand() % 3;
+            if (num == 2) num = GET_OPTION_VALUE(option(),最大数字);
         }
         main_stage().player_select_[pid] = num;
         return StageErrCode::READY;
@@ -182,6 +200,9 @@ class RoundStage : public SubGameStage<>
         int sum;
         double avg;
         sum = 0;
+
+        main_stage().x1 = main_stage().x;   // x1
+
         for (int i = 0; i < option().PlayerNum(); i++) {
             if (main_stage().player_hp_[i] <= 0) {   // 退出和超时不计入总和
                 if (main_stage().player_out_[i] == 0) {
@@ -367,7 +388,7 @@ class RoundStage : public SubGameStage<>
             Boardcast() << "新特殊规则——红心：当玩家选择的数字和 X 四舍五入后的数字一样时，视为该玩家命中红心，其他玩家生命值 -2。";
             main_stage().on_red = 1;
         }
-        if (main_stage().alive_ <= 3 && main_stage().first == 0) {
+        if (main_stage().alive_ > 1 && main_stage().alive_ <= 3 && main_stage().first == 0) {
             Boardcast() << "当前玩家数小于等于3人，自动追加一条规则：当有玩家出0时，出" + to_string(GET_OPTION_VALUE(option(),最大数字)) + "的玩家获胜。";
             main_stage().first = 1;
         }
