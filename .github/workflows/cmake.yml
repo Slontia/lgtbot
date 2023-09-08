@@ -20,7 +20,7 @@ jobs:
 #      shell: bash
     
     - name: Install dependences
-      run: sudo apt-get remove libunwind-14 -y; sudo apt-get install -y libgoogle-glog-dev libgflags-dev libgtest-dev libsqlite3-dev libqt5webkit5-dev
+      run: sudo apt-get remove libunwind-14 -y; sudo apt-get install -y libgoogle-glog-dev libgflags-dev libgtest-dev libsqlite3-dev libqt5webkit5-dev python3-pybind11
 
     - name: Checkout repository and submodules
       uses: actions/checkout@v2
@@ -64,6 +64,7 @@ jobs:
           mingw-w64-x86_64-gflags
           mingw-w64-x86_64-gtest
           mingw-w64-x86_64-glog
+          mingw-w64-x86_64-pybind11
 
     - name: Checkout repository and submodules
       uses: actions/checkout@v2
