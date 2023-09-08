@@ -289,7 +289,7 @@ static ErrCode show_matches(BotCtx& bot, const UserID uid, const std::optional<G
     const auto show_table = [&](const bool is_private)
     {
         html::Table table(1, 6);
-        table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\"");
+        table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" width=\"650\"");
         table.Get(0, 0).SetContent("**序号**");
         table.Get(0, 1).SetContent(is_private ? "**ID**" : "**房间**");
         table.Get(0, 2).SetContent("**房主**");
@@ -319,7 +319,7 @@ static ErrCode show_matches(BotCtx& bot, const UserID uid, const std::optional<G
         }
         return table.Row() > 1 ? table.ToString() : "当前无比赛";
     };
-    reply() << Markdown("## 赛事列表\n\n### 公开赛事\n\n" + show_table(true) + "\n\n### 私密赛事\n\n" + show_table(false), 800);
+    reply() << Markdown("## 赛事列表\n\n### 公开赛事\n\n" + show_table(false) + "\n\n### 私密赛事\n\n" + show_table(true), 700);
     return EC_OK;
 }
 
