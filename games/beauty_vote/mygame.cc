@@ -27,7 +27,12 @@ const std::string k_description = "选择恰当的数字，尽可能接近平均
 
 std::string GameOption::StatusInfo() const
 {
-    return "共 " + std::to_string(GET_VALUE(回合数)) + " 回合，每回合超时时间 " + std::to_string(GET_VALUE(时限)) + " 秒，玩家初始血量 " + std::to_string(GET_VALUE(血量)) + " ，最大可提交数字  " + std::to_string(GET_VALUE(最大数字));
+    return "回合上限 " + to_string(GET_VALUE(回合数)) + 
+        "，每回合超时时间 " + to_string(GET_VALUE(时限)) + 
+        " 秒，初始血量 " + to_string(GET_VALUE(血量)) + 
+        "，" + to_string(GET_VALUE(撞车伤害)) +
+        " 撞车伤害，[撞车]默认第 " + to_string(GET_VALUE(撞车)) +
+        " 回合，[红心]默认第 " + to_string(GET_VALUE(红心)) + " 回合";
 }
 
 bool GameOption::ToValid(MsgSenderBase& reply)
@@ -72,10 +77,10 @@ class MainStage : public MainGameStage<RoundStage>
     string Board = "";   // 赛况
     int alive_;   // 存活数
     double x;   // X
-    double x1;   // 电脑随机用
+    double x1;   // 上一轮x
     int on_crash = 0;   // 判断启用撞车
     int on_red = 0;   // 判断启用红心
-    int first = 0;   // 判断决胜规则
+    int on_last = 0;   // 判断决胜规则
 
     // 颜色样式
     string HP_color = "9CCAF0";   // 生命值底色
@@ -98,12 +103,12 @@ class MainStage : public MainGameStage<RoundStage>
             }
         }
         string HP_Board = "";
-        HP_Board += "<tr bgcolor=\""+ HP_color +"\"><th>玩家血量</th>";
+        HP_Board += "<tr bgcolor=\""+ HP_color +"\"><th>血量</th>";
         for (int i = 0; i < option().PlayerNum(); i++) {
             HP_Board += "<td>";
-            if(player_out_[i] == 0){
+            if (player_out_[i] == 0) {
                 HP_Board += to_string(player_hp_[i]);
-            }else{
+            } else {
                 HP_Board += "出局";
             }
             HP_Board += "</td>";
@@ -145,14 +150,12 @@ class RoundStage : public SubGameStage<>
         }
 
         RoundStage::calc();
-        //Boardcast() << name() << "超时结束";
         // Returning |CHECKOUT| means the current stage will be over.
         return StageErrCode::CHECKOUT;
     }
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
-        //Boardcast() << PlayerName(pid) << "退出游戏";
         main_stage().player_hp_[pid] = 0;
         main_stage().player_select_[pid] = -1;
         // Returning |CONTINUE| means the current stage will be continued.
@@ -162,32 +165,81 @@ class RoundStage : public SubGameStage<>
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         int num;
-        if (main_stage().round_ == 1) {
-            num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.11) + (int)(GET_OPTION_VALUE(option(),最大数字) * 0.15);
-        } else {
-            if (main_stage().x < (GET_OPTION_VALUE(option(),最大数字) * 0.07) && rand() % 10 < 3) {
-                num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.10) + (int)(GET_OPTION_VALUE(option(),最大数字) * 0.21);
-            } else if (main_stage().x > (GET_OPTION_VALUE(option(),最大数字) * 0.23)) {
-                num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.09) + (int)(GET_OPTION_VALUE(option(),最大数字) * 0.07);
-            } else {
-                if (main_stage().round_ == 2) {
-                    double x = main_stage().x * 0.8;
-                    num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.13) + (int)x - (int)(GET_OPTION_VALUE(option(),最大数字) * 0.06);
-                } else {
-                    num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.11) + (int)(main_stage().x * main_stage().x / main_stage().x1) - (int)(GET_OPTION_VALUE(option(),最大数字) * 0.05);
+        int max = GET_OPTION_VALUE(option(),最大数字);
+        double x = main_stage().x * 0.8;
+
+        if (main_stage().round_ == 1)
+        {
+            num = rand() % (int)(max * 0.11) + (int)(max * 0.15);
+        }
+        else
+        {
+            if (main_stage().x < (max * 0.07) && rand() % 10 < 5)
+            {
+                num = rand() % (int)(max * 0.10) + (int)(max * 0.15);
+            }
+            else if (main_stage().x > (max * 0.23))
+            {
+                num = rand() % (int)(max * 0.09) + (int)(max * 0.07);
+            }
+            else
+            {
+                if (main_stage().round_ == 2 || rand() % 10 < 7)
+                {
+                    num = rand() % (int)(max * 0.13) + (int)x - (int)(max * 0.06);
+                }
+                else
+                {
+                    num = rand() % (int)(max * 0.13) + (int)(main_stage().x * main_stage().x / main_stage().x1) - (int)(max * 0.06);
                 }
             }
         }
-        if (num < 0) {
-            num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.05) + (int)(GET_OPTION_VALUE(option(),最大数字) * 0.96);
-        } else if (num > GET_OPTION_VALUE(option(),最大数字)) {
-            num = rand() % (int)(GET_OPTION_VALUE(option(),最大数字) * 0.03);
+
+        // low HP
+        if (main_stage().player_hp_[pid] <= 2 && main_stage().alive_ <= 6)
+        {
+            int r = rand() % 4;
+            for (int i = (int)x - (int)(max * 0.02); i <= max; i += (max * 0.01))
+            {
+                int c = 0;
+                for (int j = 0; j < pid; j++)
+                {
+                    if (main_stage().player_select_[j] == i + r)
+                    {
+                        c = 1;
+                        break;
+                    }
+                }
+                if (c == 0)
+                {
+                    num = i + r;
+                    break;
+                }
+            }
         }
-        if (main_stage().alive_ == 2) {
-            num = rand() % 3;
-            if (num == 2) num = GET_OPTION_VALUE(option(),最大数字);
+
+        // limit
+        if (num < 0)
+        {
+            num = rand() % (int)(max * 0.05) + (int)(max * 0.96);
         }
+        else if (num > max)
+        {
+            num = rand() % (int)(max * 0.03);
+        }
+
+        // 2
+        if (main_stage().alive_ == 2)
+        {
+            int r = rand() % 7;
+            if (r == 0) num = max * 0.6666;
+            else if (r <= 2) num = 0;
+            else if (r <= 4) num = 1;
+            else if (r <= 6) num = max;
+        }
+
         main_stage().player_select_[pid] = num;
+
         return StageErrCode::READY;
     }
 
@@ -211,7 +263,7 @@ class RoundStage : public SubGameStage<>
                     main_stage().alive_--;
                 }
             }
-            if(main_stage().player_select_[i] >= 0) {
+            if (main_stage().player_select_[i] >= 0) {
                 sum += main_stage().player_select_[i];
             }
         }
@@ -221,11 +273,11 @@ class RoundStage : public SubGameStage<>
         // crash
         int crash[option().PlayerNum()+1] = {0};
         int is_crash = 0;
-        if (main_stage().on_crash == 1){
+        if (main_stage().on_crash == 1) {
             for (int i = 0; i < option().PlayerNum(); i++) {
-                if(main_stage().player_select_[i] >= 0) {
+                if (main_stage().player_select_[i] >= 0) {
                     for (int j = i + 1; j < option().PlayerNum(); j++) {
-                        if (crash[j] == 0){
+                        if (crash[j] == 0) {
                             if (main_stage().player_select_[i] == main_stage().player_select_[j]) {
                                 crash[i] = crash[j] = 1;
                                 is_crash = 1;
@@ -234,9 +286,11 @@ class RoundStage : public SubGameStage<>
                     }
                 }
             }
-            for (int i = 0; i < option().PlayerNum(); i++) {
-                if (crash[i] == 1) {
-                    main_stage().player_hp_[i]--;
+            if (GET_OPTION_VALUE(option(),撞车伤害)) {
+                for (int i = 0; i < option().PlayerNum(); i++) {
+                    if (crash[i] == 1) {
+                        main_stage().player_hp_[i]--;
+                    }
                 }
             }
         }
@@ -244,19 +298,18 @@ class RoundStage : public SubGameStage<>
         // gap
         double min_gap = 10000;
         for (int i = 0; i < option().PlayerNum(); i++) {
-            if(main_stage().player_select_[i] >= 0 && crash[i] == 0) {
+            if (main_stage().player_select_[i] >= 0 && crash[i] == 0) {
                 double gap = fabs(main_stage().player_select_[i] - main_stage().x);
-                if (min_gap > gap){
+                if (min_gap > gap) {
                     min_gap = gap;
                 }
             }
         }
 
-        //Boardcast() << "min_gap:" + to_string(min_gap);
         // win
         vector<int> win;
-        int red = 0;
-        int red_is_on = 0;
+        vector<int> red;
+        int onred = 0;
         vector<int> flag0, flag100;
         if (main_stage().alive_ <= 3) {
             for (int i = 0; i < option().PlayerNum(); i++) {
@@ -268,7 +321,7 @@ class RoundStage : public SubGameStage<>
                 }
             }
         }
-        if (flag0.size() && flag100.size()){
+        if (flag0.size() && flag100.size()) {
             for (int i = 0; i < flag100.size(); i++) {
                 win.push_back(flag100[i] - 1);
             }
@@ -278,32 +331,34 @@ class RoundStage : public SubGameStage<>
             }
         } else {
             for (int i = 0; i < option().PlayerNum(); i++) {
-                if(main_stage().player_select_[i] >= 0 && crash[i] == 0) {
+                if (main_stage().player_select_[i] >= 0 && crash[i] == 0) {
                     double gap = fabs(main_stage().player_select_[i] - main_stage().x);
-                    //Boardcast() << to_string(i) + ":gap:" + to_string(gap);
                     if (fabs(min_gap - gap) < 0.005) {
                         main_stage().player_hp_[i]++;
                         main_stage().player_scores_[i]++;
-                        win.push_back(i);
+
                         int x0 = (int)round(main_stage().x);
                         if (x0 == main_stage().player_select_[i]) {   // red
                             if (main_stage().on_red == 1) {
                                 main_stage().player_scores_[i]++;
                                 main_stage().player_hp_[i]++;
-                                red = 1;
+                                red.push_back(i);
                             } else {
-                                red_is_on = 1;
+                                win.push_back(i);
+                                onred = 1;
                             }
+                        } else {
+                            win.push_back(i);
                         }
                     }
                 }
             }
         }
         for (int i = 0; i < option().PlayerNum(); i++) {
-            if (win.size() > 0){
+            if (win.size() > 0 || red.size() > 0) {
                 main_stage().player_hp_[i]--;
             }
-            if (red == 1) {
+            if (red.size() > 0) {
                 main_stage().player_hp_[i]--;
             }
             if (main_stage().player_hp_[i] < 0) main_stage().player_hp_[i] = 0;
@@ -313,15 +368,19 @@ class RoundStage : public SubGameStage<>
         for (int i = 0; i < win.size(); i++) {
             win_p +=  "\n" + PlayerName(win[i]);
         }
+        string win_r = "";
+        for (int i = 0; i < red.size(); i++) {
+            win_r +=  "\n" + PlayerName(red[i]);
+        }
 
         // board
         string HP_Board = "";
-        HP_Board += "<tr bgcolor=\""+ main_stage().HP_color +"\"><th>玩家血量</th>";
+        HP_Board += "<tr bgcolor=\""+ main_stage().HP_color +"\"><th>血量</th>";
         for (int i = 0; i < option().PlayerNum(); i++) {
             HP_Board += "<td>";
-            if(main_stage().player_out_[i] == 0){
+            if (main_stage().player_out_[i] == 0) {
                 HP_Board += to_string(main_stage().player_hp_[i]);
-            }else{
+            } else {
                 HP_Board += "出局";
             }
             HP_Board += "</td>";
@@ -331,11 +390,10 @@ class RoundStage : public SubGameStage<>
         string b = "<tr><td>R" + to_string(main_stage().round_) + "</td>";
         for (int i = 0; i < option().PlayerNum(); i++) {
             string color = "";
-            vector<int>::iterator it = find(win.begin(), win.end(), i);
-            if (it != win.end()) {
-                if (red == 1) color = " bgcolor=\"" + main_stage().red_color + "\"";
-                else color = " bgcolor=\"" + main_stage().win_color + "\"";
-            }
+            vector<int>::iterator fwin = find(win.begin(), win.end(), i);
+            if (fwin != win.end()) color = " bgcolor=\"" + main_stage().win_color + "\"";
+            vector<int>::iterator fred = find(red.begin(), red.end(), i);
+            if (fred != red.end()) color = " bgcolor=\"" + main_stage().red_color + "\"";
             if (crash[i] == 1) {
                 color = " bgcolor=\"" + main_stage().crash_color + "\"";
             }
@@ -354,14 +412,16 @@ class RoundStage : public SubGameStage<>
         main_stage().Board += b;
 
         Boardcast() << Markdown(main_stage().T_Board + HP_Board + main_stage().Board + "</table>");
-        if (is_crash == 1) Boardcast() << "有玩家撞车，生命值额外 -1，且不计入本回合获胜玩家";
-        if (flag0.size() && flag100.size()){
-            Boardcast() << "有玩家出0，所以玩家" + win_p + "\n出" + to_string(GET_OPTION_VALUE(option(),最大数字)) + "获胜";
-        } else if(win.size() == 0){
+        if (is_crash == 1) {
+            Boardcast() << "有玩家撞车，" << (GET_OPTION_VALUE(option(),撞车伤害) ? "生命值额外 -1，且" : "") << "不计入本回合获胜玩家";
+        }
+        if (flag0.size() && flag100.size()) {
+            Boardcast() << "有玩家出 0，所以玩家" + win_p + "\n出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 获胜";
+        } else if (win.size() == 0 && red.size() == 0) {
             Boardcast() << "本回合 X 的值是 " + x + "，没有玩家获胜";
         } else {
-            if (red == 1) {
-                Boardcast() << "本回合 X 的值是 " + x + "，玩家" + win_p+ "\n命中红心！其余玩家生命值 -2";
+            if (red.size() > 0) {
+                Boardcast() << "本回合 X 的值是 " + x + "，玩家" + win_r + "\n命中红心！" << (win.size() > 0 ? "\n同时玩家" + win_p + " 获胜" : "其余玩家生命值 -2");
             } else {
                 Boardcast() << "本回合 X 的值是 " + x + "，获胜的玩家为" + win_p;
             }
@@ -381,20 +441,37 @@ class RoundStage : public SubGameStage<>
         }
 
         // 特殊规则
-        if ((main_stage().round_ == GET_OPTION_VALUE(option(), 撞车) - 1 && main_stage().on_crash == 0) || win.size() > 1) {
-            Boardcast() << "新特殊规则——撞车：如果有玩家提交了相同的数字，这些玩家生命值额外 -1，且不计入本回合获胜玩家。";
+        string specialrule = "";
+        int n = 0;
+        if ((main_stage().round_ == GET_OPTION_VALUE(option(), 撞车) - 1 || win.size() > 1) && main_stage().on_crash == 0) {
+            specialrule += "新特殊规则——撞车：如果有玩家提交了相同的数字，";
+            if (GET_OPTION_VALUE(option(),撞车伤害)) {
+                specialrule += "这些玩家生命值额外 -1，且";
+            } else {
+                specialrule += "则";
+            }
+            specialrule += "不计入本回合获胜玩家。";
             main_stage().on_crash = 1;
+            n = 1;
         }
-        if ((main_stage().round_ == GET_OPTION_VALUE(option(), 红心) - 1 && main_stage().on_red == 0) || red_is_on == 1) {
-            Boardcast() << "新特殊规则——红心：当玩家选择的数字和 X 四舍五入后的数字一样时，视为该玩家命中红心，其他玩家生命值 -2。";
+        if ((main_stage().round_ == GET_OPTION_VALUE(option(), 红心) - 1 || onred == 1) && main_stage().on_red == 0) {
+            if (n == 1) { specialrule += "\n"; }
+            specialrule += "新特殊规则——红心：当玩家选择的数字和 X 四舍五入后的数字一样时，视为该玩家命中红心，其他玩家生命值 -2。";
             main_stage().on_red = 1;
+            n = 1;
         }
-        if (main_stage().alive_ > 1 && main_stage().alive_ <= 3 && main_stage().first == 0) {
-            Boardcast() << "当前玩家数小于等于3人，自动追加一条规则：当有玩家出0时，出" + to_string(GET_OPTION_VALUE(option(),最大数字)) + "的玩家获胜。";
-            main_stage().first = 1;
+        if (main_stage().alive_ > 1 && main_stage().alive_ <= 3 && main_stage().on_last == 0) {
+            if (n == 1) { specialrule += "\n"; }
+            specialrule += "当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜。";
+            main_stage().on_last = 1;
+            n = 1;
+        }
+        if (n == 1) {
+            Boardcast() << specialrule;
         }
 
         win.clear();
+        red.clear();
     }
 
   private:
@@ -408,8 +485,8 @@ class RoundStage : public SubGameStage<>
             reply() << "[错误] 您本回合已经提交过数字了";
             return StageErrCode::FAILED;
         }
-        if(num < 0 || num > GET_OPTION_VALUE(option(), 最大数字)){
-            reply() << "[错误] 不合法的数字";
+        if (num < 0 || num > GET_OPTION_VALUE(option(), 最大数字)) {
+            reply() << "[错误] 不合法的数字，提交的数字应在 0 - " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 之间";
             return StageErrCode::FAILED;
         }
         return SubmitInternal_(pid, reply, num);
@@ -461,7 +538,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     T_Board += "</tr><br>";
 
     T_Board += "<table style=\"text-align:center\"><tbody>";
-    T_Board += "<tr bgcolor=\"#FFE4C4\"><th style=\"width:90px;\">玩家序号</th>";
+    T_Board += "<tr bgcolor=\"#FFE4C4\"><th style=\"width:70px;\">序号</th>";
     for (int i = 0; i < option().PlayerNum(); i++) {
         T_Board += "<th style=\"width:60px;\">";
         T_Board += to_string(i + 1) + " 号";
@@ -470,7 +547,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     T_Board += "<th style=\"width:70px;\">结果</th></tr>";
 
     string HP_Board = "";
-    HP_Board += "<tr bgcolor=\""+ HP_color +"\"><th>玩家血量</th>";
+    HP_Board += "<tr bgcolor=\""+ HP_color +"\"><th>血量</th>";
     for (int i = 0; i < option().PlayerNum(); i++) {
         HP_Board += "<td>";
         HP_Board += to_string(GET_OPTION_VALUE(option(),血量));
@@ -491,6 +568,35 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     Boardcast() << PreBoard;
     Boardcast() << Markdown(T_Board + HP_Board + "</table>");
 
+    string specialrule = "";
+    int n = 0;
+    if (GET_OPTION_VALUE(option(), 撞车) == 1) {
+        specialrule += "特殊规则——撞车：如果有玩家提交了相同的数字，";
+        if (GET_OPTION_VALUE(option(),撞车伤害)) {
+            specialrule += "这些玩家生命值额外 -1，且";
+        } else {
+            specialrule += "则";
+        }
+        specialrule += "不计入本回合获胜玩家。";
+        on_crash = 1;
+        n = 1;
+    }
+    if (GET_OPTION_VALUE(option(), 红心) == 1) {
+        if (n == 1) { specialrule += "\n"; }
+        specialrule += "特殊规则——红心：当玩家选择的数字和 X 四舍五入后的数字一样时，视为该玩家命中红心，其他玩家生命值 -2。";
+        on_red = 1;
+        n = 1;
+    }
+    if (alive_ <= 3) {
+        if (n == 1) { specialrule += "\n"; }
+        specialrule += "当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜。";
+        on_last = 1;
+        n = 1;
+    }
+    if (n == 1) {
+        Boardcast() << specialrule;
+    }
+
     return std::make_unique<RoundStage>(*this, ++round_);
 }
 
@@ -502,22 +608,22 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
     if ((++round_) > GET_OPTION_VALUE(option(), 回合数)) {
         Boardcast() << "达到最大回合数限制";
-    }
-
-    int maxHP = 0;
-    for(int i = 0; i < option().PlayerNum(); i++)
-    {
-        maxHP = max(maxHP, (int)player_hp_[i]);
-    }
-    if (alive_ == 0) {
-        Boardcast() << "游戏结束，平局！";
     } else {
+        int maxHP = 0;
         for(int i = 0; i < option().PlayerNum(); i++)
         {
-            if(maxHP == player_hp_[i])
+            maxHP = max(maxHP, (int)player_hp_[i]);
+        }
+        if (alive_ == 0) {
+            Boardcast() << "游戏结束，平局！";
+        } else {
+            for(int i = 0; i < option().PlayerNum(); i++)
             {
-                player_scores_[i] += 5;
-                Boardcast() << "游戏结束，恭喜胜者 " + PlayerName(i) +" ！";
+                if (maxHP == player_hp_[i])
+                {
+                    player_scores_[i] += 5;
+                    Boardcast() << "游戏结束，恭喜胜者 " + PlayerName(i) +" ！";
+                }
             }
         }
     }
