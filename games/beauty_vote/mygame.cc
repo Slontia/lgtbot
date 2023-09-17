@@ -164,7 +164,7 @@ class RoundStage : public SubGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        int num;
+        int num, x0;
         int max = GET_OPTION_VALUE(option(),最大数字);
         double x = main_stage().x * 0.8;
 
@@ -180,7 +180,7 @@ class RoundStage : public SubGameStage<>
             }
             else if (main_stage().x > (max * 0.23))
             {
-                num = rand() % (int)(max * 0.09) + (int)(max * 0.07);
+                num = rand() % (int)round(max * 0.09) + (int)(max * 0.07);
             }
             else
             {
@@ -190,7 +190,12 @@ class RoundStage : public SubGameStage<>
                 }
                 else
                 {
-                    num = rand() % (int)(max * 0.13) + (int)(main_stage().x * main_stage().x / main_stage().x1) - (int)(max * 0.06);
+                    if (main_stage().x1 == 0) {
+                        x0 = 0;
+                    } else {
+                        x0 = (int)(main_stage().x * main_stage().x / main_stage().x1);
+                    }
+                    num = rand() % (int)(max * 0.13) + x0 - (int)(max * 0.06);
                 }
             }
         }
