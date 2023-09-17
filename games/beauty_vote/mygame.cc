@@ -30,8 +30,8 @@ std::string GameOption::StatusInfo() const
     return "回合上限 " + to_string(GET_VALUE(回合数)) + 
         "，每回合超时时间 " + to_string(GET_VALUE(时限)) + 
         " 秒，初始血量 " + to_string(GET_VALUE(血量)) + 
-        "，" + to_string(GET_VALUE(撞车伤害)) +
-        " 撞车伤害，[撞车]默认第 " + to_string(GET_VALUE(撞车)) +
+        "，撞车伤害：" + (GET_VALUE(撞车伤害) ? "开启" : "关闭") + 
+        "，[撞车]默认第 " + to_string(GET_VALUE(撞车)) +
         " 回合，[红心]默认第 " + to_string(GET_VALUE(红心)) + " 回合";
 }
 
@@ -221,11 +221,11 @@ class RoundStage : public SubGameStage<>
         // limit
         if (num < 0)
         {
-            num = rand() % (int)(max * 0.05) + (int)(max * 0.96);
+            num = rand() % (int)round(max * 0.05) + (int)(max * 0.96);
         }
         else if (num > max)
         {
-            num = rand() % (int)(max * 0.03);
+            num = rand() % (int)round(max * 0.05);
         }
 
         // 2
