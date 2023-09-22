@@ -9,6 +9,7 @@ ENUM_BEGIN(Occupation)
     ENUM_MEMBER(Occupation, 恶灵)
     ENUM_MEMBER(Occupation, 刺客)
     ENUM_MEMBER(Occupation, 双子（邪）)
+    ENUM_MEMBER(Occupation, 魔女)
     // civilian team
     ENUM_MEMBER(Occupation, 平民)
     ENUM_MEMBER(Occupation, 圣女)
@@ -16,6 +17,7 @@ ENUM_BEGIN(Occupation)
     ENUM_MEMBER(Occupation, 灵媒)
     ENUM_MEMBER(Occupation, 守卫)
     ENUM_MEMBER(Occupation, 双子（正）)
+    ENUM_MEMBER(Occupation, 骑士)
     // special team
     ENUM_MEMBER(Occupation, 内奸)
     // npc

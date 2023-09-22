@@ -45,7 +45,7 @@ GAME_TEST(5, user_define_occupation_list_size_mismatch)
     ASSERT_PUB_MSG(OK, 0, "五人身份 替身 平民 平民 圣女 守卫 平民");
     START_GAME();
     for (uint32_t i = 0; i < 5; ++i) {
-        ASSERT_PRI_MSG(FAILED, i, "盾反 A 100");
+        ASSERT_PRI_MSG(FAILED, i, "挡刀 A");
     }
 }
 
@@ -54,16 +54,16 @@ GAME_TEST(5, user_define_occupation_list_must_has_killer)
     ASSERT_PUB_MSG(OK, 0, "五人身份 替身 平民 平民 圣女 守卫");
     START_GAME();
     for (uint32_t i = 0; i < 5; ++i) {
-        ASSERT_PRI_MSG(FAILED, i, "盾反 A 100");
+        ASSERT_PRI_MSG(FAILED, i, "挡刀 A");
     }
 }
 
 GAME_TEST(5, user_define_occupation_list_cannot_has_two_killers)
 {
-    ASSERT_PUB_MSG(OK, 0, "五人身份 杀手 杀手 平民 圣女 守卫");
+    ASSERT_PUB_MSG(OK, 0, "五人身份 杀手 杀手 替身 圣女 守卫");
     START_GAME();
     for (uint32_t i = 0; i < 5; ++i) {
-        ASSERT_PRI_MSG(FAILED, i, "盾反 A 100");
+        ASSERT_PRI_MSG(FAILED, i, "挡刀 A");
     }
 }
 
@@ -72,7 +72,7 @@ GAME_TEST(5, user_define_occupation_list)
     ASSERT_PUB_MSG(OK, 0, "五人身份 替身 杀手 平民 圣女 守卫");
     START_GAME();
     for (uint32_t i = 0; i < 5; ++i) {
-        if (CHECK_PRI_MSG(OK, i, "盾反 A 100")) {
+        if (CHECK_PRI_MSG(OK, i, "挡刀 A")) {
             return;
         }
     }
@@ -84,7 +84,7 @@ GAME_TEST(5, user_define_occupation_list_with_npc)
     ASSERT_PUB_MSG(OK, 0, "五人身份 替身 杀手 平民 圣女 守卫 人偶");
     START_GAME();
     for (uint32_t i = 0; i < 5; ++i) {
-        if (CHECK_PRI_MSG(OK, i, "盾反 A 100")) {
+        if (CHECK_PRI_MSG(OK, i, "挡刀 A")) {
             return;
         }
     }
@@ -963,6 +963,82 @@ GAME_TEST(5, all_civilian_dead_killer_win)
     ASSERT_PRI_MSG(OK, 3, "攻击 B 15"); // civilian twin become killer team, no alive civilian team members any more
     ASSERT_TIMEOUT(CHECKOUT);
     ASSERT_SCORE(1, 1, 0, 0, 0);
+}
+
+GAME_TEST(5, only_witch_can_magic_attact)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
+    START_GAME();
+    ASSERT_PRI_MSG(FAILED, 0, "魔攻 A");
+}
+
+GAME_TEST(5, witch_cannot_attact)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
+    START_GAME();
+    ASSERT_PRI_MSG(FAILED, 1, "攻击 A 15");
+    ASSERT_PRI_MSG(FAILED, 1, "攻击 A 0");
+}
+
+GAME_TEST(5, witch_make_role_poison)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "魔攻 A");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
+GAME_TEST(5, double_poison)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 魔女 骑士 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 20");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "魔攻 A");
+    ASSERT_PRI_MSG(OK, 2, "魔攻 A");
+    ASSERT_TIMEOUT(CONTINUE); // -10
+    ASSERT_TIMEOUT(CHECKOUT); // -10
+    ASSERT_SCORE(0, 0, 0, 1, 1);
+}
+
+GAME_TEST(5, poison_do_not_hurt_after_cure)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 10");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "魔攻 A");
+    ASSERT_TIMEOUT(CONTINUE); // -5
+    ASSERT_PRI_MSG(OK, 0, "治愈 A 10"); // +10
+    ASSERT_TIMEOUT(CONTINUE); // -5
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_FINISHED(false);
+}
+
+GAME_TEST(5, poison_hurt_when_cure)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 10");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 0, "治愈 A 10"); // +10
+    ASSERT_PRI_MSG(OK, 1, "魔攻 A"); // -5
+    ASSERT_PRI_MSG(OK, 2, "攻击 A 15"); // -15
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
+GAME_TEST(5, poison_cannot_shield_anti)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 守卫 平民 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 5");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "魔攻 A");
+    ASSERT_PRI_MSG(OK, 2, "盾反 A 0");
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(0, 0, 1, 1, 1);
 }
 
 } // namespace GAME_MODULE_NAME
