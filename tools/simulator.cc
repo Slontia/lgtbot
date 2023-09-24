@@ -174,7 +174,7 @@ int main(int argc, char** argv)
         },
     };
     const char* errmsg = nullptr;
-    auto bot = LGTBot_Create(&option, &errmsg);
+    void* const bot = LGTBot_Create(&option, &errmsg);
     if (!bot) {
         std::cerr << "[ERROR] Boot simulator failed: " << errmsg << std::endl;
         return 1;
@@ -198,7 +198,7 @@ int main(int argc, char** argv)
 #if __linux__
                 linenoiseFree(line_cstr);
 #endif
-                break;
+                return 0;
             } else {
                 std::cout << "There are processing games, please try again later or quit by Ctrl-C." << std::endl;
             }
@@ -215,6 +215,7 @@ int main(int argc, char** argv)
 #endif
     }
 
+    LGTBot_Release(bot);
 
     return 0;
 }
