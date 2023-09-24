@@ -143,7 +143,7 @@ class DBManagerBase
             const std::string_view& time_range_end) = 0;
     virtual AchievementStatisticInfo GetAchievementStatistic(const UserID& uid, const std::string& game_name,
             const std::string& achievement_name) = 0;
-    virtual std::vector<HonorInfo> GetHonors() = 0;
+    virtual std::vector<HonorInfo> GetHonors(const std::string& keyword, const uint32_t limit) = 0;
     virtual bool AddHonor(const UserID& uid, const std::string_view& description) = 0;
     virtual bool DeleteHonor(const int32_t id) = 0;
 };
@@ -167,7 +167,7 @@ class SQLiteDBManager : public DBManagerBase
             const std::string_view& time_range_end) override;
     virtual AchievementStatisticInfo GetAchievementStatistic(const UserID& uid, const std::string& game_name,
             const std::string& achievement_name) override;
-    virtual std::vector<HonorInfo> GetHonors() override;
+    virtual std::vector<HonorInfo> GetHonors(const std::string& keyword, const uint32_t limit) override;
     virtual bool AddHonor(const UserID& uid, const std::string_view& description) override;
     virtual bool DeleteHonor(const int32_t id) override;
 

@@ -319,9 +319,11 @@ void DeleteHonor(sqlite::database& db, const int32_t id)
 }
 
 template <typename Fn>
-void ForeachHonor(sqlite::database& db, const Fn& fn)
+void ForeachHonor(sqlite::database& db, const std::string& keyword, const uint32_t limit, const Fn& fn)
 {
-    db << "SELECT id, description, user_id, time FROM honor" >> fn;
+    db << "SELECT id, description, user_id, time FROM honor WHERE description like '%" + keyword + "%' ORDER BY id DESC LIMIT ?"
+       << limit
+       >> fn;
 }
 
 template <typename Fn>
@@ -592,12 +594,12 @@ bool SQLiteDBManager::DeleteHonor(const int32_t id)
         });
 }
 
-std::vector<HonorInfo> SQLiteDBManager::GetHonors()
+std::vector<HonorInfo> SQLiteDBManager::GetHonors(const std::string& keyword, const uint32_t limit)
 {
     std::vector<HonorInfo> info;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            ForeachHonor(db,
+            ForeachHonor(db, keyword, limit,
                 [&](const int32_t id, std::string description, std::string uid, std::string time)
                 {
                     info.emplace_back(id, std::move(description), std::move(uid), std::move(time));

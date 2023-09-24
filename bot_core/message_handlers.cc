@@ -774,19 +774,21 @@ static ErrCode show_game_rank_range_time(BotCtx& bot, const UserID uid, const st
     return EC_OK;
 }
 
-static ErrCode show_honors(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
+static ErrCode show_honors(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+        const std::string& keyword)
 {
+    static constexpr const uint32_t k_limit = 20;
     if (!bot.db_manager()) {
         reply() << "[错误] 查看失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
     html::Table table(1, 4);
-    table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"1\" cellspacing=\"1\" ");
+    table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"3\" cellspacing=\"3\" ");
     table.Get(0, 0).SetContent("**ID**");
     table.Get(0, 1).SetContent("**用户**");
     table.Get(0, 2).SetContent("**荣誉**");
     table.Get(0, 3).SetContent("**获得时间**");
-    for (const auto& info : bot.db_manager()->GetHonors()) {
+    for (const auto& info : bot.db_manager()->GetHonors(keyword, k_limit)) {
         table.AppendRow();
         table.GetLastRow(0).SetContent(std::to_string(info.id_));
         table.GetLastRow(1).SetContent(bot.GetUserAvatar(info.uid_.GetCStr(), 25) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE +
@@ -794,7 +796,7 @@ static ErrCode show_honors(BotCtx& bot, const UserID uid, const std::optional<Gr
         table.GetLastRow(2).SetContent(info.description_);
         table.GetLastRow(3).SetContent(info.time_);
     }
-    reply() << Markdown("## 荣誉列表\n\n" + table.ToString(), 800);
+    reply() << Markdown("## 荣誉列表\n\n" + table.ToString() + "\n\n只显示前 " + std::to_string(k_limit) + " 条荣誉信息", 800);
     return EC_OK;
 }
 
@@ -828,7 +830,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
                     AnyArg("游戏名称", "猜拳游戏")),
             make_command("查看单个游戏某个赛季粒度等级积分排行榜", show_game_rank_range_time, VoidChecker("#排行"),
                     AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年)),
-            make_command("查看所有荣誉", show_honors, VoidChecker("#荣誉列表")),
+            make_command("查看所有荣誉", show_honors, VoidChecker("#荣誉列表"), OptionalDefaultChecker<AnyArg>("", "关键词")),
         }
     },
     {

@@ -99,7 +99,7 @@ class MockDBManager : public DBManagerBase
         return {};
     }
 
-    virtual std::vector<HonorInfo> GetHonors() override { return {}; }
+    virtual std::vector<HonorInfo> GetHonors(const std::string& honor, const uint32_t limit) override { return {}; }
 
     virtual bool AddHonor(const UserID& uid, const std::string_view& description) override { return true; }
 
