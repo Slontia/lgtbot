@@ -980,7 +980,7 @@ GAME_TEST(5, witch_cannot_attact)
     ASSERT_PRI_MSG(FAILED, 1, "攻击 A 0");
 }
 
-GAME_TEST(5, witch_make_role_poison)
+GAME_TEST(5, witch_make_role_curse)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
     ASSERT_PRI_MSG(OK, 0, "血量 15");
@@ -992,7 +992,7 @@ GAME_TEST(5, witch_make_role_poison)
     ASSERT_SCORE(0, 0, 1, 1, 1);
 }
 
-GAME_TEST(5, double_poison)
+GAME_TEST(5, double_curse)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 魔女 骑士 平民");
     ASSERT_PRI_MSG(OK, 0, "血量 20");
@@ -1004,21 +1004,47 @@ GAME_TEST(5, double_poison)
     ASSERT_SCORE(0, 0, 0, 1, 1);
 }
 
-GAME_TEST(5, poison_do_not_hurt_after_cure)
+GAME_TEST(5, curse_do_not_hurt_after_attacked)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
-    ASSERT_PRI_MSG(OK, 0, "血量 10");
+    ASSERT_PRI_MSG(OK, 0, "血量 30");
     START_GAME();
     ASSERT_PRI_MSG(OK, 1, "魔攻 A");
     ASSERT_TIMEOUT(CONTINUE); // -5
-    ASSERT_PRI_MSG(OK, 0, "治愈 A 10"); // +10
+    ASSERT_PRI_MSG(OK, 0, "攻击 A 15"); // -15
     ASSERT_TIMEOUT(CONTINUE); // -5
     ASSERT_TIMEOUT(CONTINUE);
     ASSERT_TIMEOUT(CONTINUE);
     ASSERT_FINISHED(false);
 }
 
-GAME_TEST(5, poison_hurt_when_cure)
+GAME_TEST(5, curse_do_not_hurt_after_goddess_attacked)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 圣女 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "魔攻 E");
+    ASSERT_TIMEOUT(CONTINUE); // -5
+    ASSERT_PRI_MSG(OK, 3, "攻击 E 15"); // 0
+    ASSERT_TIMEOUT(CONTINUE); // -5
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 4, "pass");
+}
+
+GAME_TEST(5, posion_cannot_be_cancel_when_magic_attack_be_concurrent_with_attack)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 圣女 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 25");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "魔攻 A"); // -5
+    ASSERT_PRI_MSG(OK, 3, "攻击 A 15"); // -15
+    ASSERT_TIMEOUT(CONTINUE); // -5
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
+GAME_TEST(5, curse_hurt_when_cure)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
     ASSERT_PRI_MSG(OK, 0, "血量 10");
@@ -1030,7 +1056,7 @@ GAME_TEST(5, poison_hurt_when_cure)
     ASSERT_SCORE(0, 0, 1, 1, 1);
 }
 
-GAME_TEST(5, poison_cannot_shield_anti)
+GAME_TEST(5, curse_cannot_shield_anti)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 守卫 平民 平民");
     ASSERT_PRI_MSG(OK, 0, "血量 5");
@@ -1039,6 +1065,81 @@ GAME_TEST(5, poison_cannot_shield_anti)
     ASSERT_PRI_MSG(OK, 2, "盾反 A 0");
     ASSERT_TIMEOUT(CHECKOUT);
     ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
+GAME_TEST(5, posion_cannot_be_cancel_when_magic_attack_be_concurrent_with_attack_but_old_curse_can_be_cancel)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 圣女 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 30");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "魔攻 A");
+    ASSERT_TIMEOUT(CONTINUE); // -5
+    ASSERT_PRI_MSG(OK, 3, "攻击 A 15"); // -15
+    ASSERT_PRI_MSG(CONTINUE, 1, "魔攻 A"); // -5
+    ASSERT_TIMEOUT(CHECKOUT); // -5
+    ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
+GAME_TEST(5, witch_magic_attack_cannot_be_blocked)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 替身 平民 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "魔攻 A");
+    ASSERT_PRI_MSG(OK, 2, "挡刀");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(0, 0, 0, 1, 1);
+}
+
+GAME_TEST(5, witch_magic_attack_cannot_be_shield_anti)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 守卫 平民 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "魔攻 A");
+    ASSERT_PRI_MSG(OK, 2, "盾反 A 10");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
+GAME_TEST(5, knight_can_attact_self)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 2, "攻击 C 15");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_ELIMINATED(2);
+}
+
+GAME_TEST(5, others_cannot_hurt_knight_when_they_attack_each_other)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 2, "攻击 E 15");
+    ASSERT_PRI_MSG(OK, 4, "攻击 C 15");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 2, "pass");
+    ASSERT_ELIMINATED(4);
+}
+
+GAME_TEST(5, knight_attack_each_other_can_cancel_curse)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 10");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 1, "魔攻 C");
+    ASSERT_TIMEOUT(CONTINUE); // C - 5
+    ASSERT_PRI_MSG(OK, 2, "攻击 E 15");
+    ASSERT_PRI_MSG(OK, 4, "攻击 C 15");
+    ASSERT_TIMEOUT(CONTINUE); // C - 0
+    ASSERT_PRI_MSG(CONTINUE, 2, "pass");
+    ASSERT_ELIMINATED(4);
 }
 
 } // namespace GAME_MODULE_NAME

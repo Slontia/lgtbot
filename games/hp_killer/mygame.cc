@@ -67,10 +67,11 @@ const char* const k_role_rules[Occupation::Count()] = {
 - 如果【双子】中的一方死亡，另一方存活，则从下一回合起，存活方将加入死亡方的阵营（如果【双子】的死亡导致游戏结束，则存活方阵营**不发生**改变）)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::魔女))] = R"EOF(【魔女 | 杀手阵营】
+- 开局时知道【杀手】的代号
 - 不允许使用「攻击 <代号> 15」指令
-- 特殊技能「魔攻 <代号>」：令指定角色进入中毒状态
-    - 处于中毒状态的角色每回合会流失 5 点 HP，直到被治愈（进入中毒状态的回合和被治愈的回合也会流失体力）
-    - 多个中毒状态可以叠加
+- 特殊技能「魔攻 <代号>」：令指定角色进入诅咒状态
+    - 处于诅咒状态的角色每回合会流失 5 点 HP，直到被物理攻击（对于单个诅咒状态，进入诅咒状态的回合会流失体力，但是解除诅咒的回合不会，如果物理攻击被挡刀或者盾反则诅咒效果不会被解除）
+    - 多个诅咒状态可以叠加
     - 当被侦探侦查时会显示「攻击 <代号>」
     - 无法被守卫「盾反」)EOF",
 
@@ -106,7 +107,8 @@ const char* const k_role_rules[Occupation::Count()] = {
 - 如果【双子】中的一方死亡，另一方存活，则从下一回合起，存活方将加入死亡方的阵营（如果【双子】的死亡导致游戏结束，则存活方阵营**不发生**改变）)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::骑士))] = R"EOF(【骑士 | 平民阵营】
-- 你的行动会被公开)EOF",
+- 开局时所有「杀手阵营」的角色知道你的代号
+- 当【骑士】攻击某名自己外的角色时，若也恰好受到该角色的攻击，则该角色的攻击伤害为 0，且【骑士】可以知晓该情况)EOF",
 
     // special team
     [static_cast<uint32_t>(Occupation(Occupation::内奸))] = R"EOF(【内奸 | 内奸阵营】
@@ -329,7 +331,7 @@ static constexpr const int32_t k_heavy_hurt_hp = 25;
 static constexpr const int32_t k_heavy_cure_hp = 15;
 static constexpr const int32_t k_normal_hurt_hp = 15;
 static constexpr const int32_t k_normal_cure_hp = 10;
-static constexpr const int32_t k_poison_hurt_hp = 5;
+static constexpr const int32_t k_curse_hurt_hp = 5;
 static constexpr const int32_t k_civilian_dead_threshold = 2;
 static constexpr const int32_t k_civilian_team_dead_threshold = 3;
 
@@ -345,7 +347,9 @@ struct RoleOption
     int32_t cure_count_; // -1 means no limit
 };
 
-enum Effect { POISON, MAX_EFFECT };
+enum Effect { CURSE, MAX_EFFECT };
+
+static std::string TokenInfoForRole(const RoleManager& role_manager, const Occupation occupation);
 
 class RoleBase
 {
@@ -418,7 +422,8 @@ class RoleBase
 
     virtual std::string PrivateInfo() const
     {
-        return std::string("您的代号是 ") + GetToken().ToChar() + "，职业是「" + GetOccupation().ToString() + "」";
+        return std::string("您的代号是 ") + GetToken().ToChar() + "，职业是「" + GetOccupation().ToString() + "」" +
+            (GetTeam() == Team::杀手 ? "，" + TokenInfoForRole(role_manager_, Occupation::骑士) : "");
     }
 
     virtual void OnRoundBegin()
@@ -788,6 +793,12 @@ class WitchRole : public RoleBase
     {
     }
 
+    virtual std::string PrivateInfo() const
+    {
+        return RoleBase::PrivateInfo() + "，" + TokenInfoForRole(role_manager_, Occupation::杀手) +
+            "，" + TokenInfoForRole(role_manager_, Occupation::骑士);
+    }
+
     virtual bool Act(const AttactAction& action, MsgSenderBase& reply) override
     {
         reply() << "攻击失败：您无法使用物理攻击";
@@ -806,8 +817,8 @@ class WitchRole : public RoleBase
             reply() << "攻击失败：该角色已经死亡";
             return false;
         }
-        ++target.EffectCount(POISON);
-        reply() << "您本回合决定对 " << token.ToChar() << " 魔法攻击，他已经进入中毒状态了";
+        cur_action_ = action;
+        reply() << "您本回合决定对 " << token.ToChar() << " 魔法攻击，他已经进入诅咒状态了";
         return true;
     }
 };
@@ -1125,20 +1136,33 @@ class MainStage : public MainGameStage<>
             };
         const auto is_avoid_hurt = [&](const RoleBase& hurter_role, const RoleBase& hurted_role)
             {
-                return hurter_role.GetOccupation() == Occupation::圣女 && hurted_role.GetTeam() == Team::平民;
+                if (hurter_role.GetOccupation() == Occupation::圣女 && hurted_role.GetTeam() == Team::平民) {
+                    return true;
+                }
+                if (const auto action = std::get_if<AttactAction>(&hurted_role.CurAction());
+                        hurted_role.GetOccupation() == Occupation::骑士 && hurter_role.GetToken() != hurted_role.GetToken() && action) {
+                    for (const auto token : action->tokens_) {
+                        if (token == hurter_role.GetToken()) {
+                            Tell(*hurted_role.PlayerId()) << "您反制 " << hurter_role.GetToken().ToChar() << " 的攻击成功并免受伤害";
+                            return true;
+                        }
+                    }
+                }
+                return false;
             };
 
+        std::vector<bool> be_attackeds(role_manager_.Size(), false);
         role_manager_.Foreach([&](auto& role)
             {
-                role.AddHp(-k_poison_hurt_hp * role.EffectCount(POISON));
                 if (const auto action = std::get_if<AttactAction>(&role.CurAction())) {
                     for (const auto& token : action->tokens_) {
                         auto& hurted_role = role_manager_.GetRole(token);
                         if (is_avoid_hurt(role, hurted_role)) {
-                            // do nothing
+                            be_attackeds[token.id_] = true;
                         } else if (is_blocked_hurt(hurted_role)) {
                             hurt_blocker->AddHp(-action->hp_);
                         } else {
+                            be_attackeds[token.id_] = true;
                             hurted_role.AddHp(-action->hp_);
                             if (hurted_role.GetOccupation() == Occupation::灵媒 && role.GetOccupation() == Occupation::恶灵) {
                                 role.AddHp(-action->hp_);
@@ -1180,6 +1204,7 @@ class MainStage : public MainGameStage<>
                     if (const int32_t* const hp_p = GetHpFromMultiTargetAction(role.GetToken(), shield_anti_action->token_hps_);
                             hp_p != nullptr && !is_blocked_hurt(role) && role.GetHp() == *hp_p) {
                         Tell(*guard_role->PlayerId()) << "为角色 " << role.GetToken().ToChar() << " 盾反成功";
+                        be_attackeds[role.GetToken().id_] = false;
                         role_manager_.Foreach([&](auto& hurter_role)
                             {
                                 const AttactAction* const hurt_action = std::get_if<AttactAction>(&hurter_role.CurAction());
@@ -1198,11 +1223,23 @@ class MainStage : public MainGameStage<>
         }
 
         // settlement cure erase posion effect
+        for (uint32_t id = 0; id < be_attackeds.size(); ++id) {
+            if (be_attackeds[id]) {
+                role_manager_.GetRole(Token{id}).EffectCount(CURSE) = 0; // attact action will clear curse effect
+            }
+        }
+
+        // settlement curse effect
         role_manager_.Foreach([&](auto& role)
             {
-                if (const CureAction* const cure_action = std::get_if<CureAction>(&role.CurAction())) {
-                    role_manager_.GetRole(cure_action->token_).EffectCount(POISON) = 0; // cure action will clear poison effect
+                if (const auto action = std::get_if<MagicAttactAction>(&role.CurAction());
+                        role.GetOccupation() == Occupation::魔女 && action) {
+                    ++role_manager_.GetRole(action->tokens_[0]).EffectCount(CURSE);
                 }
+            });
+        role_manager_.Foreach([&](auto& role)
+            {
+                role.AddHp(-k_curse_hurt_hp * role.EffectCount(CURSE));
             });
     }
 
@@ -1218,9 +1255,6 @@ class MainStage : public MainGameStage<>
     {
         role_manager_.Foreach([&](auto& role)
             {
-                if (role.GetOccupation() == Occupation::骑士) {
-                    addition_info += "\n- 「骑士」上一回合的行动是" + RoleAction(role);
-                }
                 if (role.OnRoundEnd()) {
                     sender << "\n- 角色 " << role.GetToken().ToChar() << " 死亡，";
                     if (role.PlayerId().has_value()) {
