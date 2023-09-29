@@ -107,7 +107,7 @@ const char* const k_role_rules[Occupation::Count()] = {
 - 如果【双子】中的一方死亡，另一方存活，则从下一回合起，存活方将加入死亡方的阵营（如果【双子】的死亡导致游戏结束，则存活方阵营**不发生**改变）)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::骑士))] = R"EOF(【骑士 | 平民阵营】
-- 开局时所有「杀手阵营」的角色知道你的代号
+- 游戏开始时【骑士】的中之人会被公布
 - 当【骑士】攻击某名自己外的角色时，若也恰好受到该角色的攻击，则该角色的攻击伤害为 0，且【骑士】可以知晓该情况)EOF",
 
     // special team
@@ -422,8 +422,7 @@ class RoleBase
 
     virtual std::string PrivateInfo() const
     {
-        return std::string("您的代号是 ") + GetToken().ToChar() + "，职业是「" + GetOccupation().ToString() + "」" +
-            (GetTeam() == Team::杀手 ? "，" + TokenInfoForRole(role_manager_, Occupation::骑士) : "");
+        return std::string("您的代号是 ") + GetToken().ToChar() + "，职业是「" + GetOccupation().ToString() + "」";
     }
 
     virtual void OnRoundBegin()
@@ -795,8 +794,7 @@ class WitchRole : public RoleBase
 
     virtual std::string PrivateInfo() const
     {
-        return RoleBase::PrivateInfo() + "，" + TokenInfoForRole(role_manager_, Occupation::杀手) +
-            "，" + TokenInfoForRole(role_manager_, Occupation::骑士);
+        return RoleBase::PrivateInfo() + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
     }
 
     virtual bool Act(const AttactAction& action, MsgSenderBase& reply) override
@@ -1251,11 +1249,15 @@ class MainStage : public MainGameStage<>
             });
     }
 
-    void RolesOnRoundEnd_(MsgSenderBase::MsgSenderGuard& sender, std::string& addition_info)
+    void RolesOnRoundEnd_(MsgSenderBase::MsgSenderGuard& sender)
     {
+        bool has_dead = false;
         role_manager_.Foreach([&](auto& role)
             {
                 if (role.OnRoundEnd()) {
+                    if (std::exchange(has_dead, true) == false) {
+                        sender << "\n";
+                    }
                     sender << "\n- 角色 " << role.GetToken().ToChar() << " 死亡，";
                     if (role.PlayerId().has_value()) {
                         sender << "他的「中之人」是" << At(*role.PlayerId());
@@ -1382,13 +1384,13 @@ class MainStage : public MainGameStage<>
         return true;
     }
 
-    bool Settlement_(std::string& addition_info)
+    bool Settlement_()
     {
         auto sender = Boardcast();
-        sender << "第 " << round_ << " 回合结束，下面公布各角色血量：\n";
+        sender << "第 " << round_ << " 回合结束，下面公布各角色血量：";
         SettlementAction_();
-        RolesOnRoundEnd_(sender, addition_info);
-        sender << addition_info << "\n\n";
+        RolesOnRoundEnd_(sender);
+        sender << "\n\n";
         return CheckTeamsLost_(sender);
     }
 
@@ -1520,7 +1522,7 @@ class MainStage : public MainGameStage<>
         return s;
     }
 
-    std::string Html_(const bool with_action, const std::string& addition_info = "") const
+    std::string Html_(const bool with_action) const
     {
         const char* const k_dark_blue = "#7092BE";
         const char* const k_middle_grey = "#E0E0E0";
@@ -1602,7 +1604,17 @@ class MainStage : public MainGameStage<>
             }
         }
 
-        return role_info_ + "\n\n" + table.ToString() + "\n\n" + addition_info;
+        std::string s = role_info_ + "\n\n" + table.ToString() + "\n\n";
+        for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
+            if (const auto& role = role_manager_.GetRole(Token{token_id}); role.GetOccupation() == Occupation::骑士) {
+                s += "\n- 骑士的中之人是：";
+                s += PlayerAvatar(*role.PlayerId(), 30);
+                s += HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE;
+                s += PlayerName(*role.PlayerId());
+            }
+        }
+
+        return s;
     }
 
     AtomReqErrCode RoleRule_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Occupation& occupation)
@@ -1624,9 +1636,8 @@ class MainStage : public MainGameStage<>
 
     bool OnRoundFinish_()
     {
-        std::string addition_info;
-        if (!Settlement_(addition_info)) {
-            table_html_ = Html_(false, addition_info);
+        if (!Settlement_()) {
+            table_html_ = Html_(false);
             Boardcast() << Markdown("## 第 " + std::to_string(round_) + " 回合\n\n" + table_html_, k_image_width_);
             ClearReady();
             StartTimer(GET_OPTION_VALUE(option(), 时限));
