@@ -111,9 +111,9 @@ const char* const k_role_rules[Occupation::Count()] = {
 - 当【骑士】攻击某名自己外的角色时，若也恰好受到该角色的攻击，则该角色的攻击伤害为 0，且【骑士】可以知晓该情况)EOF",
 
     // special team
-    [static_cast<uint32_t>(Occupation(Occupation::内奸))] = R"EOF(【内奸 | 内奸阵营】
+    [static_cast<uint32_t>(Occupation(Occupation::内奸))] = R"EOF(【内奸 | 第三方阵营】
 - 当 **【内奸】死亡**时，「内奸阵营」失败
-- 开局时知道【杀手】和所有【平民】的代号，但不知道代号与职位的对应关系
+- 开局时知道【杀手】的中之人和所有【平民】的中之人
 - 【杀手】死亡后的下一回合，【内奸】可执行「攻击 <代号> 25」和「治愈 <代号> 15」的行动指令)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::人偶))] = R"EOF(【人偶 | NPC】
@@ -420,7 +420,7 @@ class RoleBase
         return false;
     }
 
-    virtual std::string PrivateInfo() const
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
         return std::string("您的代号是 ") + GetToken().ToChar() + "，职业是「" + GetOccupation().ToString() + "」";
     }
@@ -623,12 +623,25 @@ static std::string TokenInfoForTeam(const RoleManager& role_manager, const Team 
     return s;
 }
 
+template <typename Fn>
+static std::string InfoForRole(const RoleManager& role_manager, const Occupation occupation, const Fn& get_role_info, const char* const info_type) {
+    std::string s;
+    role_manager.Foreach([&](const auto& role)
+        {
+            if (occupation == role.GetOccupation()) {
+                s += ' ';
+                s += get_role_info(role);
+            }
+        });
+    if (s.empty()) {
+        return std::string("场上没有") + occupation.ToString();
+    }
+    return std::string(occupation.ToString()) + "的" + info_type + "是" + s;
+}
+
 static std::string TokenInfoForRole(const RoleManager& role_manager, const Occupation occupation)
 {
-    if (const auto* role = role_manager.GetRole(occupation)) {
-        return std::string(occupation.ToString()) + "的代号是 " + role->GetToken().ToChar();
-    }
-    return std::string("场上没有") + occupation.ToString();
+    return InfoForRole(role_manager, occupation, [](const RoleBase& role) { return role.GetToken().ToChar(); }, "代号");
 }
 
 template <size_t N> requires (N >= 2)
@@ -670,12 +683,12 @@ class KillerRole : public RoleBase
         is_allowed_heavy_hurt_cure_ = true;
     }
 
-    virtual std::string PrivateInfo() const
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
         if (!private_info_.empty()) {
             return private_info_;
         }
-        return RoleBase::PrivateInfo() + "，" + TokenInfoForTeam(role_manager_, Team::平民);
+        return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForTeam(role_manager_, Team::平民);
     }
 
   private:
@@ -690,9 +703,9 @@ class BodyDoubleRole : public RoleBase
     {
     }
 
-    virtual std::string PrivateInfo() const
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
-        return RoleBase::PrivateInfo() + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+        return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
     }
 
     virtual bool Act(const BlockAttactAction& action, MsgSenderBase& reply) override
@@ -711,9 +724,9 @@ class GhostRole : public RoleBase
     {
     }
 
-    virtual std::string PrivateInfo() const
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
-        return RoleBase::PrivateInfo() + "，" + TokenInfoForRole(role_manager_, Occupation::灵媒);
+        return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::灵媒);
     }
 };
 
@@ -725,9 +738,9 @@ class AssassinRole : public RoleBase
     {
     }
 
-    virtual std::string PrivateInfo() const
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
-        return RoleBase::PrivateInfo() + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+        return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
     }
 
     virtual bool Act(const AttactAction& action, MsgSenderBase& reply) override
@@ -792,9 +805,9 @@ class WitchRole : public RoleBase
     {
     }
 
-    virtual std::string PrivateInfo() const
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
-        return RoleBase::PrivateInfo() + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+        return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
     }
 
     virtual bool Act(const AttactAction& action, MsgSenderBase& reply) override
@@ -960,9 +973,9 @@ class TwinRole : public RoleBase
     {
     }
 
-    virtual std::string PrivateInfo() const
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
-        return RoleBase::PrivateInfo() + "，" +
+        return RoleBase::PrivateInfo(main_stage) + "，" +
             TokenInfoForRoles(role_manager_, std::array<Occupation, 2>{Occupation::双子（正）, Occupation::双子（邪）}) +
             "，您当前属于" + GetTeam().ToString() + "阵营";
     }
@@ -997,11 +1010,7 @@ class TraitorRole : public RoleBase
     {
     }
 
-    virtual std::string PrivateInfo() const
-    {
-        return RoleBase::PrivateInfo() + "，" +
-            TokenInfoForRoles(role_manager_, std::array<Occupation, 2>{Occupation::杀手, Occupation::平民});
-    }
+    virtual std::string PrivateInfo(const MainStage& main_stage) const;
 };
 
 class PuppetRole : public RoleBase
@@ -1061,7 +1070,7 @@ class MainStage : public MainGameStage<>
         role_manager_.Foreach([&](const auto& role)
             {
                 if (role.PlayerId().has_value()) {
-                    Tell(*role.PlayerId()) << role.PrivateInfo() << "\n\n" << k_role_rules[static_cast<uint32_t>(role.GetOccupation())];
+                    Tell(*role.PlayerId()) << role.PrivateInfo(*this) << "\n\n" << k_role_rules[static_cast<uint32_t>(role.GetOccupation())];
                 }
             });
         table_html_ = Html_(false);
@@ -1095,6 +1104,15 @@ class MainStage : public MainGameStage<>
     }
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return role_manager_.GetRole(pid).IsWinner(); }
+
+    std::string PlayerInfoForRole(const RoleManager& role_manager, const Occupation occupation) const
+    {
+        return InfoForRole(role_manager, occupation, [this](const RoleBase& role)
+                {
+                    const auto& player_id = role.PlayerId();
+                    return player_id.has_value() ? PlayerName(*player_id) : "[NPC]";
+                }, "中之人");
+    }
 
   private:
     static RoleOption DefaultRoleOption_(const GameOption& option)
@@ -1627,7 +1645,7 @@ class MainStage : public MainGameStage<>
     {
         if (!is_public) {
             const auto& role = role_manager_.GetRole(pid);
-            reply() << role.PrivateInfo() << "，剩余 "
+            reply() << role.PrivateInfo(*this) << "，剩余 "
                 << (std::get_if<CureAction>(&role.CurAction()) ? role.RemainCure() - 1 : role.RemainCure()) << " 次治愈机会";
         }
         reply() << Markdown("## 第 " + std::to_string(round_) + " 回合\n\n" + table_html_, k_image_width_);
@@ -1765,6 +1783,14 @@ class MainStage : public MainGameStage<>
     bool last_round_killer_lost_;
     bool last_round_traitor_lost_;
 };
+
+
+
+std::string TraitorRole::PrivateInfo(const MainStage& main_stage) const
+{
+    return RoleBase::PrivateInfo(main_stage) + "，" + main_stage.PlayerInfoForRole(role_manager_, Occupation::杀手) + "，" +
+        main_stage.PlayerInfoForRole(role_manager_, Occupation::平民);
+}
 
 MainStage::RoleMaker MainStage::k_role_makers_[Occupation::Count()] = {
     // killer team
