@@ -30,7 +30,7 @@ class MatchBase;
 
 struct GameHandle
 {
-    using ModGuard = std::function<void()>;
+    using rule_command_handler = const char*(*)(const char* const s);
     using game_options_allocator = lgtbot::game::GameOptionBase*(*)();
     using game_options_deleter = void(*)(const lgtbot::game::GameOptionBase*);
     using game_options_ptr = std::unique_ptr<lgtbot::game::GameOptionBase, game_options_deleter>;
@@ -52,7 +52,8 @@ struct GameHandle
                game_options_deleter game_options_deleter_fn,
                main_stage_allocator main_stage_allocator_fn,
                main_stage_deleter main_stage_deleter_fn,
-               ModGuard mod_guard)
+               rule_command_handler handle_rule_command_fn,
+               auto mod_guard)
         : name_(std::move(name))
         , module_name_(std::move(module_name))
         , max_player_(max_player)
@@ -65,12 +66,15 @@ struct GameHandle
         , game_options_deleter_(std::move(game_options_deleter_fn))
         , main_stage_allocator_(std::move(main_stage_allocator_fn))
         , main_stage_deleter_(std::move(main_stage_deleter_fn))
+        , handle_rule_command_fn_(std::move(handle_rule_command_fn))
         , mod_guard_(std::move(mod_guard))
         , game_options_(game_options_allocator_(), game_options_deleter_)
         , activity_(0)
     {}
 
     GameHandle(GameHandle&&) = delete;
+
+    ~GameHandle() { mod_guard_(); }
 
     game_options_ptr make_game_options() const
     {
@@ -94,7 +98,8 @@ struct GameHandle
     const game_options_deleter game_options_deleter_;
     const main_stage_allocator main_stage_allocator_;
     const main_stage_deleter main_stage_deleter_;
-    const ModGuard mod_guard_;
+    const rule_command_handler handle_rule_command_fn_;
+    const std::function<void()> mod_guard_;
     const LockWrapper<game_options_ptr> game_options_;
     std::atomic<uint64_t> activity_;
 };

@@ -43,28 +43,19 @@ GAME_TEST(9, start_game)
 GAME_TEST(5, user_define_occupation_list_size_mismatch)
 {
     ASSERT_PUB_MSG(OK, 0, "五人身份 替身 平民 平民 圣女 守卫 平民");
-    START_GAME();
-    for (uint32_t i = 0; i < 5; ++i) {
-        ASSERT_PRI_MSG(FAILED, i, "挡刀 A");
-    }
+    ASSERT_FALSE(StartGame());
 }
 
 GAME_TEST(5, user_define_occupation_list_must_has_killer)
 {
     ASSERT_PUB_MSG(OK, 0, "五人身份 替身 平民 平民 圣女 守卫");
-    START_GAME();
-    for (uint32_t i = 0; i < 5; ++i) {
-        ASSERT_PRI_MSG(FAILED, i, "挡刀 A");
-    }
+    ASSERT_FALSE(StartGame());
 }
 
 GAME_TEST(5, user_define_occupation_list_cannot_has_two_killers)
 {
     ASSERT_PUB_MSG(OK, 0, "五人身份 杀手 杀手 替身 圣女 守卫");
-    START_GAME();
-    for (uint32_t i = 0; i < 5; ++i) {
-        ASSERT_PRI_MSG(FAILED, i, "挡刀 A");
-    }
+    ASSERT_FALSE(StartGame());
 }
 
 GAME_TEST(5, user_define_occupation_list)

@@ -29,6 +29,7 @@ const uint64_t k_max_player = 0; /* 0 means no max-player limits */
 const uint64_t k_multiple = 1;
 const std::string k_developer = "森高";
 const std::string k_description = "通过放置卡牌，让卡牌连成直线获得积分，比拼分数高低的游戏";
+const std::vector<RuleCommand> k_rule_commands = {};
 
 static int WinScoreThreshold(const bool mode) { return mode ? 200 : 10; }
 

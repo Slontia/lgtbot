@@ -24,6 +24,7 @@ const uint64_t k_max_player = 2; /* 0 means no max-player limits */
 const uint64_t k_multiple = 0;
 const std::string k_developer = "dva";
 const std::string k_description = "轮流落子，率先占满棋盘的游戏";
+const std::vector<RuleCommand> k_rule_commands = {};
 
 std::string GameOption::StatusInfo() const {
   std::stringstream ss;

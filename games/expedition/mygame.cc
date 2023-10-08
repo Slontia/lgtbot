@@ -27,6 +27,7 @@ const uint64_t k_max_player = 0; /* 0 means no max-player limits */
 const uint64_t k_multiple = 1;
 const std::string k_developer = "dva";
 const std::string k_description = "通过计算和放置数字，争取分数的游戏";
+const std::vector<RuleCommand> k_rule_commands = {};
 const std::array<const char*, 5> map_files = {"random", "wang_guo_bian_jing.txt",
                                               "feng_chao_zhi_xue.txt", "crystal_cave.txt",
                                               "fu_rao_zhi_di.txt"};

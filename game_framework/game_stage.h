@@ -31,14 +31,6 @@ namespace game {
 
 namespace GAME_MODULE_NAME {
 
-// Const variable at namespace scope has internal linkage. we need use 'extern' keyword to expose them.
-
-extern const std::string k_game_name;
-extern const uint64_t k_max_player;
-extern const uint64_t k_multiple;
-extern const std::string k_developer;
-extern const std::string k_description;
-
 // We put the GameStage template in the unique namespace of each game so that the template instanctiation will not be
 // merged when the game library linked to bot_core in run time.
 

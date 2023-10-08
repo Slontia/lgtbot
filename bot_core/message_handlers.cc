@@ -363,6 +363,28 @@ static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<Grou
     return EC_OK;
 }
 
+static ErrCode show_custom_rule(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+                         const std::string& gamename, const std::vector<std::string>& args)
+{
+    const auto it = bot.game_handles().find(gamename);
+    if (it == bot.game_handles().end()) {
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        return EC_REQUEST_UNKNOWN_GAME;
+    };
+    std::string s;
+    for (const auto& arg : args) {
+        s += arg;
+        s += " ";
+    }
+    const char* const result = it->second->handle_rule_command_fn_(s.c_str());
+    if (!result) {
+        reply() << "[错误] 查看失败：未知的规则指令，请通过「#规则 " << gamename << "」查看具体规则指令";
+        return EC_INVALID_ARGUMENT;
+    }
+    reply() << result;
+    return EC_OK;
+}
+
 static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
                          const std::string& gamename)
 {
@@ -809,6 +831,8 @@ const std::vector<MetaCommandGroup> meta_cmds = {
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("查看游戏规则（游戏名称可以通过「#游戏列表」查看）", show_rule, VoidChecker("#规则"),
                         AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
+            make_command("查看游戏具体游戏规则（游戏名称可以通过「#游戏列表」查看）", show_custom_rule, VoidChecker("#规则"),
+                        AnyArg("游戏名称", "猜拳游戏"), RepeatableChecker<AnyArg>("规则指令", "某指令")),
             make_command("查看游戏成就（游戏名称可以通过「#游戏列表」查看）", show_achievement, VoidChecker("#成就"),
                         AnyArg("游戏名称", "猜拳游戏")),
             make_command("查看游戏配置信息（游戏名称可以通过「#游戏列表」查看）", show_game_options, VoidChecker("#配置"),
@@ -918,7 +942,7 @@ static ErrCode set_bot_option(BotCtx& bot, const UserID uid, const std::optional
     MsgReader reader(option_args);
     auto locked_option = bot.option().Lock(); // lock until updated config to prevent write skew
     if (!locked_option.Get().SetOption(option_name, reader)) {
-        reply() << "[错误] 设置配置项失败，请检查配置项是否存在";
+        reply() << "[错误] 设置配置项失败，请通过「%全局配置」确认配置项是否存在";
         return EC_INVALID_ARGUMENT;
     }
     reply() << "设置成功";
@@ -935,14 +959,13 @@ static ErrCode set_game_option(BotCtx& bot, const UserID uid, const std::optiona
         reply() << "[错误] 设置失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
-    MsgReader reader(option_args);
     std::string option_str = option_name;
     for (const auto& option_arg : option_args) {
         option_str += " " + option_arg;
     }
     auto locked_option = game_handle_it->second->game_options_.Lock(); // lock until updated config to prevent write skew
     if (!locked_option.Get()->SetOption(option_str.c_str())) {
-        reply() << "[错误] 设置配置项失败，请检查配置项是否存在";
+        reply() << "[错误] 设置配置项失败，请通过「#配置 " << game_name << "」确认配置项是否存在";
         return EC_INVALID_ARGUMENT;
     }
     reply() << "设置成功";

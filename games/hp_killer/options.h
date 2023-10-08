@@ -8,4 +8,6 @@ EXTEND_OPTION("六人场身份列表（身份数量需为 6，否则实际采用
 EXTEND_OPTION("七人场身份列表（身份数量需为 7，否则实际采用默认身份列表）", 七人身份, (RepeatableChecker<EnumChecker<Occupation>>()), std::vector<Occupation>{})
 EXTEND_OPTION("八人场身份列表（身份数量需为 8，否则实际采用默认身份列表）", 八人身份, (RepeatableChecker<EnumChecker<Occupation>>()), std::vector<Occupation>{})
 EXTEND_OPTION("九人场身份列表（身份数量需为 9，否则实际采用默认身份列表）", 九人身份, (RepeatableChecker<EnumChecker<Occupation>>()), std::vector<Occupation>{})
+#ifdef TEST_BOT
 EXTEND_OPTION("【仅测试用】依次设置玩家身份", 身份列表, (RepeatableChecker<EnumChecker<Occupation>>()), std::vector<Occupation>{})
+#endif

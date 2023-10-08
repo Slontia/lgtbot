@@ -33,6 +33,7 @@ const uint64_t k_max_player = 6; /* 0 means no max-player limits */
 const uint64_t k_multiple = 2;
 const std::string k_developer = "森高";
 const std::string k_description = "多个帝国共同参与，定时重组棋盘的象棋游戏";
+const std::vector<RuleCommand> k_rule_commands = {};
 
 std::string GameOption::StatusInfo() const
 {

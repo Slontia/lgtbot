@@ -23,6 +23,7 @@ const uint64_t k_multiple = 1;    // the default score multiple for the game, 0 
 // 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "dva";
 const std::string k_description = "保存体力，尽可能活到最后的游戏";
+const std::vector<RuleCommand> k_rule_commands = {};
 
 std::string GameOption::StatusInfo() const {
   return "最多 " + std::to_string(GET_VALUE(回合数)) + " 回合，每回合超时时间 " +

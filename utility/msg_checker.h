@@ -717,7 +717,7 @@ class Command<UserResult(UserArgs...)>
         Base_() {}
         virtual ~Base_() {}
         virtual CommandResult CallIfValid(MsgReader& msg_reader, UserArgs... user_args) const = 0;
-        virtual std::string Info(const bool with_example = false, const bool with_html_color = false) const = 0;
+        virtual std::string Info(const bool with_example, const bool with_html_color, const std::string& prefix) const = 0;
     };
 
     template <typename Callback, typename... Checkers>
@@ -780,11 +780,12 @@ class Command<UserResult(UserArgs...)>
             return CallIfValidParseArgs<0>(msg_reader, std::forward<UserArgs&&>(user_args)...);
         }
 
-        virtual std::string Info(const bool with_example, const bool with_html_color) const override
+        virtual std::string Info(const bool with_example, const bool with_html_color, const std::string& prefix) const override
         {
             std::string outstr;
             outstr += description_;
             outstr += "\n    - 格式：";
+            outstr += prefix;
             if (with_html_color) {
                 std::apply([this, &outstr](const auto&... checkers) { ((outstr += checkers.ColoredFormatInfo() + " "), ...); }, checkers_);
             } else {
@@ -793,6 +794,7 @@ class Command<UserResult(UserArgs...)>
             // If all checkers are void checker, the format info and example info are same.
             if (with_example) {
                 outstr += "\n    - 例如：";
+                outstr += prefix;
                 std::apply([this, &outstr](const auto&... checkers) { ((outstr += checkers.ExampleInfo() + " "), ...); },
                         checkers_);
             }
@@ -818,7 +820,7 @@ class Command<UserResult(UserArgs...)>
     template <typename ...Args>
     auto CallIfValid(Args&&... args) const { return cmd_->CallIfValid(std::forward<Args>(args)...); }
 
-    auto Info(const bool with_example, const bool with_html_color) const { return cmd_->Info(with_example, with_html_color); }
+    auto Info(const bool with_example, const bool with_html_color, const std::string& prefix = "") const { return cmd_->Info(with_example, with_html_color, prefix); }
 
   private:
     std::shared_ptr<Base_> cmd_;

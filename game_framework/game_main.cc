@@ -10,6 +10,8 @@
 
 #include "game_framework/game_options.h" // for GameOption
 #include "game_framework/game_achievements.h" // for k_achievements
+#include "game_framework/util.h"
+#include "utility/msg_checker.h"
 
 #ifndef GAME_MODULE_NAME
 #error GAME_MODULE_NAME is not defined
@@ -23,11 +25,6 @@ namespace game {
 
 namespace GAME_MODULE_NAME {
 
-extern const std::string k_game_name;
-extern const uint64_t k_max_player;
-extern const uint64_t k_multiple;
-extern const std::string k_developer;
-extern const std::string k_description;
 extern const char* Rule();
 extern MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
 
@@ -58,7 +55,22 @@ const bool GetGameInfo(lgtbot::game::GameInfo* game_info)
     game_info->developer_ = lgtbot::game::GAME_MODULE_NAME::k_developer.c_str();
     game_info->description_ = lgtbot::game::GAME_MODULE_NAME::k_description.c_str();
     game_info->achievements_ = lgtbot::game::GAME_MODULE_NAME::k_achievements.data();
-    game_info->rule_ = lgtbot::game::GAME_MODULE_NAME::Rule();
+
+    if (lgtbot::game::GAME_MODULE_NAME::k_rule_commands.empty()) {
+        game_info->rule_ = lgtbot::game::GAME_MODULE_NAME::Rule();
+    } else {
+        static const std::string rule_str = lgtbot::game::GAME_MODULE_NAME::Rule() + []() -> std::string
+            {
+                std::string s = "\n\n可以通过以下指令查看规则细节：";
+                int i = 0;
+                for (const auto& command : lgtbot::game::GAME_MODULE_NAME::k_rule_commands) {
+                    s += "\n" + std::to_string(++i) + ". ";
+                    s += command.Info(true, false, std::string("#规则 ") + lgtbot::game::GAME_MODULE_NAME::k_game_name + " ");
+                }
+                return s;
+            }();
+        game_info->rule_ = rule_str.c_str();
+    }
     return true;
 }
 
@@ -80,6 +92,17 @@ lgtbot::game::MainStageBase* NewMainStage(MsgSenderBase& reply, lgtbot::game::Ga
 void DeleteMainStage(lgtbot::game::MainStageBase* main_stage)
 {
     delete main_stage;
+}
+
+const char* HandleRuleCommand(const char* const s)
+{
+    MsgReader reader(s);
+    for (const auto& cmd : lgtbot::game::GAME_MODULE_NAME::k_rule_commands) {
+        if (const auto& value = cmd.CallIfValid(reader); value.has_value()) {
+            return *value;
+        }
+    }
+    return nullptr;
 }
 
 } // extern "c"

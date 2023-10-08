@@ -31,6 +31,7 @@ const uint64_t k_max_player = 4; /* 0 means no max-player limits */
 const uint64_t k_multiple = 1;
 const std::string k_developer = "森高";
 const std::string k_description = "能够看到各个玩家部分手牌，两阶段下注的比拼大小的游戏";
+const std::vector<RuleCommand> k_rule_commands = {};
 
 std::string GameOption::StatusInfo() const
 {

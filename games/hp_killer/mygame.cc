@@ -30,11 +30,6 @@ const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for
 const std::string k_developer = "森高";
 const std::string k_description = "通过对其他玩家造成伤害，杀掉隐藏在玩家中的杀手的游戏";
 
-std::string GameOption::StatusInfo() const
-{
-    return "共 " + std::to_string(GET_VALUE(回合数)) + " 回合，每回合超时时间 " + std::to_string(GET_VALUE(时限)) + " 秒";
-}
-
 const char* const k_role_rules[Occupation::Count()] = {
     // killer team
     [static_cast<uint32_t>(Occupation(Occupation::杀手))] = R"EOF(【杀手 | 杀手阵营】
@@ -121,6 +116,17 @@ const char* const k_role_rules[Occupation::Count()] = {
 
 };
 
+const std::vector<RuleCommand> k_rule_commands = {
+    RuleCommand("查看某名角色技能",
+            [](const Occupation occupation) { return k_role_rules [static_cast<uint32_t>(occupation)]; },
+            EnumChecker<Occupation>()),
+};
+
+std::string GameOption::StatusInfo() const
+{
+    return "共 " + std::to_string(GET_VALUE(回合数)) + " 回合，每回合超时时间 " + std::to_string(GET_VALUE(时限)) + " 秒";
+}
+
 static const std::vector<Occupation>& GetOccupationList(const GameOption& option)
 {
     return option.PlayerNum() == 5 ? GET_OPTION_VALUE(option, 五人身份) :
@@ -145,27 +151,29 @@ bool GameOption::ToValid(MsgSenderBase& reply)
         {
             return std::ranges::count_if(occupation_list, [](const Occupation occupation) { return occupation != Occupation::人偶; }) == player_num;
         };
+#ifdef TEST_BOT
     if (!GET_VALUE(身份列表).empty() && !player_num_matched(GET_VALUE(身份列表))) {
         reply() << "玩家人数和身份列表长度不匹配";
         return false;
     }
+#endif
     auto& occupation_list = GetOccupationList(*this);
     if (occupation_list.empty()) {
-        // do nothing
-    } else if (!player_num_matched(occupation_list)) {
-        reply() << "[警告] 身份列表配置项身份个数与参加人数不符，将按照默认配置进行游戏";
-        occupation_list.clear();
-    } else if (std::ranges::count(occupation_list, Occupation::杀手) != 1) {
-        reply() << "[警告] 身份列表中杀手个数不为 1，将按照默认配置进行游戏";
-        occupation_list.clear();
-    } else {
-        for (const auto occupation : std::initializer_list<Occupation>
-                {Occupation::替身, Occupation::内奸, Occupation::守卫, Occupation::双子（邪）, Occupation::双子（正）}) {
-            if (std::ranges::count(occupation_list, occupation) > 1) {
-                reply() << "[警告] 身份列表中" << occupation << "个数大于 1，将按照默认配置进行游戏";
-                occupation_list.clear();
-                break;
-            }
+        return true;
+    }
+    if (!player_num_matched(occupation_list)) {
+        reply() << "[错误] 身份列表配置项身份个数与参加人数不符，请修正配置";
+        return false;
+    }
+    if (std::ranges::count(occupation_list, Occupation::杀手) != 1) {
+        reply() << "[错误] 身份列表中杀手个数必须为 1，请修正配置";
+        return false;
+    }
+    for (const auto occupation : std::initializer_list<Occupation>
+            {Occupation::替身, Occupation::内奸, Occupation::守卫, Occupation::双子（邪）, Occupation::双子（正）}) {
+        if (std::ranges::count(occupation_list, occupation) > 1) {
+            reply() << "[错误] 身份列表中" << occupation << "个数不允许大于 1，请修正配置";
+            return false;
         }
     }
     return true;
@@ -1053,9 +1061,13 @@ class MainStage : public MainGameStage<>
                             BasicChecker<Token>("角色代号", "A"),
                             ArithChecker<int32_t>(-1000, 1000, "预测下一回合血量"))),
                 MakeStageCommand("跳过本回合行动", &MainStage::Pass_, VoidChecker("pass")))
+#ifdef TEST_BOT
         , role_manager_(GET_OPTION_VALUE(option, 身份列表).empty()
                 ? GetRoleVec_(option, DefaultRoleOption_(option), role_manager_)
                 : LoadRoleVec_(GET_OPTION_VALUE(option, 身份列表), DefaultRoleOption_(option), role_manager_))
+#else
+        , role_manager_(GetRoleVec_(option, DefaultRoleOption_(option), role_manager_))
+#endif
         , k_image_width_((k_avatar_width_ + k_cellspacing_ + k_cellpadding_) * role_manager_.Size() + 150)
         , role_info_(RoleInfo_())
         , round_(1)

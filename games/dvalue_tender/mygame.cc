@@ -25,6 +25,7 @@ const uint64_t k_max_player = 2; // 0 indicates no max-player limits
 const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "睦月";
 const std::string k_description = "简单的拼点游戏";
+const std::vector<RuleCommand> k_rule_commands = {};
 
 // a function to give one-digit number two space in its left, in order to align correctly in text broadcast.
 std::string myToStrL(int x)

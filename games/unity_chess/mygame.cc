@@ -29,6 +29,7 @@ const uint64_t k_max_player = 2; // 0 indicates no max-player limits
 const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "睦月";
 const std::string k_description = "通过三连珠进行棋盘染色的棋类游戏";
+const std::vector<RuleCommand> k_rule_commands = {};
 
 std::string GameOption::StatusInfo() const
 {

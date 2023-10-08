@@ -24,6 +24,7 @@ const uint64_t k_max_player = 0; // 0 indicates no max-player limits
 const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "铁蛋";
 const std::string k_description = "选择恰当的数字，尽可能接近平均数的游戏";
+const std::vector<RuleCommand> k_rule_commands = {};
 
 std::string GameOption::StatusInfo() const
 {

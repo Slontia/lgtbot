@@ -468,6 +468,7 @@ class TestBot : public testing::Test
                     [](MsgSenderBase&, const lgtbot::game::GameOptionBase& option, MatchBase& match)
                             -> lgtbot::game::MainStageBase* { return new MyMainStage(static_cast<const lgtbot::game::GAME_MODULE_NAME::GameOption&>(option), match); },
                     [](const lgtbot::game::MainStageBase* const main_stage) { delete main_stage; },
+                    [](const char* const msg) -> const char* { return nullptr; },
                     []() {}
         ));
     }
@@ -482,6 +483,7 @@ class TestBot : public testing::Test
                     [](MsgSenderBase&, const lgtbot::game::GameOptionBase& option, MatchBase& match)
                             -> lgtbot::game::MainStageBase* { return new MyMainStage(static_cast<const lgtbot::game::GAME_MODULE_NAME::GameOption&>(option), match); },
                     [](const lgtbot::game::MainStageBase* const main_stage) { delete main_stage; },
+                    [](const char* const msg) -> const char* { return nullptr; },
                     []() {}
         ));
     }

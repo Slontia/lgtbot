@@ -4,17 +4,14 @@
 //
 // This file should be included at the bottom of each game's mygame.cc file.
 
+#pragma once
+#include "game_framework/util.h"
+
 namespace lgtbot {
 
 namespace game {
 
 namespace GAME_MODULE_NAME {
-
-extern const std::string k_game_name;
-extern const uint64_t k_max_player;
-extern const uint64_t k_multiple;
-extern const std::string k_developer;
-extern const std::string k_description;
 
 MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match)
 {
