@@ -780,13 +780,14 @@ class Command<UserResult(UserArgs...)>
             return CallIfValidParseArgs<0>(msg_reader, std::forward<UserArgs&&>(user_args)...);
         }
 
-        virtual std::string Info(const bool with_example, const bool with_html_color, const std::string& prefix) const override
+        virtual std::string Info(const bool with_example, const bool with_html_syntax, const std::string& prefix) const override
         {
+            // The reason why we do not use HTML_ESCAPE_SPACE instead of " " as space is that the `checkers.ExampleInfo()` use " " as space.
             std::string outstr;
             outstr += description_;
             outstr += "\n    - 格式：";
             outstr += prefix;
-            if (with_html_color) {
+            if (with_html_syntax) {
                 std::apply([this, &outstr](const auto&... checkers) { ((outstr += checkers.ColoredFormatInfo() + " "), ...); }, checkers_);
             } else {
                 std::apply([this, &outstr](const auto&... checkers) { ((outstr += checkers.FormatInfo() + " "), ...); }, checkers_);
@@ -795,8 +796,7 @@ class Command<UserResult(UserArgs...)>
             if (with_example) {
                 outstr += "\n    - 例如：";
                 outstr += prefix;
-                std::apply([this, &outstr](const auto&... checkers) { ((outstr += checkers.ExampleInfo() + " "), ...); },
-                        checkers_);
+                std::apply([this, &outstr, with_html_syntax](const auto&... checkers) { ((outstr += checkers.ExampleInfo() + " "), ...); }, checkers_);
             }
             return outstr;
         }

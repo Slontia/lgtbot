@@ -79,10 +79,10 @@ class GameOptionBase
     GameOptionBase() {}
     virtual ~GameOptionBase() {}
 
-    virtual bool SetOption(const char* const msg) = 0;
+    virtual bool SetOption(const char* msg) = 0;
     virtual void SetPlayerNum(const uint64_t player_num) = 0;
-    virtual void SetResourceDir(const char* const resource_dir) = 0;
-    virtual void SetSavedImageDir(const char* const saved_image_dir) = 0;
+    virtual void SetResourceDir(const char* resource_dir) = 0;
+    virtual void SetSavedImageDir(const char* saved_image_dir) = 0;
 
     virtual uint64_t PlayerNum() const = 0;
     virtual const char* ResourceDir() const = 0;
@@ -91,8 +91,7 @@ class GameOptionBase
     virtual bool ToValid(MsgSenderBase& reply) = 0;
     virtual uint64_t BestPlayerNum() const = 0;
 
-    virtual const char* Info() const = 0;
-    virtual const char* ColoredInfo() const = 0;
+    virtual const char* Info(bool with_example, bool with_html_syntax, const char* prefix = "") const = 0;
     virtual const char* Status() const = 0;
 
     virtual GameOptionBase* Copy() const = 0;

@@ -66,16 +66,10 @@ class GameOption : public GameOptionBase, public MyGameOption
 
     virtual const char* SavedImageDir() const { return saved_image_dir_.c_str(); }
 
-    virtual const char* Info() const override
+    virtual const char* Info(const bool with_example, const bool with_html_syntax, const char* const prefix) const override
     {
         thread_local static std::string info;
-        return (info = MyGameOption::Info()).c_str();
-    }
-
-    virtual const char* ColoredInfo() const override
-    {
-        thread_local static std::string info;
-        return (info = MyGameOption::ColoredInfo()).c_str();
+        return (info = MyGameOption::Info(with_example, with_html_syntax, prefix)).c_str();
     }
 
     virtual const char* Status() const override

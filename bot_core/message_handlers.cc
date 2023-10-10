@@ -432,7 +432,8 @@ static ErrCode show_game_options(BotCtx& bot, const UserID uid, const std::optio
         reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     };
-    const std::string outstr = std::string("### 全局配置选项") + it->second->game_options_.Lock().Get()->Info();
+    const std::string outstr = std::string("### 「") + gamename + "」配置选项" +
+        it->second->game_options_.Lock().Get()->Info(true, !text_mode, ("%配置 " + gamename + " ").c_str());
     if (text_mode) {
         reply() << outstr;
     } else {
@@ -976,7 +977,7 @@ static ErrCode set_game_option(BotCtx& bot, const UserID uid, const std::optiona
 static ErrCode show_bot_options(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
         MsgSenderBase& reply, const bool text_mode)
 {
-    const std::string outstr = "### 全局配置选项" + bot.option().Lock().Get().Info();
+    const std::string outstr = "### 全局配置选项" + bot.option().Lock().Get().Info(true, !text_mode, "%全局配置 ");
     if (text_mode) {
         reply() << outstr;
     } else {

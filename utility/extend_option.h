@@ -127,14 +127,9 @@ class OPTION_CLASSNAME
 
     static constexpr uint32_t Count() { return Option::MAX_OPTION; }
 
-    std::string Info() const { return Info_<false>(); }
-
-    std::string ColoredInfo() const { return Info_<true>(); }
-
-  private:
-    template <bool WITH_COLOR>
-    std::string Info_() const
+    std::string Info(const bool with_example, const bool with_html_syntax, const char* const prefix) const
     {
+        // The reason why we do not use HTML_ESCAPE_SPACE instead of " " as space is that the `checkers.ExampleInfo()` use " " as space.
         std::string outstr;
         int i = 0;
         Foreach([&](const char* const description, const char* const name, const auto& checker, const auto& value)
@@ -143,21 +138,25 @@ class OPTION_CLASSNAME
                     outstr += description;
                     // format
                     outstr += "\n    - 格式：";
+                    outstr += prefix;
                     outstr += name;
                     outstr += " ";
-                    outstr += WITH_COLOR ? checker.ColoredFormatInfo() : checker.FormatInfo();
-                    // example
-                    outstr += "\n    - 例如：";
-                    outstr += name;
-                    outstr += " ";
-                    outstr += checker.ExampleInfo();
+                    outstr += with_html_syntax ? checker.ColoredFormatInfo() : checker.FormatInfo();
+                    if (with_example) {
+                        // example
+                        outstr += "\n    - 例如：";
+                        outstr += prefix;
+                        outstr += name;
+                        outstr += " ";
+                        outstr += checker.ExampleInfo();
+                    }
                     // current value
                     outstr += "\n    - 当前：";
-                    if (WITH_COLOR) {
+                    if (with_html_syntax) {
                         outstr += HTML_COLOR_FONT_HEADER(red);
                     }
                     outstr += checker.ArgString(value);
-                    if (WITH_COLOR) {
+                    if (with_html_syntax) {
                         outstr += HTML_FONT_TAIL;
                     }
                     return false;
@@ -165,6 +164,7 @@ class OPTION_CLASSNAME
         return outstr;
     }
 
+  private:
     decltype(std::tuple{
 #define EXTEND_OPTION(_0, _1, checker, default_value) \
     static_cast<std::decay<decltype(checker)>::type::arg_type>(default_value), checker,

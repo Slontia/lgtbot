@@ -704,7 +704,7 @@ void Match::Help_(MsgSenderBase& reply, const bool text_mode)
         outstr += main_stage_->CommandInfoC(text_mode);
     } else {
         outstr += "\n\n ### 配置选项";
-        outstr += options_->Info();
+        outstr += options_->Info(true, !text_mode);
     }
     if (text_mode) {
         reply() << outstr;
