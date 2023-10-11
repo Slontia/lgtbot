@@ -92,6 +92,7 @@ class GameOption : public GameOptionBase, public MyGameOption
                 {
                     str_content[i] = std::string(name) + " " + checker.ArgString(value);
                     c_str_content[i] = str_content[i].c_str();
+                    ++i;
                     return false;
                 });
         return c_str_content.data();
