@@ -20,10 +20,10 @@ const uint64_t k_max_player = 0; // 0 indicates no max-player limits
 const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "佚名";
 const std::string k_description = "暂无游戏描述";
+const std::vector<RuleCommand> k_rule_commands = {};
 
 std::string GameOption::StatusInfo() const
 {
-    return "共 " + std::to_string(GET_VALUE(回合数)) + " 回合，每回合超时时间 " + std::to_string(GET_VALUE(时限)) + " 秒";
 }
 
 bool GameOption::ToValid(MsgSenderBase& reply)
