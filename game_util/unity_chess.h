@@ -220,7 +220,7 @@ class Board
                 table.Get(selection->row_ + 1, selection->col_ + 1).SetContent(AreaImage_(*selection, true));
             }
         }
-        return table.ToString();
+        return "<style>html,body{background:#ececec;}</style>\n" + table.ToString();
     }
 
     constexpr static const int32_t k_consecutive_length_ = 3;
