@@ -190,8 +190,8 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         }
         const auto stage_rc = main_stage_->HandleRequest(msg.c_str(), pid, gid.has_value(), reply);
         if (stage_rc == StageErrCode::NOT_FOUND) {
-            reply() << "[错误] 未预料的游戏指令，您可以通过「帮助」（不带#号）查看所有支持的游戏指令\n"
-                        "若您想执行元指令，请尝试在请求前加「#」，或通过「#帮助」查看所有支持的元指令";
+            reply() << "[错误] 未预料的游戏指令，您可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏指令\n"
+                        "若您想执行元指令，请尝试在请求前加「" META_COMMAND_SIGN "」，或通过「" META_COMMAND_SIGN "帮助」查看所有支持的元指令";
         }
         Routine_();
         return ConverErrCode(stage_rc);
@@ -201,8 +201,8 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         return EC_MATCH_NOT_HOST;
     }
     if (!options_->SetOption(msg.c_str())) {
-        reply() << "[错误] 未预料的游戏设置，您可以通过「帮助」（不带#号）查看所有支持的游戏设置\n"
-                    "若您想执行元指令，请尝试在请求前加「#」，或通过「#帮助」查看所有支持的元指令";
+        reply() << "[错误] 未预料的游戏设置，您可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置\n"
+                    "若您想执行元指令，请尝试在请求前加「" META_COMMAND_SIGN "」，或通过「" META_COMMAND_SIGN "帮助」查看所有支持的元指令";
         return EC_GAME_REQUEST_NOT_FOUND;
     }
     KickForConfigChange_();
@@ -237,7 +237,7 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
     state_ = State::IS_STARTED;
-    BoardcastAtAll() << "游戏开始，您可以使用「帮助」命令（不带#号），查看可执行命令";
+    BoardcastAtAll() << "游戏开始，您可以使用「帮助」命令（不带" META_COMMAND_SIGN "号），查看可执行命令";
     nlohmann::json players_json_array;
     for (auto& [uid, user_info] : users_) {
         for (int i = 0; i < player_num_each_user_; ++i) {
@@ -284,7 +284,7 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         return ret;
     }
     if (!match_manager().BindMatch(uid, shared_from_this())) {
-        reply() << "[错误] 加入失败：您已加入其他游戏，您可通过私信裁判「#游戏信息」查看该游戏信息";
+        reply() << "[错误] 加入失败：您已加入其他游戏，您可通过私信裁判「" META_COMMAND_SIGN "游戏信息」查看该游戏信息";
         return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
     }
     EmplaceUser_(uid);
@@ -340,7 +340,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
             }
         }
     } else {
-        reply() << "[错误] 退出失败：游戏已经开始，若仍要退出游戏，请使用「#退出 强制」命令";
+        reply() << "[错误] 退出失败：游戏已经开始，若仍要退出游戏，请使用「" META_COMMAND_SIGN "退出 强制」命令";
         rc = EC_MATCH_ALREADY_BEGIN;
     }
     return rc;
@@ -528,7 +528,7 @@ void Match::Eliminate(const PlayerID pid)
 {
     if (std::exchange(players_[pid].state_, Player::State::ELIMINATED) != Player::State::ELIMINATED) {
         // TODO: check all players of the user
-        Tell(pid) << "很遗憾，您被淘汰了，可以通过「#退出」以退出游戏";
+        Tell(pid) << "很遗憾，您被淘汰了，可以通过「" META_COMMAND_SIGN "退出」以退出游戏";
         is_in_deduction_ = std::ranges::all_of(players_,
                 [](const auto& p) { return std::get_if<ComputerID>(&p.id_) || p.state_ != Player::State::ACTIVE; });
         MatchLog(InfoLog()) << "Eliminate player pid=" << pid << " is_in_deduction=" << Bool2Str(is_in_deduction_);
@@ -758,7 +758,7 @@ ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool 
         MatchLog(InfoLog()) << "Match is interrupted by users";
         Terminate_();
     } else {
-        Boardcast() << "有玩家" << (cancel ? "取消" : "确定") << "中断游戏，目前 " << remain << " 人尚未确定中止，所有玩家可通过「#中断」命令确定中断游戏，或「#中断 取消」命令取消中断游戏";
+        Boardcast() << "有玩家" << (cancel ? "取消" : "确定") << "中断游戏，目前 " << remain << " 人尚未确定中止，所有玩家可通过「" META_COMMAND_SIGN "中断」命令确定中断游戏，或「" META_COMMAND_SIGN "中断 取消」命令取消中断游戏";
     }
 
     return EC_OK;

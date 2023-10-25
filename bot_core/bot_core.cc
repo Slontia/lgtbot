@@ -21,6 +21,9 @@
 
 #include "sqlite_modern_cpp.h"
 
+static_assert(sizeof(META_COMMAND_SIGN) == 2, "The META_COMMAND_SIGN string must contain one character");
+static_assert(sizeof(ADMIN_COMMAND_SIGN) == 2, "The ADMIN_COMMAND_SIGN string must contain one character");
+
 static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, const UserID uid, const std::string& msg,
                              MsgSender& reply)
 {
@@ -29,9 +32,9 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
         return EC_REQUEST_EMPTY;
     } else {
         switch (first_arg[0]) {
-        case '#':
+        case META_COMMAND_SIGN[0]:
             return HandleMetaRequest(bot, uid, gid, msg, reply);
-        case '%':
+        case ADMIN_COMMAND_SIGN[0]:
             if (!bot.HasAdmin(uid)) {
                 reply() << "[错误] 您未持有管理员权限";
                 return EC_REQUEST_NOT_ADMIN;
@@ -41,12 +44,12 @@ static ErrCode HandleRequest(BotCtx& bot, const std::optional<GroupID> gid, cons
             std::shared_ptr<Match> match = bot.match_manager().GetMatch(uid);
             if (!match) {
                 reply() << "[错误] 您未参与游戏\n"
-                           "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
+                           "若您想执行元指令，请尝试在请求前加\"" META_COMMAND_SIGN "\"，或通过\"" META_COMMAND_SIGN "帮助\"查看所有支持的元指令";
                 return EC_MATCH_USER_NOT_IN_MATCH;
             }
             if (match->gid() != gid && gid.has_value()) {
                 reply() << "[错误] 您未在本群参与游戏\n";
-                "若您想执行元指令，请尝试在请求前加\"#\"，或通过\"#帮助\"查看所有支持的元指令";
+                "若您想执行元指令，请尝试在请求前加\"" META_COMMAND_SIGN "\"，或通过\"" META_COMMAND_SIGN "帮助\"查看所有支持的元指令";
                 return EC_MATCH_NOT_THIS_GROUP;
             }
             return match->Request(uid, gid, msg, reply);

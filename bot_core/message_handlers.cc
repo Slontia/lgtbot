@@ -103,7 +103,7 @@ ErrCode HandleMetaRequest(BotCtx& bot, const UserID uid, const std::optional<Gro
     MsgReader reader(msg);
     const auto ret = HandleRequest(bot, uid, gid, reader, reply, meta_cmds);
     if (ret == EC_REQUEST_NOT_FOUND) {
-        reply() << "[错误] 未预料的元指令，您可以通过「#帮助」查看所有支持的元指令";
+        reply() << "[错误] 未预料的元指令，您可以通过「" META_COMMAND_SIGN "帮助」查看所有支持的元指令";
     }
     return ret;
 }
@@ -114,7 +114,7 @@ ErrCode HandleAdminRequest(BotCtx& bot, const UserID uid, const std::optional<Gr
     MsgReader reader(msg);
     const auto ret = HandleRequest(bot, uid, gid, reader, reply, admin_cmds);
     if (ret == EC_REQUEST_NOT_FOUND) {
-        reply() << "[错误] 未预料的管理指令，您可以通过「%帮助」查看所有支持的管理指令";
+        reply() << "[错误] 未预料的管理指令，您可以通过「" ADMIN_COMMAND_SIGN "帮助」查看所有支持的管理指令";
     }
     return ret;
 }
@@ -167,7 +167,7 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
-        reply() << "[错误] 创建失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        reply() << "[错误] 创建失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
     if (gid.has_value()) {
@@ -188,9 +188,9 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
     } else {
         auto sender = match->Boardcast();
         if (match->gid().has_value()) {
-            sender << "现在玩家可以在群里通过「#加入」报名比赛，房主也可以通过「帮助」（不带#号）查看所有支持的游戏设置";
+            sender << "现在玩家可以在群里通过「" META_COMMAND_SIGN "加入」报名比赛，房主也可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置";
         } else {
-            sender << "现在玩家可以通过私信我「#加入 " << match->MatchId() << "」报名比赛，您也可以通过「帮助」（不带#号）查看所有支持的游戏设置";
+            sender << "现在玩家可以通过私信我「" META_COMMAND_SIGN "加入 " << match->MatchId() << "」报名比赛，您也可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置";
         }
         sender << "\n\n" << match->BriefInfo();
     }
@@ -343,7 +343,7 @@ static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<Grou
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
-        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     };
     if (!show_text) {
@@ -368,7 +368,7 @@ static ErrCode show_custom_rule(BotCtx& bot, const UserID uid, const std::option
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
-        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     };
     std::string s;
@@ -378,7 +378,7 @@ static ErrCode show_custom_rule(BotCtx& bot, const UserID uid, const std::option
     }
     const char* const result = it->second->handle_rule_command_fn_(s.c_str());
     if (!result) {
-        reply() << "[错误] 查看失败：未知的规则指令，请通过「#规则 " << gamename << "」查看具体规则指令";
+        reply() << "[错误] 查看失败：未知的规则指令，请通过「" META_COMMAND_SIGN "规则 " << gamename << "」查看具体规则指令";
         return EC_INVALID_ARGUMENT;
     }
     reply() << result;
@@ -394,7 +394,7 @@ static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::option
     }
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
-        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     };
     if (it->second->achievements_.empty()) {
@@ -429,11 +429,11 @@ static ErrCode show_game_options(BotCtx& bot, const UserID uid, const std::optio
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
-        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     };
     const std::string outstr = std::string("### 「") + gamename + "」配置选项" +
-        it->second->game_options_.Lock().Get()->Info(true, !text_mode, ("%配置 " + gamename + " ").c_str());
+        it->second->game_options_.Lock().Get()->Info(true, !text_mode, (ADMIN_COMMAND_SIGN "配置 " + gamename + " ").c_str());
     if (text_mode) {
         reply() << outstr;
     } else {
@@ -754,7 +754,7 @@ static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional
         return EC_DB_NOT_CONNECTED;
     }
     if (bot.game_handles().find(game_name) == bot.game_handles().end()) {
-        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
     std::string s;
@@ -786,7 +786,7 @@ static ErrCode show_game_rank_range_time(BotCtx& bot, const UserID uid, const st
         return EC_DB_NOT_CONNECTED;
     }
     if (bot.game_handles().find(game_name) == bot.game_handles().end()) {
-        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
     const auto info = bot.db_manager()->GetLevelScoreRank(game_name, k_time_range_begin_datetimes[time_range.ToUInt()],
@@ -826,58 +826,58 @@ static ErrCode show_honors(BotCtx& bot, const UserID uid, const std::optional<Gr
 const std::vector<MetaCommandGroup> meta_cmds = {
     {
         "信息查看", { // GAME INFO: can be executed at any time
-            make_command("查看帮助", help<false>, VoidChecker("#帮助"),
+            make_command("查看帮助", help<false>, VoidChecker(META_COMMAND_SIGN "帮助"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
-            make_command("查看游戏列表", show_gamelist, VoidChecker("#游戏列表"),
+            make_command("查看游戏列表", show_gamelist, VoidChecker(META_COMMAND_SIGN "游戏列表"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
-            make_command("查看游戏规则（游戏名称可以通过「#游戏列表」查看）", show_rule, VoidChecker("#规则"),
+            make_command("查看游戏规则（游戏名称可以通过「" META_COMMAND_SIGN "游戏列表」查看）", show_rule, VoidChecker(META_COMMAND_SIGN "规则"),
                         AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
-            make_command("查看游戏具体游戏规则（游戏名称可以通过「#游戏列表」查看）", show_custom_rule, VoidChecker("#规则"),
+            make_command("查看游戏具体游戏规则（游戏名称可以通过「" META_COMMAND_SIGN "游戏列表」查看）", show_custom_rule, VoidChecker(META_COMMAND_SIGN "规则"),
                         AnyArg("游戏名称", "猜拳游戏"), RepeatableChecker<AnyArg>("规则指令", "某指令")),
-            make_command("查看游戏成就（游戏名称可以通过「#游戏列表」查看）", show_achievement, VoidChecker("#成就"),
+            make_command("查看游戏成就（游戏名称可以通过「" META_COMMAND_SIGN "游戏列表」查看）", show_achievement, VoidChecker(META_COMMAND_SIGN "成就"),
                         AnyArg("游戏名称", "猜拳游戏")),
-            make_command("查看游戏配置信息（游戏名称可以通过「#游戏列表」查看）", show_game_options, VoidChecker("#配置"),
+            make_command("查看游戏配置信息（游戏名称可以通过「" META_COMMAND_SIGN "游戏列表」查看）", show_game_options, VoidChecker(META_COMMAND_SIGN "配置"),
                         AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
-            make_command("查看已加入，或该房间正在进行的比赛信息", show_match_info, VoidChecker("#游戏信息")),
-            make_command("查看比赛列表", show_matches, VoidChecker("#赛事列表")),
-            make_command("关于机器人", about, VoidChecker("#关于")),
+            make_command("查看已加入，或该房间正在进行的比赛信息", show_match_info, VoidChecker(META_COMMAND_SIGN "游戏信息")),
+            make_command("查看比赛列表", show_matches, VoidChecker(META_COMMAND_SIGN "赛事列表")),
+            make_command("关于机器人", about, VoidChecker(META_COMMAND_SIGN "关于")),
         }
     },
     {
         "战绩情况", { // SCORE INFO: can be executed at any time
-            make_command("查看个人战绩", show_profile, VoidChecker("#战绩"),
+            make_command("查看个人战绩", show_profile, VoidChecker(META_COMMAND_SIGN "战绩"),
                     OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::总)),
-            make_command("清除个人战绩", clear_profile, VoidChecker("#人生重来算了")),
-            make_command("查看排行榜", show_rank, VoidChecker("#排行大图")),
-            make_command("查看某个赛季粒度排行榜", show_rank_time_range, VoidChecker("#排行"),
+            make_command("清除个人战绩", clear_profile, VoidChecker(META_COMMAND_SIGN "人生重来算了")),
+            make_command("查看排行榜", show_rank, VoidChecker(META_COMMAND_SIGN "排行大图")),
+            make_command("查看某个赛季粒度排行榜", show_rank_time_range, VoidChecker(META_COMMAND_SIGN "排行"),
                     OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年)),
-            make_command("查看单个游戏等级积分排行榜", show_game_rank, VoidChecker("#排行大图"),
+            make_command("查看单个游戏等级积分排行榜", show_game_rank, VoidChecker(META_COMMAND_SIGN "排行大图"),
                     AnyArg("游戏名称", "猜拳游戏")),
-            make_command("查看单个游戏某个赛季粒度等级积分排行榜", show_game_rank_range_time, VoidChecker("#排行"),
+            make_command("查看单个游戏某个赛季粒度等级积分排行榜", show_game_rank_range_time, VoidChecker(META_COMMAND_SIGN "排行"),
                     AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年)),
-            make_command("查看所有荣誉", show_honors, VoidChecker("#荣誉列表"), OptionalDefaultChecker<AnyArg>("", "关键词")),
+            make_command("查看所有荣誉", show_honors, VoidChecker(META_COMMAND_SIGN "荣誉列表"), OptionalDefaultChecker<AnyArg>("", "关键词")),
         }
     },
     {
         "新建游戏", { // NEW GAME: can only be executed by host
-            make_command("在当前房间建立公开游戏，或私信 bot 以建立私密游戏（游戏名称可以通过「#游戏列表」查看）",
-                        new_game, VoidChecker("#新游戏"), AnyArg("游戏名称", "猜拳游戏"),
+            make_command("在当前房间建立公开游戏，或私信 bot 以建立私密游戏（游戏名称可以通过「" META_COMMAND_SIGN "游戏列表」查看）",
+                        new_game, VoidChecker(META_COMMAND_SIGN "新游戏"), AnyArg("游戏名称", "猜拳游戏"),
                         OptionalDefaultChecker<BoolChecker>(false, "单机", "多人")),
             make_command("房主设置参与游戏的AI数量，使得玩家不低于一定数量（属于配置变更，会使得全部玩家退出游戏）",
-                        set_bench_to, VoidChecker("#替补至"), ArithChecker<uint32_t>(2, 32, "数量")),
+                        set_bench_to, VoidChecker(META_COMMAND_SIGN "替补至"), ArithChecker<uint32_t>(2, 32, "数量")),
             make_command("房主调整分数倍率，0 代表试玩（属于配置变更，会使得全部玩家退出游戏）",
-                        set_multiple, VoidChecker("#倍率"), ArithChecker<uint32_t>(0, 3, "倍率")),
-            make_command("房主开始游戏", start_game, VoidChecker("#开始")),
+                        set_multiple, VoidChecker(META_COMMAND_SIGN "倍率"), ArithChecker<uint32_t>(0, 3, "倍率")),
+            make_command("房主开始游戏", start_game, VoidChecker(META_COMMAND_SIGN "开始")),
         }
     },
     {
         "参与游戏", { // JOIN/LEAVE GAME: can only be executed by player
-            make_command("加入当前房间的公开游戏", join_public, VoidChecker("#加入")),
-            make_command("私信bot以加入私密游戏（可通过「#私密游戏列表」查看比赛编号）", join_private, VoidChecker("#加入"),
+            make_command("加入当前房间的公开游戏", join_public, VoidChecker(META_COMMAND_SIGN "加入")),
+            make_command("私信bot以加入私密游戏（可通过「" META_COMMAND_SIGN "私密游戏列表」查看比赛编号）", join_private, VoidChecker(META_COMMAND_SIGN "加入"),
                         BasicChecker<MatchID>("私密比赛编号", "1")),
             make_command("退出游戏（若附带了「强制」参数，则可以在游戏进行中退出游戏，需注意退出后无法继续参与原游戏）",
-                        leave, VoidChecker("#退出"),  OptionalDefaultChecker<BoolChecker>(false, "强制", "常规")),
-            make_command("发起中断比赛", user_interrupt_game, VoidChecker("#中断"), OptionalDefaultChecker<BoolChecker>(false, "取消", "确定")),
+                        leave, VoidChecker(META_COMMAND_SIGN "退出"),  OptionalDefaultChecker<BoolChecker>(false, "强制", "常规")),
+            make_command("发起中断比赛", user_interrupt_game, VoidChecker(META_COMMAND_SIGN "中断"), OptionalDefaultChecker<BoolChecker>(false, "取消", "确定")),
         }
     }
 };
@@ -906,7 +906,7 @@ static ErrCode set_game_default_multiple(BotCtx& bot, const UserID uid, const st
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
-        reply() << "[错误] 查看失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        reply() << "[错误] 查看失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     };
     it->second->multiple_ = multiple;
@@ -943,7 +943,7 @@ static ErrCode set_bot_option(BotCtx& bot, const UserID uid, const std::optional
     MsgReader reader(option_args);
     auto locked_option = bot.option().Lock(); // lock until updated config to prevent write skew
     if (!locked_option.Get().SetOption(option_name, reader)) {
-        reply() << "[错误] 设置配置项失败，请通过「%全局配置」确认配置项是否存在";
+        reply() << "[错误] 设置配置项失败，请通过「" ADMIN_COMMAND_SIGN "全局配置」确认配置项是否存在";
         return EC_INVALID_ARGUMENT;
     }
     reply() << "设置成功";
@@ -957,7 +957,7 @@ static ErrCode set_game_option(BotCtx& bot, const UserID uid, const std::optiona
 {
     const auto game_handle_it = bot.game_handles().find(game_name);
     if (game_handle_it == bot.game_handles().end()) {
-        reply() << "[错误] 设置失败：未知的游戏名，请通过「#游戏列表」查看游戏名称";
+        reply() << "[错误] 设置失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
     std::string option_str = option_name;
@@ -966,7 +966,7 @@ static ErrCode set_game_option(BotCtx& bot, const UserID uid, const std::optiona
     }
     auto locked_option = game_handle_it->second->game_options_.Lock(); // lock until updated config to prevent write skew
     if (!locked_option.Get()->SetOption(option_str.c_str())) {
-        reply() << "[错误] 设置配置项失败，请通过「#配置 " << game_name << "」确认配置项是否存在";
+        reply() << "[错误] 设置配置项失败，请通过「" META_COMMAND_SIGN "配置 " << game_name << "」确认配置项是否存在";
         return EC_INVALID_ARGUMENT;
     }
     reply() << "设置成功";
@@ -977,7 +977,7 @@ static ErrCode set_game_option(BotCtx& bot, const UserID uid, const std::optiona
 static ErrCode show_bot_options(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
         MsgSenderBase& reply, const bool text_mode)
 {
-    const std::string outstr = "### 全局配置选项" + bot.option().Lock().Get().Info(true, !text_mode, "%全局配置 ");
+    const std::string outstr = "### 全局配置选项" + bot.option().Lock().Get().Info(true, !text_mode, ADMIN_COMMAND_SIGN "全局配置 ");
     if (text_mode) {
         reply() << outstr;
     } else {
@@ -1019,38 +1019,38 @@ static ErrCode delete_honor(BotCtx& bot, const UserID uid, const std::optional<G
 const std::vector<MetaCommandGroup> admin_cmds = {
     {
         "信息查看", {
-            make_command("查看帮助", help<true>, VoidChecker("%帮助"),
+            make_command("查看帮助", help<true>, VoidChecker(ADMIN_COMMAND_SIGN "帮助"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
-            make_command("查看他人战绩", show_others_profile, VoidChecker("%战绩"), AnyArg("用户 ID", "123456789"),
+            make_command("查看他人战绩", show_others_profile, VoidChecker(ADMIN_COMMAND_SIGN "战绩"), AnyArg("用户 ID", "123456789"),
                         OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::总)),
         }
     },
     {
         "管理操作", {
-            make_command("强制中断比赛", interrupt_game, VoidChecker("%中断"),
+            make_command("强制中断比赛", interrupt_game, VoidChecker(ADMIN_COMMAND_SIGN "中断"),
                         OptionalChecker<BasicChecker<MatchID>>("私密比赛编号")),
-            make_command("清除他人战绩，并通知其具体理由", clear_others_profile, VoidChecker("%清除战绩"),
+            make_command("清除他人战绩，并通知其具体理由", clear_others_profile, VoidChecker(ADMIN_COMMAND_SIGN "清除战绩"),
                         AnyArg("用户 ID", "123456789"), AnyArg("理由", "恶意刷分")),
         }
     },
     {
         "配置操作", {
-            make_command("设置游戏默认倍率", set_game_default_multiple, VoidChecker("%倍率"),
+            make_command("设置游戏默认倍率", set_game_default_multiple, VoidChecker(ADMIN_COMMAND_SIGN "倍率"),
                         AnyArg("游戏名称", "猜拳游戏"), ArithChecker<uint32_t>(0, 3, "倍率")),
-            make_command("查看所有支持的配置项", show_bot_options, VoidChecker("%全局配置"),
+            make_command("查看所有支持的配置项", show_bot_options, VoidChecker(ADMIN_COMMAND_SIGN "全局配置"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
-            make_command("设置配置项（可通过「%配置列表」查看所有支持的配置）", set_bot_option, VoidChecker("%全局配置"),
+            make_command("设置配置项（可通过「" ADMIN_COMMAND_SIGN "配置列表」查看所有支持的配置）", set_bot_option, VoidChecker(ADMIN_COMMAND_SIGN "全局配置"),
                         AnyArg("配置名称", "某配置"), RepeatableChecker<AnyArg>("配置参数", "参数")),
-            make_command("设置配置项（可通过「%配置列表」查看所有支持的配置）", set_game_option, VoidChecker("%配置"),
+            make_command("设置配置项（可通过「" ADMIN_COMMAND_SIGN "配置列表」查看所有支持的配置）", set_game_option, VoidChecker(ADMIN_COMMAND_SIGN "配置"),
                         AnyArg("游戏名称", "猜拳游戏"), AnyArg("配置名称", "某配置"),
                         RepeatableChecker<AnyArg>("配置参数", "参数")),
         }
     },
     {
         "荣誉操作", {
-            make_command("新增荣誉", add_honor, VoidChecker("%荣誉"), VoidChecker("新增"),
+            make_command("新增荣誉", add_honor, VoidChecker(ADMIN_COMMAND_SIGN "荣誉"), VoidChecker("新增"),
                         AnyArg("用户 ID", "123456789"), AnyArg("荣誉描述", "2022 年度某游戏年赛冠军")),
-            make_command("新增荣誉", delete_honor, VoidChecker("%荣誉"), VoidChecker("删除"),
+            make_command("新增荣誉", delete_honor, VoidChecker(ADMIN_COMMAND_SIGN "荣誉"), VoidChecker("删除"),
                         ArithChecker<int32_t>(0, INT32_MAX, "编号")),
         }
     },

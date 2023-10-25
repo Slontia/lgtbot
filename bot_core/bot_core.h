@@ -67,6 +67,14 @@ ERRCODE_DEF(EC_GAME_REQUEST_UNKNOWN)
 #include <stdint.h>
 #include <stddef.h>
 
+#ifndef META_COMMAND_SIGN
+#define META_COMMAND_SIGN "#"
+#endif
+
+#ifndef ADMIN_COMMAND_SIGN
+#define ADMIN_COMMAND_SIGN "%"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
