@@ -187,7 +187,7 @@ LGTBot_Option LGTBot_InitOptions();
 // Create a new bot with the options.
 // Inputs:
 //   - `options`: The pointer to options for bot, should not be NULL.
-//   - `p`: The address of the pointer which will point to the error message if the bot is created failed.
+//   - `p`: The address of the pointer which will point to the error message if the bot is created failed, should not be NULL.
 // Outputs:
 //   If the bot is created successfully, return the created bot. Otherwise, return NULL, and the `p`//   will point to the error message.
 DLLEXPORT(void*) LGTBot_Create(const LGTBot_Option* options, const char** p);
@@ -222,6 +222,22 @@ DLLEXPORT(enum ErrCode) LGTBot_HandlePrivateRequest(void* bot, const char* user_
 // Outputs:
 //   The errcode. If the message is handled well, the returned errcode should be EC_OK.
 DLLEXPORT(enum ErrCode) LGTBot_HandlePublicRequest(void* bot, const char* group_id, const char* user_id, const char* msg);
+
+// To check whether a user is in a match.
+// Inputs:
+//   - `bot`: The pointer to the bot, should not be NULL.
+//   - `user_id`: The user ID, should not be NULL.
+// Outputs:
+//  If the user is in a match, return 1. Otherwise, return 0;
+DLLEXPORT(int) LGTBot_IsUserInMatch(void* bot, const char* user_id);
+
+// To check whether a group is in a match.
+// Inputs:
+//   - `bot`: The pointer to the bot, should not be NULL.
+//   - `group_id`: The group ID, should not be NULL.
+// Outputs:
+//  If the group is in a match, return 1. Otherwise, return 0;
+DLLEXPORT(int) LGTBot_IsGroupInMatch(void* bot, const char* group_id);
 
 // Get version.
 // Output:

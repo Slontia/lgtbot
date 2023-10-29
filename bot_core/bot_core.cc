@@ -158,3 +158,12 @@ ErrCode LGTBot_HandlePublicRequest(void* const bot_p, const char* const gid, con
     return HandleRequest(bot, gid, uid, msg, sender);
 }
 
+int LGTBot_IsUserInMatch(void* const bot_p, const char* const uid)
+{
+    return static_cast<BotCtx*>(bot_p)->match_manager().GetMatch(UserID{uid}) != nullptr;
+}
+
+int LGTBot_IsGroupInMatch(void* const bot_p, const char* const gid)
+{
+    return static_cast<BotCtx*>(bot_p)->match_manager().GetMatch(GroupID{gid}) != nullptr;
+}
