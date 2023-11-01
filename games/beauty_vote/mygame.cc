@@ -85,7 +85,7 @@ class MainStage : public MainGameStage<RoundStage>
     string crash_color = "FFA07A";   // 撞车颜色
     string red_color = "35FF00";   // 红心颜色
 
-    string Specialrules(int win_size, int red_size, bool onred);
+    string Specialrules(int win_size, int red_size, bool onred, bool is_status);
     string GetName(std::string x);
 
   private:
@@ -105,30 +105,10 @@ class MainStage : public MainGameStage<RoundStage>
         HP_Board += "<td>X</td></tr>";
 
         string specialrule = "<table><tr><th style=\"width:500px;\">已开启的特殊规则：</th></tr>";
-        int n = 0;
-        if (on_crash == 1) {
-            specialrule += "<tr><td>撞车：如果有玩家提交了相同的数字，";
-            if (GET_OPTION_VALUE(option(),撞车伤害)) {
-                specialrule += "这些玩家生命值额外 -1，且";
-            } else {
-                specialrule += "则";
-            }
-            specialrule += "不计入本回合获胜玩家。</td></tr>";
-            n = 1;
-        }
-        if (on_red == 1) {
-            if (n == 1) { specialrule += "\n"; }
-            specialrule += "<tr><td>红心：当玩家选择的数字和 X 四舍五入后的数字一样时，视为该玩家命中红心，其他玩家生命值 -2。</td></tr>";
-            n = 1;
-        }
-        if (on_last == 1) {
-            if (n == 1) { specialrule += "\n"; }
-            specialrule += "<tr><td>当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，当回合出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜。</td></tr>";
-            n = 1;
-        }
+        specialrule += Specialrules(0, 0, false, true);
 
         reply() << Markdown(T_Board + HP_Board + Board + "</table>");
-        reply() << Markdown(specialrule + (n == 0 ? "<tr><td>无</tr></td>" : "") + "</table>");
+        reply() << Markdown(specialrule + "</table>");
         return StageErrCode::OK;
     }
 
@@ -458,7 +438,7 @@ class RoundStage : public SubGameStage<>
         }
 
         // 特殊规则
-        string specialrule = main_stage().Specialrules(win.size(), red.size(), onred);
+        string specialrule = main_stage().Specialrules(win.size(), red.size(), onred, false);
         if (specialrule != "") {
             Boardcast() << specialrule;
         }
@@ -494,33 +474,65 @@ class RoundStage : public SubGameStage<>
     }
 };
 
-string MainStage::Specialrules(int win_size, int red_size, bool onred)
+string MainStage::Specialrules(int win_size, int red_size, bool onred, bool is_status)
 {
     string specialrule = "";
     int n = 0;
 
-    if ((round_ == GET_OPTION_VALUE(option(), 撞车) - 1 || GET_OPTION_VALUE(option(), 撞车) == 1 || win_size > 1 || red_size > 1) && on_crash == 0 && GET_OPTION_VALUE(option(), 撞车)) {
-        specialrule += "新特殊规则——撞车：如果有玩家提交了相同的数字，";
+    bool showcrash = round_ == GET_OPTION_VALUE(option(), 撞车) - 1 || GET_OPTION_VALUE(option(), 撞车) == 1 || win_size > 1 || red_size > 1;
+    if ((showcrash && on_crash == 0 && GET_OPTION_VALUE(option(), 撞车) && !is_status) || (is_status && on_crash)) {
+        if (is_status) {
+            specialrule += "<tr><td>";
+        } else {
+            specialrule += "新特殊规则——";
+        }
+        specialrule += "撞车：如果有玩家提交了相同的数字，";
         if (GET_OPTION_VALUE(option(),撞车伤害)) {
             specialrule += "这些玩家生命值额外 -1，且";
         } else {
             specialrule += "则";
         }
         specialrule += "不计入本回合获胜玩家。";
-        on_crash = 1;
+        if (is_status) {
+            specialrule += "</tr></td>";
+        } else {
+            on_crash = 1;
+        }
         n = 1;
     }
-    if ((round_ == GET_OPTION_VALUE(option(), 红心) - 1 || GET_OPTION_VALUE(option(), 红心) == 1 || onred) && on_red == 0 && GET_OPTION_VALUE(option(), 红心)) {
-        if (n == 1) { specialrule += "\n"; }
-        specialrule += "新特殊规则——红心：当玩家选择的数字和 X 四舍五入后的数字一样时，视为该玩家命中红心，其他玩家生命值 -2。";
-        on_red = 1;
+    bool showred = round_ == GET_OPTION_VALUE(option(), 红心) - 1 || GET_OPTION_VALUE(option(), 红心) == 1 || onred;
+    if ((showred && on_red == 0 && GET_OPTION_VALUE(option(), 红心) && !is_status) || (is_status && on_red)) {
+        if (is_status) {
+            specialrule += "<tr><td>";
+        } else {
+            if (n == 1) { specialrule += "\n"; }
+            specialrule += "新特殊规则——";
+        }
+        specialrule += "红心：当玩家选择的数字和 X 四舍五入后的数字一样时，视为该玩家命中红心，其他玩家生命值 -2。";
+        if (is_status) {
+            specialrule += "</tr></td>";
+        } else {
+            on_red = 1;
+        }
         n = 1;
     }
-    if (alive_ > 1 && alive_ <= 3 && on_last == 0) {
-        if (n == 1) { specialrule += "\n"; }
+    if ((alive_ > 1 && alive_ <= 3 && on_last == 0 && !is_status) || (is_status && on_last)) {
+        if (is_status) {
+            specialrule += "<tr><td>";
+        } else {
+            if (n == 1) { specialrule += "\n"; }
+        }
         specialrule += "当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，当回合出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜。";
-        on_last = 1;
+        if (is_status) {
+            specialrule += "</tr></td>";
+        } else {
+            on_last = 1;
+        }
         n = 1;
+    }
+
+    if (n == 0 && is_status) {
+        specialrule += "<tr><td>无</tr></td>";
     }
     
     return specialrule;
@@ -593,7 +605,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     Boardcast() << PreBoard;
     Boardcast() << Markdown(T_Board + HP_Board + "</table>");
 
-    string specialrule = Specialrules(0, 0, false);
+    string specialrule = Specialrules(0, 0, false, false);
     if (specialrule != "") {
         Boardcast() << specialrule;
     }
