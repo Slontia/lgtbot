@@ -28,12 +28,7 @@ const std::vector<RuleCommand> k_rule_commands = {};
 
 std::string GameOption::StatusInfo() const
 {
-    return "回合上限 " + to_string(GET_VALUE(回合数)) + 
-        "，每回合超时时间 " + to_string(GET_VALUE(时限)) + 
-        " 秒，初始血量 " + to_string(GET_VALUE(血量)) + 
-        "，撞车伤害：" + (GET_VALUE(撞车伤害) ? "开启" : "关闭") + 
-        "，[撞车]默认第 " + to_string(GET_VALUE(撞车)) +
-        " 回合，[红心]默认第 " + to_string(GET_VALUE(红心)) + " 回合";
+    return "共 " + to_string(GET_VALUE(回合数)) + " 回合，每回合超时时间 " + to_string(GET_VALUE(时限)) + " 秒";
 }
 
 bool GameOption::ToValid(MsgSenderBase& reply)
@@ -90,19 +85,12 @@ class MainStage : public MainGameStage<RoundStage>
     string crash_color = "FFA07A";   // 撞车颜色
     string red_color = "35FF00";   // 红心颜色
 
+    string Specialrules(int win_size, int red_size, bool onred);
     string GetName(std::string x);
 
   private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        string PreBoard = "";
-        PreBoard += "本局玩家序号如下：\n";
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            PreBoard += std::to_string(i + 1) + " 号：" + PlayerName(i);
-            if (i != (int)option().PlayerNum() - 1) {
-                PreBoard += "\n";
-            }
-        }
         string HP_Board = "";
         HP_Board += "<tr bgcolor=\""+ HP_color +"\"><th>血量</th>";
         for (int i = 0; i < option().PlayerNum(); i++) {
@@ -116,8 +104,31 @@ class MainStage : public MainGameStage<RoundStage>
         }
         HP_Board += "<td>X</td></tr>";
 
-        Boardcast() << PreBoard;
-        Boardcast() << Markdown(T_Board + HP_Board + Board + "</table>");
+        string specialrule = "<table><tr><th style=\"width:500px;\">已开启的特殊规则：</th></tr>";
+        int n = 0;
+        if (on_crash == 1) {
+            specialrule += "<tr><td>撞车：如果有玩家提交了相同的数字，";
+            if (GET_OPTION_VALUE(option(),撞车伤害)) {
+                specialrule += "这些玩家生命值额外 -1，且";
+            } else {
+                specialrule += "则";
+            }
+            specialrule += "不计入本回合获胜玩家。</td></tr>";
+            n = 1;
+        }
+        if (on_red == 1) {
+            if (n == 1) { specialrule += "\n"; }
+            specialrule += "<tr><td>红心：当玩家选择的数字和 X 四舍五入后的数字一样时，视为该玩家命中红心，其他玩家生命值 -2。</td></tr>";
+            n = 1;
+        }
+        if (on_last == 1) {
+            if (n == 1) { specialrule += "\n"; }
+            specialrule += "<tr><td>当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，当回合出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜。</td></tr>";
+            n = 1;
+        }
+
+        reply() << Markdown(T_Board + HP_Board + Board + "</table>");
+        reply() << Markdown(specialrule + (n == 0 ? "<tr><td>无</tr></td>" : "") + "</table>");
         return StageErrCode::OK;
     }
 
@@ -128,7 +139,7 @@ class RoundStage : public SubGameStage<>
 {
   public:
     RoundStage(MainStage& main_stage, const uint64_t round)
-        : GameStage(main_stage, "第 " + std::to_string(round) + " 回合",
+        : GameStage(main_stage, "第 " + std::to_string(round) + " 回合，请玩家私信提交数字。",
                 MakeStageCommand("提交数字", &RoundStage::Submit_, ArithChecker<int64_t>(0, 10000, "数字")))
     {
     }
@@ -136,8 +147,6 @@ class RoundStage : public SubGameStage<>
     virtual void OnStageBegin() override
     {
         StartTimer(GET_OPTION_VALUE(option(), 时限));
-    
-        Boardcast() << name() << "，请玩家私信提交数字。";
     }
 
     virtual CheckoutErrCode OnTimeout() override
@@ -169,74 +178,75 @@ class RoundStage : public SubGameStage<>
         int max = GET_OPTION_VALUE(option(),最大数字);
         double x = main_stage().x * 0.8;
 
-        if (main_stage().round_ == 1)
-        {
-            num = rand() % (int)(max * 0.11) + (int)(max * 0.15);
-        }
-        else
-        {
-            if (main_stage().x < (max * 0.07) && rand() % 10 < 5)
-            {
-                num = rand() % (int)(max * 0.10) + (int)(max * 0.15);
-            }
-            else if (main_stage().x > (max * 0.23))
-            {
-                num = rand() % (int)round(max * 0.09) + (int)(max * 0.07);
-            }
-            else
-            {
-                if (main_stage().round_ == 2 || rand() % 10 < 7)
-                {
-                    num = rand() % (int)(max * 0.13) + (int)x - (int)(max * 0.06);
-                }
-                else
-                {
-                    if (main_stage().x1 == 0) {
-                        x0 = 0;
-                    } else {
-                        x0 = (int)(main_stage().x * main_stage().x / main_stage().x1);
-                    }
-                    num = rand() % (int)(max * 0.13) + x0 - (int)(max * 0.06);
-                }
-            }
-        }
+        if (max >= 100) {
 
-        // low HP
-        if (main_stage().player_hp_[pid] <= 2 && main_stage().alive_ <= 6)
-        {
-            int r = rand() % 4;
-            for (int i = (int)x - (int)(max * 0.02); i <= max; i += (max * 0.01))
-            {
-                int c = 0;
-                for (int j = 0; j < pid; j++)
-                {
-                    if (main_stage().player_select_[j] == i + r)
-                    {
-                        c = 1;
+            if (main_stage().round_ == 1) {
+
+                if (rand() % 10 < 8) {
+                    num = rand() % (int)(max * 0.15) + (int)(max * 0.13);
+                } else {
+                    num = rand() % (max + 1);
+                }
+
+            } else {
+
+                if (main_stage().x < (max * 0.07) && rand() % 10 < 5) {
+                    num = rand() % (int)(max * 0.10) + (int)(max * 0.15);
+                } else if (main_stage().x > (max * 0.23)) {
+                    num = rand() % (int)(max * 0.09) + (int)(max * 0.07);
+                } else {
+                    if (main_stage().round_ == 2 || rand() % 10 < 7) {
+                        num = rand() % (int)(max * 0.13) + (int)x - (int)(max * 0.06);
+                    } else {
+                        if (main_stage().x1 == 0) {
+                            x0 = 0;
+                        } else {
+                            x0 = (int)(main_stage().x * main_stage().x / main_stage().x1);
+                        }
+                        num = rand() % (int)(max * 0.13) + x0 - (int)(max * 0.06);
+                    }
+                }
+
+            }
+
+            // low HP
+            int lowhp_count = 0;
+            for (int i = 0; i < option().PlayerNum(); i++) {
+                if (main_stage().player_hp_[i] <= 2 && main_stage().player_hp_[i] > 0) {
+                    lowhp_count++;
+                }
+            }
+            if (main_stage().player_hp_[pid] <= 2 && lowhp_count <= 6) {
+                int r = rand() % 4;
+                for (int i = (int)x - (int)(max * 0.02); i <= max; i += (int)(max * 0.01)) {
+                    int c = 0;
+                    for (int j = 0; j < pid; j++) {
+                        if (main_stage().player_select_[j] == i + r) {
+                            c = 1;
+                            break;
+                        }
+                    }
+                    if (c == 0) {
+                        num = i + r;
                         break;
                     }
                 }
-                if (c == 0)
-                {
-                    num = i + r;
-                    break;
-                }
             }
-        }
 
-        // limit
-        if (num < 0)
-        {
-            num = rand() % (int)round(max * 0.05) + (int)(max * 0.96);
-        }
-        else if (num > max)
-        {
-            num = rand() % (int)round(max * 0.05);
+            // limit
+            if (num < 0)  {
+                num = rand() % (int)(max * 0.05) + (int)(max * 0.95) + 1;
+            } else if (num > max) {
+                num = rand() % (int)(max * 0.05);
+            }
+
+        } else {
+            // 小于100
+            num = rand() % (max + 1);
         }
 
         // 2
-        if (main_stage().alive_ == 2)
-        {
+        if (main_stage().alive_ == 2) {
             int r = rand() % 7;
             if (r == 0) num = max * 0.6666;
             else if (r <= 2) num = 0;
@@ -315,7 +325,7 @@ class RoundStage : public SubGameStage<>
         // win
         vector<int> win;
         vector<int> red;
-        int onred = 0;
+        bool onred = false;
         vector<int> flag0, flag100;
         if (main_stage().alive_ <= 3) {
             for (int i = 0; i < option().PlayerNum(); i++) {
@@ -351,7 +361,7 @@ class RoundStage : public SubGameStage<>
                                 red.push_back(i);
                             } else {
                                 win.push_back(i);
-                                onred = 1;
+                                onred = true;
                             }
                         } else {
                             win.push_back(i);
@@ -418,6 +428,7 @@ class RoundStage : public SubGameStage<>
         main_stage().Board += b;
 
         Boardcast() << Markdown(main_stage().T_Board + HP_Board + main_stage().Board + "</table>");
+
         if (is_crash == 1) {
             Boardcast() << "有玩家撞车，" << (GET_OPTION_VALUE(option(),撞车伤害) ? "生命值额外 -1，且" : "") << "不计入本回合获胜玩家";
         }
@@ -447,32 +458,8 @@ class RoundStage : public SubGameStage<>
         }
 
         // 特殊规则
-        string specialrule = "";
-        int n = 0;
-        if ((main_stage().round_ == GET_OPTION_VALUE(option(), 撞车) - 1 || win.size() > 1) && main_stage().on_crash == 0) {
-            specialrule += "新特殊规则——撞车：如果有玩家提交了相同的数字，";
-            if (GET_OPTION_VALUE(option(),撞车伤害)) {
-                specialrule += "这些玩家生命值额外 -1，且";
-            } else {
-                specialrule += "则";
-            }
-            specialrule += "不计入本回合获胜玩家。";
-            main_stage().on_crash = 1;
-            n = 1;
-        }
-        if ((main_stage().round_ == GET_OPTION_VALUE(option(), 红心) - 1 || onred == 1) && main_stage().on_red == 0) {
-            if (n == 1) { specialrule += "\n"; }
-            specialrule += "新特殊规则——红心：当玩家选择的数字和 X 四舍五入后的数字一样时，视为该玩家命中红心，其他玩家生命值 -2。";
-            main_stage().on_red = 1;
-            n = 1;
-        }
-        if (main_stage().alive_ > 1 && main_stage().alive_ <= 3 && main_stage().on_last == 0) {
-            if (n == 1) { specialrule += "\n"; }
-            specialrule += "当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜。";
-            main_stage().on_last = 1;
-            n = 1;
-        }
-        if (n == 1) {
+        string specialrule = main_stage().Specialrules(win.size(), red.size(), onred);
+        if (specialrule != "") {
             Boardcast() << specialrule;
         }
 
@@ -506,6 +493,38 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 };
+
+string MainStage::Specialrules(int win_size, int red_size, bool onred)
+{
+    string specialrule = "";
+    int n = 0;
+
+    if ((round_ == GET_OPTION_VALUE(option(), 撞车) - 1 || GET_OPTION_VALUE(option(), 撞车) == 1 || win_size > 1 || red_size > 1) && on_crash == 0 && GET_OPTION_VALUE(option(), 撞车)) {
+        specialrule += "新特殊规则——撞车：如果有玩家提交了相同的数字，";
+        if (GET_OPTION_VALUE(option(),撞车伤害)) {
+            specialrule += "这些玩家生命值额外 -1，且";
+        } else {
+            specialrule += "则";
+        }
+        specialrule += "不计入本回合获胜玩家。";
+        on_crash = 1;
+        n = 1;
+    }
+    if ((round_ == GET_OPTION_VALUE(option(), 红心) - 1 || GET_OPTION_VALUE(option(), 红心) == 1 || onred) && on_red == 0 && GET_OPTION_VALUE(option(), 红心)) {
+        if (n == 1) { specialrule += "\n"; }
+        specialrule += "新特殊规则——红心：当玩家选择的数字和 X 四舍五入后的数字一样时，视为该玩家命中红心，其他玩家生命值 -2。";
+        on_red = 1;
+        n = 1;
+    }
+    if (alive_ > 1 && alive_ <= 3 && on_last == 0) {
+        if (n == 1) { specialrule += "\n"; }
+        specialrule += "当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，当回合出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜。";
+        on_last = 1;
+        n = 1;
+    }
+    
+    return specialrule;
+}
 
 string MainStage::GetName(std::string x) {
   std::string ret = "";
@@ -574,32 +593,8 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     Boardcast() << PreBoard;
     Boardcast() << Markdown(T_Board + HP_Board + "</table>");
 
-    string specialrule = "";
-    int n = 0;
-    if (GET_OPTION_VALUE(option(), 撞车) == 1) {
-        specialrule += "特殊规则——撞车：如果有玩家提交了相同的数字，";
-        if (GET_OPTION_VALUE(option(),撞车伤害)) {
-            specialrule += "这些玩家生命值额外 -1，且";
-        } else {
-            specialrule += "则";
-        }
-        specialrule += "不计入本回合获胜玩家。";
-        on_crash = 1;
-        n = 1;
-    }
-    if (GET_OPTION_VALUE(option(), 红心) == 1) {
-        if (n == 1) { specialrule += "\n"; }
-        specialrule += "特殊规则——红心：当玩家选择的数字和 X 四舍五入后的数字一样时，视为该玩家命中红心，其他玩家生命值 -2。";
-        on_red = 1;
-        n = 1;
-    }
-    if (alive_ <= 3) {
-        if (n == 1) { specialrule += "\n"; }
-        specialrule += "当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜。";
-        on_last = 1;
-        n = 1;
-    }
-    if (n == 1) {
+    string specialrule = Specialrules(0, 0, false);
+    if (specialrule != "") {
         Boardcast() << specialrule;
     }
 
