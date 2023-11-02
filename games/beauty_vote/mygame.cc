@@ -263,7 +263,11 @@ class RoundStage : public SubGameStage<>
                 sum += main_stage().player_select_[i];
             }
         }
-        avg = sum / (double)main_stage().alive_;
+        if (main_stage().alive_ != 0) {
+            avg = sum / (double)main_stage().alive_;
+        } else {
+            avg = 0;
+        }
         main_stage().x = round(avg * 0.8 * 100) / 100;
 
         // crash
