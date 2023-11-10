@@ -1133,6 +1133,148 @@ GAME_TEST(5, knight_attack_each_other_can_cancel_curse)
     ASSERT_ELIMINATED(4);
 }
 
+GAME_TEST(5, agent_should_not_be_with_traitor)
+{
+    ASSERT_PUB_MSG(OK, 0, "五人身份 杀手 替身 平民 内奸 特工");
+    ASSERT_FALSE(StartGame());
+}
+
+GAME_TEST(5, agent_cannot_attack_directly)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 平民 特工");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(FAILED, 4, "攻击 A 15");
+}
+
+GAME_TEST(5, more_than_one_agent_win)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 特工 特工");
+    ASSERT_PRI_MSG(OK, 0, "血量 5");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 3, "蓄力 A 5 C 5");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CHECKOUT, 3, "释放 A C");
+    ASSERT_SCORE(0, 0, 0, 1, 1);
+}
+
+GAME_TEST(5, agent_release_part_of_damages_to_roles)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 特工 特工");
+    ASSERT_PRI_MSG(OK, 0, "血量 5");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 3, "蓄力 A 5 C 5");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CHECKOUT, 3, "释放 A");
+    ASSERT_SCORE(0, 0, 1, 0, 0);
+}
+
+GAME_TEST(5, agent_accumulate_damages)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 侦探 特工 特工");
+    ASSERT_PRI_MSG(OK, 0, "血量 20");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 3, "蓄力 A 15 C 5");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 3, "蓄力 A 5 C 15");
+    ASSERT_PRI_MSG(OK, 2, "侦查 D");
+    ASSERT_PRI_MSG(CHECKOUT, 3, "释放 A C");
+    ASSERT_SCORE(0, 0, 0, 1, 1);
+}
+
+GAME_TEST(5, agent_cannot_release_without_tokens)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 平民 特工");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(FAILED, 4, "释放");
+}
+
+GAME_TEST(5, agent_cannot_release_without_assign)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 平民 特工");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(FAILED, 4, "释放 A");
+}
+
+GAME_TEST(5, agent_cannot_release_with_some_of_unassign)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 平民 特工");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 4, "蓄力 A 5 C 15");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(FAILED, 4, "释放 A D");
+}
+
+GAME_TEST(5, agent_invalid_assignments)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 平民 特工");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(FAILED, 4, "蓄力 A 5 C 15 D 5");
+    ASSERT_PRI_MSG(FAILED, 4, "蓄力 A 5 B 5 A 5");
+    ASSERT_PRI_MSG(NOT_FOUND, 4, "蓄力 A 0");
+    ASSERT_PRI_MSG(FAILED, 4, "蓄力");
+    ASSERT_PRI_MSG(NOT_FOUND, 4, "蓄力 A 20");
+    ASSERT_PRI_MSG(FAILED, 4, "蓄力 A 11");
+}
+
+GAME_TEST(5, agent_cannot_double_release)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 平民 特工");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 4, "蓄力 A 5 C 15");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(CONTINUE, 4, "释放 A");
+    ASSERT_PRI_MSG(FAILED, 4, "释放 A");
+}
+
+GAME_TEST(5, agent_release_can_be_blocked)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 平民 特工");
+    ASSERT_PRI_MSG(OK, 0, "血量 5");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 4, "蓄力 A 5");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(OK, 1, "挡刀");
+    ASSERT_PRI_MSG(CONTINUE, 4, "释放 A");
+    ASSERT_ELIMINATED(1); // B is dead
+}
+
+GAME_TEST(5, agent_release_can_be_sheild_anti)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 侦探 守卫 特工");
+    ASSERT_PRI_MSG(OK, 0, "血量 20");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 4, "蓄力 A 5 C 15");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(OK, 2, "侦查 E");
+    ASSERT_PRI_MSG(OK, 3, "盾反 A 15 C 5");
+    ASSERT_PRI_MSG(CONTINUE, 4, "释放 C A");
+    ASSERT_ELIMINATED(4); // B is dead
+}
+
+GAME_TEST(5, dead_agent_win)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 特工 特工");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 0, "攻击 E 15");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_ELIMINATED(4); // E is dead
+    ASSERT_PRI_MSG(OK, 2, "攻击 A 15");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "攻击 C 15");
+    ASSERT_SCORE(0, 0, 0, 1, 1);
+}
+
+GAME_TEST(5, goddess_can_hurt_agent)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 圣女 特工");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PRI_MSG(OK, 3, "攻击 E 15");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_ELIMINATED(4); // E is dead
+}
+
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
