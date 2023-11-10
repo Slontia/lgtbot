@@ -1274,6 +1274,15 @@ GAME_TEST(5, goddess_can_hurt_agent)
     ASSERT_ELIMINATED(4); // E is dead
 }
 
+GAME_TEST(5, agent_achieve_max_round_lose)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 圣女 特工");
+    ASSERT_PRI_MSG(OK, 0, "回合数 1");
+    ASSERT_TRUE(StartGame());
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(1, 1, 1, 1, 0);
+}
+
 
 } // namespace GAME_MODULE_NAME
 

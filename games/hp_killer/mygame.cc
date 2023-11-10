@@ -112,8 +112,9 @@ const char* const k_role_rules[Occupation::Count()] = {
 - 【杀手】死亡后的下一回合，【内奸】可执行「攻击 <代号> 25」和「治愈 <代号> 15」的行动指令)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::特工))] = R"EOF(【特工 | 第三方阵营】
-- 当「平民阵营」和「杀手阵营」同时满足失败条件时，【特工】取得单独胜利，否则【特工】失败
+- 当「平民阵营」和「杀手阵营」同时满足失败条件时，【特工】取得单独胜利，否则【特工】失败（达到最大回合限制时，【特工】也会失败）
 - 无法使用「攻击 <代号>」
+- 当某角色死亡时，你获知他当前所在阵营
 - 特殊技能 <蓄力 <代号> <血量> (<代号> <血量>)...>：
     - 自由分配 20 点隐藏伤害给至多 4 名角色
     - 不同回合分配的隐藏伤害可以累积
@@ -596,7 +597,27 @@ class RoleManager
     bool IsValid(const Token token) { return token.id_ < roles_.size(); }
 
     template <typename Fn>
-    void Foreach(const Fn& fn) { std::ranges::for_each(roles_, [&fn](const auto& role_p) { fn(*role_p); }); }
+    void Foreach(const Occupation occupation, const Fn& fn) const
+    {
+        std::ranges::for_each(roles_, [&fn, occupation](const auto& role_p)
+                {
+                    if (role_p->GetOccupation() == occupation) {
+                        fn(*role_p);
+                    }
+                });
+    }
+
+    template <typename Fn>
+    void Foreach(const Team team, const Fn& fn) const
+    {
+        std::ranges::for_each(roles_, [&fn, team](const auto& role_p)
+                {
+                    if (role_p->GetTeam() == team) {
+                        fn(*role_p);
+                    }
+                });
+    }
+
     template <typename Fn>
     void Foreach(const Fn& fn) const { std::ranges::for_each(roles_, [&fn](const auto& role_p) { fn(*role_p); }); }
 
@@ -665,12 +686,10 @@ bool RoleBase::Act(const CureAction& action, MsgSenderBase& reply)
 static std::string TokenInfoForTeam(const RoleManager& role_manager, const Team team)
 {
     std::string s = std::string(team.ToString()) + "阵营的代号包括";
-    role_manager.Foreach([&](const auto& role)
+    role_manager.Foreach(team, [&](const auto& role)
         {
-            if (role.GetTeam() == team) {
-                s += ' ';
-                s += role.GetToken().ToChar();
-            }
+            s += ' ';
+            s += role.GetToken().ToChar();
         });
     return s;
 }
@@ -678,12 +697,10 @@ static std::string TokenInfoForTeam(const RoleManager& role_manager, const Team 
 template <typename Fn>
 static std::string InfoForRole(const RoleManager& role_manager, const Occupation occupation, const Fn& get_role_info, const char* const info_type) {
     std::string s;
-    role_manager.Foreach([&](const auto& role)
+    role_manager.Foreach(occupation, [&](const auto& role)
         {
-            if (occupation == role.GetOccupation()) {
-                s += ' ';
-                s += get_role_info(role);
-            }
+            s += ' ';
+            s += get_role_info(role);
         });
     if (s.empty()) {
         return std::string("场上没有") + occupation.ToString();
@@ -1386,32 +1403,42 @@ class MainStage : public MainGameStage<>
         bool has_dead = false;
         role_manager_.Foreach([&](auto& role)
             {
-                if (role.OnRoundEnd()) {
-                    if (std::exchange(has_dead, true) == false) {
-                        sender << "\n";
-                    }
-                    sender << "\n- 角色 " << role.GetToken().ToChar() << " 死亡，";
-                    if (role.PlayerId().has_value()) {
-                        sender << "他的「中之人」是" << At(*role.PlayerId());
-                    } else {
-                        sender << "他是 NPC，没有「中之人」";
-                    }
-                    if (role.GetOccupation() != Occupation::恶灵) {
-                        DisableAct_(role);
-                    }
-                    RoleBase* other_role = nullptr;
-                    if (role.GetOccupation() == Occupation::杀手 && (other_role = role_manager_.GetRole(Occupation::内奸))) {
-                        other_role->SetAllowHeavyHurtCure(true);
-                        Tell(*other_role->PlayerId()) << "杀手已经死亡，您获得了造成 " << k_heavy_hurt_hp
-                                << " 点伤害和治愈 " << k_heavy_cure_hp << " 点 HP 的权利";
-                    } else if (((role.GetOccupation() == Occupation::双子（正） && (other_role = role_manager_.GetRole(Occupation::双子（邪）))) ||
-                             (role.GetOccupation() == Occupation::双子（邪） && (other_role = role_manager_.GetRole(Occupation::双子（正）))))
-                            && other_role->GetHp() > 0) { // cannot use IsAlive() because the is_alive_ field may have not been updated
-                        other_role->SetNextRoundTeam(role.GetTeam());
-                        Tell(*other_role->PlayerId()) << "另一位双子死亡，您下一回合的阵营变更为：" << role.GetTeam() << "阵营";
-                    }
+                if (!role.OnRoundEnd()) {
+                    return; // not dead
+                }
+                if (std::exchange(has_dead, true) == false) {
+                    sender << "\n";
+                }
+                sender << "\n- 角色 " << role.GetToken().ToChar() << " 死亡，";
+                if (role.PlayerId().has_value()) {
+                    sender << "他的「中之人」是" << At(*role.PlayerId());
+                } else {
+                    sender << "他是 NPC，没有「中之人」";
+                }
+                role_manager_.Foreach(Occupation::特工, [&](auto& agent_role)
+                        {
+                            if (agent_role.GetToken() != role.GetToken()) {
+                                Tell(*agent_role.PlayerId()) << "死亡角色 " << role.GetToken().ToChar() << " 的阵营是「"
+                                                             << role.GetTeam().ToString() << "阵营」";
+                            }
+                        });
+                if (role.GetOccupation() != Occupation::恶灵) {
+                    DisableAct_(role);
+                }
+                RoleBase* other_role = nullptr;
+                if (role.GetOccupation() == Occupation::杀手 && (other_role = role_manager_.GetRole(Occupation::内奸))) {
+                    other_role->SetAllowHeavyHurtCure(true);
+                    Tell(*other_role->PlayerId()) << "杀手已经死亡，您获得了造成 " << k_heavy_hurt_hp
+                            << " 点伤害和治愈 " << k_heavy_cure_hp << " 点 HP 的权利";
+                } else if (((role.GetOccupation() == Occupation::双子（正） && (other_role = role_manager_.GetRole(Occupation::双子（邪）))) ||
+                            (role.GetOccupation() == Occupation::双子（邪） && (other_role = role_manager_.GetRole(Occupation::双子（正）))))
+                        && other_role->GetHp() > 0) { // cannot use IsAlive() because the is_alive_ field may have not been updated
+                    other_role->SetNextRoundTeam(role.GetTeam());
+                    Tell(*other_role->PlayerId()) << "另一位双子死亡，您下一回合的阵营变更为：" << role.GetTeam() << "阵营";
                 }
             });
+        if (has_dead) {
+        }
     }
 
     bool CheckTeamsLost_(MsgSenderBase::MsgSenderGuard& sender)
@@ -1450,12 +1477,7 @@ class MainStage : public MainGameStage<>
 
         if (const auto role = role_manager_.GetRole(Occupation::特工); civilian_lost && killer_lost && role != nullptr) {
             sender << "游戏结束，杀手阵营和平民阵营同时失败，特工取得胜利";
-            role_manager_.Foreach([&](auto& role)
-                {
-                    if (role.GetOccupation() == Occupation::特工) {
-                        role.SetWinner(true);
-                    }
-                });
+            role_manager_.Foreach(Occupation::特工, [&](auto& role) { role.SetWinner(true); });
             return true;
         }
 
@@ -1645,10 +1667,7 @@ class MainStage : public MainGameStage<>
     {
         std::string s = HTML_SIZE_FONT_HEADER(4) "<b>本场游戏包含职业：";
         std::vector<Occupation> occupations;
-        role_manager_.Foreach([&](const auto& role)
-            {
-                occupations.emplace_back(role.GetOccupation());
-            });
+        role_manager_.Foreach([&](const auto& role) { occupations.emplace_back(role.GetOccupation()); });
         std::ranges::sort(occupations);
         for (const auto& occupation : occupations) {
             if (occupation == Occupation::杀手 || occupation == Occupation::替身 || occupation == Occupation::恶灵 ||
