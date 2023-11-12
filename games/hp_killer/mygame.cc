@@ -64,9 +64,9 @@ const char* const k_role_rules[Occupation::Count()] = {
     [static_cast<uint32_t>(Occupation(Occupation::魔女))] = R"EOF(【魔女 | 杀手阵营】
 - 开局时知道【杀手】的代号
 - 不允许使用「攻击 <代号> 15」指令
-- 特殊技能「魔攻 <代号>」：令指定角色进入诅咒状态
-    - 处于诅咒状态的角色每回合会流失 5 点 HP，直到被物理攻击（对于单个诅咒状态，进入诅咒状态的回合会流失体力，但是解除诅咒的回合不会，如果物理攻击被挡刀或者盾反则诅咒效果不会被解除）
-    - 多个诅咒状态可以叠加
+- 特殊技能「诅咒 <代号> 5」和「诅咒 <代号> 10」：令指定角色进入诅咒状态
+    - 处于诅咒状态的角色**执行非 pass 操作的回合**会流失 5 或 10 点 HP，直到被物理攻击（对于单个诅咒状态，进入诅咒状态的回合会流失体力，但是解除诅咒的回合不会，如果物理攻击被挡刀或者盾反则诅咒效果不会被解除）
+    - 多次诅咒效果可以叠加
     - 当被侦探侦查时会显示「攻击 <代号>」
     - 无法被守卫「盾反」)EOF",
 
@@ -301,11 +301,12 @@ struct AttackAction
     std::vector<std::tuple<Token, int32_t>> token_hps_;
 };
 
-struct MagicAttackAction
+struct CurseAction
 {
-    std::string ToString() const { return MultiTargetActionToString("魔攻", tokens_); }
+    std::string ToString() const { return std::string("诅咒 ") + token_.ToChar() + " " + std::to_string(hp_); }
 
-    std::vector<Token> tokens_;
+    Token token_;
+    int32_t hp_;
 };
 
 struct CureAction
@@ -363,7 +364,7 @@ struct FlushHiddenDamangeAction
     std::vector<Token> tokens_;
 };
 
-using ActionVariant = std::variant<AttackAction, MagicAttackAction, CureAction, BlockAttackAction, DetectAction,
+using ActionVariant = std::variant<AttackAction, CurseAction, CureAction, BlockAttackAction, DetectAction,
       PassAction, ExocrismAction, ShieldAntiAction, AssignHiddenDamangeAction, FlushHiddenDamangeAction>;
 
 class RoleManager;
@@ -372,7 +373,6 @@ static constexpr const int32_t k_heavy_hurt_hp = 25;
 static constexpr const int32_t k_heavy_cure_hp = 15;
 static constexpr const int32_t k_normal_hurt_hp = 15;
 static constexpr const int32_t k_normal_cure_hp = 10;
-static constexpr const int32_t k_curse_hurt_hp = 5;
 static constexpr const int32_t k_civilian_dead_threshold = 2;
 static constexpr const int32_t k_civilian_team_dead_threshold = 3;
 
@@ -422,7 +422,7 @@ class RoleBase
 
     virtual bool Act(const AttackAction& action, MsgSenderBase& reply);
 
-    virtual bool Act(const MagicAttackAction& action, MsgSenderBase& reply)
+    virtual bool Act(const CurseAction& action, MsgSenderBase& reply)
     {
         reply() << "攻击失败：您无法使用魔法攻击";
         return false;
@@ -873,16 +873,11 @@ class WitchRole : public RoleBase
         return false;
     }
 
-    virtual bool Act(const MagicAttackAction& action, MsgSenderBase& reply) override
+    virtual bool Act(const CurseAction& action, MsgSenderBase& reply) override
     {
-        if (action.tokens_.size() != 1) {
-            reply() << "攻击失败：您需要且只能攻击 1 名角色";
-            return false;
-        }
-        const Token& token = action.tokens_[0];
-        auto& target = role_manager_.GetRole(token);
+        auto& target = role_manager_.GetRole(action.token_);
         cur_action_ = action;
-        reply() << "您本回合决定对 " << token.ToChar() << " 魔法攻击，他已经进入诅咒状态了";
+        reply() << "您本回合诅咒角色 " << action.token_.ToChar() << " 成功";
         return true;
     }
 };
@@ -1153,8 +1148,8 @@ class MainStage : public MainGameStage<>
                 MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
                 MakeStageCommand("攻击某名角色", &MainStage::Hurt_, VoidChecker("攻击"),
                     RepeatableChecker<BasicChecker<Token>>("角色代号", "A"), ArithChecker<int32_t>(0, 25, "血量")),
-                MakeStageCommand("[魔女] 魔攻某名角色", &MainStage::MagicHurt_, VoidChecker("魔攻"),
-                    RepeatableChecker<BasicChecker<Token>>("角色代号", "A")),
+                MakeStageCommand("[魔女] 诅咒某名角色", &MainStage::Curse_, VoidChecker("诅咒"),
+                    BasicChecker<Token>("角色代号", "A"), ArithChecker<int32_t>(5, 10, "血量")),
                 MakeStageCommand("治愈某名角色", &MainStage::Cure_, VoidChecker("治愈"),
                     BasicChecker<Token>("角色代号", "A"),
                     BoolChecker(std::to_string(k_heavy_cure_hp), std::to_string(k_normal_cure_hp))),
@@ -1253,8 +1248,8 @@ class MainStage : public MainGameStage<>
             std::string s = "「";
             if (const auto action = std::get_if<AttackAction>(&role.CurAction())) {
                 s += "攻击 " + std::string(1, std::get<Token>(action->token_hps_[0]).ToChar());
-            } else if (const auto action = std::get_if<MagicAttackAction>(&role.CurAction())) {
-                s += "攻击 " + std::string(1, action->tokens_[0].ToChar());
+            } else if (const auto action = std::get_if<CurseAction>(&role.CurAction())) {
+                s += "攻击 " + std::string(1, action->token_.ToChar());
             } else if (const auto action = std::get_if<CureAction>(&role.CurAction())) {
                 s += "治愈 " + std::string(1, action->token_.ToChar());
             } else {
@@ -1379,14 +1374,16 @@ class MainStage : public MainGameStage<>
         // settlement curse effect
         role_manager_.Foreach([&](auto& role)
             {
-                if (const auto action = std::get_if<MagicAttackAction>(&role.CurAction());
+                if (const auto action = std::get_if<CurseAction>(&role.CurAction());
                         role.GetOccupation() == Occupation::魔女 && action) {
-                    ++role_manager_.GetRole(action->tokens_[0]).EffectCount(CURSE);
+                    role_manager_.GetRole(action->token_).EffectCount(CURSE) += action->hp_;
                 }
             });
         role_manager_.Foreach([&](auto& role)
             {
-                role.AddHp(-k_curse_hurt_hp * role.EffectCount(CURSE));
+                if (!std::holds_alternative<PassAction>(role.CurAction())) {
+                    role.AddHp(-role.EffectCount(CURSE));
+                }
             });
     }
 
@@ -1646,10 +1643,10 @@ class MainStage : public MainGameStage<>
         case 9: return make_roles(std::initializer_list<std::initializer_list<Occupation>>{
                     {Occupation::杀手, Occupation::替身, Occupation::刺客, Occupation::侦探, Occupation::圣女, Occupation::守卫, Occupation::平民, Occupation::平民, Occupation::内奸},
                     {Occupation::杀手, Occupation::替身, Occupation::恶灵, Occupation::侦探, Occupation::圣女, Occupation::灵媒, Occupation::平民, Occupation::平民, Occupation::内奸},
-                    {Occupation::杀手, Occupation::替身, Occupation::魔女, Occupation::侦探, Occupation::圣女, Occupation::骑士, Occupation::平民, Occupation::平民, Occupation::内奸},
+                    // {Occupation::杀手, Occupation::替身, Occupation::魔女, Occupation::侦探, Occupation::圣女, Occupation::骑士, Occupation::平民, Occupation::平民, Occupation::内奸},
                     {Occupation::杀手, Occupation::替身, Occupation::刺客, Occupation::侦探, Occupation::圣女, Occupation::守卫, Occupation::平民, Occupation::平民, Occupation::特工},
                     {Occupation::杀手, Occupation::替身, Occupation::恶灵, Occupation::侦探, Occupation::圣女, Occupation::灵媒, Occupation::平民, Occupation::平民, Occupation::特工},
-                    {Occupation::杀手, Occupation::替身, Occupation::魔女, Occupation::侦探, Occupation::圣女, Occupation::骑士, Occupation::平民, Occupation::平民, Occupation::特工},
+                    // {Occupation::杀手, Occupation::替身, Occupation::魔女, Occupation::侦探, Occupation::圣女, Occupation::骑士, Occupation::平民, Occupation::平民, Occupation::特工},
                 });
         default:
             assert(false);
@@ -1843,12 +1840,7 @@ class MainStage : public MainGameStage<>
             return false;
         }
         for (uint32_t i = 0; i < tokens.size(); ++i) {
-            if (!role_manager_.IsValid(tokens[i])) {
-                reply() << action_name << "失败：场上没有角色 " << tokens[i].ToChar();
-                return false;
-            }
-            if (!role_manager_.GetRole(tokens[i]).IsAlive()) {
-                reply() << action_name << "失败：角色 " << tokens[i].ToChar() << " 已经死亡";
+            if (!CheckToken(tokens[i], action_name, reply)) {
                 return false;
             }
             for (uint32_t j = i + 1; j < tokens.size(); ++j) {
@@ -1857,6 +1849,19 @@ class MainStage : public MainGameStage<>
                     return false;
                 }
             }
+        }
+        return true;
+    }
+
+    bool CheckToken(const Token token, const char* const action_name, MsgSenderBase& reply)
+    {
+        if (!role_manager_.IsValid(token)) {
+            reply() << action_name << "失败：场上没有角色 " << token.ToChar();
+            return false;
+        }
+        if (!role_manager_.GetRole(token).IsAlive()) {
+            reply() << action_name << "失败：角色 " << token.ToChar() << " 已经死亡";
+            return false;
         }
         return true;
     }
@@ -1874,19 +1879,18 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, std::move(action));
     }
 
-    AtomReqErrCode MagicHurt_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
-            const std::vector<Token>& tokens)
+    AtomReqErrCode Curse_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+            const Token token, const int32_t hp)
     {
-        if (!CheckMultipleTokens_(tokens, "攻击", reply)) {
+        if (!CheckToken(token, "治愈", reply)) {
             return StageErrCode::FAILED;
         }
-        return GenericAct_(pid, is_public, reply, MagicAttackAction{.tokens_ = tokens});
+        return GenericAct_(pid, is_public, reply, CurseAction{.token_ = token, .hp_ = hp});
     }
 
     AtomReqErrCode Cure_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Token token, const bool is_heavy)
     {
-        if (!role_manager_.IsValid(token)) {
-            reply() << "治愈失败：场上没有该角色";
+        if (!CheckToken(token, "治愈", reply)) {
             return StageErrCode::FAILED;
         }
         return GenericAct_(pid, is_public, reply, CureAction{.token_ = token, .hp_ = is_heavy ? k_heavy_cure_hp : k_normal_cure_hp});
@@ -1894,6 +1898,7 @@ class MainStage : public MainGameStage<>
 
     AtomReqErrCode Detect_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Token token)
     {
+        // detecting dead roles is valid
         if (!role_manager_.IsValid(token)) {
             reply() << "侦查失败：场上没有该角色";
             return StageErrCode::FAILED;
