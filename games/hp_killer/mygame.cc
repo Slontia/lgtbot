@@ -37,10 +37,11 @@ const char* const k_role_rules[Occupation::Count()] = {
 - 可以选择「攻击 <代号> 25」和「治愈 <代号> 15」)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::替身))] = R"EOF(【替身 | 杀手阵营】
-- 开局时知道【杀手】的代号
+- 开局时知道【杀手】的代号（五人场除外）
 - 特殊技能「挡刀 <代号>」：令当前回合**攻击**指定角色造成的减 HP 效果转移到**自己**身上，次数不限)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::恶灵))] = R"EOF(【恶灵 | 杀手阵营】
+- 开局时知道【杀手】的代号（五人场除外）
 - 开局时知道【灵媒】的代号
 - 攻击【灵媒】的同回合，自己受到 15 点伤害
 - 死亡后仍可继续行动（「中之人」仍会被公布），直到触发以下任意一种情况时，从下一回合起失去行动能力：
@@ -48,7 +49,7 @@ const char* const k_role_rules[Occupation::Count()] = {
     - 被【灵媒】通灵)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::刺客))] = R"EOF(【刺客 | 杀手阵营】
-- 开局时知道【杀手】的代号
+- 开局时知道【杀手】的代号（五人场除外）
 - 特殊技能「攻击 <代号> (<代号>)... <伤害>」：扣除多名角色的 HP，代号不允许重复
     - 伤害可以是 0、5、10 或 15 中的一个：
         - 如果伤害是 0 或 15，则只能指定 1 个代号
@@ -62,7 +63,7 @@ const char* const k_role_rules[Occupation::Count()] = {
 - 如果【双子】中的一方死亡，另一方存活，则从下一回合起，存活方将加入死亡方的阵营（如果【双子】的死亡导致游戏结束，则存活方阵营**不发生**改变）)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::魔女))] = R"EOF(【魔女 | 杀手阵营】
-- 开局时知道【杀手】的代号
+- 开局时知道【杀手】的代号（五人场除外）
 - 不允许使用「攻击 <代号> 15」指令
 - 特殊技能「诅咒 <代号> 5」和「诅咒 <代号> 10」：令指定角色进入诅咒状态
     - 处于诅咒状态的角色**执行非 pass 操作的回合**会流失 5 或 10 点 HP，直到被物理攻击（对于单个诅咒状态，进入诅咒状态的回合会流失体力，但是解除诅咒的回合不会，如果物理攻击被挡刀或者盾反则诅咒效果不会被解除）
@@ -558,6 +559,15 @@ class RoleBase
     std::array<uint32_t, MAX_EFFECT> effects_;
 };
 
+class PuppetRole : public RoleBase
+{
+  public:
+    PuppetRole(const Token token, const RoleOption& option, RoleManager& role_manager)
+        : RoleBase(std::nullopt, token, Occupation::人偶, Team::特殊, option, role_manager)
+    {
+    }
+};
+
 class RoleManager
 {
   public:
@@ -750,416 +760,6 @@ static std::string TokenInfoForRoles(const RoleManager& role_manager, const std:
     s += " 之间";
     return s;
 }
-
-class KillerRole : public RoleBase
-{
-  public:
-    KillerRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::杀手, Team::杀手, option, role_manager)
-    {
-        is_allowed_heavy_hurt_cure_ = true;
-    }
-
-    virtual std::string PrivateInfo(const MainStage& main_stage) const
-    {
-        if (!private_info_.empty()) {
-            return private_info_;
-        }
-        return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForTeam(role_manager_, Team::平民);
-    }
-
-  private:
-    std::string private_info_;
-};
-
-class BodyDoubleRole : public RoleBase
-{
-  public:
-    BodyDoubleRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::替身, Team::杀手, option, role_manager)
-    {
-    }
-
-    virtual std::string PrivateInfo(const MainStage& main_stage) const
-    {
-        return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
-    }
-
-    virtual bool Act(const BlockAttackAction& action, MsgSenderBase& reply) override
-    {
-        reply() << "请做好觉悟，本回合对该角色造成的全部伤害将转移到您身上";
-        cur_action_ = action;
-        return true;
-    }
-};
-
-class GhostRole : public RoleBase
-{
-  public:
-    GhostRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::恶灵, Team::杀手, option, role_manager)
-    {
-    }
-
-    virtual std::string PrivateInfo(const MainStage& main_stage) const
-    {
-        return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::灵媒);
-    }
-};
-
-class AssassinRole : public RoleBase
-{
-  public:
-    AssassinRole(const uint64_t pid, const Token token, RoleOption option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::刺客, Team::杀手, option, role_manager)
-    {
-    }
-
-    virtual std::string PrivateInfo(const MainStage& main_stage) const
-    {
-        return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
-    }
-
-    virtual bool Act(const AttackAction& action, MsgSenderBase& reply) override
-    {
-        assert(!action.token_hps_.empty());
-        assert(std::all_of(action.token_hps_.begin(), action.token_hps_.end(),
-                    [&](const auto& token_hp) { return std::get<int32_t>(token_hp) == std::get<int32_t>(action.token_hps_[0]); }));
-        int32_t max_target_num = 0;
-        const int32_t hp = std::get<int32_t>(action.token_hps_[0]);
-        switch (hp) {
-        case 0:
-            max_target_num = 1;
-            break;
-        case 5:
-            max_target_num = 5;
-            break;
-        case 10:
-            max_target_num = 2;
-            break;
-        case 15:
-            max_target_num = 1;
-            break;
-        default:
-            reply() << "攻击失败：您只能造成 0 / 5 / 10 / 15 点伤害";
-            return false;
-        }
-        if (action.token_hps_.size() > max_target_num) {
-            reply() << "攻击失败：伤害值为 " << hp << " 时最多指定 " << max_target_num << " 名角色";
-            return false;
-        }
-
-        cur_action_ = action;
-
-        auto sender = reply();
-        sender << "您本回合分别对角色";
-        for (const auto& token_hp : action.token_hps_) {
-            sender << " " << std::get<Token>(token_hp).ToChar();
-        }
-        sender << " 造成了 " << hp << " 点伤害";
-
-        return true;
-    }
-};
-
-class WitchRole : public RoleBase
-{
-  public:
-    WitchRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::魔女, Team::杀手, option, role_manager)
-    {
-    }
-
-    virtual std::string PrivateInfo(const MainStage& main_stage) const
-    {
-        return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
-    }
-
-    virtual bool Act(const AttackAction& action, MsgSenderBase& reply) override
-    {
-        reply() << "攻击失败：您无法使用物理攻击";
-        return false;
-    }
-
-    virtual bool Act(const CurseAction& action, MsgSenderBase& reply) override
-    {
-        auto& target = role_manager_.GetRole(action.token_);
-        cur_action_ = action;
-        reply() << "您本回合诅咒角色 " << action.token_.ToChar() << " 成功";
-        return true;
-    }
-};
-
-class CivilianRole : public RoleBase
-{
-  public:
-    CivilianRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::平民, Team::平民, option, role_manager)
-    {
-    }
-};
-
-class GoddessRole : public RoleBase
-{
-  public:
-    GoddessRole(const uint64_t pid, const Token token, RoleOption option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::圣女, Team::平民, (option.cure_count_ = -1, option), role_manager)
-    {
-    }
-
-    virtual bool Act(const AttackAction& action, MsgSenderBase& reply) override
-    {
-        if (!history_status_.empty() && std::get_if<AttackAction>(&history_status_.back().action_)) {
-            reply() << "攻击失败：您无法连续两回合进行攻击";
-            return false;
-        }
-        return RoleBase::Act(action, reply);
-    }
-};
-
-class DetectiveRole : public RoleBase
-{
-  public:
-    DetectiveRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::侦探, Team::平民, option, role_manager)
-    {
-    }
-
-  public:
-    virtual bool Act(const DetectAction& action, MsgSenderBase& reply) override
-    {
-        if (history_status_.empty()) {
-            reply() << "侦查失败：首回合无法侦查";
-            return false;
-        }
-        if (!history_status_.empty() && std::get_if<DetectAction>(&history_status_.back().action_)) {
-            reply() << "侦查失败：您无法连续两回合进行侦查";
-            return false;
-        }
-        reply() << "您选择侦查角色 " << action.token_.ToChar() << "，本回合结束后将私信您他的行动";
-        cur_action_ = action;
-        return true;
-    }
-};
-
-class SorcererRole : public RoleBase
-{
-  public:
-    SorcererRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::灵媒, Team::平民, option, role_manager)
-        , exocrismed_(false)
-    {
-    }
-
-    virtual bool Act(const ExocrismAction& action, MsgSenderBase& reply) override
-    {
-        if (exocrismed_) {
-            reply() << "通灵失败：您本局游戏已经通灵过一次了";
-            return false;
-        }
-        reply() << "您选择通灵角色 " << action.token_.ToChar() << "，本回合结束后将私信您他的职业";
-        cur_action_ = action;
-        exocrismed_ = true;
-        return true;
-    }
-
-  private:
-    bool exocrismed_;
-};
-
-class GuardRole : public RoleBase
-{
-  public:
-    GuardRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::守卫, Team::平民, option, role_manager)
-    {
-    }
-
-    virtual bool Act(const ShieldAntiAction& action, MsgSenderBase& reply) override
-    {
-        if (action.token_hps_.size() > 2 || action.token_hps_.empty()) {
-            reply() << "盾反失败：您需要指定 1~2 名角色的血量";
-            return false;
-        }
-        if (action.token_hps_.size() == 2 &&
-                std::get<Token>(action.token_hps_[0]) == std::get<Token>(action.token_hps_[1])) {
-            reply() << "盾反失败：您需要为不同角色盾反";
-            return false;
-        }
-        for (const auto& [token, hp] : action.token_hps_) {
-            if (!role_manager_.GetRole(token).IsAlive()) {
-                reply() << "盾反失败：角色 " << token.ToChar() << " 已经死亡";
-                return false;
-            }
-            if (GetHpFromMultiTargetAction(token, last_hp_tokens_) != nullptr) {
-                reply() << "盾反失败：您上一回合盾反过角色 " << token.ToChar() << " 了，您无法连续两回合盾反同一角色";
-                return false;
-            }
-        }
-        cur_action_ = action;
-        last_hp_tokens_ = action.token_hps_;
-        auto sender = reply();
-        sender << "您选择盾反角色";
-        for (const auto& [token, _] : action.token_hps_) {
-            sender << " " << token.ToChar();
-        }
-        sender << "，如果盾反成功，您将收到反馈";
-        return true;
-    }
-
-    virtual bool OnRoundEnd() override
-    {
-        if (!std::get_if<ShieldAntiAction>(&cur_action_)) {
-            last_hp_tokens_.clear();
-        }
-        return RoleBase::OnRoundEnd();
-    }
-
-  private:
-    std::vector<std::tuple<Token, int32_t>> last_hp_tokens_;
-};
-
-template <bool k_is_killer_team>
-class TwinRole : public RoleBase
-{
-  public:
-    TwinRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::Condition(k_is_killer_team, Occupation::双子（邪）, Occupation::双子（正）),
-                Team::Condition(k_is_killer_team, Team::杀手, Team::平民), option, role_manager)
-    {
-    }
-
-    virtual std::string PrivateInfo(const MainStage& main_stage) const
-    {
-        return RoleBase::PrivateInfo(main_stage) + "，" +
-            TokenInfoForRoles(role_manager_, std::array<Occupation, 2>{Occupation::双子（正）, Occupation::双子（邪）}) +
-            "，您当前属于" + GetTeam().ToString() + "阵营";
-    }
-
-    virtual bool Act(const AttackAction& action, MsgSenderBase& reply) override
-    {
-        for (const auto& token_hp : action.token_hps_) {
-            const auto occupation = role_manager_.GetRole(std::get<Token>(token_hp)).GetOccupation();
-            if (occupation == Occupation::双子（正） || occupation == Occupation::双子（邪）) {
-                reply() << "攻击失败：您无法对自己和另一名双子进行攻击";
-                return false;
-            }
-        }
-        return RoleBase::Act(action, reply);
-    }
-};
-
-class KnightRole : public RoleBase
-{
-  public:
-    KnightRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::骑士, Team::平民, option, role_manager)
-    {
-    }
-
-    virtual std::string PrivateInfo(const MainStage& main_stage) const
-    {
-        return std::string("您的职业是「") + GetOccupation().ToString() + "」，不知道自己的代号";
-    }
-};
-
-class FirstVersionTraitorRole : public RoleBase
-{
-  public:
-    FirstVersionTraitorRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::初版内奸, Team::特殊, option, role_manager)
-    {
-    }
-
-    virtual std::string PrivateInfo(const MainStage& main_stage) const
-    {
-        return RoleBase::PrivateInfo(main_stage) + "，" +
-            TokenInfoForRoles(role_manager_, std::array<Occupation, 2>{Occupation::杀手, Occupation::平民});
-    }
-};
-
-class TraitorRole : public RoleBase
-{
-  public:
-    TraitorRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::内奸, Team::特殊, option, role_manager)
-    {
-    }
-
-    virtual std::string PrivateInfo(const MainStage& main_stage) const;
-};
-
-class AgentRole : public RoleBase
-{
-  public:
-    AgentRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
-        : RoleBase(pid, token, Occupation::特工, Team::特殊, option, role_manager)
-        , hidden_damages_(role_num, 0)
-    {
-    }
-
-    virtual bool Act(const AttackAction& action, MsgSenderBase& reply) override
-    {
-        reply() << "攻击失败：您只能通过释放隐藏伤害的方式攻击角色";
-        return false;
-    }
-
-    virtual bool Act(const AssignHiddenDamangeAction& action, MsgSenderBase& reply)
-    {
-        int32_t sum_hp = 0;
-        for (const auto& [token, hp] : action.token_hps_) {
-            if (hp != 5 && hp != 10 && hp != 15) {
-                reply() << "蓄力失败：隐藏伤害只能为 5 / 10 / 15 中的一个";
-                return false;
-            }
-            sum_hp += hp;
-        }
-        if (sum_hp > 20) {
-            reply() << "蓄力失败：您最多可造成共 20 点隐藏伤害";
-            return false;
-        }
-        for (const auto& [token, hp] : action.token_hps_) {
-            hidden_damages_[token.id_] += hp;
-        }
-        auto sender = reply();
-        sender << "蓄力成功，您当前累积造成的隐藏伤害为：";
-        for (uint32_t i = 0; i < hidden_damages_.size(); ++i) {
-            if (hidden_damages_[i] > 0) {
-                sender << '\n' << static_cast<char>('A' + i) << ' ' << hidden_damages_[i];
-            }
-        }
-        cur_action_ = action;
-        return true;
-    }
-
-    virtual bool Act(const FlushHiddenDamangeAction& action, MsgSenderBase& reply)
-    {
-        for (const auto& token : action.tokens_) {
-            if (hidden_damages_[token.id_] == 0) {
-                reply() << "释放失败：角色 " << token.ToChar() << " 并未累积隐藏伤害";
-                return false;
-            }
-        }
-        AttackAction attact_action;
-        for (const auto& token : action.tokens_) {
-            attact_action.token_hps_.emplace_back(token, hidden_damages_[token.id_]);
-            hidden_damages_[token.id_] = 0;
-        }
-        cur_action_ = attact_action;
-        return true;
-    }
-
-    std::vector<int32_t> hidden_damages_;
-};
-
-class PuppetRole : public RoleBase
-{
-  public:
-    PuppetRole(const Token token, const RoleOption& option, RoleManager& role_manager)
-        : RoleBase(std::nullopt, token, Occupation::人偶, Team::特殊, option, role_manager)
-    {
-    }
-};
 
 enum class RoundResult { KILLER_WIN, CIVILIAN_WIN, DRAW, CONTINUE };
 
@@ -2009,12 +1609,424 @@ class MainStage : public MainGameStage<>
 };
 
 
-
-std::string TraitorRole::PrivateInfo(const MainStage& main_stage) const
+class KillerRole : public RoleBase
 {
-    return RoleBase::PrivateInfo(main_stage) + "，" + main_stage.PlayerInfoForRole(role_manager_, Occupation::杀手) + "，" +
-        main_stage.PlayerInfoForRole(role_manager_, Occupation::平民);
-}
+  public:
+    KillerRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::杀手, Team::杀手, option, role_manager)
+    {
+        is_allowed_heavy_hurt_cure_ = true;
+    }
+
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
+    {
+        if (!private_info_.empty()) {
+            return private_info_;
+        }
+        return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForTeam(role_manager_, Team::平民);
+    }
+
+  private:
+    std::string private_info_;
+};
+
+class BodyDoubleRole : public RoleBase
+{
+  public:
+    BodyDoubleRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::替身, Team::杀手, option, role_manager)
+    {
+    }
+
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
+    {
+        if (main_stage.option().PlayerNum() > 5) {
+            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+        }
+        return RoleBase::PrivateInfo(main_stage);
+    }
+
+    virtual bool Act(const BlockAttackAction& action, MsgSenderBase& reply) override
+    {
+        reply() << "请做好觉悟，本回合对该角色造成的全部伤害将转移到您身上";
+        cur_action_ = action;
+        return true;
+    }
+};
+
+class GhostRole : public RoleBase
+{
+  public:
+    GhostRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::恶灵, Team::杀手, option, role_manager)
+    {
+    }
+
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
+    {
+        std::string info = RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::灵媒);
+        if (main_stage.option().PlayerNum() > 5) {
+            info += "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+        }
+        return info;
+    }
+};
+
+class AssassinRole : public RoleBase
+{
+  public:
+    AssassinRole(const uint64_t pid, const Token token, RoleOption option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::刺客, Team::杀手, option, role_manager)
+    {
+    }
+
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
+    {
+        if (main_stage.option().PlayerNum() > 5) {
+            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+        }
+        return RoleBase::PrivateInfo(main_stage);
+    }
+
+    virtual bool Act(const AttackAction& action, MsgSenderBase& reply) override
+    {
+        assert(!action.token_hps_.empty());
+        assert(std::all_of(action.token_hps_.begin(), action.token_hps_.end(),
+                    [&](const auto& token_hp) { return std::get<int32_t>(token_hp) == std::get<int32_t>(action.token_hps_[0]); }));
+        int32_t max_target_num = 0;
+        const int32_t hp = std::get<int32_t>(action.token_hps_[0]);
+        switch (hp) {
+        case 0:
+            max_target_num = 1;
+            break;
+        case 5:
+            max_target_num = 5;
+            break;
+        case 10:
+            max_target_num = 2;
+            break;
+        case 15:
+            max_target_num = 1;
+            break;
+        default:
+            reply() << "攻击失败：您只能造成 0 / 5 / 10 / 15 点伤害";
+            return false;
+        }
+        if (action.token_hps_.size() > max_target_num) {
+            reply() << "攻击失败：伤害值为 " << hp << " 时最多指定 " << max_target_num << " 名角色";
+            return false;
+        }
+
+        cur_action_ = action;
+
+        auto sender = reply();
+        sender << "您本回合分别对角色";
+        for (const auto& token_hp : action.token_hps_) {
+            sender << " " << std::get<Token>(token_hp).ToChar();
+        }
+        sender << " 造成了 " << hp << " 点伤害";
+
+        return true;
+    }
+};
+
+class WitchRole : public RoleBase
+{
+  public:
+    WitchRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::魔女, Team::杀手, option, role_manager)
+    {
+    }
+
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
+    {
+        if (main_stage.option().PlayerNum() > 5) {
+            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+        }
+        return RoleBase::PrivateInfo(main_stage);
+    }
+
+    virtual bool Act(const AttackAction& action, MsgSenderBase& reply) override
+    {
+        reply() << "攻击失败：您无法使用物理攻击";
+        return false;
+    }
+
+    virtual bool Act(const CurseAction& action, MsgSenderBase& reply) override
+    {
+        auto& target = role_manager_.GetRole(action.token_);
+        cur_action_ = action;
+        reply() << "您本回合诅咒角色 " << action.token_.ToChar() << " 成功";
+        return true;
+    }
+};
+
+class CivilianRole : public RoleBase
+{
+  public:
+    CivilianRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::平民, Team::平民, option, role_manager)
+    {
+    }
+};
+
+class GoddessRole : public RoleBase
+{
+  public:
+    GoddessRole(const uint64_t pid, const Token token, RoleOption option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::圣女, Team::平民, (option.cure_count_ = -1, option), role_manager)
+    {
+    }
+
+    virtual bool Act(const AttackAction& action, MsgSenderBase& reply) override
+    {
+        if (!history_status_.empty() && std::get_if<AttackAction>(&history_status_.back().action_)) {
+            reply() << "攻击失败：您无法连续两回合进行攻击";
+            return false;
+        }
+        return RoleBase::Act(action, reply);
+    }
+};
+
+class DetectiveRole : public RoleBase
+{
+  public:
+    DetectiveRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::侦探, Team::平民, option, role_manager)
+    {
+    }
+
+  public:
+    virtual bool Act(const DetectAction& action, MsgSenderBase& reply) override
+    {
+        if (history_status_.empty()) {
+            reply() << "侦查失败：首回合无法侦查";
+            return false;
+        }
+        if (!history_status_.empty() && std::get_if<DetectAction>(&history_status_.back().action_)) {
+            reply() << "侦查失败：您无法连续两回合进行侦查";
+            return false;
+        }
+        reply() << "您选择侦查角色 " << action.token_.ToChar() << "，本回合结束后将私信您他的行动";
+        cur_action_ = action;
+        return true;
+    }
+};
+
+class SorcererRole : public RoleBase
+{
+  public:
+    SorcererRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::灵媒, Team::平民, option, role_manager)
+        , exocrismed_(false)
+    {
+    }
+
+    virtual bool Act(const ExocrismAction& action, MsgSenderBase& reply) override
+    {
+        if (exocrismed_) {
+            reply() << "通灵失败：您本局游戏已经通灵过一次了";
+            return false;
+        }
+        reply() << "您选择通灵角色 " << action.token_.ToChar() << "，本回合结束后将私信您他的职业";
+        cur_action_ = action;
+        exocrismed_ = true;
+        return true;
+    }
+
+  private:
+    bool exocrismed_;
+};
+
+class GuardRole : public RoleBase
+{
+  public:
+    GuardRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::守卫, Team::平民, option, role_manager)
+    {
+    }
+
+    virtual bool Act(const ShieldAntiAction& action, MsgSenderBase& reply) override
+    {
+        if (action.token_hps_.size() > 2 || action.token_hps_.empty()) {
+            reply() << "盾反失败：您需要指定 1~2 名角色的血量";
+            return false;
+        }
+        if (action.token_hps_.size() == 2 &&
+                std::get<Token>(action.token_hps_[0]) == std::get<Token>(action.token_hps_[1])) {
+            reply() << "盾反失败：您需要为不同角色盾反";
+            return false;
+        }
+        for (const auto& [token, hp] : action.token_hps_) {
+            if (!role_manager_.GetRole(token).IsAlive()) {
+                reply() << "盾反失败：角色 " << token.ToChar() << " 已经死亡";
+                return false;
+            }
+            if (GetHpFromMultiTargetAction(token, last_hp_tokens_) != nullptr) {
+                reply() << "盾反失败：您上一回合盾反过角色 " << token.ToChar() << " 了，您无法连续两回合盾反同一角色";
+                return false;
+            }
+        }
+        cur_action_ = action;
+        last_hp_tokens_ = action.token_hps_;
+        auto sender = reply();
+        sender << "您选择盾反角色";
+        for (const auto& [token, _] : action.token_hps_) {
+            sender << " " << token.ToChar();
+        }
+        sender << "，如果盾反成功，您将收到反馈";
+        return true;
+    }
+
+    virtual bool OnRoundEnd() override
+    {
+        if (!std::get_if<ShieldAntiAction>(&cur_action_)) {
+            last_hp_tokens_.clear();
+        }
+        return RoleBase::OnRoundEnd();
+    }
+
+  private:
+    std::vector<std::tuple<Token, int32_t>> last_hp_tokens_;
+};
+
+template <bool k_is_killer_team>
+class TwinRole : public RoleBase
+{
+  public:
+    TwinRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::Condition(k_is_killer_team, Occupation::双子（邪）, Occupation::双子（正）),
+                Team::Condition(k_is_killer_team, Team::杀手, Team::平民), option, role_manager)
+    {
+    }
+
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
+    {
+        return RoleBase::PrivateInfo(main_stage) + "，" +
+            TokenInfoForRoles(role_manager_, std::array<Occupation, 2>{Occupation::双子（正）, Occupation::双子（邪）}) +
+            "，您当前属于" + GetTeam().ToString() + "阵营";
+    }
+
+    virtual bool Act(const AttackAction& action, MsgSenderBase& reply) override
+    {
+        for (const auto& token_hp : action.token_hps_) {
+            const auto occupation = role_manager_.GetRole(std::get<Token>(token_hp)).GetOccupation();
+            if (occupation == Occupation::双子（正） || occupation == Occupation::双子（邪）) {
+                reply() << "攻击失败：您无法对自己和另一名双子进行攻击";
+                return false;
+            }
+        }
+        return RoleBase::Act(action, reply);
+    }
+};
+
+class KnightRole : public RoleBase
+{
+  public:
+    KnightRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::骑士, Team::平民, option, role_manager)
+    {
+    }
+
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
+    {
+        return std::string("您的职业是「") + GetOccupation().ToString() + "」，不知道自己的代号";
+    }
+};
+
+class FirstVersionTraitorRole : public RoleBase
+{
+  public:
+    FirstVersionTraitorRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::初版内奸, Team::特殊, option, role_manager)
+    {
+    }
+
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
+    {
+        return RoleBase::PrivateInfo(main_stage) + "，" +
+            TokenInfoForRoles(role_manager_, std::array<Occupation, 2>{Occupation::杀手, Occupation::平民});
+    }
+};
+
+class TraitorRole : public RoleBase
+{
+  public:
+    TraitorRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::内奸, Team::特殊, option, role_manager)
+    {
+    }
+
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
+    {
+        return RoleBase::PrivateInfo(main_stage) + "，" + main_stage.PlayerInfoForRole(role_manager_, Occupation::杀手) + "，" +
+            main_stage.PlayerInfoForRole(role_manager_, Occupation::平民);
+    }
+
+};
+
+class AgentRole : public RoleBase
+{
+  public:
+    AgentRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::特工, Team::特殊, option, role_manager)
+        , hidden_damages_(role_num, 0)
+    {
+    }
+
+    virtual bool Act(const AttackAction& action, MsgSenderBase& reply) override
+    {
+        reply() << "攻击失败：您只能通过释放隐藏伤害的方式攻击角色";
+        return false;
+    }
+
+    virtual bool Act(const AssignHiddenDamangeAction& action, MsgSenderBase& reply)
+    {
+        int32_t sum_hp = 0;
+        for (const auto& [token, hp] : action.token_hps_) {
+            if (hp != 5 && hp != 10 && hp != 15) {
+                reply() << "蓄力失败：隐藏伤害只能为 5 / 10 / 15 中的一个";
+                return false;
+            }
+            sum_hp += hp;
+        }
+        if (sum_hp > 20) {
+            reply() << "蓄力失败：您最多可造成共 20 点隐藏伤害";
+            return false;
+        }
+        for (const auto& [token, hp] : action.token_hps_) {
+            hidden_damages_[token.id_] += hp;
+        }
+        auto sender = reply();
+        sender << "蓄力成功，您当前累积造成的隐藏伤害为：";
+        for (uint32_t i = 0; i < hidden_damages_.size(); ++i) {
+            if (hidden_damages_[i] > 0) {
+                sender << '\n' << static_cast<char>('A' + i) << ' ' << hidden_damages_[i];
+            }
+        }
+        cur_action_ = action;
+        return true;
+    }
+
+    virtual bool Act(const FlushHiddenDamangeAction& action, MsgSenderBase& reply)
+    {
+        for (const auto& token : action.tokens_) {
+            if (hidden_damages_[token.id_] == 0) {
+                reply() << "释放失败：角色 " << token.ToChar() << " 并未累积隐藏伤害";
+                return false;
+            }
+        }
+        AttackAction attact_action;
+        for (const auto& token : action.tokens_) {
+            attact_action.token_hps_.emplace_back(token, hidden_damages_[token.id_]);
+            hidden_damages_[token.id_] = 0;
+        }
+        cur_action_ = attact_action;
+        return true;
+    }
+
+    std::vector<int32_t> hidden_damages_;
+};
 
 MainStage::RoleMaker MainStage::k_role_makers_[Occupation::Count()] = {
     // killer team
