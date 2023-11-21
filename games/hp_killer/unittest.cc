@@ -330,6 +330,22 @@ GAME_TEST(5, killer_dead_traitor_alive_not_over)
     ASSERT_SCORE(0, 1, 1, 1, 0);
 }
 
+GAME_TEST(5, killer_dead_first_version_traitor_alive_not_over)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 平民 圣女 侦探 初版内奸");
+    START_GAME();
+    ASSERT_TIMEOUT(CONTINUE);
+    for (uint32_t i = 0; i < 4; ++i) {
+        ASSERT_PRI_MSG(CONTINUE, 0, "攻击 A 25");
+    }
+    // game not over because traitor is alive
+    for (uint32_t i = 0; i < 6; ++i) {
+        ASSERT_PRI_MSG(CONTINUE, 1, "攻击 E 15");
+    }
+    ASSERT_PRI_MSG(CHECKOUT, 1, "攻击 E 15");
+    ASSERT_SCORE(0, 1, 1, 1, 0);
+}
+
 GAME_TEST(5, three_civilians_dead_traitor_alive_not_over)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 平民 圣女 侦探 内奸");

@@ -19,6 +19,7 @@ ENUM_BEGIN(Occupation)
     ENUM_MEMBER(Occupation, 双子（正）)
     ENUM_MEMBER(Occupation, 骑士)
     // special team
+    ENUM_MEMBER(Occupation, 初版内奸)
     ENUM_MEMBER(Occupation, 内奸)
     ENUM_MEMBER(Occupation, 特工)
     // npc

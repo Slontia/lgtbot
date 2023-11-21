@@ -106,6 +106,11 @@ const char* const k_role_rules[Occupation::Count()] = {
 - 当【骑士】攻击某名自己外的角色时，若也恰好受到该角色的攻击，则该角色的攻击伤害为 0，且【骑士】可以知晓该情况)EOF",
 
     // special team
+    [static_cast<uint32_t>(Occupation(Occupation::初版内奸))] = R"EOF(【初版内奸 | 第三方阵营】
+- 当 **【初版内奸】死亡**时，【初版内奸】失败
+- 开局时知道【杀手】和所有【平民】的代号，但不知道代号与职位的对应关系
+- 【杀手】死亡后的下一回合，【初版内奸】可执行「攻击 <代号> 25」和「治愈 <代号> 15」的行动指令)EOF",
+
     [static_cast<uint32_t>(Occupation(Occupation::内奸))] = R"EOF(【内奸 | 第三方阵营】
 - 当 **【内奸】死亡**时，【内奸】失败
 - 开局时知道【杀手】的中之人和所有【平民】的中之人
@@ -184,12 +189,14 @@ bool GameOption::ToValid(MsgSenderBase& reply)
         reply() << "[错误] 身份列表中杀手个数必须为 1，请修正配置";
         return false;
     }
-    if (std::ranges::count(occupation_list, Occupation::内奸) > 0 && std::ranges::count(occupation_list, Occupation::特工) > 0) {
-        reply() << "[错误] 内奸和特工不允许出现在同一局游戏中，请修正配置";
+    if ((std::ranges::count(occupation_list, Occupation::内奸) > 0) +
+            (std::ranges::count(occupation_list, Occupation::特工) > 0) +
+            (std::ranges::count(occupation_list, Occupation::初版内奸) > 0) > 1) {
+        reply() << "[错误] 初版内奸、内奸和特工不允许出现在同一局游戏中，请修正配置";
         return false;
     }
     for (const auto occupation : std::initializer_list<Occupation>
-            {Occupation::替身, Occupation::内奸, Occupation::守卫, Occupation::双子（邪）, Occupation::双子（正）}) {
+            {Occupation::替身, Occupation::初版内奸, Occupation::内奸, Occupation::守卫, Occupation::双子（邪）, Occupation::双子（正）}) {
         if (std::ranges::count(occupation_list, occupation) > 1) {
             reply() << "[错误] 身份列表中" << occupation << "个数不允许大于 1，请修正配置";
             return false;
@@ -1050,6 +1057,21 @@ class KnightRole : public RoleBase
     }
 };
 
+class FirstVersionTraitorRole : public RoleBase
+{
+  public:
+    FirstVersionTraitorRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
+        : RoleBase(pid, token, Occupation::初版内奸, Team::特殊, option, role_manager)
+    {
+    }
+
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
+    {
+        return RoleBase::PrivateInfo(main_stage) + "，" +
+            TokenInfoForRoles(role_manager_, std::array<Occupation, 2>{Occupation::杀手, Occupation::平民});
+    }
+};
+
 class TraitorRole : public RoleBase
 {
   public:
@@ -1423,7 +1445,8 @@ class MainStage : public MainGameStage<>
                     DisableAct_(role);
                 }
                 RoleBase* other_role = nullptr;
-                if (role.GetOccupation() == Occupation::杀手 && (other_role = role_manager_.GetRole(Occupation::内奸))) {
+                if (role.GetOccupation() == Occupation::杀手 &&
+                        ((other_role = role_manager_.GetRole(Occupation::内奸)) || (other_role = role_manager_.GetRole(Occupation::初版内奸)))) {
                     other_role->SetAllowHeavyHurtCure(true);
                     Tell(*other_role->PlayerId()) << "杀手已经死亡，您获得了造成 " << k_heavy_hurt_hp
                             << " 点伤害和治愈 " << k_heavy_cure_hp << " 点 HP 的权利";
@@ -1448,7 +1471,7 @@ class MainStage : public MainGameStage<>
         role_manager_.Foreach([&](const auto& role)
             {
                 if (role.IsAlive()) {
-                    if (role.GetOccupation() == Occupation::内奸) {
+                    if (role.GetOccupation() == Occupation::内奸 || role.GetOccupation() == Occupation::初版内奸) {
                         traitor_dead = false;
                     }
                     if (role.GetOccupation() == Occupation::杀手) {
@@ -1536,7 +1559,7 @@ class MainStage : public MainGameStage<>
                     role.SetWinner(!civilian_lost);
                 } else if (role.GetTeam() == Team::杀手) {
                     role.SetWinner(!killer_lost);
-                } else if (role.GetOccupation() == Occupation::内奸) {
+                } else if (role.GetOccupation() == Occupation::内奸 || role.GetOccupation() == Occupation::初版内奸) {
                     role.SetWinner(!traitor_lost);
                 } else if (role.GetOccupation() != Occupation::人偶 && role.GetOccupation() != Occupation::特工) {
                     assert(false);
@@ -1626,7 +1649,7 @@ class MainStage : public MainGameStage<>
         }
         switch (option.PlayerNum()) {
         case 5: return make_roles(std::initializer_list<std::initializer_list<Occupation>>{
-                    {Occupation::杀手, Occupation::恶灵, Occupation::守卫, Occupation::灵媒, Occupation::内奸},
+                    {Occupation::杀手, Occupation::恶灵, Occupation::守卫, Occupation::灵媒, Occupation::初版内奸},
                 });
         case 6: return make_roles(std::initializer_list<std::initializer_list<Occupation>>{
                     {Occupation::杀手, Occupation::刺客, Occupation::双子（邪）, Occupation::双子（正）, Occupation::侦探, Occupation::圣女},
@@ -1638,7 +1661,7 @@ class MainStage : public MainGameStage<>
         case 8: return make_roles(std::initializer_list<std::initializer_list<Occupation>>{
                     {Occupation::杀手, Occupation::替身, Occupation::刺客, Occupation::侦探, Occupation::圣女, Occupation::守卫, Occupation::平民, Occupation::平民, Occupation::人偶},
                     {Occupation::杀手, Occupation::替身, Occupation::恶灵, Occupation::侦探, Occupation::圣女, Occupation::灵媒, Occupation::平民, Occupation::平民},
-                    {Occupation::杀手, Occupation::替身, Occupation::魔女, Occupation::侦探, Occupation::圣女, Occupation::骑士, Occupation::平民, Occupation::平民},
+                    // {Occupation::杀手, Occupation::替身, Occupation::魔女, Occupation::侦探, Occupation::圣女, Occupation::骑士, Occupation::平民, Occupation::平民},
                 });
         case 9: return make_roles(std::initializer_list<std::initializer_list<Occupation>>{
                     {Occupation::杀手, Occupation::替身, Occupation::刺客, Occupation::侦探, Occupation::圣女, Occupation::守卫, Occupation::平民, Occupation::平民, Occupation::内奸},
@@ -1670,7 +1693,8 @@ class MainStage : public MainGameStage<>
             if (occupation == Occupation::杀手 || occupation == Occupation::替身 || occupation == Occupation::恶灵 ||
                     occupation == Occupation::刺客 || occupation == Occupation::双子（邪） || occupation == Occupation::魔女) {
                 s += HTML_COLOR_FONT_HEADER(red);
-            } else if (occupation == Occupation::内奸 || occupation == Occupation::特工 || occupation == Occupation::人偶) {
+            } else if (occupation == Occupation::内奸 || occupation == Occupation::初版内奸 || occupation == Occupation::特工 ||
+                    occupation == Occupation::人偶) {
                 s += HTML_COLOR_FONT_HEADER(blue);
             } else {
                 s += HTML_COLOR_FONT_HEADER(black);
@@ -2003,6 +2027,7 @@ MainStage::RoleMaker MainStage::k_role_makers_[Occupation::Count()] = {
     [static_cast<uint32_t>(Occupation(Occupation::双子（正）))] = &MainStage::MakeRole_<TwinRole<false>>,
     [static_cast<uint32_t>(Occupation(Occupation::骑士))] = &MainStage::MakeRole_<KnightRole>,
     // special team
+    [static_cast<uint32_t>(Occupation(Occupation::初版内奸))] = &MainStage::MakeRole_<FirstVersionTraitorRole>,
     [static_cast<uint32_t>(Occupation(Occupation::内奸))] = &MainStage::MakeRole_<TraitorRole>,
     [static_cast<uint32_t>(Occupation(Occupation::特工))] = &MainStage::MakeRole_<AgentRole>,
 };
