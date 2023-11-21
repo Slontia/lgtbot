@@ -103,6 +103,7 @@ const char* const k_role_rules[Occupation::Count()] = {
 
     [static_cast<uint32_t>(Occupation(Occupation::骑士))] = R"EOF(【骑士 | 平民阵营】
 - 游戏开始时【骑士】的中之人会被公布
+- 【骑士】不知道自己的代号
 - 当【骑士】攻击某名自己外的角色时，若也恰好受到该角色的攻击，则该角色的攻击伤害为 0，且【骑士】可以知晓该情况)EOF",
 
     // special team
@@ -1054,6 +1055,11 @@ class KnightRole : public RoleBase
     KnightRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
         : RoleBase(pid, token, Occupation::骑士, Team::平民, option, role_manager)
     {
+    }
+
+    virtual std::string PrivateInfo(const MainStage& main_stage) const
+    {
+        return std::string("您的职业是「") + GetOccupation().ToString() + "」，不知道自己的代号";
     }
 };
 
