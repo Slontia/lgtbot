@@ -42,8 +42,7 @@ const char* const k_role_rules[Occupation::Count()] = {
 
     [static_cast<uint32_t>(Occupation(Occupation::恶灵))] = R"EOF(【恶灵 | 杀手阵营】
 - 开局时知道【杀手】的代号（五人场除外）
-- 开局时知道【灵媒】的代号
-- 攻击【灵媒】的同回合，自己受到 15 点伤害
+- 可以以流失 15 点 HP 为代价使用「攻击 <代号> 25」
 - 死亡后仍可继续行动（「中之人」仍会被公布），直到触发以下任意一种情况时，从下一回合起失去行动能力：
     - 被【侦探】侦查到**治愈**或**攻击**操作
     - 被【灵媒】通灵)EOF",
@@ -921,6 +920,9 @@ class MainStage : public MainGameStage<>
                 if (const auto action = std::get_if<AttackAction>(&role.CurAction())) {
                     for (const auto& [token, hp]: action->token_hps_) {
                         auto& hurted_role = role_manager_.GetRole(token);
+                        if (role.GetOccupation() == Occupation::恶灵 && hp == k_heavy_hurt_hp) {
+                            role.AddHp(-15);
+                        }
                         if (is_avoid_hurt(role, hurted_role)) {
                             be_attackeds[token.id_] = true;
                         } else if (is_blocked_hurt(hurted_role)) {
@@ -928,9 +930,6 @@ class MainStage : public MainGameStage<>
                         } else {
                             be_attackeds[token.id_] = true;
                             hurted_role.AddHp(-hp);
-                            if (hurted_role.GetOccupation() == Occupation::灵媒 && role.GetOccupation() == Occupation::恶灵) {
-                                role.AddHp(-hp);
-                            }
                         }
                     }
                 } else if (const auto action = std::get_if<CureAction>(&role.CurAction())) {
@@ -1047,7 +1046,9 @@ class MainStage : public MainGameStage<>
                                                              << role.GetTeam().ToString() << "阵营」";
                             }
                         });
-                if (role.GetOccupation() != Occupation::恶灵) {
+                if (role.GetOccupation() == Occupation::恶灵) {
+                    role.SetAllowHeavyHurtCure(false);
+                } else {
                     DisableAct_(role);
                 }
                 RoleBase* other_role = nullptr;
@@ -1660,15 +1661,15 @@ class GhostRole : public RoleBase
     GhostRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
         : RoleBase(pid, token, Occupation::恶灵, Team::杀手, option, role_manager)
     {
+        is_allowed_heavy_hurt_cure_ = true;
     }
 
     virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
-        std::string info = RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::灵媒);
         if (main_stage.option().PlayerNum() > 5) {
-            info += "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
         }
-        return info;
+        return RoleBase::PrivateInfo(main_stage);
     }
 };
 
