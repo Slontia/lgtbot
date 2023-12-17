@@ -671,7 +671,7 @@ GAME_TEST(5, ghost_attact_sorcerer_ghost_not_be_hurted)
 GAME_TEST(5, ghost_heavy_attact_hurt_self)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
-    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    ASSERT_PRI_MSG(OK, 0, "血量 25");
     START_GAME();
     ASSERT_PRI_MSG(OK, 3, "pass");
     ASSERT_PRI_MSG(OK, 4, "攻击 D 25"); // D E dead, but E can still act
@@ -680,6 +680,14 @@ GAME_TEST(5, ghost_heavy_attact_hurt_self)
     ASSERT_PRI_MSG(FAILED, 0, "攻击 E 15");
     ASSERT_PRI_MSG(FAILED, 4, "攻击 A 25"); // cannot heavy attact when dead
     ASSERT_PRI_MSG(OK, 4, "攻击 A 15");
+}
+
+GAME_TEST(5, ghost_cannot_heavy_cure)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(FAILED, 4, "治愈 D 15");
 }
 
 GAME_TEST(5, assassin_hurt_little_blood)

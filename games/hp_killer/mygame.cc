@@ -42,7 +42,7 @@ const char* const k_role_rules[Occupation::Count()] = {
 
     [static_cast<uint32_t>(Occupation(Occupation::恶灵))] = R"EOF(【恶灵 | 杀手阵营】
 - 开局时知道【杀手】的代号（五人场除外）
-- 可以以流失 15 点 HP 为代价使用「攻击 <代号> 25」
+- 死亡前可以以流失 25 点 HP 为代价使用「攻击 <代号> 25」
 - 死亡后仍可继续行动（「中之人」仍会被公布），直到触发以下任意一种情况时，从下一回合起失去行动能力：
     - 被【侦探】侦查到**治愈**或**攻击**操作
     - 被【灵媒】通灵)EOF",
@@ -414,7 +414,8 @@ class RoleBase
         , can_act_(true)
         , disable_act_when_refresh_(false)
         , is_alive_(true)
-        , is_allowed_heavy_hurt_cure_(false)
+        , is_allowed_heavy_hurt_(false)
+        , is_allowed_heavy_cure_(false)
         , is_winner_(false)
         , remain_cure_(option.cure_count_)
         , cur_action_(PassAction{})
@@ -516,7 +517,8 @@ class RoleBase
 
     void AddHp(const int32_t addition_hp) { hp_ += addition_hp; }
     void SetHp(const int32_t hp) { hp_ = hp; }
-    void SetAllowHeavyHurtCure(const bool allow) { is_allowed_heavy_hurt_cure_ = allow; }
+    void SetAllowHeavyHurt(const bool allow) { is_allowed_heavy_hurt_ = allow; }
+    void SetAllowHeavyCure(const bool allow) { is_allowed_heavy_cure_ = allow; }
     void SetWinner(const bool is_winner) { is_winner_ = is_winner; }
     void DisableAct() { can_act_ = false; }
     void DisableActWhenRoundEnd() { disable_act_when_refresh_ = true; }
@@ -550,7 +552,8 @@ class RoleBase
     bool can_act_;
     bool disable_act_when_refresh_;
     bool is_alive_;
-    bool is_allowed_heavy_hurt_cure_;
+    bool is_allowed_heavy_hurt_;
+    bool is_allowed_heavy_cure_;
     bool is_winner_;
     int32_t remain_cure_;
     ActionVariant cur_action_;
@@ -657,11 +660,11 @@ bool RoleBase::Act(const AttackAction& action, MsgSenderBase& reply)
         reply() << "攻击失败：该角色已经死亡";
         return false;
     }
-    if (is_allowed_heavy_hurt_cure_ && hp != k_normal_hurt_hp && hp != k_heavy_hurt_hp) {
+    if (is_allowed_heavy_hurt_ && hp != k_normal_hurt_hp && hp != k_heavy_hurt_hp) {
         reply() << "攻击失败：您只能造成 " << k_normal_hurt_hp << " 或 " << k_heavy_hurt_hp << " 点伤害";
         return false;
     }
-    if (!is_allowed_heavy_hurt_cure_ && hp != k_normal_hurt_hp) {
+    if (!is_allowed_heavy_hurt_ && hp != k_normal_hurt_hp) {
         reply() << "攻击失败：您只能造成 " << k_normal_hurt_hp << " 点伤害";
         return false;
     }
@@ -681,11 +684,11 @@ bool RoleBase::Act(const CureAction& action, MsgSenderBase& reply)
         reply() << "治愈失败：您已经没有治愈的机会了";
         return false;
     }
-    if (is_allowed_heavy_hurt_cure_ && action.hp_ != k_normal_cure_hp && action.hp_ != k_heavy_cure_hp) {
+    if (is_allowed_heavy_cure_ && action.hp_ != k_normal_cure_hp && action.hp_ != k_heavy_cure_hp) {
         reply() << "治愈失败：您只能治愈 " << k_normal_cure_hp << " 或 " << k_heavy_cure_hp << " 点血量";
         return false;
     }
-    if (!is_allowed_heavy_hurt_cure_ && action.hp_ != k_normal_cure_hp) {
+    if (!is_allowed_heavy_cure_ && action.hp_ != k_normal_cure_hp) {
         reply() << "治愈失败：您只能治愈 " << k_normal_cure_hp << " 点血量";
         return false;
     }
@@ -921,7 +924,7 @@ class MainStage : public MainGameStage<>
                     for (const auto& [token, hp]: action->token_hps_) {
                         auto& hurted_role = role_manager_.GetRole(token);
                         if (role.GetOccupation() == Occupation::恶灵 && hp == k_heavy_hurt_hp) {
-                            role.AddHp(-15);
+                            role.AddHp(-25);
                         }
                         if (is_avoid_hurt(role, hurted_role)) {
                             be_attackeds[token.id_] = true;
@@ -1047,14 +1050,15 @@ class MainStage : public MainGameStage<>
                             }
                         });
                 if (role.GetOccupation() == Occupation::恶灵) {
-                    role.SetAllowHeavyHurtCure(false);
+                    role.SetAllowHeavyHurt(false);
                 } else {
                     DisableAct_(role);
                 }
                 RoleBase* other_role = nullptr;
                 if (role.GetOccupation() == Occupation::杀手 &&
                         ((other_role = role_manager_.GetRole(Occupation::内奸)) || (other_role = role_manager_.GetRole(Occupation::初版内奸)))) {
-                    other_role->SetAllowHeavyHurtCure(true);
+                    other_role->SetAllowHeavyHurt(true);
+                    other_role->SetAllowHeavyCure(true);
                     Tell(*other_role->PlayerId()) << "杀手已经死亡，您获得了造成 " << k_heavy_hurt_hp
                             << " 点伤害和治愈 " << k_heavy_cure_hp << " 点 HP 的权利";
                 } else if (((role.GetOccupation() == Occupation::双子（正） && (other_role = role_manager_.GetRole(Occupation::双子（邪）))) ||
@@ -1616,7 +1620,8 @@ class KillerRole : public RoleBase
     KillerRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
         : RoleBase(pid, token, Occupation::杀手, Team::杀手, option, role_manager)
     {
-        is_allowed_heavy_hurt_cure_ = true;
+        is_allowed_heavy_hurt_ = true;
+        is_allowed_heavy_cure_ = true;
     }
 
     virtual std::string PrivateInfo(const MainStage& main_stage) const
@@ -1661,7 +1666,7 @@ class GhostRole : public RoleBase
     GhostRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
         : RoleBase(pid, token, Occupation::恶灵, Team::杀手, option, role_manager)
     {
-        is_allowed_heavy_hurt_cure_ = true;
+        is_allowed_heavy_hurt_ = true;
     }
 
     virtual std::string PrivateInfo(const MainStage& main_stage) const
@@ -1757,6 +1762,10 @@ class WitchRole : public RoleBase
     {
         auto& target = role_manager_.GetRole(action.token_);
         cur_action_ = action;
+        if (!target.IsAlive()) {
+            reply() << "攻击失败：该角色已经死亡";
+            return false;
+        }
         reply() << "您本回合诅咒角色 " << action.token_.ToChar() << " 成功";
         return true;
     }
