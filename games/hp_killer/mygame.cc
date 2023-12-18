@@ -196,6 +196,11 @@ bool GameOption::ToValid(MsgSenderBase& reply)
         reply() << "[错误] 初版内奸、内奸和特工不允许出现在同一局游戏中，请修正配置";
         return false;
     }
+    if ((std::ranges::count(occupation_list, Occupation::守卫) > 0) +
+            (std::ranges::count(occupation_list, Occupation::魔女) > 0) > 1) {
+        reply() << "[错误] 守卫和魔女不允许出现在同一局游戏中，请修正配置";
+        return false;
+    }
     for (const auto occupation : std::initializer_list<Occupation>
             {Occupation::替身, Occupation::初版内奸, Occupation::内奸, Occupation::守卫, Occupation::双子（邪）, Occupation::双子（正）}) {
         if (std::ranges::count(occupation_list, occupation) > 1) {
@@ -960,8 +965,38 @@ class MainStage : public MainGameStage<>
                 }
             });
 
-        // settlement shield anti action
-        RoleBase* const guard_role = role_manager_.GetRole(Occupation::守卫);
+        SettlementCurse_(be_attackeds);
+        SettlementShieldAnti_(is_blocked_hurt, is_avoid_hurt, be_attackeds);
+    }
+
+    void SettlementCurse_(std::vector<bool>& be_attackeds)
+    {
+        // settlement cure erase posion effect
+        for (uint32_t id = 0; id < be_attackeds.size(); ++id) {
+            if (be_attackeds[id]) {
+                role_manager_.GetRole(Token{id}).EffectCount(CURSE) = 0; // attact action will clear curse effect
+            }
+        }
+
+        // settlement curse effect
+        role_manager_.Foreach([&](auto& role)
+            {
+                if (const auto action = std::get_if<CurseAction>(&role.CurAction());
+                        role.GetOccupation() == Occupation::魔女 && action) {
+                    role_manager_.GetRole(action->token_).EffectCount(CURSE) += action->hp_;
+                }
+            });
+        role_manager_.Foreach([&](auto& role)
+            {
+                if (!std::holds_alternative<PassAction>(role.CurAction())) {
+                    role.AddHp(-role.EffectCount(CURSE));
+                }
+            });
+    }
+
+    void SettlementShieldAnti_(const auto& is_blocked_hurt, const auto& is_avoid_hurt, std::vector<bool>& be_attackeds)
+    {
+        RoleBase* const guard_role = role_manager_.GetRole(Occupation::守卫); // there should be at most 1 guard
         if (const ShieldAntiAction* const shield_anti_action =
                 guard_role ? std::get_if<ShieldAntiAction>(&guard_role->CurAction()) : nullptr) {
             std::vector<int32_t> hp_additions(role_manager_.Size(), 0);
@@ -993,28 +1028,6 @@ class MainStage : public MainGameStage<>
                     role.AddHp(hp_additions[role.GetToken().id_]);
                 });
         }
-
-        // settlement cure erase posion effect
-        for (uint32_t id = 0; id < be_attackeds.size(); ++id) {
-            if (be_attackeds[id]) {
-                role_manager_.GetRole(Token{id}).EffectCount(CURSE) = 0; // attact action will clear curse effect
-            }
-        }
-
-        // settlement curse effect
-        role_manager_.Foreach([&](auto& role)
-            {
-                if (const auto action = std::get_if<CurseAction>(&role.CurAction());
-                        role.GetOccupation() == Occupation::魔女 && action) {
-                    role_manager_.GetRole(action->token_).EffectCount(CURSE) += action->hp_;
-                }
-            });
-        role_manager_.Foreach([&](auto& role)
-            {
-                if (!std::holds_alternative<PassAction>(role.CurAction())) {
-                    role.AddHp(-role.EffectCount(CURSE));
-                }
-            });
     }
 
     void RolesOnRoundBegin_()
@@ -1763,7 +1776,11 @@ class WitchRole : public RoleBase
         auto& target = role_manager_.GetRole(action.token_);
         cur_action_ = action;
         if (!target.IsAlive()) {
-            reply() << "攻击失败：该角色已经死亡";
+            reply() << "诅咒失败：该角色已经死亡";
+            return false;
+        }
+        if (action.hp_ != 5 && action.hp_ != 10) {
+            reply() << "诅咒失败：诅咒的血量只能为 5 或 10";
             return false;
         }
         reply() << "您本回合诅咒角色 " << action.token_.ToChar() << " 成功";
@@ -2032,6 +2049,21 @@ class AgentRole : public RoleBase
             hidden_damages_[token.id_] = 0;
         }
         cur_action_ = attact_action;
+        auto sender = reply();
+        bool found_hidden_damage = false;
+        for (uint32_t i = 0; i < hidden_damages_.size(); ++i) {
+            if (hidden_damages_[i] == 0) {
+                continue;
+            }
+            if (!found_hidden_damage) {
+                sender << "释放成功，您当前剩余累积造成的隐藏伤害为：";
+                found_hidden_damage = true;
+            }
+            sender << '\n' << static_cast<char>('A' + i) << ' ' << hidden_damages_[i];
+        }
+        if (!found_hidden_damage) {
+            sender << "释放成功，您已无剩余累积隐藏伤害";
+        }
         return true;
     }
 

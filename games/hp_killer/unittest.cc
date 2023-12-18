@@ -994,11 +994,24 @@ GAME_TEST(5, all_civilian_dead_killer_win)
     ASSERT_SCORE(1, 1, 0, 0, 0);
 }
 
+GAME_TEST(5, witch_cannot_be_with_guard)
+{
+    ASSERT_PUB_MSG(OK, 0, "五人身份 杀手 魔女 守卫 平民 平民");
+    ASSERT_FALSE(StartGame());
+}
+
 GAME_TEST(5, only_witch_can_curse)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
     START_GAME();
     ASSERT_PRI_MSG(FAILED, 0, "诅咒 A 5");
+}
+
+GAME_TEST(5, witch_invalid_curse)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 平民 平民");
+    START_GAME();
+    ASSERT_PRI_MSG(FAILED, 1, "诅咒 A 6");
 }
 
 GAME_TEST(5, curse_do_not_hurt_when_target_takes_no_actions_the_first_round)
@@ -1094,7 +1107,7 @@ GAME_TEST(5, curse_do_not_hurt_after_goddess_attacked)
     ASSERT_PRI_MSG(CONTINUE, 4, "治愈 B 10");
 }
 
-GAME_TEST(5, posion_cannot_be_cancel_when_curse_be_concurrent_with_attack)
+GAME_TEST(5, curse_cannot_be_cancel_when_curse_be_concurrent_with_attack)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 圣女 平民");
     ASSERT_PRI_MSG(OK, 0, "血量 25");
@@ -1120,7 +1133,7 @@ GAME_TEST(5, curse_hurt_when_cure)
     ASSERT_SCORE(0, 0, 1, 1, 1);
 }
 
-GAME_TEST(5, curse_cannot_shield_anti)
+GAME_TEST(5, DISABLED_curse_cannot_shield_anti)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 守卫 平民 平民");
     ASSERT_PRI_MSG(OK, 0, "血量 5");
@@ -1132,7 +1145,20 @@ GAME_TEST(5, curse_cannot_shield_anti)
     ASSERT_SCORE(0, 0, 1, 1, 1);
 }
 
-GAME_TEST(5, posion_cannot_be_cancel_when_curse_be_concurrent_with_attack_but_old_curse_can_be_cancel)
+GAME_TEST(5, DISABLED_shield_anti_settlement_after_curse)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 守卫 平民 平民");
+    ASSERT_PRI_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 0, "治愈 B 10");
+    ASSERT_PRI_MSG(OK, 1, "诅咒 A 5");
+    ASSERT_PRI_MSG(OK, 2, "盾反 A -5");
+    ASSERT_PRI_MSG(OK, 3, "攻击 A 15");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_ELIMINATED(3);
+}
+
+GAME_TEST(5, curse_cannot_be_cancel_when_curse_be_concurrent_with_attack_but_old_curse_can_be_cancel)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 骑士 圣女 平民");
     ASSERT_PRI_MSG(OK, 0, "血量 30");
@@ -1163,7 +1189,7 @@ GAME_TEST(5, witch_curse_cannot_be_blocked)
     ASSERT_SCORE(0, 0, 0, 1, 1);
 }
 
-GAME_TEST(5, witch_curse_cannot_be_shield_anti)
+GAME_TEST(5, DISABLED_witch_curse_cannot_be_shield_anti)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 魔女 守卫 平民 平民");
     ASSERT_PRI_MSG(OK, 0, "血量 15");
