@@ -42,7 +42,6 @@ const char* const k_role_rules[Occupation::Count()] = {
 
     [static_cast<uint32_t>(Occupation(Occupation::恶灵))] = R"EOF(【恶灵 | 杀手阵营】
 - 开局时知道【杀手】的代号（五人场除外）
-- 死亡前可以以流失 25 点 HP 为代价使用「攻击 <代号> 25」
 - 死亡后仍可继续行动（「中之人」仍会被公布），直到触发以下任意一种情况时，从下一回合起失去行动能力：
     - 被【侦探】侦查到**治愈**或**攻击**操作
     - 被【灵媒】通灵)EOF",
@@ -1057,14 +1056,12 @@ class MainStage : public MainGameStage<>
                 }
                 role_manager_.Foreach(Occupation::特工, [&](auto& agent_role)
                         {
-                            if (agent_role.GetToken() != role.GetToken()) {
+                            if (agent_role.IsAlive() && agent_role.GetToken() != role.GetToken()) {
                                 Tell(*agent_role.PlayerId()) << "死亡角色 " << role.GetToken().ToChar() << " 的阵营是「"
                                                              << role.GetTeam().ToString() << "阵营」";
                             }
                         });
-                if (role.GetOccupation() == Occupation::恶灵) {
-                    role.SetAllowHeavyHurt(false);
-                } else {
+                if (role.GetOccupation() != Occupation::恶灵) {
                     DisableAct_(role);
                 }
                 RoleBase* other_role = nullptr;
@@ -1679,7 +1676,6 @@ class GhostRole : public RoleBase
     GhostRole(const uint64_t pid, const Token token, const RoleOption& option, const uint64_t role_num, RoleManager& role_manager)
         : RoleBase(pid, token, Occupation::恶灵, Team::杀手, option, role_manager)
     {
-        is_allowed_heavy_hurt_ = true;
     }
 
     virtual std::string PrivateInfo(const MainStage& main_stage) const

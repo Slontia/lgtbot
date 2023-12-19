@@ -668,7 +668,7 @@ GAME_TEST(5, ghost_attact_sorcerer_ghost_not_be_hurted)
     ASSERT_PRI_MSG(OK, 0, "攻击 E 15");
 }
 
-GAME_TEST(5, ghost_heavy_attact_hurt_self)
+GAME_TEST(5, DISABLED_ghost_heavy_attact_hurt_self)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 圣女 侦探 灵媒 恶灵");
     ASSERT_PRI_MSG(OK, 0, "血量 25");
