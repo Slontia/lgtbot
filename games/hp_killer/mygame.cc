@@ -37,17 +37,17 @@ const char* const k_role_rules[Occupation::Count()] = {
 - 可以选择「攻击 <代号> 25」和「治愈 <代号> 15」)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::替身))] = R"EOF(【替身 | 杀手阵营】
-- 开局时知道【杀手】的代号（五人场除外）
+- 开局时知道所有「平民阵营」角色的代号（五人场除外）
 - 特殊技能「挡刀 <代号>」：令当前回合**攻击**指定角色造成的减 HP 效果转移到**自己**身上，次数不限)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::恶灵))] = R"EOF(【恶灵 | 杀手阵营】
-- 开局时知道【杀手】的代号（五人场除外）
+- 开局时知道所有「平民阵营」角色的代号（五人场除外）
 - 死亡后仍可继续行动（「中之人」仍会被公布），直到触发以下任意一种情况时，从下一回合起失去行动能力：
     - 被【侦探】侦查到**治愈**或**攻击**操作
     - 被【灵媒】通灵)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::刺客))] = R"EOF(【刺客 | 杀手阵营】
-- 开局时知道【杀手】的代号（五人场除外）
+- 开局时知道所有「平民阵营」角色的代号（五人场除外）
 - 特殊技能「攻击 <代号> (<代号>)... <伤害>」：扣除多名角色的 HP，代号不允许重复
     - 伤害可以是 0、5、10 或 15 中的一个：
         - 如果伤害是 0 或 15，则只能指定 1 个代号
@@ -61,7 +61,7 @@ const char* const k_role_rules[Occupation::Count()] = {
 - 如果【双子】中的一方死亡，另一方存活，则从下一回合起，存活方将加入死亡方的阵营（如果【双子】的死亡导致游戏结束，则存活方阵营**不发生**改变）)EOF",
 
     [static_cast<uint32_t>(Occupation(Occupation::魔女))] = R"EOF(【魔女 | 杀手阵营】
-- 开局时知道【杀手】的代号（五人场除外）
+- 开局时知道所有「平民阵营」角色的代号（五人场除外）
 - 不允许使用「攻击 <代号> 15」指令
 - 特殊技能「诅咒 <代号> 5」和「诅咒 <代号> 10」：令指定角色进入诅咒状态
     - 处于诅咒状态的角色**执行非 pass 操作的回合**会流失 5 或 10 点 HP，直到被物理攻击（对于单个诅咒状态，进入诅咒状态的回合会流失体力，但是解除诅咒的回合不会，如果物理攻击被挡刀或者盾反则诅咒效果不会被解除）
@@ -1657,7 +1657,7 @@ class BodyDoubleRole : public RoleBase
     virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
         if (main_stage.option().PlayerNum() > 5) {
-            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForTeam(role_manager_, Team::平民);
         }
         return RoleBase::PrivateInfo(main_stage);
     }
@@ -1681,7 +1681,7 @@ class GhostRole : public RoleBase
     virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
         if (main_stage.option().PlayerNum() > 5) {
-            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForTeam(role_manager_, Team::平民);
         }
         return RoleBase::PrivateInfo(main_stage);
     }
@@ -1698,7 +1698,7 @@ class AssassinRole : public RoleBase
     virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
         if (main_stage.option().PlayerNum() > 5) {
-            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForTeam(role_manager_, Team::平民);
         }
         return RoleBase::PrivateInfo(main_stage);
     }
@@ -1756,7 +1756,7 @@ class WitchRole : public RoleBase
     virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
         if (main_stage.option().PlayerNum() > 5) {
-            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForRole(role_manager_, Occupation::杀手);
+            return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForTeam(role_manager_, Team::平民);
         }
         return RoleBase::PrivateInfo(main_stage);
     }
