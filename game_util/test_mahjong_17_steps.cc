@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-using namespace lgtbot::game_util::mahjong_17_steps;
+using namespace lgtbot::game_util::mahjong;
 
 class TestMahjong17Steps : public testing::Test
 {
@@ -60,32 +60,33 @@ TEST_F(TestMahjong17Steps, add_tile_to_hand_not_has)
 TEST_F(TestMahjong17Steps, decode_invalid_z_color_tiles)
 {
     std::string errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("0z", errstr).size()) << errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("8z", errstr).size()) << errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("9z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("0z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("8z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("9z", errstr).size()) << errstr;
     for (uint32_t i = 1; i < 8; ++i) {
         char s[] = {static_cast<char>('0' + i), 'z', 0};
-        EXPECT_TRUE(Mahjong17Steps::DecodeTilesString_(s, errstr).size()) << errstr;
+        EXPECT_TRUE(DecodeTilesString(s, errstr).size()) << errstr;
     }
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("0z1z", errstr).size()) << errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("1z0z", errstr).size()) << errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("01z", errstr).size()) << errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("10z", errstr).size()) << errstr;
-    EXPECT_TRUE(Mahjong17Steps::DecodeTilesString_("1z2z", errstr).size()) << errstr;
-    EXPECT_TRUE(Mahjong17Steps::DecodeTilesString_("12z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("0z1z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("1z0z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("01z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("10z", errstr).size()) << errstr;
+    EXPECT_TRUE(DecodeTilesString("1z2z", errstr).size()) << errstr;
+    EXPECT_TRUE(DecodeTilesString("12z", errstr).size()) << errstr;
 }
 
 TEST_F(TestMahjong17Steps, decode_too_long_tiles)
 {
     std::string errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("0m1m2m3m4m5m6m7m8m9m0p1p2p3p4p5p6p7p8p9", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("0m1m2m3m4m5m6m7m8m9m0p1p2p3p4p5p6p7p8p9", errstr).size()) << errstr;
 }
 
 TEST_F(TestMahjong17Steps, get_more_same_tiles_from_yama)
 {
     std::string str = table_.players_[0].yama_.begin()->to_simple_string();
     str = str + str + str + str + str;
-    EXPECT_FALSE(table_.GetTilesFrom_(table_.players_[0].yama_, str).size()) << table_.ErrorStr();
+    std::string errstr;
+    EXPECT_TRUE(GetTilesFrom(table_.players_[0].yama_, str, errstr).empty()) << errstr;
     EXPECT_EQ(34, table_.players_[0].yama_.size());
 }
 
