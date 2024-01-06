@@ -9,7 +9,7 @@
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-using namespace lgtbot::game_util::mahjong_17_steps;
+using namespace lgtbot::game_util::mahjong;
 
 class TestMahjong17Steps : public testing::Test
 {
@@ -27,6 +27,48 @@ class TestMahjong17Steps : public testing::Test
   protected:
     Mahjong17Steps table_;
 };
+
+TEST_F(TestMahjong17Steps, get_tiles_from_set)
+{
+    std::string errstr;
+    TileSet tile_set;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = false, .toumei = false});
+    GetTilesFrom(tile_set, "5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = false});
+    GetTilesFrom(tile_set, "5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = false, .toumei = true});
+    GetTilesFrom(tile_set, "5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = true});
+    GetTilesFrom(tile_set, "5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = false});
+    GetTilesFrom(tile_set, "0s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = true});
+    GetTilesFrom(tile_set, "0s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = false, .toumei = true});
+    GetTilesFrom(tile_set, "t5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = true});
+    GetTilesFrom(tile_set, "t5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = true});
+    GetTilesFrom(tile_set, "t0s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+}
 
 TEST_F(TestMahjong17Steps, get_init_hand_tiles)
 {
@@ -60,32 +102,33 @@ TEST_F(TestMahjong17Steps, add_tile_to_hand_not_has)
 TEST_F(TestMahjong17Steps, decode_invalid_z_color_tiles)
 {
     std::string errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("0z", errstr).size()) << errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("8z", errstr).size()) << errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("9z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("0z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("8z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("9z", errstr).size()) << errstr;
     for (uint32_t i = 1; i < 8; ++i) {
         char s[] = {static_cast<char>('0' + i), 'z', 0};
-        EXPECT_TRUE(Mahjong17Steps::DecodeTilesString_(s, errstr).size()) << errstr;
+        EXPECT_TRUE(DecodeTilesString(s, errstr).size()) << errstr;
     }
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("0z1z", errstr).size()) << errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("1z0z", errstr).size()) << errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("01z", errstr).size()) << errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("10z", errstr).size()) << errstr;
-    EXPECT_TRUE(Mahjong17Steps::DecodeTilesString_("1z2z", errstr).size()) << errstr;
-    EXPECT_TRUE(Mahjong17Steps::DecodeTilesString_("12z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("0z1z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("1z0z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("01z", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("10z", errstr).size()) << errstr;
+    EXPECT_TRUE(DecodeTilesString("1z2z", errstr).size()) << errstr;
+    EXPECT_TRUE(DecodeTilesString("12z", errstr).size()) << errstr;
 }
 
 TEST_F(TestMahjong17Steps, decode_too_long_tiles)
 {
     std::string errstr;
-    EXPECT_FALSE(Mahjong17Steps::DecodeTilesString_("0m1m2m3m4m5m6m7m8m9m0p1p2p3p4p5p6p7p8p9", errstr).size()) << errstr;
+    EXPECT_FALSE(DecodeTilesString("0m1m2m3m4m5m6m7m8m9m0p1p2p3p4p5p6p7p8p9", errstr).size()) << errstr;
 }
 
 TEST_F(TestMahjong17Steps, get_more_same_tiles_from_yama)
 {
     std::string str = table_.players_[0].yama_.begin()->to_simple_string();
     str = str + str + str + str + str;
-    EXPECT_FALSE(table_.GetTilesFrom_(table_.players_[0].yama_, str).size()) << table_.ErrorStr();
+    std::string errstr;
+    EXPECT_TRUE(GetTilesFrom(table_.players_[0].yama_, str, errstr).empty()) << errstr;
     EXPECT_EQ(34, table_.players_[0].yama_.size());
 }
 
@@ -1069,48 +1112,9 @@ TEST_F(TestMahjong17StepsPlayer3, two_ron_one)
     EXPECT_EQ(0, table_.players_[2].point_);
 }
 
-void ShowImage()
-{
-    std::cout << "<!--" << std::endl;
-    Mahjong17StepsOption option;
-    option.image_path_ = "/home/bjcwgqm/projects/lgtbot/src/lgtbot/games/mahjong_17_steps/resource";
-    option.seed_ = "sdfsf";
-    option.name_ = "东四局";
-    option.dora_num_ = 1;
-    option.ron_required_point_ = 0;
-    option.player_descs_.emplace_back("赤木茂", "", "", Wind::East, 31000);
-    option.player_descs_.emplace_back("伊藤开司", "", "", Wind::West, 19000);
-    option.player_descs_.emplace_back("天贵史", "", "", Wind::South, 25000);
-    Mahjong17Steps table(option);
-    table.AddToHand(0, "456s4466677p777z");
-    table.AddToHand(1, "888m555p222z3366z");
-    table.AddToHand(2, "77889s223344p55z");
-    //table.AddToHand(0, "1m66s4466677p777z");
-    //table.AddToHand(0, "2344666778p777z");
-    //table.AddToHand(0, "66s4466677p777z");
-    table.Kiri(0, "1s");
-    table.Kiri(1, "4z");
-    table.Kiri(2, "4z");
-    table.RoundOver();
-    table.Kiri(0, "6s");
-    table.Kiri(1, "9s");
-    table.Kiri(2, "4z");
-    table.RoundOver();
-    std::cout << "-->" << std::endl;
-//    std::cout << "-->" << std::endl;
-//    std::cout << table.PrepareHtml(0) << "\n\n";
-//    std::cout << table.PrepareHtml(1) << "\n\n";
-//    std::cout << table.PrepareHtml(2) << "\n\n";
-    //std::cout << table.PublicHtml();
-    std::cout << table.KiriHtml(0);
-
-}
-
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
     gflags::ParseCommandLineFlags(&argc, &argv, true);
     return RUN_ALL_TESTS();
-    //ShowImage();
-    return 0;
 }

@@ -4,96 +4,52 @@
 
 #pragma once
 
-#include <map>
-#include <set>
+#include "game_util/mahjong_util.h"
+
 #include <ranges>
-#include <variant>
-#include <random>
 #include <algorithm>
 
-#include "Mahjong/Table.h"
 #include "Mahjong/Rule.h"
-#include "utility/html.h"
 
 #ifdef TEST_BOT
 #define private public
 #endif
 
-static auto operator<=>(const Tile& _1, const Tile& _2)
-{
-    return _1.tile != _2.tile         ? _1.tile <=> _2.tile         :
-           _1.red_dora != _2.red_dora ? _1.red_dora <=> _2.red_dora : _1.toumei <=> _2.toumei;
-}
-
-static auto operator==(const Tile& _1, const Tile& _2)
-{
-    return _1.tile == _2.tile && _1.red_dora == _2.red_dora && _1.toumei == _2.toumei;
-}
-
 namespace lgtbot {
 
 namespace game_util {
 
-namespace mahjong_17_steps {
+namespace mahjong {
 
 enum class ErrCode { OK, NOT_HAS, EXCEED_SIZE };
 
-struct PlayerDesc
-{
-    std::string name_;
-    std::string big_avatar_;
-    std::string small_avatar_;
-    Wind wind_ = Wind::East;
-    int32_t base_point_ = 25000;
-};
-
 struct Mahjong17StepsOption
 {
+    TilesOption tile_option_;
     std::string name_;
-    bool with_red_dora_ = false;
-    uint32_t with_toumei_ = 0;
     bool with_inner_dora_ = false;
     uint32_t dora_num_ = 0;
     uint32_t ron_required_point_ = 8000;
-    std::string seed_;
     std::string image_path_;
     std::vector<PlayerDesc> player_descs_;
 };
 
-struct TileIdent
-{
-    operator Tile() const
-    {
-        return Tile{
-            .tile = static_cast<BaseTile>((digit_ == '0' ? 4 : digit_ - '1') + 9 * (std::string("mspzMSPZ").find_first_of(color_) % 4)),
-            .red_dora = (digit_ == '0'),
-            .toumei = static_cast<bool>(std::isupper(color_)),
-        };
-    }
+static constexpr const uint32_t k_player_num_ = 4;
 
-    char digit_;
-    char color_;
+struct RonInfo
+{
+    uint64_t loser_ = 0;
+    Tile tile_;
+    CounterResult counter_;
 };
-
-static std::string wind2str(const Wind wind)
-{
-    switch (wind) {
-        case Wind::East: return "东";
-        case Wind::West: return "西";
-        case Wind::South: return "南";
-        case Wind::North: return "北";
-    }
-    return "";
-}
 
 class Mahjong17Steps
 {
   private:
     static constexpr const uint32_t k_yama_tile_num_ = 34;
-    static constexpr const uint32_t k_hand_tile_num_ = 13;
-    static constexpr const uint32_t k_player_num_ = 4;
     static constexpr const uint32_t k_max_round_ = 17;
 
+    /*
     struct TileWrapper
     {
         TileWrapper(Tile* tile) : tile_(tile) {}
@@ -114,15 +70,7 @@ class Mahjong17Steps
 
         Tile* tile_;
     };
-
-    using TileSet = std::multiset<Tile, std::less<Tile>>;
-
-    struct RonInfo
-    {
-        uint64_t loser_ = 0;
-        Tile tile_;
-        CounterResult counter_;
-    };
+    */
 
     struct Player
     {
@@ -147,30 +95,7 @@ class Mahjong17Steps
     {
         // init tiles
         std::array<Tile, k_yama_tile_num_ * k_player_num_> tiles;
-        for (uint32_t i = 0; i < tiles.size(); ++i) {
-            tiles[i].tile = static_cast<BaseTile>(i % k_yama_tile_num_);
-            tiles[i].red_dora = false;
-            tiles[i].toumei = i < option_.with_toumei_ * k_yama_tile_num_;
-        }
-        if (option_.with_red_dora_) {
-            tiles[4].red_dora = true;
-            tiles[13].red_dora = true;
-            tiles[22].red_dora = true;
-        }
-
-        // shuffle tiles
-        std::variant<std::random_device, std::seed_seq> rd;
-        std::mt19937 g([&]
-            {
-                if (option_.seed_.empty()) {
-                    auto& real_rd = rd.emplace<std::random_device>();
-                    return std::mt19937(real_rd());
-                } else {
-                    auto& real_rd = rd.emplace<std::seed_seq>(option_.seed_.begin(), option_.seed_.end());
-                    return std::mt19937(real_rd);
-                }
-            }());
-        std::shuffle(tiles.begin(), tiles.end(), g);
+        ShuffleTiles(option_.tile_option_, tiles);
 
         // init doras
         for (uint32_t i = 0; i < option_.dora_num_; ++i) {
@@ -190,17 +115,17 @@ class Mahjong17Steps
     {
         auto& hand = players_[pid].hand_;
         auto& yama = players_[pid].yama_;
-        const auto tiles = GetTilesFrom_(yama, str);
+        const auto tiles = GetTilesFrom(yama, str, errstr_);
         if (tiles.empty()) { // get failed
             return false;
         }
-        if (hand.size() + tiles.size() > k_hand_tile_num_) {
+        if (hand.size() + tiles.size() > k_hand_tile_num) {
             errstr_ = "手牌数将大于 13 枚，您当前持有手牌 " + std::to_string(hand.size()) + " 枚，本次操作将添加 " + std::to_string(tiles.size()) + " 枚";
             yama.insert(tiles.begin(), tiles.end()); // rollback
             return false;
         }
         hand.insert(tiles.begin(), tiles.end());
-        if (hand.size() == k_hand_tile_num_) {
+        if (hand.size() == k_hand_tile_num) {
             players_[pid].listen_tiles_ = GetListenInfo_(pid);
         }
         return true;
@@ -211,7 +136,7 @@ class Mahjong17Steps
     {
         auto& hand = players_[pid].hand_;
         auto& yama = players_[pid].yama_;
-        for (uint32_t i = hand.size(); i < k_hand_tile_num_; ++i) {
+        for (uint32_t i = hand.size(); i < k_hand_tile_num; ++i) {
             hand.emplace(*yama.begin());
             yama.erase(yama.begin());
         }
@@ -223,7 +148,7 @@ class Mahjong17Steps
     {
         auto& hand = players_[pid].hand_;
         auto& yama = players_[pid].yama_;
-        const auto tiles = GetTilesFrom_(hand, str);
+        const auto tiles = GetTilesFrom(hand, str, errstr_);
         if (tiles.empty()) { // get failed, errstr has already be set
             return false;
         }
@@ -233,7 +158,7 @@ class Mahjong17Steps
     }
 
     // Prepare state
-    bool CheckHandValid(const uint64_t pid) const { return players_[pid].hand_.size() == k_hand_tile_num_; }
+    bool CheckHandValid(const uint64_t pid) const { return players_[pid].hand_.size() == k_hand_tile_num; }
 
     // Step state
     bool Kiri(const uint64_t pid, const std::string_view str)
@@ -247,7 +172,7 @@ class Mahjong17Steps
             errstr_ = "您只能切一张牌";
             return false;
         }
-        const auto tiles = GetTilesFrom_(player.yama_, str);
+        const auto tiles = GetTilesFrom(player.yama_, str, errstr_);
         if (tiles.empty()) {
             return false;
         }
@@ -309,7 +234,7 @@ class Mahjong17Steps
     {
         const Player& player = players_[pid];
         std::string s = TitleHtml_() + "\n\n" + PlayerNameHtml_(pid) + "\n\n" + DoraHtml_(false) + "\n\n" + HandHtmlPrepare_(pid) + "\n\n";
-        if (player.hand_.size() != k_hand_tile_num_) {
+        if (player.hand_.size() != k_hand_tile_num) {
             // no nothing
         } else if (player.listen_tiles_.empty()) {
             s += "<center>\n\n" HTML_COLOR_FONT_HEADER(red) " **未构成听牌牌型** " HTML_FONT_TAIL "\n\n</center>";
@@ -336,7 +261,7 @@ class Mahjong17Steps
     {
         const Player& player = players_[pid];
         std::string s = TitleString_() + "\n" + DoraString_() + "\n\n" + PlayerNameString_(pid) + "\n" + HandStringPrepare_(pid);
-        if (player.hand_.size() != k_hand_tile_num_) {
+        if (player.hand_.size() != k_hand_tile_num) {
             // no nothing
         } else if (player.listen_tiles_.empty()) {
             s += "\n   - 未构成听牌牌型";
@@ -356,8 +281,6 @@ class Mahjong17Steps
         s += "\n" + YamaString_(pid);
         return s;
     }
-
-    enum class TileStyle { HAND = '0', FORWARD = '1', LEFT = '2', SMALL_HAND = '3' };
 
     // Step state
     std::string KiriHtml(const uint64_t pid)
@@ -528,11 +451,7 @@ class Mahjong17Steps
         return PlayerNameString_(pid) + "\n" + HandStringBack_(pid) + "\n" + RiverString_(pid);
     }
 
-    std::string TitleHtml_() const
-    {
-        return "<center><font size=\"7\">" + option_.name_ + "</font></center> \n\n " +
-            "<center><font size=\"6\"> 第 " + std::to_string(round_) + " 巡 </font></center>";
-    }
+    std::string TitleHtml_() const { return TitleHtml(option_.name_, round_); }
 
     std::string TitleString_() const
     {
@@ -578,10 +497,7 @@ class Mahjong17Steps
         const Player& player = players_[pid];
         std::string s;
         for (const auto& info : player.ron_infos_) {
-            std::vector<std::string> texts = {
-                "<font size=\"4\"> " HTML_COLOR_FONT_HEADER(blue) " **放铳者：" + option_.player_descs_[info.loser_].small_avatar_ +
-                    "&nbsp;&nbsp; " + option_.player_descs_[info.loser_].name_ + "** " HTML_FONT_TAIL " </font>"
-            };
+            std::vector<std::string> texts = {LoserHtml(option_.player_descs_[info.loser_])};
             if (info.counter_.score1 < option_.ron_required_point_) {
                 texts.emplace_back(HTML_COLOR_FONT_HEADER(red) " **点数没有达到起和点 " +
                     std::to_string(option_.ron_required_point_) + "，不计和牌** " HTML_FONT_TAIL);
@@ -598,15 +514,7 @@ class Mahjong17Steps
 
     std::string PlayerNameHtml_(const uint64_t pid) const
     {
-        std::string s = "## " + option_.player_descs_[pid].big_avatar_ + "&nbsp;&nbsp; " + wind2str(option_.player_descs_[pid].wind_) + "家：" + option_.player_descs_[pid].name_ +
-            "（" + std::to_string(option_.player_descs_[pid].base_point_);
-        if (players_[pid].point_ > 0) {
-            s += HTML_COLOR_FONT_HEADER(green) " + " + std::to_string(players_[pid].point_) + HTML_FONT_TAIL;
-        } else if (players_[pid].point_ < 0) {
-            s += HTML_COLOR_FONT_HEADER(red) " - " + std::to_string(-players_[pid].point_) + HTML_FONT_TAIL;
-        }
-        s += "）";
-        return s;
+        return PlayerNameHtml(option_.player_descs_[pid], players_[pid].point_);
     }
 
     std::string PlayerNameString_(const uint64_t pid) const
@@ -617,23 +525,7 @@ class Mahjong17Steps
 
     std::string DoraHtml_(const bool show_inner_dora) const
     {
-        const std::string head_str = "<center>\n\n" + BackImage_(TileStyle::FORWARD) + BackImage_(TileStyle::FORWARD);
-        std::string outer_str;
-        std::string inner_str;
-        for (const auto& [dora, inner_dora] : doras_) {
-            outer_str += Image_(dora, TileStyle::FORWARD);
-            inner_str += show_inner_dora ? Image_(inner_dora, TileStyle::FORWARD) : BackImage_(TileStyle::FORWARD);
-        }
-        std::string tail_str;
-        for (auto i = doras_.size(); i < 5; ++i) {
-            tail_str += BackImage_(TileStyle::FORWARD);
-        }
-        tail_str += "\n\n</center>";
-        std::string final_str = head_str + outer_str + tail_str;
-        if (option_.with_inner_dora_) {
-            final_str += "\n\n" + head_str + inner_str + tail_str;
-        }
-        return final_str;
+        return DoraHtml(option_.image_path_, show_inner_dora, doras_, option_.with_inner_dora_);
     }
 
     std::string DoraString_() const
@@ -650,7 +542,7 @@ class Mahjong17Steps
     {
         const Player& player = players_[pid];
         std::string str = "<center>手牌 (" + std::to_string(player.hand_.size()) + " / 13)</center>\n\n";
-        html::Table table(2, k_hand_tile_num_);
+        html::Table table(2, k_hand_tile_num);
         table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
         uint32_t i = 0;
         for (const auto& tile : player.hand_) {
@@ -658,7 +550,7 @@ class Mahjong17Steps
             table.Get(1, i).SetContent(Image_(tile, TileStyle::HAND));
             ++i;
         }
-        for (; i < k_hand_tile_num_; ++i) {
+        for (; i < k_hand_tile_num; ++i) {
             table.Get(1, i).SetContent("<p style=\"width:36px; height:60px;\">" HTML_SIZE_FONT_HEADER(6) "?" HTML_FONT_TAIL "</p>");
         }
         str += table.ToString();
@@ -677,17 +569,7 @@ class Mahjong17Steps
 
     std::string HandHtmlAll_(const uint64_t pid, const TileStyle style) const
     {
-        const Player& player = players_[pid];
-        std::string str;
-        html::Table table(1, k_hand_tile_num_);
-        table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
-        uint32_t i = 0;
-        for (const auto& tile : player.hand_) {
-            table.Get(0, i).SetContent(Image_(tile, style));
-            ++i;
-        }
-        str += table.ToString();
-        return str;
+        return HandHtml(option_.image_path_, players_[pid].hand_, style);
     }
 
     std::string HandStringAll_(const uint64_t pid) const
@@ -702,22 +584,7 @@ class Mahjong17Steps
 
     std::string HandHtmlBack_(const uint64_t pid) const
     {
-        const Player& player = players_[pid];
-        std::string str;
-        html::Table table(1, k_hand_tile_num_);
-        table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
-        uint32_t i = 0;
-        for (const auto& tile : player.hand_) {
-            if (tile.toumei) {
-                table.Get(0, i).SetContent(Image_(tile, TileStyle::SMALL_HAND));
-                ++i;
-            }
-        }
-        for (; i < k_hand_tile_num_; ++i) {
-            table.Get(0, i).SetContent(BackImage_(TileStyle::SMALL_HAND));
-        }
-        str += table.ToString();
-        return str;
+        return HandHtmlBack(option_.image_path_, players_[pid].hand_);
     }
 
     std::string HandStringBack_(const uint64_t pid) const
@@ -759,11 +626,7 @@ class Mahjong17Steps
 
     std::string YakusHtml_(const Tile& tile, const CounterResult& counter, const std::vector<std::string>& texts = {}) const
     {
-        std::string str = "<style> img { vertical-align: text-bottom; } </style>\n\n";
-        html::Table title_table(1, 1); // markdown format image cannot be in <center> block in same line
-        title_table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
-        //title_table.SetRowStyle(" style=\"min-width:50px; vertical-align: middle;\" ");
-        title_table.Get(0, 0).SetContent(Image_(tile, TileStyle::FORWARD) + "<font size=\"5\"> <b> &nbsp;&nbsp; " + (
+        const std::string score_info = std::string(
                 counter.score1 == 32000 * 4  ? "四倍役满" :
                 counter.score1 == 32000 * 3  ? "三倍役满" :
                 counter.score1 == 32000 * 2  ? "两倍役满" :
@@ -771,38 +634,10 @@ class Mahjong17Steps
                 counter.score1 == 24000      ? "三倍满" :
                 counter.score1 == 16000      ? "倍满" :
                 counter.score1 == 12000      ? "跳满" :
-                counter.score1 == 8000       ? "满贯" : "") + " " +
-                (counter.fan > 0 ? std::to_string(counter.fu) + " 符 " + std::to_string(counter.fan) + " 番" : "") +
-            " " + std::to_string(counter.score1) + " 点 </b> </font>");
-        for (const auto& text : texts) {
-            title_table.AppendRow();
-            title_table.Get(title_table.Row() - 1, 0).SetContent(text);
-        }
-        str += "<br />\n\n" + title_table.ToString();
-        std::map<Yaku, uint32_t> yaku_counts;
-        for (const auto& yaku : counter.yakus) {
-            ++(yaku_counts.emplace(yaku, 0).first->second);
-        }
-        html::Table table(0, 4);
-        table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" width=\"300\"");
-        table.SetRowStyle(" align=\"left\" ");
-        bool newline = false;
-        for (const auto& [yaku, count] : yaku_counts) {
-            if (newline = !newline) {
-                table.AppendRow();
-            }
-            const uint32_t offset = newline ? 0 : 2;
-            table.Get(table.Row() - 1, offset + 0).SetContent(" **" + yaku_to_string(yaku) + "** ");
-            table.Get(table.Row() - 1, offset + 1).SetContent(" **" + (
-                    yaku > Yaku::None && yaku < Yaku::一番 ? std::to_string(1) + " 番" :
-                    yaku > Yaku::一番 && yaku < Yaku::二番 ? std::to_string(2) + " 番" :
-                    yaku > Yaku::二番 && yaku < Yaku::三番 ? std::to_string(3) + " 番" :
-                    yaku > Yaku::三番 && yaku < Yaku::五番 ? std::to_string(5) + " 番" :
-                    yaku > Yaku::五番 && yaku < Yaku::六番 ? std::to_string(6) + " 番" : "") +
-                (count > 1 ? " × " + std::to_string(count) : "") + "** ");
-        }
-        str += table.ToString();
-        return str;
+                counter.score1 == 8000       ? "满贯" : "") +
+            " " + (counter.fan > 0 ? std::to_string(counter.fu) + " 符 " + std::to_string(counter.fan) + " 番" : "") +
+        " " + std::to_string(counter.score1) + " 点";
+        return YakusHtml(option_.image_path_, tile, score_info, counter.yakus, texts);
     }
 
     std::string YamaHtml_(const uint64_t pid) const
@@ -902,118 +737,13 @@ class Mahjong17Steps
         return ret;
     }
 
-    TileSet GetTilesFrom_(TileSet& src, const std::string_view str)
-    {
-        TileSet tiles;
-        const auto insert = [&](const TileSet::iterator it)
-            {
-                tiles.emplace(*it);
-                src.erase(it);
-            };
-        const auto rollback = [&](const std::string& tile_str)
-            {
-                errstr_ = "没有足够的 \"";
-                errstr_ += tile_str;
-                errstr_ += "\" 可以取出";
-                src.insert(tiles.begin(), tiles.end());
-            };
-        const auto decoded_str = DecodeTilesString_(str, errstr_);
-        assert(decoded_str.size() % 2 == 0);
-        for (uint32_t i = 0; i < decoded_str.size(); i += 2) {
-            const auto it = src.find(TileIdent(decoded_str[i], decoded_str[i + 1]));
-            if (it != src.end()) {
-                insert(it);
-                continue;
-            }
-            if (std::isupper(decoded_str[i + 1])) {
-                rollback({'t', decoded_str[i], static_cast<char>(std::tolower(decoded_str[i + 1]))});
-                return {};
-            }
-            const auto it_toumei = src.find(TileIdent(decoded_str[i], std::toupper(decoded_str[i + 1])));
-            if (it_toumei != src.end()) {
-                insert(it_toumei);
-                continue;
-            }
-            rollback({decoded_str[i], decoded_str[i + 1]});
-            return {};
-        }
-        return tiles;
-    }
-
-    // input: 1t3st45m
-    // output: 1s3S4M5m
-    static std::string DecodeTilesString_(const std::string_view str, std::string& errstr)
-    {
-        std::string output;
-        std::string digits;
-        if (str.size() > k_hand_tile_num_ * 2) {
-            errstr = "麻将字符串过长，请小于 26 个字符";
-            return {};
-        }
-        bool has_number_tile_num = false; // 0,8,9 can only appear in m,s,p
-        bool read_toumei = false;
-        for (const char c : str) {
-            if (read_toumei && !std::isdigit(c)) {
-                errstr = "\'t\' 后面需要跟数字";
-                return {};
-            }
-            if (c == 't') {
-                read_toumei = true;
-                continue;
-            }
-            if (std::isdigit(c)) {
-                if (read_toumei) {
-                    digits += 't';
-                    read_toumei = false;
-                }
-                digits += c;
-                has_number_tile_num |= (c == '0' || c == '8' || c == '9');
-                continue;
-            }
-            if (c != 'm' && c != 's' && c != 'p' && c != 'z') {
-                errstr = "非法的花色 \'";
-                errstr += c;
-                errstr += "\'";
-                return {};
-            }
-            if (has_number_tile_num && c == 'z') {
-                errstr = "字牌（花色 \'z\'）的数字只能为 1~7";
-                return {};
-            }
-            if (digits.empty()) {
-                errstr = "花色 \'";
-                errstr += c;
-                errstr += "\' 之前必须有数字";
-                return {};
-            }
-            for (const char digit_c : digits) {
-                if (digit_c == 't') {
-                    read_toumei = true;
-                } else {
-                    output += digit_c;
-                    output += read_toumei ? (c - 'a' + 'A') : c;
-                    read_toumei = false;
-                }
-            }
-            digits.clear();
-            has_number_tile_num = false;
-        }
-        if (!digits.empty()) {
-            errstr = "末尾的数字 \"";
-            errstr += digits;
-            errstr += "\' 没有花色";
-            return {};
-        }
-        return output;
-    }
-
     std::string Image_(const Tile& tile, const TileStyle style) const
     {
-        return "![](file:///" + option_.image_path_ + "/" + static_cast<char>(style) + "_" + tile.to_simple_string() + ".png)";
+        return Image(option_.image_path_, tile, style);
     }
     std::string BackImage_(const TileStyle style) const
     {
-        return "![](file:///" + option_.image_path_ + "/" + static_cast<char>(style) + "_back.png)";
+        return BackImage(option_.image_path_, style);
     }
 
     const Mahjong17StepsOption option_;
@@ -1024,7 +754,7 @@ class Mahjong17Steps
     std::string errstr_;
 };
 
-} // namespace mahjong_17_steps
+} // namespace mahjong
 
 } // namespace game_util
 

@@ -12,7 +12,7 @@
 #include "utility/html.h"
 #include "game_util/mahjong_17_steps.h"
 
-using namespace lgtbot::game_util::mahjong_17_steps;
+using namespace lgtbot::game_util::mahjong;
 
 namespace lgtbot {
 
@@ -368,13 +368,15 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
     TableStage(MainStage& main_stage, const std::string& stage_name)
         : GameStage(main_stage, stage_name)
         , game_table_(Mahjong17Steps(Mahjong17StepsOption{
+                    .tile_option_{
+                        .with_red_dora_ = GET_OPTION_VALUE(main_stage.option(), 赤宝牌),
+                        .with_toumei_ = GET_OPTION_VALUE(main_stage.option(), 透明牌),
+                        .seed_ = GET_OPTION_VALUE(main_stage.option(), 种子).empty() ? "" : GET_OPTION_VALUE(main_stage.option(), 种子) + stage_name,
+                    },
                     .name_ = stage_name,
-                    .with_red_dora_ = GET_OPTION_VALUE(main_stage.option(), 赤宝牌),
-                    .with_toumei_ = GET_OPTION_VALUE(main_stage.option(), 透明牌),
                     .with_inner_dora_ = GET_OPTION_VALUE(main_stage.option(), 里宝牌),
                     .dora_num_ = GET_OPTION_VALUE(main_stage.option(), 宝牌),
                     .ron_required_point_ = GET_OPTION_VALUE(main_stage.option(), 起和点),
-                    .seed_ = GET_OPTION_VALUE(main_stage.option(), 种子).empty() ? "" : GET_OPTION_VALUE(main_stage.option(), 种子) + stage_name,
                     .image_path_ = main_stage.option().ResourceDir(),
                     .player_descs_ = [&]()
                             {
