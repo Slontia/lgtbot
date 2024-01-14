@@ -331,9 +331,9 @@ struct CureAction
 
 struct BlockAttackAction
 {
-    std::string ToString() const { return std::string("挡刀") + (token_.has_value() ? std::string(" ") + token_->ToChar() : "杀手"); }
+    std::string ToString() const { return std::string("挡刀") + token_.ToChar(); }
 
-    std::optional<Token> token_;
+    Token token_;
 };
 
 struct DetectAction
@@ -790,7 +790,7 @@ class MainStage : public MainGameStage<>
                 MakeStageCommand("[侦探] 检查某名角色上一回合行动", &MainStage::Detect_, VoidChecker("侦查"),
                     BasicChecker<Token>("角色代号", "A")),
                 MakeStageCommand("[替身] 替某名角色承担本回合伤害", &MainStage::BlockHurt_, VoidChecker("挡刀"),
-                    OptionalChecker<BasicChecker<Token>>("角色代号（若为空，则为杀手代号）", "A")),
+                    BasicChecker<Token>("角色代号（若为空，则为杀手代号）", "A")),
                 MakeStageCommand("[灵媒] 获取某名死者的职业", &MainStage::Exocrism_, VoidChecker("通灵"),
                     BasicChecker<Token>("角色代号", "A")),
                 MakeStageCommand("[守卫] 盾反某几名角色", &MainStage::ShieldAnti_, VoidChecker("盾反"),
@@ -900,9 +900,7 @@ class MainStage : public MainGameStage<>
             hurt_blocker ? std::get_if<BlockAttackAction>(&hurt_blocker->CurAction()) : nullptr;
         const auto is_blocked_hurt = [&](const RoleBase& role)
             {
-                return block_hurt_action &&
-                    ((!block_hurt_action->token_.has_value() && role.GetOccupation() == Occupation::杀手) ||
-                     (block_hurt_action->token_.has_value() && role.GetToken() == *block_hurt_action->token_));
+                return block_hurt_action && role.GetToken() == block_hurt_action->token_;
             };
         const auto is_avoid_hurt = [&](const RoleBase& hurter_role, const RoleBase& hurted_role)
             {
@@ -1551,9 +1549,9 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, DetectAction{.token_ = token});
     }
 
-    AtomReqErrCode BlockHurt_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::optional<Token>& token)
+    AtomReqErrCode BlockHurt_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Token& token)
     {
-        if (token.has_value() && !role_manager_.IsValid(*token)) {
+        if (!role_manager_.IsValid(token)) {
             reply() << "挡刀失败：场上没有该角色";
             return StageErrCode::FAILED;
         }

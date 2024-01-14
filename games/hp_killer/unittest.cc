@@ -215,7 +215,7 @@ GAME_TEST(5, body_double_block_hurt_to_killer)
     ASSERT_PUB_MSG(OK, 0, "身份列表 替身 杀手 平民 圣女 侦探");
     ASSERT_PUB_MSG(OK, 0, "血量 75");
     START_GAME();
-    ASSERT_PRI_MSG(OK, 0, "挡刀");
+    ASSERT_PRI_MSG(OK, 0, "挡刀 B");
     ASSERT_PRI_MSG(OK, 1, "攻击 B 25");
     ASSERT_PRI_MSG(OK, 2, "攻击 B 15");
     ASSERT_PRI_MSG(OK, 3, "攻击 B 15");
@@ -896,7 +896,7 @@ GAME_TEST(5, shield_anti_hurt_cannot_be_blocked)
     ASSERT_PRI_MSG(OK, 0, "血量 15");
     START_GAME();
     ASSERT_PRI_MSG(OK, 0, "攻击 D 25");
-    ASSERT_PRI_MSG(OK, 1, "挡刀");
+    ASSERT_PRI_MSG(OK, 1, "挡刀 A");
     ASSERT_PRI_MSG(OK, 3, "盾反 D -10");
     ASSERT_TIMEOUT(CHECKOUT);
     ASSERT_SCORE(0, 0, 1, 1, 1);
@@ -1181,7 +1181,7 @@ GAME_TEST(5, witch_curse_cannot_be_blocked)
     START_GAME();
     ASSERT_PRI_MSG(OK, 0, "治愈 B 10");
     ASSERT_PRI_MSG(OK, 1, "诅咒 A 5");
-    ASSERT_PRI_MSG(OK, 2, "挡刀");
+    ASSERT_PRI_MSG(OK, 2, "挡刀 A");
     ASSERT_TIMEOUT(CONTINUE);
     ASSERT_PRI_MSG(OK, 0, "治愈 B 10");
     ASSERT_TIMEOUT(CONTINUE);
@@ -1341,7 +1341,7 @@ GAME_TEST(5, agent_release_can_be_blocked)
     ASSERT_TRUE(StartGame());
     ASSERT_PRI_MSG(OK, 4, "蓄力 A 5");
     ASSERT_TIMEOUT(CONTINUE);
-    ASSERT_PRI_MSG(OK, 1, "挡刀");
+    ASSERT_PRI_MSG(OK, 1, "挡刀 A");
     ASSERT_PRI_MSG(CONTINUE, 4, "释放 A");
     ASSERT_ELIMINATED(1); // B is dead
 }
