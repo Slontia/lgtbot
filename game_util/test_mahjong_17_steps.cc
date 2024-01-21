@@ -28,6 +28,48 @@ class TestMahjong17Steps : public testing::Test
     Mahjong17Steps table_;
 };
 
+TEST_F(TestMahjong17Steps, get_tiles_from_set)
+{
+    std::string errstr;
+    TileSet tile_set;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = false, .toumei = false});
+    GetTilesFrom(tile_set, "5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = false});
+    GetTilesFrom(tile_set, "5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = false, .toumei = true});
+    GetTilesFrom(tile_set, "5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = true});
+    GetTilesFrom(tile_set, "5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = false});
+    GetTilesFrom(tile_set, "0s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = true});
+    GetTilesFrom(tile_set, "0s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = false, .toumei = true});
+    GetTilesFrom(tile_set, "t5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = true});
+    GetTilesFrom(tile_set, "t5s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+
+    tile_set.emplace(Tile{.tile = _5s, .red_dora = true, .toumei = true});
+    GetTilesFrom(tile_set, "t0s", errstr);
+    ASSERT_TRUE(tile_set.empty()) << errstr;
+}
+
 TEST_F(TestMahjong17Steps, get_init_hand_tiles)
 {
     const auto& tiles = table_.players_[0].hand_;

@@ -1,4 +1,3 @@
-
 target_link_libraries(mahjong_17_steps Mahjong MahjongAlgorithm)
 add_dependencies(mahjong_17_steps Mahjong MahjongAlgorithm)
 if (WITH_TEST)
