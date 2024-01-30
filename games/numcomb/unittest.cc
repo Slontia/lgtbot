@@ -21,7 +21,7 @@ GAME_TEST(1, one_finish)
 {
     ASSERT_PUB_MSG(OK, 0, "回合数 19");
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
-    ASSERT_PUB_MSG(OK, 0, "跳过非癞子 38");
+    ASSERT_PUB_MSG(OK, 0, "跳过非癞子 34");
     ASSERT_TRUE(StartGame());
     for (uint32_t i = 1; i <= 19; ++i) {
         ASSERT_PUB_MSG(CHECKOUT, 0, std::to_string(i).c_str());
@@ -34,7 +34,7 @@ GAME_TEST(2, two_finish)
 {
     ASSERT_PUB_MSG(OK, 0, "回合数 19");
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
-    ASSERT_PUB_MSG(OK, 0, "跳过非癞子 38");
+    ASSERT_PUB_MSG(OK, 0, "跳过非癞子 34");
     ASSERT_TRUE(StartGame());
     for (uint32_t i = 1; i <= 19; ++i) {
         ASSERT_PUB_MSG(OK, 0, std::to_string(i).c_str());
