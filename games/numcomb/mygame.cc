@@ -75,8 +75,21 @@ class MainStage : public MainGameStage<RoundStage>
         : GameStage(option, match)
         , round_(0)
     {
+        srand((unsigned int)time(NULL));
+        const std::array<const char*, 6> skin_names = {"random", "pure", "green", "pink", "gold"};
+        int skin_num = skin_names.size();
+        int skin = GET_OPTION_VALUE(option, 皮肤);
+        if (GET_OPTION_VALUE(option, 皮肤) == 0) {
+            skin = rand() % (skin_num - 1) + 1;
+        }
+        imageDir = option.ResourceDir() / std::filesystem::path(skin_names[skin]) / "";
+
         for (uint64_t i = 0; i < option.PlayerNum(); ++i) {
-            players_.emplace_back(option.ResourceDir());
+            players_.emplace_back(option.ResourceDir() / std::filesystem::path(skin_names[skin]) / "");
+            if (GET_OPTION_VALUE(option, 皮肤) == 0) {
+                skin++;
+                if (skin >= skin_num) skin = 1;
+            }
         }
 
         for (const int32_t point_0 : k_points[0]) {
@@ -91,16 +104,16 @@ class MainStage : public MainGameStage<RoundStage>
         for (uint32_t i = 0; i < GET_OPTION_VALUE(option, 癞子); ++i) {
             cards_.emplace_back();
         }
-        const std::string& seed_str = GET_OPTION_VALUE(option, 种子);
+
+        seed_str = GET_OPTION_VALUE(option, 种子);
         if (seed_str.empty()) {
             std::random_device rd;
-            std::mt19937 g(rd());
-            std::shuffle(cards_.begin(), cards_.end(), g);
-        } else {
-            std::seed_seq seed(seed_str.begin(), seed_str.end());
-            std::mt19937 g(seed);
-            std::shuffle(cards_.begin(), cards_.end(), g);
+            std::uniform_int_distribution<unsigned long long> dis;
+            seed_str = std::to_string(dis(rd));
         }
+        std::seed_seq seed(seed_str.begin(), seed_str.end());
+        std::mt19937 g(seed);
+        std::shuffle(cards_.begin(), cards_.end(), g);
 
         it_ = cards_.begin();
         if (std::all_of(cards_.begin(), cards_.begin() + GET_OPTION_VALUE(option, 跳过非癞子),
@@ -135,6 +148,9 @@ class MainStage : public MainGameStage<RoundStage>
 
 
     std::vector<Player> players_;
+
+    std::filesystem::path imageDir;
+    std::string seed_str;
 
   private:
     VariantSubStage NewStage_();
@@ -236,7 +252,7 @@ class RoundStage : public SubGameStage<>
     void SendInfo(MsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
-        sender() << Image(std::string(option().ResourceDir() + card_.ImageName()) + ".png");
+        sender() << Image(std::string(main_stage().imageDir / card_.ImageName() / ".png"));
     }
 
     const comb::AreaCard card_;
@@ -262,6 +278,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     }
     Boardcast() << Markdown(CombHtml("## 终局"));
     if (GET_OPTION_VALUE(option(), 种子).empty()) {
+        Boardcast() << "本局随机数种子：" + seed_str;
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             if (players_[pid].line_count_ >= 12) {
                 global_info().Achieve(pid, Achievement::处女蜂王);
