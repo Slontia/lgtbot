@@ -78,7 +78,7 @@ GAME_TEST(5, simple_test)
     ASSERT_PRI_MSG(CHECKOUT, 3, "5");
 
     // The game is over, now we check each player's score.
-    ASSERT_SCORE(11, 10, 19, 11, 8);
+    ASSERT_SCORE(11, 10, 17, 11, 8);
 }
 
 GAME_TEST(8, red_test)
@@ -97,6 +97,31 @@ GAME_TEST(8, red_test)
     ASSERT_PRI_MSG(CHECKOUT, 7, "11");
 
     ASSERT_SCORE(2, 1, 3, 1, 1, 1, 1, 1);
+}
+
+GAME_TEST(3, zero_test1)
+{
+    ASSERT_PUB_MSG(OK, 0, "撞车 1");
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "100");
+    ASSERT_PRI_MSG(OK, 1, "0");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "0");
+
+    ASSERT_SCORE(5, 0, 0);
+}
+
+GAME_TEST(3, zero_test2)
+{
+    ASSERT_PUB_MSG(OK, 0, "回合数 1");
+    ASSERT_PUB_MSG(OK, 0, "撞车 1");
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "100");
+    ASSERT_PRI_MSG(OK, 1, "100");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "0");
+
+    ASSERT_SCORE(1, 1, 2);
 }
 
 } // namespace GAME_MODULE_NAME

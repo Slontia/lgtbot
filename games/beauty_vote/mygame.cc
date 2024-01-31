@@ -313,17 +313,23 @@ class RoundStage : public SubGameStage<>
         vector<int> flag0, flag100;
         if (main_stage().alive_ <= 3) {
             for (int i = 0; i < option().PlayerNum(); i++) {
-                if (main_stage().player_select_[i] == 0 && crash[i] == 0) {
-                    flag0.push_back(i + 1);
+                if (main_stage().player_select_[i] == 0) {
+                    flag0.push_back(i);
                 }
                 if (main_stage().player_select_[i] == GET_OPTION_VALUE(option(),最大数字) && crash[i] == 0) {
-                    flag100.push_back(i + 1);
+                    flag100.push_back(i);
                 }
             }
         }
         if (flag0.size() && flag100.size()) {
+            // Eliminate 0
+            for (int i = 0; i < flag0.size(); i++) {
+                main_stage().player_hp_[flag0[i]] = 0;
+                crash[flag0[i]] = 1;
+            }
+
             for (int i = 0; i < flag100.size(); i++) {
-                win.push_back(flag100[i] - 1);
+                win.push_back(flag100[i]);
             }
             for (int i = 0; i < win.size(); i++) {
                 main_stage().player_hp_[win[i]]++;
@@ -417,7 +423,7 @@ class RoundStage : public SubGameStage<>
             Boardcast() << "有玩家撞车，" << (GET_OPTION_VALUE(option(),撞车伤害) ? "生命值额外 -1，且" : "") << "不计入本回合获胜玩家";
         }
         if (flag0.size() && flag100.size()) {
-            Boardcast() << "有玩家出 0，所以玩家" + win_p + "\n出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 获胜";
+            Boardcast() << "有玩家出 0，所以玩家" + win_p + "\n出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 获胜，选 0 的玩家被淘汰";
         } else if (win.size() == 0 && red.size() == 0) {
             Boardcast() << "本回合 X 的值是 " + x + "，没有玩家获胜";
         } else {
@@ -526,7 +532,7 @@ string MainStage::Specialrules(int win_size, int red_size, bool onred, bool is_s
         } else {
             if (n == 1) { specialrule += "\n"; }
         }
-        specialrule += "当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，当回合出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜。";
+        specialrule += "当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，当回合出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜，选 0 的玩家被**直接淘汰**。";
         if (is_status) {
             specialrule += "</tr></td>";
         } else {
@@ -626,19 +632,19 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
     if ((++round_) > GET_OPTION_VALUE(option(), 回合数)) {
         Boardcast() << "达到最大回合数限制";
     } else {
-        int maxHP = 0;
-        for(int i = 0; i < option().PlayerNum(); i++)
-        {
-            maxHP = max(maxHP, (int)player_hp_[i]);
-        }
         if (alive_ == 0) {
             Boardcast() << "游戏结束，平局！";
         } else {
+            int maxHP = 0;
+            for(int i = 0; i < option().PlayerNum(); i++)
+            {
+                maxHP = max(maxHP, (int)player_hp_[i]);
+            }
             for(int i = 0; i < option().PlayerNum(); i++)
             {
                 if (maxHP == player_hp_[i])
                 {
-                    player_scores_[i] += 5;
+                    player_scores_[i] += 3;
                     Boardcast() << "游戏结束，恭喜胜者 " + PlayerName(i) +" ！";
                 }
             }
