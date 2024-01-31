@@ -189,6 +189,13 @@ class RoundStage : public SubGameStage<> {
   }
 
   void calc() {
+    // clear eliminated players number
+    for (int i = 0; i < option().PlayerNum(); i++) {
+      if (main_stage().player_eli_[i] == 1) {
+          main_stage().player_number_[i] = 0;
+      }
+    }
+    
     // first calculate thives
     std::vector<bool> stolen(option().PlayerNum(), false);
     for (int i = 0; i < option().PlayerNum(); i++) {
@@ -228,8 +235,8 @@ class RoundStage : public SubGameStage<> {
           x += "抢夺" + std::to_string(main_stage().player_target_[i]);
         else
           x += "获取";
+        x += " " + std::to_string(main_stage().player_number_[i]);
       }
-      x += " " + std::to_string(main_stage().player_number_[i]);
       x += "</td>";
     }
     x += "</tr>";
@@ -398,17 +405,37 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage,
     return std::make_unique<RoundStage>(*this, round_);
   }
   //    Boardcast() << "游戏结束";
-  int maxHP = 0;
-  for (int i = 0; i < option().PlayerNum(); i++) {
-    maxHP = std::max(maxHP, (int)player_hp_[i]);
-  }
-  for (int i = 0; i < option().PlayerNum(); i++) {
-    if (maxHP == player_hp_[i]) {
-      // The last survival gain 5 scores.
-      player_scores_[i] += 5;
-    } else if (player_eli_[i] == 0) {
-      // The second last survival
-      player_scores_[i] += 3;
+  if (alive_ == 1) {
+    int maxHP = 0;
+    for (int i = 0; i < option().PlayerNum(); i++) {
+      maxHP = std::max(maxHP, (int)player_hp_[i]);
+    }
+    for (int i = 0; i < option().PlayerNum(); i++) {
+      if (maxHP == player_hp_[i]) {
+        // The last survival gain 5 scores.
+        player_scores_[i] += 5;
+      } else if (player_eli_[i] == 0) {
+        // The second last survival
+        player_scores_[i] += 3;
+      }
+    }
+  } else {
+    // alive_ == 0
+    int max_N = 0;
+    std::vector<int> win_player;
+    for (int i = 0; i < option().PlayerNum(); i++) {
+      if (player_target_[i] == 0) {
+        if (player_number_[i] > max_N) {
+          win_player.clear();
+          win_player.push_back(i);
+          max_N = player_number_[i];
+        } else if (player_number_[i] == max_N) {
+          win_player.push_back(i);
+        }
+      }
+    }
+    for (int i = 0; i < win_player.size(); i++) {
+      player_scores_[win_player[i]] += 5;
     }
   }
   // Returning empty variant means the game will be over.
