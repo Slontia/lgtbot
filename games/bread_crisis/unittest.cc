@@ -15,6 +15,52 @@ GAME_TEST(1, player_not_enough) {
   ASSERT_FALSE(StartGame());  // according to |GameOption::ToValid|, the mininum player number is 3
 }
 
+GAME_TEST(3, alive0_test1)
+{
+    START_GAME();
+
+    for (int i = 0; i < 5; i++) {
+      ASSERT_PRI_MSG(OK, 0, "2 5");
+      ASSERT_PRI_MSG(OK, 1, "1 5");
+      ASSERT_PRI_MSG(CHECKOUT, 2, "2 5");
+    }
+
+    ASSERT_PRI_MSG(OK, 0, "1");
+    ASSERT_PRI_MSG(OK, 1, "1");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "1");
+
+    ASSERT_PRI_MSG(OK, 0, "3 5");
+    ASSERT_PRI_MSG(OK, 1, "3");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "4");
+
+    ASSERT_SCORE(6, 6, 11);
+}
+
+GAME_TEST(3, alive0_test2)
+{
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "2 5");
+    ASSERT_PRI_MSG(OK, 1, "5");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "5");
+
+    ASSERT_PRI_MSG(OK, 0, "3 4");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "5");
+
+    for (int i = 0; i < 5; i++) {
+      ASSERT_PRI_MSG(OK, 0, "3 5");
+      ASSERT_PRI_MSG(CHECKOUT, 2, "1 5");
+    }
+
+    ASSERT_PRI_MSG(OK, 0, "1");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "1");
+
+    ASSERT_PRI_MSG(OK, 0, "3");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "4");
+
+    ASSERT_SCORE(8, 0, 13);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
