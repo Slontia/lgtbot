@@ -76,19 +76,18 @@ class MainStage : public MainGameStage<RoundStage>
         , round_(0)
     {
         srand((unsigned int)time(NULL));
-        const std::array<const char*, 6> skin_names = {"random", "pure", "green", "pink", "gold"};
+        const std::array<const char*, 5> skin_names = {"random", "pure", "green", "pink", "gold"};
         int skin_num = skin_names.size();
         int skin = GET_OPTION_VALUE(option, 皮肤);
         if (GET_OPTION_VALUE(option, 皮肤) == 0) {
             skin = rand() % (skin_num - 1) + 1;
         }
-        imageDir = option.ResourceDir() / std::filesystem::path(skin_names[skin]) / "";
+        imageDir = option.ResourceDir() / std::filesystem::path(skin_names[skin]);
 
         for (uint64_t i = 0; i < option.PlayerNum(); ++i) {
-            players_.emplace_back(option.ResourceDir() / std::filesystem::path(skin_names[skin]) / "");
+            players_.emplace_back((option.ResourceDir() / std::filesystem::path(skin_names[skin]) / "").string());
             if (GET_OPTION_VALUE(option, 皮肤) == 0) {
-                skin++;
-                if (skin >= skin_num) skin = 1;
+                if (++skin >= skin_num) skin = 1;
             }
         }
 
@@ -252,7 +251,7 @@ class RoundStage : public SubGameStage<>
     void SendInfo(MsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
-        sender() << Image(std::string(main_stage().imageDir / card_.ImageName() / ".png"));
+        sender() << Image((main_stage().imageDir / std::filesystem::path(card_.ImageName() + ".png")).string());
     }
 
     const comb::AreaCard card_;
