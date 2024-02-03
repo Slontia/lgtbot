@@ -17,7 +17,7 @@ namespace game_util {
 
 namespace mahjong {
 
-static constexpr const uint32_t k_yama_tile_num = 18;
+static constexpr const uint32_t k_yama_tile_num = 19;
 static constexpr const std::array<BaseTile, 13> k_one_nine_tiles{_1m, _9m, _1s, _9s, _1p, _9p, east, south, west, north, 白, 发, 中};
 
 struct RiverTile
@@ -63,14 +63,11 @@ enum class ActionState
     ROUND_BEGIN, // nari, get tile
     AFTER_CHI_PON, // kiri
     AFTER_GET_TILE, // kiri, kan, richii (if has no furu)
-    AFTER_GET_TILE_CAN_NAGASHI, // kiri, kan, richii, nagashi
     AFTER_KAN, // kiri, kan, richii (if has no furu)
     AFTER_KAN_CAN_NARI, // kiri, kan
     AFTER_KIRI, // nari, over
     ROUND_OVER,
-    RICHII_PREPARE,
-    RICHII_FIRST_ROUND,
-    RICHII,
+    NOTIFIED_RON,
 };
 
 struct FuResult {
@@ -88,14 +85,17 @@ struct SyncMahjongOption
     TilesOption tiles_option_;
 #endif
     std::string image_path_;
+    int32_t benchang_{0};
     std::vector<PlayerDesc> player_descs_;
 };
 
 struct SyncMahjongGamePlayer
 {
+    friend class SyncMajong;
+
     SyncMahjongGamePlayer(const SyncMahjongOption& option, const uint32_t player_id, const std::array<Tile, k_yama_tile_num>& yama,
-            TileSet hand, const Tile& tsumo_tile)
-        : option_(option), player_id_(player_id), wind_(option.player_descs_[player_id].wind_), yama_(yama), hand_(std::move(hand)), tsumo_(tsumo_tile) {}
+            TileSet hand)
+        : option_(option), player_id_(player_id), wind_(option.player_descs_[player_id].wind_), yama_(yama), hand_(std::move(hand)) {}
 
     ActionState State() const { return state_; }
 
@@ -131,7 +131,7 @@ struct SyncMahjongGamePlayer
         if (!fu_results_.empty()) {
             s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(blue) " **和&nbsp;&nbsp;了** "
                 HTML_FONT_TAIL "\n\n</font> </center>\n\n";
-            s += DoraHtml(option_.image_path_, state_ == ActionState::RICHII_FIRST_ROUND || state_ == ActionState::RICHII, doras, true);
+            s += DoraHtml(option_.image_path_, IsRiichi(), doras, true);
             s += "\n\n";
             s += HandHtml_(TileStyle::FORWARD);
             s += "\n\n";
@@ -147,10 +147,8 @@ struct SyncMahjongGamePlayer
         } else {
             s += HandHtmlBack_() + "\n\n<br />\n\n";
         }
-        if (state_ == ActionState::RICHII_PREPARE) {
-            s += "立直宣告\n\n";
-        } else if (state_ == ActionState::RICHII_FIRST_ROUND || state_ == ActionState::RICHII) {
-            // TODO: 显示立直棒
+        if (IsRiichi()) {
+            s += "<div align=\"center\"><img src=\"file:///" + option_.image_path_ + "/riichi.png\"/></div>\n\n<br />\n\n";
         }
         s += RiverHtml_(option_.image_path_, river_);
         return s;
@@ -166,34 +164,43 @@ struct SyncMahjongGamePlayer
 
     bool FinishYama() const { return yama_idx_ == k_yama_tile_num; }
 
-    void PerformDefault()
+    void PerformDefault(const std::span<const std::pair<Tile, Tile>>& doras)
     {
         switch (state_) {
             case ActionState::ROUND_BEGIN:
                 assert(yama_idx_ < k_yama_tile_num);
                 tsumo_ = yama_[yama_idx_++];
             case ActionState::AFTER_GET_TILE:
-            case ActionState::AFTER_GET_TILE_CAN_NAGASHI:
             case ActionState::AFTER_KAN:
             case ActionState::AFTER_KAN_CAN_NARI:
                 KiriInternal_(true /*is_tsumo*/, false /*richii*/, *tsumo_);
                 tsumo_ = std::nullopt;
-                state_ = ActionState::ROUND_OVER;
                 break;
             case ActionState::AFTER_CHI_PON:
                 KiriInternal_(false /*is_tsumo*/, false /*richii*/, *hand_.begin());
                 hand_.erase(hand_.begin());
-                state_ = ActionState::ROUND_OVER;
                 break;
-            case ActionState::AFTER_KIRI:
-                state_ = ActionState::ROUND_OVER;
-                break;
+        }
+        state_ = ActionState::ROUND_OVER;
+    }
+
+    bool IsRiichi() const { return !richii_listen_tiles_.empty() && richii_round_ != round_; }
+
+    void StartNormalStage(const uint32_t round)
+    {
+        assert(state_ == ActionState::ROUND_OVER);
+        round_ = round;
+        cur_round_my_kiri_info_.kiri_tiles_.clear();
+        if (IsRiichi() || round_ == 1) {
+            GetTileInternal_();
+            state_ = ActionState::AFTER_GET_TILE;
+        } else {
+            state_ = ActionState::ROUND_BEGIN;
         }
     }
 
-    void StartRound(const std::vector<PlayerKiriInfo>& kiri_infos, const int32_t round)
+    void SetKiriInfos_(const std::vector<PlayerKiriInfo>& kiri_infos)
     {
-        round_ = round;
         cur_round_kiri_info_.other_players_.clear();
         cur_round_kiri_info_.other_player_kiri_tiles_.clear();
         for (uint32_t player_id = 0; player_id < kiri_infos.size(); ++player_id) {
@@ -207,28 +214,29 @@ struct SyncMahjongGamePlayer
                 }
             }
         }
-        cur_round_my_kiri_info_.kiri_tiles_.clear();
-        if (river_.empty() && CanNagashi_()) {
-            state_ = ActionState::AFTER_GET_TILE_CAN_NAGASHI;
-        } else if (state_ == ActionState::RICHII_PREPARE) {
-            state_ = ActionState::RICHII_FIRST_ROUND;
-        } else if (state_ == ActionState::RICHII_FIRST_ROUND) {
-            state_ = ActionState::RICHII;
-        } else if (state_ == ActionState::ROUND_OVER) {
-            state_ = ActionState::ROUND_BEGIN;
-        } else {
-            assert(river_.empty());
+    }
+
+    void StartRonStage(const std::vector<PlayerKiriInfo>& kiri_infos)
+    {
+        SetKiriInfos_(kiri_infos);
+        if (CanRon()) {
+            state_ = ActionState::NOTIFIED_RON;
         }
+    }
+
+    void GetTileInternal_()
+    {
+        assert(yama_idx_ < k_yama_tile_num);
+        tsumo_ = yama_[yama_idx_++];
     }
 
     bool GetTile()
     {
-        if (state_ != ActionState::ROUND_BEGIN && state_ != ActionState::AFTER_GET_TILE_CAN_NAGASHI) {
+        if (state_ != ActionState::ROUND_BEGIN) {
             errstr_ = "当前状态不允许摸牌";
             return false;
         }
-        assert(yama_idx_ < k_yama_tile_num);
-        tsumo_ = yama_[yama_idx_++];
+        GetTileInternal_();
         state_ = ActionState::AFTER_GET_TILE;
         return true;
     }
@@ -247,18 +255,40 @@ struct SyncMahjongGamePlayer
 
     bool Nagashi()
     {
-        if (state_ != ActionState::AFTER_GET_TILE_CAN_NAGASHI) {
-            errstr_ = "当前状态不允许宣告流局或手牌中幺九牌小于九种";
+        if (state_ != ActionState::AFTER_GET_TILE) {
+            errstr_ = "当前状态不允许宣告九种九牌流局";
             return false;
         }
+        if (round_ != 1) {
+            errstr_ = "仅第一巡允许宣告九种九牌流局";
+            return false;
+        }
+        if (!CanNagashi_()) {
+            errstr_ = "手牌中幺九牌小于九种，无法宣告九种九牌流局";
+            return false;
+        }
+        state_ = ActionState::ROUND_OVER;
         return true;
     }
 
-    void KiriInternal_(const bool is_tsumo, const bool richii, const Tile& tile)
+    bool KiriInternal_(const bool is_tsumo, const bool richii, const Tile& tile)
     {
+        if (richii) {
+            std::vector<BaseTile> listen_tiles = GetListenTiles();
+            if (listen_tiles.empty()) {
+                errstr_ = "切这张牌无法构成听牌牌型";
+                return false;
+            }
+            assert(richii_listen_tiles_.empty());
+            richii_listen_tiles_ = std::move(listen_tiles);
+            is_richii_furutin_ = IsSelfFurutin_(richii_listen_tiles_, river_);
+            is_double_richii_ = river_.empty() && furus_.empty();
+            richii_round_ = round_;
+        }
         river_.emplace_back(round_, is_tsumo, tile, richii);
         const auto kiri_type = yama_idx_ == k_yama_tile_num ? KiriTile::Type::RIVER_BOTTOM : KiriTile::Type::NORMAL;
         cur_round_my_kiri_info_.kiri_tiles_.emplace_back(KiriTile{tile, kiri_type});
+        return true;
     }
 
     bool IsFurutin_() const
@@ -277,21 +307,6 @@ struct SyncMahjongGamePlayer
         if (!tsumo_.has_value()) {
             errstr_ = "您当前没有自摸牌，无法摸切";
             return false;
-        }
-        if (richii) {
-            std::vector<BaseTile> listen_tiles = GetListenTiles();
-            if (listen_tiles.empty()) {
-                errstr_ = "切这张牌无法构成听牌牌型";
-                return false;
-            }
-            assert(richii_listen_tiles_.empty());
-            richii_listen_tiles_ = std::move(listen_tiles);
-            if (IsSelfFurutin_(richii_listen_tiles_, river_)) {
-                is_richii_furutin_ = true;
-            }
-        }
-        if (river_.empty() && furus_.empty() && richii) {
-            is_double_richii_ = true;
         }
         KiriInternal_(true, richii, *tsumo_);
         tsumo_ = std::nullopt;
@@ -339,11 +354,6 @@ struct SyncMahjongGamePlayer
             return false;
         }
         assert(tiles.size() == 1);
-        if (richii && GetListenTiles().empty()) {
-            hand_.insert(tiles.begin(), tiles.end());
-            errstr_ = "切这张牌无法构成听牌牌型";
-            return false;
-        }
         KiriInternal_(false, richii, *tiles.begin());
         if (tsumo_.has_value()) {
             hand_.emplace(*tsumo_);
@@ -354,15 +364,15 @@ struct SyncMahjongGamePlayer
 
     bool Kiri(const std::string_view tile, const bool richii)
     {
-        if (state_ != ActionState::AFTER_CHI_PON && state_ != ActionState::AFTER_GET_TILE && state_ != ActionState::AFTER_GET_TILE_CAN_NAGASHI && state_ != ActionState::AFTER_KAN && state_ != ActionState::AFTER_KAN_CAN_NARI && state_ != ActionState::RICHII_FIRST_ROUND && state_ != ActionState::RICHII) {
+        if (state_ != ActionState::AFTER_CHI_PON && state_ != ActionState::AFTER_GET_TILE && state_ != ActionState::AFTER_KAN && state_ != ActionState::AFTER_KAN_CAN_NARI) {
             errstr_ = "当前状态不允许切牌";
             return false;
         }
-        if (richii && (state_ == ActionState::RICHII_FIRST_ROUND || state_ == ActionState::RICHII)) {
+        if (richii && IsRiichi()) {
             errstr_ = "您已经立直";
             return false;
         }
-        if (!tile.empty() && (state_ == ActionState::RICHII_FIRST_ROUND || state_ == ActionState::RICHII)) {
+        if (!tile.empty() && IsRiichi()) {
             errstr_ = "立直状态下只能选择摸切";
             return false;
         }
@@ -376,11 +386,8 @@ struct SyncMahjongGamePlayer
         }
         const bool succ = tile.empty() ? KiriTsumo_(richii) : Kiri_(tile, richii);
         if (succ) {
-            if (river_.empty() && furus_.empty() && richii) {
-                is_double_richii_ = true;
-            }
-            state_ = richii ? ActionState::RICHII_PREPARE :
-                    state_ == ActionState::AFTER_CHI_PON || state_ == ActionState::AFTER_KAN_CAN_NARI ? ActionState::AFTER_KIRI : ActionState::ROUND_OVER;
+            state_ = state_ == ActionState::AFTER_CHI_PON || state_ == ActionState::AFTER_KAN_CAN_NARI ? ActionState::AFTER_KIRI :
+                ActionState::ROUND_OVER;
         }
         return succ;
     }
@@ -441,7 +448,8 @@ struct SyncMahjongGamePlayer
         furu.tiles_[2] = FuruTile{*kiri_tile.begin(), FuruTile::Type::NARI};
         std::sort(furu.tiles_.begin(), furu.tiles_.begin() + 3,
                 [](const auto& _1, const auto& _2) { return _1.tile_.tile < _2.tile_.tile; });
-        min_ron_yaku_++;
+        has_chi_ = true;
+        //min_ron_yaku_++;
         state_ = ActionState::AFTER_CHI_PON;
         return true;
     }
@@ -537,9 +545,8 @@ struct SyncMahjongGamePlayer
     bool DarkKanOrAddKan_(const std::string_view tile_sv) {
         assert(tsumo_.has_value());
         assert(tile_sv.size() <= 3);
-        const bool is_richii_state = state_ == ActionState::RICHII_FIRST_ROUND || state_ == ActionState::RICHII;
         const bool kan_tsumo = MatchTsumo_(tile_sv);
-        if (is_richii_state && !kan_tsumo) {
+        if (IsRiichi() && !kan_tsumo) {
             errstr_ = "立直状态下只能选择暗杠或加杠自摸牌";
             return false;
         }
@@ -549,11 +556,6 @@ struct SyncMahjongGamePlayer
             }
             tsumo_ = std::nullopt;
         };
-        std::vector<BaseTile> listen_tiles_before_kan;
-        if (is_richii_state) {
-            listen_tiles_before_kan = GetListenTiles();
-            assert(!listen_tiles_before_kan.empty());
-        }
         const std::string tile_str(tile_sv);
         const auto hand_tiles = kan_tsumo ? GetTilesFrom(hand_, tile_str + tile_str + tile_str, errstr_)
                                           : GetTilesFrom(hand_, tile_str + tile_str + tile_str + tile_str, errstr_);
@@ -562,7 +564,7 @@ struct SyncMahjongGamePlayer
             const Tile kan_tile = kan_tsumo ? *tsumo_ : *std::next(hand_tiles.begin(), 3);
             assert(is_杠({hand_tiles.begin()->tile, std::next(hand_tiles.begin())->tile,
                         std::next(hand_tiles.begin(), 2)->tile, kan_tile.tile}));
-            if (is_richii_state && GetListenTiles() != listen_tiles_before_kan) {
+            if (!richii_listen_tiles_.empty() && GetListenTiles() != richii_listen_tiles_) {
                 // kan after richii cannot change tinpai
                 hand_.insert(hand_tiles.begin(), hand_tiles.end());
                 errstr_ = "立直状态下暗杠或加杠不允许改变听牌种类";
@@ -624,8 +626,7 @@ struct SyncMahjongGamePlayer
         bool succ = false;
         if (state_ == ActionState::ROUND_BEGIN || state_ == ActionState::AFTER_KIRI) {
             succ = DirectKan_(tile_sv);
-        } else if (state_ == ActionState::AFTER_GET_TILE || state_ == ActionState::AFTER_GET_TILE_CAN_NAGASHI || state_ == ActionState::AFTER_KAN || state_ == ActionState::AFTER_KAN_CAN_NARI ||
-                state_ == ActionState::RICHII_FIRST_ROUND || state_ == ActionState::RICHII) {
+        } else if (state_ == ActionState::AFTER_GET_TILE || state_ == ActionState::AFTER_KAN || state_ == ActionState::AFTER_KAN_CAN_NARI) {
             succ = DarkKanOrAddKan_(tile_sv);
         } else {
             errstr_ = "当前状态不允许杠牌";
@@ -667,6 +668,7 @@ struct SyncMahjongGamePlayer
             }
             return std::nullopt;
         }
+        /*
         auto fan = counter.fan;
         for (auto& yaku : counter.yakus) {
             if (yaku == Yaku::宝牌 || yaku == Yaku::里宝牌 || yaku == Yaku::赤宝牌 || yaku == Yaku::北宝牌) {
@@ -683,6 +685,13 @@ struct SyncMahjongGamePlayer
             }
             return std::nullopt;
         }
+        */
+
+        // TODO: do not show in html
+        counter.fan -= std::ranges::count_if(counter.yakus, [](const Yaku yaku)
+                {
+                    return yaku == Yaku::场风_东 || yaku == Yaku::场风_北 || yaku == Yaku::场风_南 || yaku == Yaku::场风_西;
+                });
         if (std::ranges::any_of(counter.yakus,
                     [](const Yaku yaku) { return yaku > Yaku::满贯 && yaku < Yaku::双倍役满; })) {
             std::erase_if(counter.yakus, [](const Yaku yaku) { return yaku < Yaku::满贯; });
@@ -692,7 +701,7 @@ struct SyncMahjongGamePlayer
 
     bool Tsumo(const std::span<const std::pair<Tile, Tile>>& doras)
     {
-        if (state_ != ActionState::AFTER_GET_TILE && state_ != ActionState::AFTER_GET_TILE_CAN_NAGASHI && state_ != ActionState::AFTER_KAN && state_ != ActionState::RICHII_FIRST_ROUND && state_ != ActionState::RICHII) {
+        if (state_ != ActionState::AFTER_GET_TILE && state_ != ActionState::AFTER_KAN) {
             errstr_ = "当前状态不允许自摸";
             return false;
         }
@@ -704,7 +713,12 @@ struct SyncMahjongGamePlayer
         if (counter.has_value()) {
             fu_results_.emplace_back(FuResult::k_tsumo_player_id_, std::move(*counter), *tsumo_);
         }
-        return !fu_results_.empty();
+        if (fu_results_.empty()) {
+            // `errstr_` is filled by `GetCounter_`
+            return false;
+        }
+        state_ = ActionState::ROUND_OVER;
+        return true;
     }
 
     std::optional<CounterResult> RonCounter_(const KiriTile& kiri_tile, const std::span<const std::pair<Tile, Tile>>& doras) const
@@ -739,9 +753,10 @@ struct SyncMahjongGamePlayer
         return counter;
     }
 
+    // If `CanRon()` returns true, `Ron()` must return true.
     bool CanRon() const
     {
-        if (IsFurutin_()) {
+        if (IsFurutin_() || has_chi_) {
             return false;
         }
         for (const auto& player_info : cur_round_kiri_info_.other_players_) {
@@ -754,25 +769,35 @@ struct SyncMahjongGamePlayer
         return false;
     }
 
+    bool CanTsumo() const
+    {
+        assert(tsumo_.has_value());
+        return GetCounter_(*tsumo_, FuType::TSUMO, yama_idx_ == k_yama_tile_num, {}, nullptr).has_value();
+    }
+
     bool Ron(const std::span<const std::pair<Tile, Tile>>& doras)
     {
-        if (state_ != ActionState::ROUND_OVER && state_ != ActionState::RICHII_PREPARE ||
-                state_ != ActionState::RICHII_FIRST_ROUND || state_ != ActionState::RICHII) {
-            return Ron_(doras);
-        } else if (state_ != ActionState::AFTER_KIRI) {
-            return NariRon_(doras);
-        } else {
-            errstr_ = "当前状态不允许荣和";
+        if (IsFurutin_()) {
+            errstr_ = "当前处于振听状态";
             return false;
         }
+        if (has_chi_) {
+            errstr_ = "吃过牌后只能通过自摸和牌";
+            return false;
+        }
+        if (state_ == ActionState::NOTIFIED_RON) {
+            return Ron_(doras);
+        }
+        if (state_ == ActionState::AFTER_KIRI) {
+            return NariRon_(doras);
+        }
+        errstr_ = "当前状态不允许荣和";
+        return false;
     }
 
     bool Ron_(const std::span<const std::pair<Tile, Tile>>& doras)
     {
-        if (state_ != ActionState::ROUND_OVER && state_ != ActionState::RICHII_PREPARE ||
-                state_ != ActionState::RICHII_FIRST_ROUND || state_ != ActionState::RICHII) {
-            return false;
-        }
+        assert(state_ == ActionState::ROUND_OVER);
         std::vector<FuResult> fu_results_;
         for (const auto& player_info : cur_round_kiri_info_.other_players_) {
             std::optional<FuResult> player_result;
@@ -844,10 +869,10 @@ struct SyncMahjongGamePlayer
         table.庄家 = player_id_;
         table.last_action = state_ == ActionState::AFTER_KAN ? Action::杠 : Action::pass;
         table.players[player_id_].first_round = river_.empty() && furus_.empty();
-        table.players[player_id_].riichi = state_ == ActionState::RICHII_FIRST_ROUND || state_ == ActionState::RICHII;
+        table.players[player_id_].riichi = IsRiichi();
         table.players[player_id_].double_riichi = is_double_richii_;
         table.players[player_id_].亲家 = true;
-        table.players[player_id_].一发 = state_ == ActionState::RICHII_FIRST_ROUND;
+        table.players[player_id_].一发 = table.players[player_id_].riichi && richii_round_ + 1 == round_;
         for (auto& tile : hand_) {
             table.players[player_id_].hand.emplace_back(const_cast<Tile*>(&tile));
         }
@@ -981,21 +1006,24 @@ struct SyncMahjongGamePlayer
     const uint32_t player_id_{UINT32_MAX};
     const Wind wind_{Wind::East};
     const std::array<Tile, k_yama_tile_num> yama_;
+    int32_t point_variation_{0};
 
     uint32_t yama_idx_{0};
     TileSet hand_;
     std::optional<Tile> tsumo_;
     std::vector<RiverTile> river_;
     std::vector<Furu> furus_; // do not use array because there may be nuku pei
-    uint32_t min_ron_yaku_{1};
-    ActionState state_{ActionState::AFTER_GET_TILE};
+    bool has_chi_{false};
+    //uint32_t min_ron_yaku_{1};
+    ActionState state_{ActionState::ROUND_OVER};
 
     int32_t round_{0};
     PlayerKiriInfo cur_round_my_kiri_info_;
     KiriInfo cur_round_kiri_info_;
 
     bool is_double_richii_{false};
-    bool is_richii_furutin_{false};
+    bool is_richii_furutin_{false}; // TODO: kiri tsumo tile or jiantao will set it true
+    int32_t richii_round_{0};
     std::vector<BaseTile> richii_listen_tiles_;
 
     std::vector<FuResult> fu_results_;
@@ -1003,47 +1031,41 @@ struct SyncMahjongGamePlayer
     std::string errstr_;
 };
 
+inline bool Is_三家和了(const std::vector<SyncMahjongGamePlayer>& players)
+{
+    return std::ranges::count_if(players, [](const SyncMahjongGamePlayer& player) { return !player.FuResults().empty(); }) >= 3;
+}
+
+inline bool Is_四家立直(const std::vector<SyncMahjongGamePlayer>& players)
+{
+    return std::ranges::count_if(players, [](const SyncMahjongGamePlayer& player) -> bool { return !player.richii_listen_tiles_.empty(); }) == 4;
+}
+
+// should only check for the first round
+inline bool Is_九种九牌(const std::vector<SyncMahjongGamePlayer>& players)
+{
+    return std::ranges::any_of(players, [](const SyncMahjongGamePlayer& player) { return player.river_.empty() && player.fu_results_.empty(); });
+}
+
+// should only check for the first round
+inline bool Is_四风连打(const std::vector<SyncMahjongGamePlayer>& players)
+{
+    if (players.size() != 4) {
+        return false;
+    }
+    const BaseTile first_player_kiri_basetile = players.begin()->CurrentRoundKiriInfo().kiri_tiles_.begin()->tile_.tile;
+    const auto kiri_basetile_equal = [&](const SyncMahjongGamePlayer& player) -> bool
+        {
+            const auto& kiri_tiles = player.CurrentRoundKiriInfo().kiri_tiles_;
+            return kiri_tiles.size() == 1 && kiri_tiles.begin()->tile_.tile == first_player_kiri_basetile;
+        };
+    static constexpr const std::array<BaseTile, 4> k_wind_tiles{east, south, west, north};
+    return std::ranges::find(k_wind_tiles, first_player_kiri_basetile) != k_wind_tiles.end() &&
+        std::all_of(std::next(players.begin()), players.end(), kiri_basetile_equal);
+}
+
 inline const char* const CheckToujyuNagashi(const std::vector<SyncMahjongGamePlayer>& players, const bool is_first_round)
 {
-    assert(players.size() >= 2);
-    static const auto is_richii = [](const SyncMahjongGamePlayer& player) -> bool
-        {
-            return player.State() == ActionState::RICHII_PREPARE || player.State() == ActionState::RICHII_FIRST_ROUND || player.State() == ActionState::RICHII;
-        };
-    static const auto is_nagashi = [](const SyncMahjongGamePlayer& player) -> bool
-        {
-            return player.State() == ActionState::AFTER_GET_TILE_CAN_NAGASHI;
-        };
-    static const auto is_fu = [](const SyncMahjongGamePlayer& player) -> bool
-        {
-            return !player.FuResults().empty();
-        };
-    const auto fu_count = std::ranges::count_if(players, is_fu);
-    if (fu_count == 1 || fu_count == 2) {
-        return nullptr; // fu has higher priority
-    }
-    if (fu_count == 3) {
-        return "三家和了";
-    }
-    if (players.size() == 4) {
-        const BaseTile first_player_kiri_basetile = players.begin()->CurrentRoundKiriInfo().kiri_tiles_.begin()->tile_.tile;
-        const auto kiri_basetile_equal = [&](const SyncMahjongGamePlayer& player) -> bool
-            {
-                const auto& kiri_tiles = player.CurrentRoundKiriInfo().kiri_tiles_;
-                return kiri_tiles.size() == 1 && kiri_tiles.begin()->tile_.tile == first_player_kiri_basetile;
-            };
-        if (std::ranges::count_if(players, is_richii) == 4) {
-            return "四家立直";
-        }
-        static constexpr const std::array<BaseTile, 4> k_wind_tiles{east, south, west, north};
-        if (is_first_round && std::ranges::find(k_wind_tiles, first_player_kiri_basetile) != k_wind_tiles.end() &&
-                std::all_of(std::next(players.begin()), players.end(), kiri_basetile_equal)) {
-            return "四风连打";
-        }
-    }
-    if (is_first_round && std::ranges::any_of(players, is_nagashi)) {
-        return "九种九牌";
-    }
     return nullptr;
 }
 
@@ -1055,7 +1077,7 @@ inline bool CheckNyanapaiNagashi(const std::vector<SyncMahjongGamePlayer>& playe
 class SyncMajong
 {
   public:
-    SyncMajong(const SyncMahjongOption& option)
+    SyncMajong(const SyncMahjongOption& option) : option_(option)
     {
         std::array<Tile, k_tile_type_num * 4> tiles{BaseTile::_1m};
 #ifdef TEST_BOT
@@ -1068,16 +1090,110 @@ class SyncMajong
         ShuffleTiles(option.tiles_option_, tiles);
 #endif
         AssignTiles_(option, tiles);
+        StartNormalStage_();
     }
 
     std::span<const std::pair<Tile, Tile>> Doras() const {
         return std::span<const std::pair<Tile, Tile>>(doras_.begin(), doras_.begin() + dora_num_);
     }
 
+
+
+    void StartNormalStage_()
+    {
+        ++round_;
+        for (auto& player : players_) {
+            player.StartNormalStage(round_);
+        }
+    }
+
+    bool StartRonStage_()
+    {
+        std::vector<game_util::mahjong::PlayerKiriInfo> kiri_infos;
+        kiri_infos.reserve(players_.size());
+        for (const auto& player : players_) {
+            kiri_infos.emplace_back(player.CurrentRoundKiriInfo());
+        }
+        for (auto& player : players_) {
+            player.StartRonStage(kiri_infos);
+        }
+        return std::ranges::any_of(players_, [](const auto& player) { return player.State() == ActionState::NOTIFIED_RON; });
+    }
+
+    void HandleOneFuResult_(const lgtbot::game_util::mahjong::FuResult& fu_result, const uint32_t player_id, const size_t fu_results_size)
+    {
+        if (fu_result.player_id_ == game_util::mahjong::FuResult::k_tsumo_player_id_) {
+            // tsumo
+            const int score_each_player = fu_result.counter_.score1 + option_.benchang_ * 100;
+            std::ranges::for_each(players_, [score_each_player](auto& player) { player.point_variation_ -= score_each_player; });
+            players_[player_id].point_variation_ += score_each_player * players_.size();
+        } else {
+            // ron
+            const int score = fu_result.counter_.score1 + option_.benchang_ * (players_.size() - 1) * 100 / fu_results_size;
+            players_[fu_result.player_id_].point_variation_ -= score;
+            players_[player_id].point_variation_ += score;
+        }
+    }
+
+    bool HandleFuResults_()
+    {
+        bool found_fu = false;
+        for (const auto& player : players_) {
+            for (const auto& fu_result : player.FuResults()) {
+                found_fu = true;
+                HandleOneFuResult_(fu_result, player.PlayerID(), player.FuResults().size());
+            }
+        }
+        return found_fu;
+    }
+
+    enum class RoundOverResult { CHUTO_NAGASHI_三家和了, CHUTO_NAGASHI_九种九牌, CHUTO_NAGASHI_四风连打, CHUTO_NAGASHI_四家立直, NYANPAI_NAGASHI, RON_ROUND, NORMAL_ROUND, FU };
+
+    RoundOverResult RoundOver() {
+        for (auto& player : players_) {
+            player.PerformDefault(Doras());
+        }
+        if (Is_三家和了(players_)) {
+            return RoundOverResult::CHUTO_NAGASHI_三家和了;
+        }
+        if (HandleFuResults_()) {
+            return RoundOverResult::FU;
+        }
+        if (ron_stage_ = !ron_stage_ && StartRonStage_()) {
+            return RoundOverResult::RON_ROUND;
+        }
+        for (auto& player : players_) {
+            if (player.richii_round_ == round_) {
+                player.point_variation_ -= 1000;
+                richii_points_ += 1000;
+            }
+        }
+        if (round_ == 1 && Is_九种九牌(players_)) {
+            return RoundOverResult::CHUTO_NAGASHI_九种九牌;
+        }
+        if (round_ == 1 && Is_四风连打(players_)) {
+            return RoundOverResult::CHUTO_NAGASHI_四风连打;
+        }
+        if (Is_四家立直(players_)) {
+            return RoundOverResult::CHUTO_NAGASHI_四家立直;
+        }
+        if (CheckNyanapaiNagashi(players_)) {
+            return RoundOverResult::NYANPAI_NAGASHI;
+        }
+        StartNormalStage_();
+        return RoundOverResult::NORMAL_ROUND;
+    }
+
+    int32_t Round() const { return round_; }
+
     // TODO: make variables private
+    const SyncMahjongOption& option_;
+    int32_t round_{0};
+    bool ron_stage_{false};
     std::vector<SyncMahjongGamePlayer> players_;
     std::array<std::pair<Tile, Tile>, 4> doras_;
     uint32_t dora_num_{1};
+    uint32_t richii_points_{0};
 
   private:
     void AssignTiles_(const SyncMahjongOption& option, const std::array<Tile, k_tile_type_num * 4>& tiles)
@@ -1092,7 +1208,7 @@ class SyncMajong
             for (uint32_t i = 0; i < k_hand_tile_num; ++i) {
                 hand.emplace(tiles[tile_idx++]);
             }
-            players_.emplace_back(option, player_id, yama_tiles, std::move(hand), tiles[tile_idx++]);
+            players_.emplace_back(option, player_id, yama_tiles, std::move(hand));
         }
         for (auto& [dora, inner_dora] : doras_) {
             dora = tiles[tile_idx++];

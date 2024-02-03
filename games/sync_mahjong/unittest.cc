@@ -15,7 +15,6 @@ struct Tiles {
     struct PlayerTiles {
         std::string yama_; // 18
         std::string hand_; // 13
-        std::string tsumo_; // 1
     };
     PlayerTiles player_tiles_[4];
     std::string doras_;
@@ -42,11 +41,9 @@ std::string TilesToString(const Tiles& tiles)
             }
         };
     for (const Tiles::PlayerTiles& player_tiles : tiles.player_tiles_) {
-        append_tile_str(player_tiles.yama_, 18);
+        append_tile_str(player_tiles.yama_, 19);
         append_tile_str(player_tiles.hand_, 13);
-        append_tile_str(player_tiles.tsumo_, 1);
     }
-    append_tile_str(tiles.doras_, 8);
     return s;
 }
 
@@ -61,17 +58,17 @@ GAME_TEST(4, nari_multiple_times)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
-                            .yama_ = "4p2s",
+                            .yama_ = "1z4p2s",
                             .hand_ = "13m22s333p444p123z",
                         },
                         [1] = Tiles::PlayerTiles {
-                            .tsumo_ = "2m",
+                            .yama_ = "2m",
                         },
                         [2] = Tiles::PlayerTiles {
-                            .tsumo_ = "2s",
+                            .yama_ = "2s",
                         },
                         [3] = Tiles::PlayerTiles {
-                            .tsumo_ = "3p",
+                            .yama_ = "3p",
                         },
                     }
                 }));
@@ -88,9 +85,9 @@ GAME_TEST(4, nari_multiple_times)
     }
     ASSERT_PRI_MSG(OK, 0, "碰 2s");
     ASSERT_PRI_MSG(OK, 0, "1z");
-    ASSERT_PRI_MSG(OK, 0, "杠 3p");
-    ASSERT_PRI_MSG(OK, 0, "杠 4p");
-    ASSERT_PRI_MSG(OK, 0, "杠 2s");
+    ASSERT_PRI_MSG(OK, 0, "杠 3p"); // obtain 4p
+    ASSERT_PRI_MSG(OK, 0, "杠 4p"); // obtain 2s
+    ASSERT_PRI_MSG(OK, 0, "杠 2s"); // obtain ??
     ASSERT_PRI_MSG(OK, 0, "2z");
     ASSERT_PRI_MSG(OK, 0, "吃 13m 2m");
     ASSERT_PRI_MSG(OK, 0, "3z");
@@ -103,12 +100,12 @@ GAME_TEST(4, nine_types_of_nine_tiles)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
+                            .yama_ = "1s",
                             .hand_ = "19s19p19m12z34567m",
-                            .tsumo_ = "1s",
                         },
                         [1] = Tiles::PlayerTiles {
+                            .yama_ = "3z",
                             .hand_ = "19s19p19m12z34567m",
-                            .tsumo_ = "3z",
                         },
                     }
                 }));
@@ -129,16 +126,16 @@ GAME_TEST(4, four_winds_consecutively_kiri)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
-                            .tsumo_ = "1z",
+                            .yama_ = "1z",
                         },
                         [1] = Tiles::PlayerTiles {
-                            .tsumo_ = "1z",
+                            .yama_ = "1z",
                         },
                         [2] = Tiles::PlayerTiles {
-                            .tsumo_ = "1z",
+                            .yama_ = "1z",
                         },
                         [3] = Tiles::PlayerTiles {
-                            .tsumo_ = "1z",
+                            .yama_ = "1z",
                         },
                     }
                 }));
@@ -158,18 +155,17 @@ GAME_TEST(4, after_kan_not_four_winds_consecutively_kiri)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
-                            .yama_ = "1z",
+                            .yama_ = "1s1z",
                             .hand_ = "1s1s1s",
-                            .tsumo_ = "1s",
                         },
                         [1] = Tiles::PlayerTiles {
-                            .tsumo_ = "1z",
+                            .yama_ = "1z",
                         },
                         [2] = Tiles::PlayerTiles {
-                            .tsumo_ = "1z",
+                            .yama_ = "1z",
                         },
                         [3] = Tiles::PlayerTiles {
-                            .tsumo_ = "1z",
+                            .yama_ = "1z",
                         },
                     }
                 }));
@@ -215,7 +211,7 @@ GAME_TEST(4, four_players_richii)
     ASSERT_PRI_MSG(OK, 3, "摸牌");
     ASSERT_PRI_MSG(CHECKOUT, 3, "立直 摸切");
 
-    ASSERT_SCORE(25000, 25000, 25000, 25000);
+    ASSERT_SCORE(24000, 24000, 24000, 24000);
 }
 
 GAME_TEST(4, four_players_richii_on_different_round)
@@ -224,49 +220,47 @@ GAME_TEST(4, four_players_richii_on_different_round)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
-                            .yama_ = "2z3z4z";
+                            .yama_ = "5z2z3z4z",
                             .hand_ = "123456789m123s1z",
-                            .tsumo_ = "5z";
                         },
                         [1] = Tiles::PlayerTiles {
-                            .yama_ = "2z3z4z";
+                            .yama_ = "5z2z3z4z",
                             .hand_ = "123456789m123s1z",
-                            .tsumo_ = "5z";
                         },
                         [2] = Tiles::PlayerTiles {
-                            .yama_ = "2z3z4z";
+                            .yama_ = "5z2z3z4z",
                             .hand_ = "123456789m123s1z",
-                            .tsumo_ = "5z";
                         },
                         [3] = Tiles::PlayerTiles {
-                            .yama_ = "2z3z4z";
+                            .yama_ = "5z2z3z4z",
                             .hand_ = "123456789m123s1z",
-                            .tsumo_ = "5z";
                         },
                     }
                 }));
     START_GAME();
 
-    for (int pid = 0; pid < 3; ++pid) {
-        ASSERT_PRI_MSG(OK, pid, "摸切");
-    }
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_PRI_MSG(OK, 1, "摸切");
+    ASSERT_PRI_MSG(OK, 2, "摸切");
     ASSERT_PRI_MSG(CONTINUE, 3, "立直 摸切");
 
-    for (int pid = 0; pid < 2; ++pid) {
-        ASSERT_PRI_MSG(OK, pid, "摸牌");
-        ASSERT_PRI_MSG(OK, pid, "摸切");
-    }
+    ASSERT_PRI_MSG(OK, 0, "摸牌");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_PRI_MSG(OK, 1, "摸牌");
+    ASSERT_PRI_MSG(OK, 1, "摸切");
     ASSERT_PRI_MSG(OK, 2, "摸牌");
-    ASSERT_PRI_MSG(CONTINUE, 2, "立直 摸切");
+    ASSERT_PRI_MSG(OK, 2, "立直 摸切");
+    ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
 
     ASSERT_PRI_MSG(OK, 0, "摸牌");
     ASSERT_PRI_MSG(OK, 0, "立直 摸切");
     ASSERT_PRI_MSG(OK, 1, "摸牌");
-    ASSERT_PRI_MSG(CONTINUE, 1, "立直 摸切");
+    ASSERT_PRI_MSG(OK, 1, "立直 摸切");
+    ASSERT_PRI_MSG(OK, 2, "摸切");
+    ASSERT_PRI_MSG(CHECKOUT, 3, "摸切");
 
-    ASSERT_SCORE(25000, 25000, 25000, 25000);
+    ASSERT_SCORE(24000, 24000, 24000, 24000);
 }
-
 
 GAME_TEST(4, tenhu)
 {
@@ -274,12 +268,12 @@ GAME_TEST(4, tenhu)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
+                            .yama_ = "3z",
                             .hand_ = "19s19p19m12z34567m",
-                            .tsumo_ = "3z",
                         },
                         [1] = Tiles::PlayerTiles {
+                            .yama_ = "8p",
                             .hand_ = "123s555s234m456m8p",
-                            .tsumo_ = "8p",
                         },
                     }
                 }));
