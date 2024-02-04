@@ -51,8 +51,7 @@ class MainStage : public MainGameStage<TableStage>
   public:
     MainStage(const GameOption& option, MatchBase& match)
         : GameStage(option, match, MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
-        , game_(0)
-        , option_{
+        , sync_mahjong_option_{
             .tiles_option_ = game_util::mahjong::TilesOption{
                 .with_red_dora_ = GET_OPTION_VALUE(option, 赤宝牌),
                 .with_toumei_ = GET_OPTION_VALUE(option, 透明牌),
@@ -72,7 +71,7 @@ class MainStage : public MainGameStage<TableStage>
 #ifdef TEST_BOT
         if (!GET_OPTION_VALUE(option, 配牌).empty()) {
             //std::cout << "配牌xxxxxxxxxxxxxxx " << GET_OPTION_VALUE(option, 配牌) << std::endl;
-            option_.tiles_option_ = GET_OPTION_VALUE(option, 配牌);
+            sync_mahjong_option_.tiles_option_ = GET_OPTION_VALUE(option, 配牌);
         }
 #endif
     }
@@ -80,9 +79,9 @@ class MainStage : public MainGameStage<TableStage>
     virtual VariantSubStage OnStageBegin() override;
     virtual VariantSubStage NextSubStage(TableStage& sub_stage, const CheckoutReason reason) override;
 
-    virtual int64_t PlayerScore(const PlayerID pid) const override { return option_.player_descs_[pid].base_point_; }
+    virtual int64_t PlayerScore(const PlayerID pid) const override { return sync_mahjong_option_.player_descs_[pid].base_point_; }
 
-    const game_util::mahjong::SyncMahjongOption& GetSyncMahjongOption() const { return option_; }
+    const game_util::mahjong::SyncMahjongOption& GetSyncMahjongOption() const { return sync_mahjong_option_; }
 
   private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
@@ -95,19 +94,18 @@ class MainStage : public MainGameStage<TableStage>
     void UpateSeed_()
     {
 #ifdef TEST_BOT
-        game_util::mahjong::TilesOption *const tiles_option = std::get_if<game_util::mahjong::TilesOption>(&option_.tiles_option_);
+        game_util::mahjong::TilesOption *const tiles_option = std::get_if<game_util::mahjong::TilesOption>(&sync_mahjong_option_.tiles_option_);
         if (tiles_option == nullptr) {
             return;
         }
         tiles_option->
 #else
-        option_.tiles_option_.
+        sync_mahjong_option_.tiles_option_.
 #endif
-        seed_ = GET_OPTION_VALUE(option(), 种子).empty() ? "" : GET_OPTION_VALUE(option(), 种子) + std::to_string(game_);
+        seed_ = GET_OPTION_VALUE(option(), 种子).empty() ? "" : GET_OPTION_VALUE(option(), 种子) + std::to_string(sync_mahjong_option_.benchang_);
     }
 
-    int game_;
-    game_util::mahjong::SyncMahjongOption option_;
+    game_util::mahjong::SyncMahjongOption sync_mahjong_option_;
 };
 
 class SingleTileChecker : public AnyArg
@@ -132,8 +130,8 @@ class SingleTileChecker : public AnyArg
 class TableStage : public SubGameStage<>
 {
   public:
-    TableStage(MainStage& main_stage, const uint64_t benchang)
-        : GameStage(main_stage, std::to_string(benchang) + " 本场",
+    TableStage(MainStage& main_stage)
+        : GameStage(main_stage, std::to_string(main_stage.GetSyncMahjongOption().benchang_) + " 本场",
                 MakeStageCommand("查看场上情况", &TableStage::Info_, VoidChecker("赛况")),
                 MakeStageCommand("摸牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::GetTile_, VoidChecker("摸牌")),
                 MakeStageCommand("吃牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Chi_, VoidChecker("吃"), AnyArg("手中的牌（两张）", "24m"), SingleTileChecker("要吃的牌（一张）", "3m")),
@@ -154,6 +152,8 @@ class TableStage : public SubGameStage<>
 
     int64_t PlayerPointVariation(const uint32_t player_id) const { return table_.players_[player_id].point_variation_; }
 
+    int32_t RemainingRichiiPoints() const { return table_.RichiiPoints(); }
+
     void UpdatePlayerPublicHtmls_() {
         for (const auto& player : table_.players_) {
             player_public_htmls_[player.PlayerID()] = player.Html(game_util::mahjong::SyncMahjongGamePlayer::HtmlMode::PUBLIC, table_.Doras());
@@ -161,11 +161,12 @@ class TableStage : public SubGameStage<>
     }
 
     void AllowPlayersToAct_() {
+        ClearReady(); // reset `any_user_ready_`
         for (const auto& player : table_.players_) {
             if (player.State() == game_util::mahjong::ActionState::ROUND_OVER) {
+                SetReady(player.PlayerID());
                 continue;
             }
-            ClearReady(player.PlayerID());
             Tell(player.PlayerID()) << Markdown(PlayerHtml_(player), k_image_width);
             Tell(player.PlayerID()) << AvailableActions_(player.State());
         }
@@ -397,19 +398,19 @@ class TableStage : public SubGameStage<>
 MainStage::VariantSubStage MainStage::OnStageBegin()
 {
     UpateSeed_();
-    return std::make_unique<TableStage>(*this, game_);
+    return std::make_unique<TableStage>(*this);
 }
 
 MainStage::VariantSubStage MainStage::NextSubStage(TableStage& sub_stage, const CheckoutReason reason)
 {
-    ++game_;
-    for (uint32_t pid = 0; pid < option_.player_descs_.size(); ++pid) {
-        option_.player_descs_[pid].base_point_ += sub_stage.PlayerPointVariation(pid);
+    for (uint32_t pid = 0; pid < sync_mahjong_option_.player_descs_.size(); ++pid) {
+        sync_mahjong_option_.player_descs_[pid].base_point_ += sub_stage.PlayerPointVariation(pid);
     }
-    if (game_ < GET_OPTION_VALUE(option(), 局数)) {
+    sync_mahjong_option_.benchang_ += 2;
+    sync_mahjong_option_.richii_points_ = sub_stage.RemainingRichiiPoints();
+    if (sync_mahjong_option_.benchang_ < GET_OPTION_VALUE(option(), 局数) * 2) {
         UpateSeed_();
-        option_.benchang_ += 2;
-        return std::make_unique<TableStage>(*this, game_ * 2);
+        return std::make_unique<TableStage>(*this);
     }
     Boardcast() << "游戏结束";
     // Returning empty variant means the game will be over.

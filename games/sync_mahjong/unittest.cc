@@ -288,6 +288,182 @@ GAME_TEST(4, tenhu)
     ASSERT_SCORE(25000 - 16000, 25000 + 48000, 25000 - 16000, 25000 - 16000);
 }
 
+GAME_TEST(4, three_players_tsumo_cause_nagashi)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z1z",
+                            .hand_ = "19s19p19m1234567z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "2z2z",
+                            .hand_ = "19s19p19m1234567z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "3z3z",
+                            .hand_ = "19s19p19m1234567z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "4z4z",
+                            .hand_ = "19s19p19m1234567z",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    // skip the first round
+    for (uint32_t pid = 0; pid < 3; ++pid) {
+        ASSERT_PRI_MSG(OK, pid, "摸切");
+    }
+    ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
+
+    for (uint32_t pid = 0; pid < 3; ++pid) {
+        ASSERT_PRI_MSG(OK, pid, "摸牌");
+        ASSERT_PRI_MSG(OK, pid, "自摸");
+    }
+    ASSERT_PRI_MSG(OK, 3, "摸牌");
+    ASSERT_PRI_MSG(CHECKOUT, 3, "摸切"); // nagashi
+
+    ASSERT_SCORE(25000, 25000, 25000, 25000);
+}
+
+GAME_TEST(4, three_players_ron_cause_nagashi)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5m2z",
+                            .hand_ = "119s19p19m234567z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "5m3z",
+                            .hand_ = "119s19p19m134567z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5m1z",
+                            .hand_ = "119s19p19m124567z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5m4z",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    // skip the first round
+    for (uint32_t pid = 0; pid < 3; ++pid) {
+        ASSERT_PRI_MSG(OK, pid, "摸切");
+    }
+    ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
+
+    // the second round -- normal stage
+    for (uint32_t pid = 0; pid < 3; ++pid) {
+        ASSERT_PRI_MSG(OK, pid, "摸牌");
+        ASSERT_PRI_MSG(OK, pid, "摸切");
+    }
+    ASSERT_PRI_MSG(OK, 3, "摸牌");
+    ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
+
+    // the second round -- ron stage
+    ASSERT_PRI_MSG(OK, 0, "荣");
+    ASSERT_PRI_MSG(OK, 1, "荣");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "荣"); // nagashi
+
+    ASSERT_SCORE(25000, 25000, 25000, 25000);
+}
+
+GAME_TEST(4, ron_players_obtain_last_game_riichi_points)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 2");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "119s19p19m234567z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "2z",
+                            .hand_ = "119s19p19m134567z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .hand_ = "119s19p19m124567z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .hand_ = "119s19p19m123567z",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    // first game
+    for (uint32_t pid = 1; pid < 4; ++pid) {
+        ASSERT_PRI_MSG(OK, pid, "摸切");
+    }
+    ASSERT_PRI_MSG(CONTINUE, 0, "立直 摸切");
+
+    for (uint32_t i = 0; i < 17; ++i) {
+        for (uint32_t pid = 1; pid < 4; ++pid) {
+            ASSERT_PRI_MSG(OK, pid, "摸牌");
+            ASSERT_PRI_MSG(OK, pid, "摸切");
+        }
+        ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+    }
+
+    for (uint32_t pid = 1; pid < 4; ++pid) {
+        ASSERT_PRI_MSG(OK, pid, "摸牌");
+        ASSERT_PRI_MSG(OK, pid, "摸切");
+    }
+    ASSERT_PRI_MSG(CHECKOUT, 0, "摸切");
+
+    // second game
+    ASSERT_PRI_MSG(OK, 0, "自摸");
+    ASSERT_PRI_MSG(OK, 1, "自摸");
+    ASSERT_PRI_MSG(OK, 2, "摸切");
+    ASSERT_PRI_MSG(CHECKOUT, 3, "摸切");
+
+    ASSERT_SCORE(
+            25000 - 1000 /*first_game_riichi_point*/ + 64000 + 500 /*obtain_riichi_point*/ + 400 /*benchang*/,
+            25000 + 64000 + 500 /*obtain_riichi_point*/ + 400 /*benchang*/,
+            25000 - 64000 - 400 /*benchang*/,
+            25000 - 64000 - 400 /*benchang*/);
+}
+
+GAME_TEST(4, nyanpai_nagashi_tinpai)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "2m", // prevent nagashi mangan
+                            .hand_ = "119s19p19m234567z", // tinpai
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "2m", // prevent nagashi mangan
+                            .hand_ = "147m258s369p1234z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "2m", // prevent nagashi mangan
+                            .hand_ = "147m258s369p1234z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "2m", // prevent nagashi mangan
+                            .hand_ = "147m258s369p1234z",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    for (uint32_t i = 0; i < 18; ++i) {
+        ASSERT_TIMEOUT(CONTINUE);
+    }
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    ASSERT_SCORE(28000, 24000, 24000, 24000);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game

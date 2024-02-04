@@ -86,6 +86,7 @@ struct SyncMahjongOption
 #endif
     std::string image_path_;
     int32_t benchang_{0};
+    int32_t richii_points_{0};
     std::vector<PlayerDesc> player_descs_;
 };
 
@@ -786,19 +787,25 @@ struct SyncMahjongGamePlayer
             return false;
         }
         if (state_ == ActionState::NOTIFIED_RON) {
-            return Ron_(doras);
+            fu_results_ = GetFuResultsForRon_(doras);
+        } else if (state_ == ActionState::AFTER_KIRI) {
+            fu_results_ = GetFuResultsForNariRon_(doras);
+        } else {
+            errstr_ = "当前状态不允许荣和";
+            return false;
         }
-        if (state_ == ActionState::AFTER_KIRI) {
-            return NariRon_(doras);
+        if (fu_results_.empty()) {
+            errstr_ = "其他玩家舍牌无法使手牌构成合法和牌型";
+            return false;
         }
-        errstr_ = "当前状态不允许荣和";
-        return false;
+        state_ = ActionState::ROUND_OVER;
+        return true;
     }
 
-    bool Ron_(const std::span<const std::pair<Tile, Tile>>& doras)
+    std::vector<FuResult> GetFuResultsForRon_(const std::span<const std::pair<Tile, Tile>>& doras) const
     {
-        assert(state_ == ActionState::ROUND_OVER);
-        std::vector<FuResult> fu_results_;
+        assert(state_ == ActionState::NOTIFIED_RON);
+        std::vector<FuResult> fu_results;
         for (const auto& player_info : cur_round_kiri_info_.other_players_) {
             std::optional<FuResult> player_result;
             for (const auto& kiri_tile : player_info.kiri_tiles_) {
@@ -813,33 +820,28 @@ struct SyncMahjongGamePlayer
                 }
             }
             if (player_result.has_value()) {
-                fu_results_.emplace_back(std::move(*player_result));
+                fu_results.emplace_back(std::move(*player_result));
             }
         }
-        if (fu_results_.size() > 1) {
+        if (fu_results.size() > 1) {
             // more than 1 player lose, we should update the scores
-            assert(fu_results_.size() <= 3);
-            for (auto& player_info : fu_results_) {
+            assert(fu_results.size() <= 3);
+            for (auto& player_info : fu_results) {
                 if (player_info.counter_.score1 >= 12000) {
-                    player_info.counter_.score1 /= fu_results_.size();
+                    player_info.counter_.score1 /= fu_results.size();
                 } else {
                     player_info.counter_.score1 =
-                        (player_info.counter_.fu * pow(2, player_info.counter_.fan + 2) * 6 / fu_results_.size() + 90) / 100 * 100; // upper alias to 100
+                        (player_info.counter_.fu * pow(2, player_info.counter_.fan + 2) * 6 / fu_results.size() + 90) / 100 * 100; // upper alias to 100
                 }
             }
         }
-        if (fu_results_.empty()) {
-            errstr_ = "前巡切牌无法使手牌构成合法和牌型，或除宝牌番数不满足最低和牌番数要求";
-        }
-        return !fu_results_.empty();
+        return fu_results;
     }
 
-    bool NariRon_(const std::span<const std::pair<Tile, Tile>>& doras)
+    std::vector<FuResult> GetFuResultsForNariRon_(const std::span<const std::pair<Tile, Tile>>& doras) const
     {
-        if (state_ != ActionState::AFTER_KIRI) {
-            errstr_ = "当前状态不允许副露荣和";
-            return false;
-        }
+        assert(state_ == ActionState::AFTER_KIRI);
+        std::vector<FuResult> fu_results;
         for (const auto& player_info : cur_round_kiri_info_.other_players_) {
             for (const auto& kiri_tile : player_info.kiri_tiles_) {
                 std::optional<CounterResult> counter = RonCounter_(kiri_tile, doras);
@@ -848,15 +850,12 @@ struct SyncMahjongGamePlayer
                     continue;
                 }
                 counter->calculate_score(true, true);
-                if (fu_results_.empty() || counter->score1 > fu_results_.begin()->counter_.score1) {
-                    fu_results_.emplace_back(FuResult::k_tsumo_player_id_, *counter, kiri_tile.tile_);
+                if (fu_results.empty() || counter->score1 > fu_results.begin()->counter_.score1) {
+                    fu_results.emplace_back(FuResult::k_tsumo_player_id_, *counter, kiri_tile.tile_);
                 }
             }
         }
-        if (fu_results_.empty()) {
-            errstr_ = "前巡切牌无法使手牌构成合法和牌型，或除宝牌番数不满足最低和牌番数要求";
-        }
-        return !fu_results_.empty();
+        return fu_results;
     }
 
     void InitTable_(Table& table, const std::span<const std::pair<Tile, Tile>>& doras) const
@@ -1064,20 +1063,58 @@ inline bool Is_四风连打(const std::vector<SyncMahjongGamePlayer>& players)
         std::all_of(std::next(players.begin()), players.end(), kiri_basetile_equal);
 }
 
-inline const char* const CheckToujyuNagashi(const std::vector<SyncMahjongGamePlayer>& players, const bool is_first_round)
+inline bool HandleNagashiManganForNyanpaiNagashi_(std::vector<SyncMahjongGamePlayer>& players)
 {
-    return nullptr;
+    uint32_t mangan_player_num = 0;
+    for (auto& player : players) {
+        if (std::ranges::all_of(player.river_, [](const RiverTile& river_tile)
+                    {
+                        return std::find(k_one_nine_tiles.begin(), k_one_nine_tiles.end(), river_tile.tile_.tile) != k_one_nine_tiles.end();
+                    })) {
+            ++mangan_player_num;
+            player.point_variation_ += 16000 * players.size();
+        }
+    }
+    if (mangan_player_num == 0) {
+        return false;
+    }
+    for (auto& player : players) {
+        player.point_variation_ -= 16000 * mangan_player_num;
+    }
+    return true;
 }
 
-inline bool CheckNyanapaiNagashi(const std::vector<SyncMahjongGamePlayer>& players)
+inline void HandleTinpaiForNyanpaiNagashi_(std::vector<SyncMahjongGamePlayer>& players)
 {
-    return std::ranges::any_of(players, [](const SyncMahjongGamePlayer& player) { return player.FinishYama(); });
+    const int32_t nyanpai_tinpai_points = 1000 * (players.size() - 1);
+    const uint32_t tinpai_player_num = std::ranges::count_if(players, [](const auto& player) { return !player.GetListenTiles().empty(); });
+    if (tinpai_player_num == 0 || tinpai_player_num == players.size()) {
+        return;
+    }
+    for (auto& player : players) {
+        if (player.GetListenTiles().empty()) {
+            player.point_variation_ -= nyanpai_tinpai_points / (players.size() - tinpai_player_num);
+        } else {
+            player.point_variation_ += nyanpai_tinpai_points / tinpai_player_num;
+        }
+    }
+}
+
+inline bool HandleNyanapaiNagashi(std::vector<SyncMahjongGamePlayer>& players)
+{
+    if (std::ranges::none_of(players, [](const SyncMahjongGamePlayer& player) { return player.FinishYama(); })) {
+        return false;
+    }
+    if (!HandleNagashiManganForNyanpaiNagashi_(players)) {
+        HandleTinpaiForNyanpaiNagashi_(players);
+    }
+    return true;
 }
 
 class SyncMajong
 {
   public:
-    SyncMajong(const SyncMahjongOption& option) : option_(option)
+    SyncMajong(const SyncMahjongOption& option) : option_(option), richii_points_(option_.richii_points_)
     {
         std::array<Tile, k_tile_type_num * 4> tiles{BaseTile::_1m};
 #ifdef TEST_BOT
@@ -1120,32 +1157,39 @@ class SyncMajong
         return std::ranges::any_of(players_, [](const auto& player) { return player.State() == ActionState::NOTIFIED_RON; });
     }
 
-    void HandleOneFuResult_(const lgtbot::game_util::mahjong::FuResult& fu_result, const uint32_t player_id, const size_t fu_results_size)
+    void HandleOneFuResult_(const lgtbot::game_util::mahjong::FuResult& fu_result, SyncMahjongGamePlayer& player)
     {
         if (fu_result.player_id_ == game_util::mahjong::FuResult::k_tsumo_player_id_) {
             // tsumo
             const int score_each_player = fu_result.counter_.score1 + option_.benchang_ * 100;
             std::ranges::for_each(players_, [score_each_player](auto& player) { player.point_variation_ -= score_each_player; });
-            players_[player_id].point_variation_ += score_each_player * players_.size();
+            player.point_variation_ += score_each_player * players_.size();
         } else {
             // ron
-            const int score = fu_result.counter_.score1 + option_.benchang_ * (players_.size() - 1) * 100 / fu_results_size;
+            const int score = fu_result.counter_.score1 + option_.benchang_ * (players_.size() - 1) * 100 / player.FuResults().size();
             players_[fu_result.player_id_].point_variation_ -= score;
-            players_[player_id].point_variation_ += score;
+            player.point_variation_ += score;
         }
     }
 
     bool HandleFuResults_()
     {
         bool found_fu = false;
-        for (const auto& player : players_) {
+        const uint32_t fu_players_num = std::ranges::count_if(players_, [](const auto& player) { return !player.fu_results_.empty(); });
+        for (auto& player : players_) {
             for (const auto& fu_result : player.FuResults()) {
                 found_fu = true;
-                HandleOneFuResult_(fu_result, player.PlayerID(), player.FuResults().size());
+                HandleOneFuResult_(fu_result, player);
+                player.point_variation_ += richii_points_ / fu_players_num;
             }
+        }
+        if (found_fu) {
+            richii_points_ = 0;
         }
         return found_fu;
     }
+
+    int32_t RichiiPoints() const { return richii_points_; }
 
     enum class RoundOverResult { CHUTO_NAGASHI_三家和了, CHUTO_NAGASHI_九种九牌, CHUTO_NAGASHI_四风连打, CHUTO_NAGASHI_四家立直, NYANPAI_NAGASHI, RON_ROUND, NORMAL_ROUND, FU };
 
@@ -1177,7 +1221,7 @@ class SyncMajong
         if (Is_四家立直(players_)) {
             return RoundOverResult::CHUTO_NAGASHI_四家立直;
         }
-        if (CheckNyanapaiNagashi(players_)) {
+        if (HandleNyanapaiNagashi(players_)) {
             return RoundOverResult::NYANPAI_NAGASHI;
         }
         StartNormalStage_();
@@ -1193,7 +1237,7 @@ class SyncMajong
     std::vector<SyncMahjongGamePlayer> players_;
     std::array<std::pair<Tile, Tile>, 4> doras_;
     uint32_t dora_num_{1};
-    uint32_t richii_points_{0};
+    int32_t richii_points_{0};
 
   private:
     void AssignTiles_(const SyncMahjongOption& option, const std::array<Tile, k_tile_type_num * 4>& tiles)
@@ -1223,3 +1267,11 @@ class SyncMajong
 } // namespace game_util
 
 } // namespace lgtbot
+  // TODO:
+  // 显示可用舍牌
+  // 立直点数留至下一局
+  // 流局满贯
+  // 显示具体可执行操作
+  // 立直后自动摸切
+  // 测试各种振听
+  // 不听罚符
