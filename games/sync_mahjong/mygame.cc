@@ -412,8 +412,6 @@ MainStage::VariantSubStage MainStage::NextSubStage(TableStage& sub_stage, const 
         UpateSeed_();
         return std::make_unique<TableStage>(*this);
     }
-    Boardcast() << "游戏结束";
-    // Returning empty variant means the game will be over.
     return {};
 }
 

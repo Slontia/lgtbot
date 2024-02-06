@@ -272,19 +272,25 @@ struct SyncMahjongGamePlayer
         return true;
     }
 
+    bool Richii_()
+    {
+        std::vector<BaseTile> listen_tiles = GetListenTiles();
+        if (listen_tiles.empty()) {
+            errstr_ = "切这张牌无法构成听牌牌型";
+            return false;
+        }
+        assert(richii_listen_tiles_.empty());
+        richii_listen_tiles_ = std::move(listen_tiles);
+        is_richii_furutin_ = IsSelfFurutin_(richii_listen_tiles_, river_);
+        is_double_richii_ = river_.empty() && furus_.empty();
+        richii_round_ = round_;
+        return true;
+    }
+
     bool KiriInternal_(const bool is_tsumo, const bool richii, const Tile& tile)
     {
-        if (richii) {
-            std::vector<BaseTile> listen_tiles = GetListenTiles();
-            if (listen_tiles.empty()) {
-                errstr_ = "切这张牌无法构成听牌牌型";
-                return false;
-            }
-            assert(richii_listen_tiles_.empty());
-            richii_listen_tiles_ = std::move(listen_tiles);
-            is_richii_furutin_ = IsSelfFurutin_(richii_listen_tiles_, river_);
-            is_double_richii_ = river_.empty() && furus_.empty();
-            richii_round_ = round_;
+        if (richii && !Richii_()) {
+            return false;
         }
         river_.emplace_back(round_, is_tsumo, tile, richii);
         const auto kiri_type = yama_idx_ == k_yama_tile_num ? KiriTile::Type::RIVER_BOTTOM : KiriTile::Type::NORMAL;
@@ -309,8 +315,13 @@ struct SyncMahjongGamePlayer
             errstr_ = "您当前没有自摸牌，无法摸切";
             return false;
         }
-        KiriInternal_(true, richii, *tsumo_);
+        assert(tsumo_.has_value());
+        const auto tsumo = *tsumo_;
         tsumo_ = std::nullopt;
+        if (!KiriInternal_(true, richii, *tsumo_)) {
+            tsumo_ = tsumo;
+            return false;
+        }
         return true;
     }
 
@@ -348,14 +359,17 @@ struct SyncMahjongGamePlayer
         }
         const auto tiles = GetTilesFrom(hand_, tile_sv, errstr_);
         if (tiles.empty()) {
-            if (MatchTsumo_(tile_sv)) {
-                return KiriTsumo_(richii);
+            if (!MatchTsumo_(tile_sv)) {
+                errstr_ = "您的手牌中不存在「"s + tile_sv.data() + "」";
+                return false;
             }
-            errstr_ = "您的手牌中不存在「"s + tile_sv.data() + "」";
-            return false;
+            return KiriTsumo_(richii);
         }
         assert(tiles.size() == 1);
-        KiriInternal_(false, richii, *tiles.begin());
+        if (!KiriInternal_(false, richii, *tiles.begin())) {
+            hand_.insert(tiles.begin(), tiles.end()); // rollback
+            return false;
+        }
         if (tsumo_.has_value()) {
             hand_.emplace(*tsumo_);
             tsumo_ = std::nullopt;
@@ -529,6 +543,9 @@ struct SyncMahjongGamePlayer
         std::vector<BaseTile> hand_basetiles;
         for (const Tile& tile : hand_) {
             hand_basetiles.emplace_back(tile.tile);
+        }
+        if (tsumo_.has_value()) {
+            hand_basetiles.emplace_back(tsumo_->tile);
         }
         for (uint8_t basetile = 0; basetile < 9 * 3 + 7; ++basetile) {
             if (4 == std::count(hand_basetiles.begin(), hand_basetiles.end(), basetile)) {
@@ -1072,14 +1089,14 @@ inline bool HandleNagashiManganForNyanpaiNagashi_(std::vector<SyncMahjongGamePla
                         return std::find(k_one_nine_tiles.begin(), k_one_nine_tiles.end(), river_tile.tile_.tile) != k_one_nine_tiles.end();
                     })) {
             ++mangan_player_num;
-            player.point_variation_ += 16000 * players.size();
+            player.point_variation_ += 4000 * players.size();
         }
     }
     if (mangan_player_num == 0) {
         return false;
     }
     for (auto& player : players) {
-        player.point_variation_ -= 16000 * mangan_player_num;
+        player.point_variation_ -= 4000 * mangan_player_num;
     }
     return true;
 }
@@ -1100,7 +1117,7 @@ inline void HandleTinpaiForNyanpaiNagashi_(std::vector<SyncMahjongGamePlayer>& p
     }
 }
 
-inline bool HandleNyanapaiNagashi(std::vector<SyncMahjongGamePlayer>& players)
+inline bool HandleNyanapaiNagashi_(std::vector<SyncMahjongGamePlayer>& players)
 {
     if (std::ranges::none_of(players, [](const SyncMahjongGamePlayer& player) { return player.FinishYama(); })) {
         return false;
@@ -1221,7 +1238,7 @@ class SyncMajong
         if (Is_四家立直(players_)) {
             return RoundOverResult::CHUTO_NAGASHI_四家立直;
         }
-        if (HandleNyanapaiNagashi(players_)) {
+        if (HandleNyanapaiNagashi_(players_)) {
             return RoundOverResult::NYANPAI_NAGASHI;
         }
         StartNormalStage_();
@@ -1269,9 +1286,11 @@ class SyncMajong
 } // namespace lgtbot
   // TODO:
   // 显示可用舍牌
-  // 立直点数留至下一局
-  // 流局满贯
   // 显示具体可执行操作
   // 立直后自动摸切
   // 测试各种振听
-  // 不听罚符
+  // 不听牌不能立直
+  // 无役不能和
+  // 吃牌后不能食和
+  // w立直
+  // 三麻
