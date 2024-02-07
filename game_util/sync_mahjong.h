@@ -96,7 +96,13 @@ struct SyncMahjongGamePlayer
 
     SyncMahjongGamePlayer(const SyncMahjongOption& option, const uint32_t player_id, const std::array<Tile, k_yama_tile_num>& yama,
             TileSet hand)
-        : option_(option), player_id_(player_id), wind_(option.player_descs_[player_id].wind_), yama_(yama), hand_(std::move(hand)) {}
+        : option_(option)
+        , player_id_(player_id)
+        , wind_(option.player_descs_[player_id].wind_)
+        , yama_(yama)
+        , hand_(std::move(hand))
+        , cur_round_my_kiri_info_{.player_id_ = player_id}
+    {}
 
     ActionState State() const { return state_; }
 
@@ -409,9 +415,12 @@ struct SyncMahjongGamePlayer
 
     bool Over()
     {
-        if (state_ != ActionState::AFTER_KIRI) {
+        if (state_ != ActionState::AFTER_KIRI && state_ != ActionState::NOTIFIED_RON) {
             errstr_ = "当前状态不允许结束行动";
             return false;
+        }
+        if (IsRiichi()) {
+            is_richii_furutin_ = true;
         }
         state_ = ActionState::ROUND_OVER;
         return true;
@@ -886,7 +895,7 @@ struct SyncMahjongGamePlayer
         table.last_action = state_ == ActionState::AFTER_KAN ? Action::杠 : Action::pass;
         table.players[player_id_].first_round = river_.empty() && furus_.empty();
         table.players[player_id_].riichi = IsRiichi();
-        table.players[player_id_].double_riichi = is_double_richii_;
+        table.players[player_id_].double_riichi = table.players[player_id_].riichi && is_double_richii_;
         table.players[player_id_].亲家 = true;
         table.players[player_id_].一发 = table.players[player_id_].riichi && richii_round_ + 1 == round_;
         for (auto& tile : hand_) {
@@ -1223,14 +1232,14 @@ class SyncMajong
         if (ron_stage_ = !ron_stage_ && StartRonStage_()) {
             return RoundOverResult::RON_ROUND;
         }
+        if (round_ == 1 && Is_九种九牌(players_)) {
+            return RoundOverResult::CHUTO_NAGASHI_九种九牌;
+        }
         for (auto& player : players_) {
             if (player.richii_round_ == round_) {
                 player.point_variation_ -= 1000;
                 richii_points_ += 1000;
             }
-        }
-        if (round_ == 1 && Is_九种九牌(players_)) {
-            return RoundOverResult::CHUTO_NAGASHI_九种九牌;
         }
         if (round_ == 1 && Is_四风连打(players_)) {
             return RoundOverResult::CHUTO_NAGASHI_四风连打;
@@ -1288,9 +1297,8 @@ class SyncMajong
   // 显示可用舍牌
   // 显示具体可执行操作
   // 立直后自动摸切
-  // 测试各种振听
-  // 不听牌不能立直
-  // 无役不能和
-  // 吃牌后不能食和
-  // w立直
   // 三麻
+  //
+  // 测试各种振听
+  // 立直之后杠
+  // 多人放铳,其中一人无役

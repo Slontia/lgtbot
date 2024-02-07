@@ -44,6 +44,7 @@ std::string TilesToString(const Tiles& tiles)
         append_tile_str(player_tiles.yama_, 19);
         append_tile_str(player_tiles.hand_, 13);
     }
+    append_tile_str(tiles.doras_, 8);
     return s;
 }
 
@@ -105,7 +106,7 @@ GAME_TEST(4, nine_types_of_nine_tiles)
                         },
                         [1] = Tiles::PlayerTiles {
                             .yama_ = "3z",
-                            .hand_ = "19s19p19m12z34567m",
+                            .hand_ = "1s19p19m11234567z",
                         },
                     }
                 }));
@@ -117,7 +118,7 @@ GAME_TEST(4, nine_types_of_nine_tiles)
     ASSERT_PRI_MSG(OK, 2, "摸切");
     ASSERT_PRI_MSG(CHECKOUT, 3, "摸切");
 
-    ASSERT_SCORE(25000, 25000, 25000, 25000);
+    ASSERT_FINISHED(false);
 }
 
 GAME_TEST(4, four_winds_consecutively_kiri)
@@ -146,7 +147,7 @@ GAME_TEST(4, four_winds_consecutively_kiri)
     ASSERT_PRI_MSG(OK, 2, "1z");
     ASSERT_PRI_MSG(CHECKOUT, 3, "1z");
 
-    ASSERT_SCORE(25000, 25000, 25000, 25000);
+    ASSERT_FINISHED(false);
 }
 
 GAME_TEST(4, after_kan_not_four_winds_consecutively_kiri)
@@ -184,7 +185,8 @@ GAME_TEST(4, four_players_richii)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
-                            .hand_ = "123456789m123s1z",
+                            .yama_ = "2z",
+                            .hand_ = "19m19s19p1345677z",
                         },
                         [1] = Tiles::PlayerTiles {
                             .hand_ = "123456789m123s1z",
@@ -211,7 +213,15 @@ GAME_TEST(4, four_players_richii)
     ASSERT_PRI_MSG(OK, 3, "摸牌");
     ASSERT_PRI_MSG(CHECKOUT, 3, "立直 摸切");
 
-    ASSERT_SCORE(24000, 24000, 24000, 24000);
+    // the second game
+    ASSERT_PRI_MSG(OK, 0, "自摸");
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    ASSERT_SCORE(
+            24000 + 96000 + 4000 /*richii_points for the first game*/ + 600 /*benchang*/,
+            24000 - 32000 - 200,
+            24000 - 32000 - 200,
+            24000 - 32000 - 200);
 }
 
 GAME_TEST(4, four_players_richii_on_different_round)
@@ -259,7 +269,7 @@ GAME_TEST(4, four_players_richii_on_different_round)
     ASSERT_PRI_MSG(OK, 2, "摸切");
     ASSERT_PRI_MSG(CHECKOUT, 3, "摸切");
 
-    ASSERT_SCORE(24000, 24000, 24000, 24000);
+    ASSERT_FINISHED(false);
 }
 
 GAME_TEST(4, tenhu)
@@ -326,7 +336,7 @@ GAME_TEST(4, three_players_tsumo_cause_nagashi)
     ASSERT_PRI_MSG(OK, 3, "摸牌");
     ASSERT_PRI_MSG(CHECKOUT, 3, "摸切"); // nagashi
 
-    ASSERT_SCORE(25000, 25000, 25000, 25000);
+    ASSERT_FINISHED(false);
 }
 
 GAME_TEST(4, three_players_ron_cause_nagashi)
@@ -372,7 +382,7 @@ GAME_TEST(4, three_players_ron_cause_nagashi)
     ASSERT_PRI_MSG(OK, 1, "荣");
     ASSERT_PRI_MSG(CHECKOUT, 2, "荣"); // nagashi
 
-    ASSERT_SCORE(25000, 25000, 25000, 25000);
+    ASSERT_FINISHED(false);
 }
 
 GAME_TEST(4, ron_players_obtain_last_game_riichi_points)
@@ -539,7 +549,8 @@ GAME_TEST(4, nari_ron)
                         [3] = Tiles::PlayerTiles {
                             .yama_ = "6m",
                         },
-                    }
+                    },
+                    .doras_ = "3z3z", // doras do not hit
                 }));
     START_GAME();
 
@@ -581,17 +592,43 @@ GAME_TEST(4, cannot_nari_ron_after_chi)
                 }));
     START_GAME();
 
-    for (uint32_t pid = 1; pid < 4; ++pid) {
-        ASSERT_PRI_MSG(OK, pid, "摸切");
-    }
-    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
 
-    for (uint32_t pid = 1; pid < 4; ++pid) {
-        ASSERT_PRI_MSG(OK, pid, "摸牌");
-        ASSERT_PRI_MSG(OK, pid, "摸切");
-    }
     ASSERT_PRI_MSG(OK, 0, "吃 45m 3m");
     ASSERT_PRI_MSG(OK, 0, "1z");
+    ASSERT_PRI_MSG(FAILED, 0, "荣");
+}
+
+GAME_TEST(4, cannot_ron_after_chi)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "3456677s45m345p1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "5s6s",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "3m1z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "6m1z",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "吃 45m 3m");
+    ASSERT_PRI_MSG(OK, 0, "1z");
+    ASSERT_PRI_MSG(CONTINUE, 0, "结束");
+
     ASSERT_PRI_MSG(FAILED, 0, "荣");
 }
 
@@ -627,6 +664,176 @@ GAME_TEST(4, cannot_richii_when_not_tinpai_after_kiri)
     ASSERT_PRI_MSG(FAILED, 0, "立直 摸切");
     ASSERT_PRI_MSG(FAILED, 0, "立直 7s");
     ASSERT_PRI_MSG(OK, 0, "立直 1z");
+}
+
+GAME_TEST(4, richii_nomi_cannot_ron_in_the_same_round_due_to_no_yakus)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .hand_ = "34566677s12m345p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "3m3m",
+                            .hand_ = "1z2z", // do not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // do not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // do not tinpai
+                        },
+                    },
+                    .doras_ = "3z3z", // doras do not hit
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "立直 摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    // skip the ron stage
+
+    ASSERT_PRI_MSG(FAILED, 0, "荣");
+    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 两立直 一发 40 fu 3 fan
+
+    ASSERT_SCORE(25000 + 7700, 25000 - 7700, 25000, 25000);
+}
+
+GAME_TEST(4, cannot_nari_ron_when_self_furutin)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "6m",
+                            .hand_ = "3456677s45m345p1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "6s",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "3m",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "6m",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "碰 6s");
+    ASSERT_PRI_MSG(OK, 0, "1z");
+    ASSERT_PRI_MSG(FAILED, 0, "荣");
+    ASSERT_PRI_MSG(CONTINUE, 0, "结束");
+}
+
+GAME_TEST(4, cannot_ron_when_self_furutin)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "6m",
+                            .hand_ = "34566677s45m345p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "6s",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "3m",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "6m",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(FAILED, 0, "荣");
+    ASSERT_PRI_MSG(OK, 0, "摸牌");
+    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+}
+
+GAME_TEST(4, cannot_ron_when_richii_furutin)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .hand_ = "34566677s45m345p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "1z3m6m",
+                            .hand_ = "1z2z", // do not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // do not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // do not tinpai
+                        },
+                    },
+                    .doras_ = "3z3z", // doras do not hit
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "立直 摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+    ASSERT_PRI_MSG(CONTINUE, 0, "结束"); // do not ron 3m
+
+    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+
+    ASSERT_PRI_MSG(FAILED, 0, "荣");
+    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+}
+
+GAME_TEST(4, can_ron_after_jiantao_before_richii)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .hand_ = "34566677s45m345p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "1z3m6m",
+                            .hand_ = "1z2z", // do not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // do not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // do not tinpai
+                        },
+                    },
+                    .doras_ = "3z3z", // doras do not hit
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "摸牌");
+    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+    ASSERT_PRI_MSG(CONTINUE, 0, "结束"); // do not ron 3m
+
+    ASSERT_PRI_MSG(OK, 0, "摸牌");
+    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 40 fu 1 fan
+
+    ASSERT_SCORE(25000 + 2000, 25000 - 2000, 25000, 25000);
 }
 
 } // namespace GAME_MODULE_NAME

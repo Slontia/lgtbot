@@ -70,7 +70,6 @@ class MainStage : public MainGameStage<TableStage>
     {
 #ifdef TEST_BOT
         if (!GET_OPTION_VALUE(option, 配牌).empty()) {
-            //std::cout << "配牌xxxxxxxxxxxxxxx " << GET_OPTION_VALUE(option, 配牌) << std::endl;
             sync_mahjong_option_.tiles_option_ = GET_OPTION_VALUE(option, 配牌);
         }
 #endif
@@ -82,6 +81,8 @@ class MainStage : public MainGameStage<TableStage>
     virtual int64_t PlayerScore(const PlayerID pid) const override { return sync_mahjong_option_.player_descs_[pid].base_point_; }
 
     const game_util::mahjong::SyncMahjongOption& GetSyncMahjongOption() const { return sync_mahjong_option_; }
+
+    int32_t GameNo() const { return game_; }
 
   private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
@@ -106,6 +107,7 @@ class MainStage : public MainGameStage<TableStage>
     }
 
     game_util::mahjong::SyncMahjongOption sync_mahjong_option_;
+    int32_t game_{0};
 };
 
 class SingleTileChecker : public AnyArg
@@ -131,7 +133,7 @@ class TableStage : public SubGameStage<>
 {
   public:
     TableStage(MainStage& main_stage)
-        : GameStage(main_stage, std::to_string(main_stage.GetSyncMahjongOption().benchang_) + " 本场",
+        : GameStage(main_stage, std::to_string(main_stage.GameNo()) + " 局 " + std::to_string(main_stage.GetSyncMahjongOption().benchang_) + " 本场",
                 MakeStageCommand("查看场上情况", &TableStage::Info_, VoidChecker("赛况")),
                 MakeStageCommand("摸牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::GetTile_, VoidChecker("摸牌")),
                 MakeStageCommand("吃牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Chi_, VoidChecker("吃"), AnyArg("手中的牌（两张）", "24m"), SingleTileChecker("要吃的牌（一张）", "3m")),
@@ -141,7 +143,7 @@ class TableStage : public SubGameStage<>
                 MakeStageCommand("自摸和牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Tsumo_, VoidChecker("自摸")),
                 MakeStageCommand("荣和（副露荣和或者荣和）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Ron_, VoidChecker("荣")),
                 MakeStageCommand("切掉自己刚刚摸到的牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::KiriTsumo_, VoidChecker("摸切")),
-                MakeStageCommand("鸣牌并切牌后结束本回合行动", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Over_, VoidChecker("结束")),
+                MakeStageCommand("结束本回合行动", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Over_, VoidChecker("结束")),
                 MakeStageCommand("宣告立直，然后切掉自己刚刚摸到的牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::RichiiKiriTsumo_, VoidChecker("立直"), VoidChecker("摸切")),
                 MakeStageCommand("切掉一张牌（优先选择手牌，而不是自己刚刚摸到的牌）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Kiri_, SingleTileChecker("要切的牌", "3m")),
                 MakeStageCommand("宣告立直，然后切掉一张牌（优先选择手牌，而不是自己刚刚摸到的牌）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::RichiiKiri_, VoidChecker("立直"), SingleTileChecker("要切的牌", "3m")))
@@ -235,37 +237,43 @@ class TableStage : public SubGameStage<>
         OnOver_();
     }
 
+    bool IsValidGame() const { return is_valid_game_; }
+
   private:
     // return true if game over
     bool OnOver_()
     {
         const game_util::mahjong::SyncMajong::RoundOverResult result = table_.RoundOver();
         UpdatePlayerPublicHtmls_();
+        auto sender = Boardcast();
         switch (result) {
             case game_util::mahjong::SyncMajong::RoundOverResult::NORMAL_ROUND:
-                Boardcast() << "本巡结果如图所示，请各玩家进行下一巡的行动" << Markdown(BoardcastHtml_(), k_image_width);
+                sender << "本巡结果如图所示，请各玩家进行下一巡的行动" << Markdown(BoardcastHtml_(), k_image_width);
             case game_util::mahjong::SyncMajong::RoundOverResult::RON_ROUND:
                 AllowPlayersToAct_();
                 return false;
             case game_util::mahjong::SyncMajong::RoundOverResult::FU:
-                Boardcast() << "有人和牌，本局结束";
+                sender << "有人和牌，本局结束";
+                is_valid_game_ = true;
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_三家和了:
-                Boardcast() << "三家和了，中途流局，本局结束";
+                sender << "三家和了，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_九种九牌:
-                Boardcast() << "九种九牌，中途流局，本局结束";
+                sender << "九种九牌，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_四风连打:
-                Boardcast() << "四风连打，中途流局，本局结束";
+                sender << "四风连打，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_四家立直:
-                Boardcast() << "四家立直，中途流局，本局结束";
+                sender << "四家立直，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::NYANPAI_NAGASHI:
-                Boardcast() << "荒牌流局，本局结束";
+                sender << "荒牌流局，本局结束";
+                is_valid_game_ = true;
                 break;
         }
+        sender << Markdown(BoardcastHtml_(), k_image_width);
         return true;
     }
 
@@ -328,7 +336,11 @@ class TableStage : public SubGameStage<>
                "\n- 碰（例如：碰 5m）"
                "\n- 杠（仅可直杠，例如：杠 5m）"
                "\n- 荣（鸣牌荣和）" :
-               "您本回合行动已结束";
+               state == lgtbot::game_util::mahjong::ActionState::NOTIFIED_RON ?
+               "接下来您可以执行的操作有（【】中的行为是一定可以执行的）："
+               "\n- 【荣】"
+               "\n- 【结束】" :
+               "您不需要做任何行动";
     }
 
     AtomReqErrCode GetTile_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
@@ -393,6 +405,7 @@ class TableStage : public SubGameStage<>
 
     lgtbot::game_util::mahjong::SyncMajong table_;
     std::vector<std::string> player_public_htmls_;
+    bool is_valid_game_{false};
 };
 
 MainStage::VariantSubStage MainStage::OnStageBegin()
@@ -406,9 +419,12 @@ MainStage::VariantSubStage MainStage::NextSubStage(TableStage& sub_stage, const 
     for (uint32_t pid = 0; pid < sync_mahjong_option_.player_descs_.size(); ++pid) {
         sync_mahjong_option_.player_descs_[pid].base_point_ += sub_stage.PlayerPointVariation(pid);
     }
-    sync_mahjong_option_.benchang_ += 2;
-    sync_mahjong_option_.richii_points_ = sub_stage.RemainingRichiiPoints();
-    if (sync_mahjong_option_.benchang_ < GET_OPTION_VALUE(option(), 局数) * 2) {
+    if (sub_stage.IsValidGame()) {
+        ++game_;
+    }
+    if (game_ < GET_OPTION_VALUE(option(), 局数)) {
+        sync_mahjong_option_.benchang_ += 2;
+        sync_mahjong_option_.richii_points_ = sub_stage.RemainingRichiiPoints();
         UpateSeed_();
         return std::make_unique<TableStage>(*this);
     }
