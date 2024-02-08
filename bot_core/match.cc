@@ -221,6 +221,24 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
     }
+    nlohmann::json players_json_array;
+    players_.clear();
+    for (auto& [uid, user_info] : users_) {
+        for (int i = 0; i < player_num_each_user_; ++i) {
+            user_info.pids_.emplace_back(players_.size());
+            players_.emplace_back(uid);
+            players_json_array.push_back(nlohmann::json{
+                        { "user_id", uid.GetStr() }
+                    });
+        }
+        user_info.sender_.SetMatch(this);
+    }
+    for (ComputerID cid = 0; cid < ComputerNum_(); ++cid) {
+        players_.emplace_back(cid);
+        players_json_array.push_back(nlohmann::json{
+                    { "computer_id", static_cast<uint64_t>(cid) }
+                });
+    }
     const uint64_t player_num = std::max(user_controlled_player_num(), bench_to_player_num_);
     const std::string resource_dir = (std::filesystem::absolute(bot_.game_path()) / game_handle_.module_name_ / "").string();
     const std::string saved_image_dir =
@@ -238,23 +256,6 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
     }
     state_ = State::IS_STARTED;
     BoardcastAtAll() << "游戏开始，您可以使用「帮助」命令（不带" META_COMMAND_SIGN "号），查看可执行命令";
-    nlohmann::json players_json_array;
-    for (auto& [uid, user_info] : users_) {
-        for (int i = 0; i < player_num_each_user_; ++i) {
-            user_info.pids_.emplace_back(players_.size());
-            players_.emplace_back(uid);
-            players_json_array.push_back(nlohmann::json{
-                        { "user_id", uid.GetStr() }
-                    });
-        }
-        user_info.sender_.SetMatch(this);
-    }
-    for (ComputerID cid = 0; cid < ComputerNum_(); ++cid) {
-        players_.emplace_back(cid);
-        players_json_array.push_back(nlohmann::json{
-                    { "computer_id", static_cast<uint64_t>(cid) }
-                });
-    }
     BoardcastAiInfo() << nlohmann::json{
             { "match_id", MatchId() },
             { "state", "started" },
