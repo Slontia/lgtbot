@@ -50,7 +50,7 @@ class MainStage : public MainGameStage<TableStage>
 {
   public:
     MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match, MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
+        : GameStage(option, match)
         , sync_mahjong_option_{
             .tiles_option_ = game_util::mahjong::TilesOption{
                 .with_red_dora_ = GET_OPTION_VALUE(option, 赤宝牌),
@@ -85,13 +85,6 @@ class MainStage : public MainGameStage<TableStage>
     int32_t GameNo() const { return game_; }
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
-    {
-        reply() << "这里输出当前游戏情况";
-        // Returning |OK| means the game stage
-        return StageErrCode::OK;
-    }
-
     void UpateSeed_()
     {
 #ifdef TEST_BOT
@@ -246,35 +239,34 @@ class TableStage : public SubGameStage<>
     {
         const game_util::mahjong::SyncMajong::RoundOverResult result = table_.RoundOver();
         UpdatePlayerPublicHtmls_();
-        auto sender = Boardcast();
         switch (result) {
             case game_util::mahjong::SyncMajong::RoundOverResult::NORMAL_ROUND:
-                sender << "本巡结果如图所示，请各玩家进行下一巡的行动" << Markdown(BoardcastHtml_(), k_image_width);
+                Boardcast() << "本巡结果如图所示，请各玩家进行下一巡的行动" << Markdown(BoardcastHtml_(), k_image_width);
             case game_util::mahjong::SyncMajong::RoundOverResult::RON_ROUND:
                 AllowPlayersToAct_();
                 return false;
             case game_util::mahjong::SyncMajong::RoundOverResult::FU:
-                sender << "有人和牌，本局结束";
+                Boardcast() << "有人和牌，本局结束";
                 is_valid_game_ = true;
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_三家和了:
-                sender << "三家和了，中途流局，本局结束";
+                Boardcast() << "三家和了，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_九种九牌:
-                sender << "九种九牌，中途流局，本局结束";
+                Boardcast() << "九种九牌，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_四风连打:
-                sender << "四风连打，中途流局，本局结束";
+                Boardcast() << "四风连打，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_四家立直:
-                sender << "四家立直，中途流局，本局结束";
+                Boardcast() << "四家立直，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::NYANPAI_NAGASHI:
-                sender << "荒牌流局，本局结束";
+                Boardcast() << "荒牌流局，本局结束";
                 is_valid_game_ = true;
                 break;
         }
-        sender << Markdown(BoardcastHtml_(), k_image_width);
+        Group() << Markdown(BoardcastHtml_(), k_image_width);
         return true;
     }
 
@@ -289,6 +281,8 @@ class TableStage : public SubGameStage<>
         if (player.State() == game_util::mahjong::ActionState::ROUND_OVER) {
             reply() << "行动成功，您本回合行动已结束";
             return StageErrCode::READY;
+        } else {
+            StartTimer(GET_OPTION_VALUE(option(), 时限));
         }
         reply() << Markdown(PlayerHtml_(player), k_image_width);
         reply() << "行动成功，" << AvailableActions_(player.State());
@@ -297,6 +291,7 @@ class TableStage : public SubGameStage<>
 
     AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
+        reply() << BoardcastHtml_();
         return StageErrCode::OK;
     }
 

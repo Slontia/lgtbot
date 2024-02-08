@@ -155,7 +155,8 @@ struct SyncMahjongGamePlayer
     }
 
     std::string HandHtml_(const TileStyle tile_style) const {
-        return AppendFuruHtmls_(HandHtml(option_.image_path_, hand_, tile_style, tsumo_));
+        const auto hand_html_func = tile_style == TileStyle::HAND ? &HandHtmlWithName : &HandHtml;
+        return AppendFuruHtmls_(hand_html_func(option_.image_path_, hand_, tile_style, tsumo_));
     }
 
     std::string HandHtmlBack_() const {
@@ -234,12 +235,17 @@ struct SyncMahjongGamePlayer
         assert(state_ == ActionState::ROUND_OVER);
         round_ = round;
         cur_round_my_kiri_info_.kiri_tiles_.clear();
-        if (IsRiichi() || round_ == 1) {
-            GetTileInternal_();
-            state_ = ActionState::AFTER_GET_TILE;
-        } else {
+        if (!IsRiichi() && (CanChi_() || CanPon_())) {
             state_ = ActionState::ROUND_BEGIN;
+            return;
         }
+        GetTileInternal_();
+        if (!IsRiichi() || CanTsumo_() || CanDarkKanInRichiiState_()) {
+            state_ = ActionState::AFTER_GET_TILE;
+            return;
+        }
+        KiriInternal_(true /*is_tsumo*/, false /*richii*/, *tsumo_);
+        tsumo_ = std::nullopt;
     }
 
     void SetKiriInfos_(const std::vector<PlayerKiriInfo>& kiri_infos)
@@ -262,7 +268,7 @@ struct SyncMahjongGamePlayer
     void StartRonStage(const std::vector<PlayerKiriInfo>& kiri_infos)
     {
         SetKiriInfos_(kiri_infos);
-        if (CanRon()) {
+        if (CanRon_()) {
             state_ = ActionState::NOTIFIED_RON;
         }
     }
@@ -704,6 +710,25 @@ struct SyncMahjongGamePlayer
         return succ;
     }
 
+    bool CanChi_() const
+    {
+        // TODO
+        return round_ != 1;
+    }
+
+    bool CanPon_() const
+    {
+        // TODO
+        return round_ != 1;
+    }
+
+    bool CanDarkKanInRichiiState_() const
+    {
+        // TODO
+        assert(IsRiichi());
+        return true;
+    }
+
     enum class FuType { TSUMO, ROB_KAN, RON };
 
     std::optional<CounterResult> GetCounter_(const Tile& tile, const FuType fu_type, const bool is_last_tile, std::string* const errstr = nullptr) const
@@ -817,8 +842,8 @@ struct SyncMahjongGamePlayer
         return counter;
     }
 
-    // If `CanRon()` returns true, `Ron()` must return true.
-    bool CanRon() const
+    // If `CanRon_()` returns true, `Ron()` must return true.
+    bool CanRon_() const
     {
         if (IsFurutin_() || has_chi_) {
             return false;
@@ -833,7 +858,7 @@ struct SyncMahjongGamePlayer
         return false;
     }
 
-    bool CanTsumo() const
+    bool CanTsumo_() const
     {
         assert(tsumo_.has_value());
         return GetCounter_(*tsumo_, FuType::TSUMO, yama_idx_ == k_yama_tile_num, nullptr).has_value();
