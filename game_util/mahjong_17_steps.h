@@ -569,7 +569,7 @@ class Mahjong17Steps
 
     std::string HandHtmlAll_(const uint64_t pid, const TileStyle style) const
     {
-        return HandHtml(option_.image_path_, players_[pid].hand_, style);
+        return "<center>\n\n" + HandHtml(option_.image_path_, players_[pid].hand_, style) + "\n\n</center>\n\n";
     }
 
     std::string HandStringAll_(const uint64_t pid) const
@@ -584,7 +584,7 @@ class Mahjong17Steps
 
     std::string HandHtmlBack_(const uint64_t pid) const
     {
-        return HandHtmlBack(option_.image_path_, players_[pid].hand_);
+        return "<center>\n\n" + HandHtmlBack(option_.image_path_, players_[pid].hand_) + "\n\n</center>\n\n";
     }
 
     std::string HandStringBack_(const uint64_t pid) const
