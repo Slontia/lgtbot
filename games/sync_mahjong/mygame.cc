@@ -141,7 +141,6 @@ class TableStage : public SubGameStage<>
                 MakeStageCommand("切掉一张牌（优先选择手牌，而不是自己刚刚摸到的牌）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Kiri_, SingleTileChecker("要切的牌", "3m")),
                 MakeStageCommand("宣告立直，然后切掉一张牌（优先选择手牌，而不是自己刚刚摸到的牌）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::RichiiKiri_, VoidChecker("立直"), SingleTileChecker("要切的牌", "3m")))
           , table_(main_stage.GetSyncMahjongOption())
-          , player_public_htmls_(main_stage.GetSyncMahjongOption().player_descs_.size())
     {
     }
 
@@ -151,13 +150,9 @@ class TableStage : public SubGameStage<>
 
     void UpdatePlayerPublicHtmls_() {
         public_dora_html_ = table_.Players()[0].PublicDoraHtml();
-        for (const auto& player : table_.Players()) {
-            player_public_htmls_[player.PlayerID()] = player.Html(game_util::mahjong::SyncMahjongGamePlayer::HtmlMode::PUBLIC);
-        }
     }
 
     void AllowPlayersToAct_() {
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
         for (const auto& player : table_.Players()) {
             if (player.State() != game_util::mahjong::ActionState::ROUND_OVER) {
                 ClearReady(player.PlayerID());
@@ -165,6 +160,7 @@ class TableStage : public SubGameStage<>
                 Tell(player.PlayerID()) << AvailableActions_(player.State());
             }
         }
+        StartTimer(GET_OPTION_VALUE(option(), 时限));
     }
 
     void TellAllPlayersHtml_() {
@@ -183,13 +179,13 @@ class TableStage : public SubGameStage<>
         std::string s = TitleHtml_();
         s += player.PublicDoraHtml();
         s += "\n\n";
-        s += player.Html(game_util::mahjong::SyncMahjongGamePlayer::HtmlMode::PRIVATE);
+        s += player.PrivateHtml();
         for (PlayerID other_pid = 0; other_pid < option().PlayerNum(); ++other_pid) {
             s += "\n\n";
             if (player.PlayerID() == other_pid) {
                 continue;
             }
-            s += player_public_htmls_[other_pid];
+            s += table_.Players()[other_pid].PublicHtml();
         }
         return s;
     }
@@ -201,7 +197,7 @@ class TableStage : public SubGameStage<>
         s += "\n\n";
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             s += "\n\n";
-            s += player_public_htmls_[pid];
+            s += table_.Players()[pid].PublicHtml();
         }
         return s;
     }
@@ -403,7 +399,6 @@ class TableStage : public SubGameStage<>
 
     lgtbot::game_util::mahjong::SyncMajong table_;
     std::string public_dora_html_;
-    std::vector<std::string> player_public_htmls_;
     bool is_valid_game_{false};
 };
 

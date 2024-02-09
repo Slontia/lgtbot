@@ -133,41 +133,14 @@ class SyncMahjongGamePlayer
         , hand_(std::move(hand))
         , cur_round_my_kiri_info_{.player_id_ = player_id}
         , doras_manager_(doras)
+        , public_html_(Html_(HtmlMode::PUBLIC))
     {}
 
     std::string PublicDoraHtml() const { return DoraHtml(image_path_, false, doras_manager_.Doras(), false); }
 
-    enum class HtmlMode { OPEN, PRIVATE, PUBLIC };
-    std::string Html(const HtmlMode html_mode) const
-    {
-        std::string s;
-        s += PlayerNameHtml(player_descs_[player_id_], point_variation_) + "\n\n";
-        s += "<center>\n\n**剩余牌山：" HTML_COLOR_FONT_HEADER(blue) + std::to_string(k_yama_tile_num - yama_idx_) + HTML_FONT_TAIL + "**\n\n</center>\n\n";
-        if (!fu_results_.empty()) {
-            s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(blue) " **和&nbsp;&nbsp;了** "
-                HTML_FONT_TAIL "\n\n</font> </center>\n\n";
-            s += DoraHtml(image_path_, IsRiichi_(), doras_manager_.Doras(), true);
-            s += "\n\n";
-            s += HandHtml_(TileStyle::FORWARD);
-            s += "\n\n";
-            s += RonInfoHtml_(image_path_, player_descs_, fu_results_);
-            s += "\n\n<br />\n\n";
-        } else if (html_mode == HtmlMode::OPEN) {
-            s += HandHtml_(TileStyle::FORWARD) + "\n\n<br />\n\n";
-        } else if (html_mode == HtmlMode::PRIVATE) {
-            s += HandHtml_(TileStyle::HAND) + "\n\n<br />\n\n";
-            if (IsFurutin_()) {
-                s += "<center>\n\n" HTML_COLOR_FONT_HEADER(red) " **振听中，无法荣和** " HTML_FONT_TAIL "\n\n</center>";
-            }
-        } else {
-            s += HandHtmlBack_() + "\n\n<br />\n\n";
-        }
-        if (IsRiichi_()) {
-            s += "<div align=\"center\"><img src=\"file:///" + image_path_ + "/riichi.png\"/></div>\n\n<br />\n\n";
-        }
-        s += RiverHtml_(image_path_, river_);
-        return s;
-    }
+    const std::string& PublicHtml() const { return public_html_; }
+
+    std::string PrivateHtml() const { return Html_(HtmlMode::PRIVATE); }
 
     void PerformDefault()
     {
@@ -230,6 +203,10 @@ class SyncMahjongGamePlayer
         }
         if (!tile.empty() && IsRiichi_()) {
             errstr_ = "立直状态下只能选择摸切";
+            return false;
+        }
+        if (richii && yama_idx_ >= k_yama_tile_num) {
+            errstr_ = "只有在牌山有牌的情况下才可以立直";
             return false;
         }
         if (richii && !std::ranges::all_of(furus_, [](const Furu& furu) { return furu.tiles_[3].type_ == FuruTile::Type::DARK; })) {
@@ -448,6 +425,38 @@ class SyncMahjongGamePlayer
 
   private:
     enum class FuType { TSUMO, ROB_KAN, RON };
+
+    enum class HtmlMode { OPEN, PRIVATE, PUBLIC };
+    std::string Html_(const HtmlMode html_mode) const
+    {
+        std::string s;
+        s += PlayerNameHtml(player_descs_[player_id_], point_variation_) + "\n\n";
+        s += "<center>\n\n**剩余牌山：" HTML_COLOR_FONT_HEADER(blue) + std::to_string(k_yama_tile_num - yama_idx_) + HTML_FONT_TAIL + "**\n\n</center>\n\n";
+        if (!fu_results_.empty()) {
+            s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(blue) " **和&nbsp;&nbsp;了** "
+                HTML_FONT_TAIL "\n\n</font> </center>\n\n";
+            s += DoraHtml(image_path_, IsRiichi_(), doras_manager_.Doras(), true);
+            s += "\n\n";
+            s += HandHtml_(TileStyle::FORWARD);
+            s += "\n\n";
+            s += RonInfoHtml_(image_path_, player_descs_, fu_results_);
+            s += "\n\n<br />\n\n";
+        } else if (html_mode == HtmlMode::OPEN) {
+            s += HandHtml_(TileStyle::FORWARD) + "\n\n<br />\n\n";
+        } else if (html_mode == HtmlMode::PRIVATE) {
+            s += HandHtml_(TileStyle::HAND) + "\n\n<br />\n\n";
+            if (IsFurutin_()) {
+                s += "<center>\n\n" HTML_COLOR_FONT_HEADER(red) " **振听中，无法荣和** " HTML_FONT_TAIL "\n\n</center>";
+            }
+        } else {
+            s += HandHtmlBack_() + "\n\n<br />\n\n";
+        }
+        if (IsRiichi_()) {
+            s += "<div align=\"center\"><img src=\"file:///" + image_path_ + "/riichi.png\"/></div>\n\n<br />\n\n";
+        }
+        s += RiverHtml_(image_path_, river_);
+        return s;
+    }
 
     static std::string RiverHtml_(const std::string& image_path, const std::vector<RiverTile>& river)
     {
@@ -1111,6 +1120,7 @@ class SyncMahjongGamePlayer
     DorasManager doras_manager_;
 
     std::string errstr_;
+    std::string public_html_;
 };
 
 class SyncMajong
@@ -1137,6 +1147,7 @@ class SyncMajong
     RoundOverResult RoundOver() {
         for (auto& player : players_) {
             player.PerformDefault();
+            player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
         }
         UpdateDora_();
         if (Is_三家和了(players_)) {
@@ -1148,7 +1159,7 @@ class SyncMajong
         if (ron_stage_ = !ron_stage_ && StartRonStage_()) {
             return RoundOverResult::RON_ROUND;
         }
-        if (round_ == 1 && Is_九种九牌(players_)) {
+        if (round_ == 1 && UpdatePublicHtmlFor_九种九牌(players_)) {
             return RoundOverResult::CHUTO_NAGASHI_九种九牌;
         }
         for (auto& player : players_) {
@@ -1271,9 +1282,18 @@ class SyncMajong
     }
 
     // should only check for the first round
-    static bool Is_九种九牌(const std::vector<SyncMahjongGamePlayer>& players)
+    static bool UpdatePublicHtmlFor_九种九牌(std::vector<SyncMahjongGamePlayer>& players)
     {
-        return std::ranges::any_of(players, [](const SyncMahjongGamePlayer& player) { return player.river_.empty() && player.fu_results_.empty(); });
+        bool found = false;
+        for (auto& player : players) {
+            if (player.river_.empty() && player.fu_results_.empty()) {
+                player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::OPEN);
+                player.public_html_ += "\n\n<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(green)
+                    " **九&nbsp;&nbsp;种&nbsp;&nbsp;九&nbsp;&nbsp;牌** " HTML_FONT_TAIL "\n\n</font> </center>\n\n";
+                found = true;
+            }
+        }
+        return found;
     }
 
     // should only check for the first round
@@ -1326,6 +1346,9 @@ class SyncMajong
                 player.point_variation_ -= nyanpai_tinpai_points / (players.size() - tinpai_player_num);
             } else {
                 player.point_variation_ += nyanpai_tinpai_points / tinpai_player_num;
+                player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::OPEN);
+                player.public_html_ += "\n\n<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(green)
+                    " **听&nbsp;&nbsp;牌** " HTML_FONT_TAIL "\n\n</font> </center>\n\n";
             }
         }
     }

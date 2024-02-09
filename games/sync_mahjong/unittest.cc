@@ -481,15 +481,19 @@ GAME_TEST(4, nyanpai_nagashi_mangan)
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
                             .yama_ = "19m19s19p1234567123456z", // nagashi mangan
+                            .hand_ = "1z2z", // prevent tinpai
                         },
                         [1] = Tiles::PlayerTiles {
                             .yama_ = "19m19s19p1234567123456z", // nagashi mangan
+                            .hand_ = "1z2z", // prevent tinpai
                         },
                         [2] = Tiles::PlayerTiles {
                             .yama_ = "2m", // prevent nagashi mangan
+                            .hand_ = "1z2z", // prevent tinpai
                         },
                         [3] = Tiles::PlayerTiles {
                             .yama_ = "2m", // prevent nagashi mangan
+                            .hand_ = "1z2z", // prevent tinpai
                         },
                     }
                 }));
@@ -928,6 +932,35 @@ GAME_TEST(4, do_not_kiri_red_dora)
     ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 断幺, red dora, 40 fu 2 fan
 
     ASSERT_SCORE(25000 + 3900, 25000 - 1300, 25000 - 1300, 25000 - 1300);
+}
+
+GAME_TEST(4, cannot_richii_last_round)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .hand_ = "233334m0456s678p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                    },
+                }));
+    START_GAME();
+
+    for (uint32_t i = 0; i < 18; ++i) {
+        ASSERT_TIMEOUT(CONTINUE);
+    }
+
+    ASSERT_PRI_MSG(OK, 0, "摸牌");
+    ASSERT_PRI_MSG(FAILED, 0, "立直 摸切");
 }
 
 } // namespace GAME_MODULE_NAME
