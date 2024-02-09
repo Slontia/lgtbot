@@ -177,13 +177,14 @@ class TableStage : public SubGameStage<>
 
     std::string TitleHtml_() const
     {
-        return "<style>html,body{background:#c3e4f5;}</style>\n\n" + game_util::mahjong::TitleHtml(name(), table_.Round())
-            + "\n\n" + public_dora_html_ + "\n\n";
+        return "<style>html,body{background:#c3e4f5;}</style>\n\n" + game_util::mahjong::TitleHtml(name(), table_.Round()) + "\n\n";
     }
 
     std::string PlayerHtml_(const game_util::mahjong::SyncMahjongGamePlayer &player) const
     {
         std::string s = TitleHtml_();
+        s += player.PublicDoraHtml();
+        s += "\n\n";
         s += player.Html(game_util::mahjong::SyncMahjongGamePlayer::HtmlMode::PRIVATE);
         for (PlayerID other_pid = 0; other_pid < option().PlayerNum(); ++other_pid) {
             s += "\n\n";
@@ -198,6 +199,8 @@ class TableStage : public SubGameStage<>
     std::string BoardcastHtml_() const
     {
         std::string s = TitleHtml_();
+        s += public_dora_html_;
+        s += "\n\n";
         for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
             s += "\n\n";
             s += player_public_htmls_[pid];

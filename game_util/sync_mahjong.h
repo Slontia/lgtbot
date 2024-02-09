@@ -306,7 +306,6 @@ class SyncMahjongGamePlayer
         std::sort(furu.tiles_.begin(), furu.tiles_.begin() + 3,
                 [](const auto& _1, const auto& _2) { return _1.tile_.tile < _2.tile_.tile; });
         has_chi_ = true;
-        //min_ron_yaku_++;
         state_ = ActionState::AFTER_CHI_PON;
         return true;
     }
@@ -1069,7 +1068,6 @@ class SyncMahjongGamePlayer
     std::vector<RiverTile> river_;
     std::vector<Furu> furus_; // do not use array because there may be nuku pei
     bool has_chi_{false};
-    //uint32_t min_ron_yaku_{1};
     ActionState state_{ActionState::ROUND_OVER};
 
     int32_t round_{0};
@@ -1077,7 +1075,7 @@ class SyncMahjongGamePlayer
     KiriInfo cur_round_kiri_info_;
 
     bool is_double_richii_{false};
-    bool is_richii_furutin_{false}; // TODO: kiri tsumo tile or jiantao will set it true
+    bool is_richii_furutin_{false};
     int32_t richii_round_{0};
     std::vector<BaseTile> richii_listen_tiles_;
 
