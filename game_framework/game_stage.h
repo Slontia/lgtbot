@@ -73,6 +73,7 @@ class Masker
         // not reset any_ready to prevent players waiting a left player
         Log_(DebugLog()) << "Unset game stage begin mask " << ToString_(index);
         Unset_(recorder_[index]);
+        any_user_ready_ = false;
         Log_(DebugLog()) << "Unset game stage finish mask " << ToString_(index);
     }
 
