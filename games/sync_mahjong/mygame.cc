@@ -158,14 +158,12 @@ class TableStage : public SubGameStage<>
 
     void AllowPlayersToAct_() {
         StartTimer(GET_OPTION_VALUE(option(), 时限));
-        ClearReady(); // reset `any_user_ready_`
         for (const auto& player : table_.Players()) {
-            if (player.State() == game_util::mahjong::ActionState::ROUND_OVER) {
-                SetReady(player.PlayerID());
-                continue;
+            if (player.State() != game_util::mahjong::ActionState::ROUND_OVER) {
+                ClearReady(player.PlayerID());
+                Tell(player.PlayerID()) << Markdown(PlayerHtml_(player), k_image_width);
+                Tell(player.PlayerID()) << AvailableActions_(player.State());
             }
-            Tell(player.PlayerID()) << Markdown(PlayerHtml_(player), k_image_width);
-            Tell(player.PlayerID()) << AvailableActions_(player.State());
         }
     }
 

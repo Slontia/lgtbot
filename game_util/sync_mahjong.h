@@ -122,33 +122,35 @@ class SyncMahjongGamePlayer
     friend class SyncMajong;
 
   public:
-    SyncMahjongGamePlayer(const SyncMahjongOption& option, const uint32_t player_id, const std::array<Tile, k_yama_tile_num>& yama,
-            TileSet hand, const std::array<std::pair<Tile, Tile>, 4>& doras)
-        : option_(option)
+    SyncMahjongGamePlayer(const std::string& image_path, const std::vector<PlayerDesc>& player_descs,
+            const uint32_t player_id, const std::array<Tile, k_yama_tile_num>& yama, TileSet hand,
+            const std::array<std::pair<Tile, Tile>, 4>& doras)
+        : image_path_(image_path)
+        , player_descs_(player_descs)
         , player_id_(player_id)
-        , wind_(option.player_descs_[player_id].wind_)
+        , wind_(player_descs_[player_id].wind_)
         , yama_(yama)
         , hand_(std::move(hand))
         , cur_round_my_kiri_info_{.player_id_ = player_id}
         , doras_manager_(doras)
     {}
 
-    std::string PublicDoraHtml() const { return DoraHtml(option_.image_path_, false, doras_manager_.Doras(), false); }
+    std::string PublicDoraHtml() const { return DoraHtml(image_path_, false, doras_manager_.Doras(), false); }
 
     enum class HtmlMode { OPEN, PRIVATE, PUBLIC };
     std::string Html(const HtmlMode html_mode) const
     {
         std::string s;
-        s += PlayerNameHtml(option_.player_descs_[player_id_], point_variation_) + "\n\n";
+        s += PlayerNameHtml(player_descs_[player_id_], point_variation_) + "\n\n";
         s += "<center>\n\n**剩余牌山：" HTML_COLOR_FONT_HEADER(blue) + std::to_string(k_yama_tile_num - yama_idx_) + HTML_FONT_TAIL + "**\n\n</center>\n\n";
         if (!fu_results_.empty()) {
             s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(blue) " **和&nbsp;&nbsp;了** "
                 HTML_FONT_TAIL "\n\n</font> </center>\n\n";
-            s += DoraHtml(option_.image_path_, IsRiichi_(), doras_manager_.Doras(), true);
+            s += DoraHtml(image_path_, IsRiichi_(), doras_manager_.Doras(), true);
             s += "\n\n";
             s += HandHtml_(TileStyle::FORWARD);
             s += "\n\n";
-            s += RonInfoHtml_(option_, fu_results_);
+            s += RonInfoHtml_(image_path_, player_descs_, fu_results_);
             s += "\n\n<br />\n\n";
         } else if (html_mode == HtmlMode::OPEN) {
             s += HandHtml_(TileStyle::FORWARD) + "\n\n<br />\n\n";
@@ -161,9 +163,9 @@ class SyncMahjongGamePlayer
             s += HandHtmlBack_() + "\n\n<br />\n\n";
         }
         if (IsRiichi_()) {
-            s += "<div align=\"center\"><img src=\"file:///" + option_.image_path_ + "/riichi.png\"/></div>\n\n<br />\n\n";
+            s += "<div align=\"center\"><img src=\"file:///" + image_path_ + "/riichi.png\"/></div>\n\n<br />\n\n";
         }
-        s += RiverHtml_(option_.image_path_, river_);
+        s += RiverHtml_(image_path_, river_);
         return s;
     }
 
@@ -234,7 +236,7 @@ class SyncMahjongGamePlayer
             errstr_ = "在有副露的情况下不允许立直";
             return false;
         }
-        if (richii && option_.player_descs_[player_id_].base_point_ < 1000) {
+        if (richii && player_descs_[player_id_].base_point_ < 1000) {
             errstr_ = "您的点数不足 1000，无法立直";
             return false;
         }
@@ -500,35 +502,52 @@ class SyncMahjongGamePlayer
         return table.ToString();
     }
 
-    static std::string YakusHtml_(const SyncMahjongOption& option, const Tile& tile, const CounterResult& counter, const bool as_tsumo, const std::vector<std::string>& texts = {})
+    static std::string YakusHtml_(const std::string& image_path, const Tile& tile, const CounterResult& counter, const bool as_tsumo, const std::vector<std::string>& texts = {})
     {
-        const auto score = as_tsumo ? counter.score1 * (option.player_descs_.size() - 1) : counter.score1;
-        const std::string score_info = std::string(
-                score == 48000 * 6  ? "六倍役满" :
-                score == 48000 * 5  ? "五倍役满" :
-                score == 48000 * 4  ? "四倍役满" :
-                score == 48000 * 3  ? "三倍役满" :
-                score == 48000 * 2  ? "两倍役满" :
-                score == 48000      ? "役满" :
-                score == 36000      ? "三倍满" :
-                score == 24000      ? "倍满" :
-                score == 18000      ? "跳满" :
-                score == 12000      ? "满贯" : "") +
+        const auto score = as_tsumo ? counter.score1 : counter.score1 / 3;
+        std::string score_info = std::string(
+                score == 16000 * 6  ? "六倍役满" :
+                score == 16000 * 5  ? "五倍役满" :
+                score == 16000 * 4  ? "四倍役满" :
+                score == 16000 * 3  ? "三倍役满" :
+                score == 16000 * 2  ? "两倍役满" :
+                score == 16000      ? "役满" :
+                score == 12000      ? "三倍满" :
+                score == 8000      ? "倍满" :
+                score == 6000      ? "跳满" :
+                score == 4000      ? "满贯" : "") +
             " " + (counter.fan > 0 ? std::to_string(counter.fu) + " 符 " + std::to_string(counter.fan) + " 番" : "") +
-            " " + std::to_string(score) + " 点";
-        return YakusHtml(option.image_path_, tile, score_info, counter.yakus, texts,
+            " " + std::to_string(counter.score1) + (as_tsumo ? " 点每家" : " 点");
+        return YakusHtml(image_path, tile, score_info, counter.yakus, texts,
                 std::vector<Yaku>{Yaku::场风_东, Yaku::场风_北, Yaku::场风_南, Yaku::场风_西});
     }
 
-    static std::string RonInfoHtml_(const SyncMahjongOption& option, const std::vector<FuResult>& fu_results)
+    static std::string RonInfoHtml_(const std::string& image_path, const std::vector<PlayerDesc>& player_descs, const std::vector<FuResult>& fu_results)
     {
         std::string s;
         for (const auto& result : fu_results) {
             std::vector<std::string> texts;
-            if (result.player_id_ != FuResult::k_tsumo_player_id_) {
-                texts.emplace_back(LoserHtml(option.player_descs_[result.player_id_]));
+            const bool as_tsumo = result.player_id_ == FuResult::k_tsumo_player_id_;
+            if (!as_tsumo) {
+                texts.emplace_back(LoserHtml(player_descs[result.player_id_]));
             }
-            s += YakusHtml_(option, result.tile_, result.counter_, result.player_id_ == FuResult::k_tsumo_player_id_, texts) + "\n\n";
+            const auto score = as_tsumo ? result.counter_.score1 : result.counter_.score1 / 3 * fu_results.size();
+            std::string score_info = std::string(
+                    score == 16000 * 6  ? "六倍役满" :
+                    score == 16000 * 5  ? "五倍役满" :
+                    score == 16000 * 4  ? "四倍役满" :
+                    score == 16000 * 3  ? "三倍役满" :
+                    score == 16000 * 2  ? "两倍役满" :
+                    score == 16000      ? "役满" :
+                    score == 12000      ? "三倍满" :
+                    score == 8000      ? "倍满" :
+                    score == 6000      ? "跳满" :
+                    score == 4000      ? "满贯" : "") +
+                " " + (result.counter_.fan > 0 ? std::to_string(result.counter_.fu) + " 符 " + std::to_string(result.counter_.fan) + " 番" : "") +
+                " " + std::to_string(result.counter_.score1) + (as_tsumo ? " 点每家" : " 点");
+            s += YakusHtml(image_path, result.tile_, score_info, result.counter_.yakus, texts,
+                    std::vector<Yaku>{Yaku::场风_东, Yaku::场风_北, Yaku::场风_南, Yaku::场风_西});
+            s += "\n\n";
         }
         return s;
     }
@@ -546,18 +565,18 @@ class SyncMahjongGamePlayer
         table.Get(0, 1).SetContent(HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE);
         for (int64_t i = furus_.size() - 1; i >= 0; --i) {
             table.Get(0, 2 + furus_.size() - 1 - i).SetContent(std::to_string(furus_[i].nari_round_));
-            table.Get(1, 2 + furus_.size() - 1 - i).SetContent(FuruTilesHtml_(option_.image_path_, furus_[i].tiles_));
+            table.Get(1, 2 + furus_.size() - 1 - i).SetContent(FuruTilesHtml_(image_path_, furus_[i].tiles_));
         }
         return table.ToString();
     }
 
     std::string HandHtml_(const TileStyle tile_style) const {
         const auto hand_html_func = tile_style == TileStyle::HAND ? &HandHtmlWithName : &HandHtml;
-        return AppendFuruHtmls_(hand_html_func(option_.image_path_, hand_, tile_style, tsumo_));
+        return AppendFuruHtmls_(hand_html_func(image_path_, hand_, tile_style, tsumo_));
     }
 
     std::string HandHtmlBack_() const {
-        return AppendFuruHtmls_(HandHtmlBack(option_.image_path_, hand_));
+        return AppendFuruHtmls_(HandHtmlBack(image_path_, hand_));
     }
 
     bool IsRiichi_() const { return !richii_listen_tiles_.empty() && richii_round_ != round_; }
@@ -1056,7 +1075,9 @@ class SyncMahjongGamePlayer
         return ret;
     }
 
-    const SyncMahjongOption& option_;
+    const std::string image_path_;
+    const std::vector<PlayerDesc> player_descs_;
+
     const uint32_t player_id_{UINT32_MAX};
     const Wind wind_{Wind::East};
     const std::array<Tile, k_yama_tile_num> yama_;
@@ -1089,7 +1110,7 @@ class SyncMahjongGamePlayer
 class SyncMajong
 {
   public:
-    SyncMajong(const SyncMahjongOption& option) : option_(option), richii_points_(option_.richii_points_)
+    SyncMajong(const SyncMahjongOption& option) : benchang_(option.benchang_), richii_points_(option.richii_points_)
     {
         std::array<Tile, k_tile_type_num * 4> tiles{BaseTile::_1m};
 #ifdef TEST_BOT
@@ -1176,12 +1197,12 @@ class SyncMajong
     {
         if (fu_result.player_id_ == game_util::mahjong::FuResult::k_tsumo_player_id_) {
             // tsumo
-            const int score_each_player = fu_result.counter_.score1 + option_.benchang_ * 100;
+            const int score_each_player = fu_result.counter_.score1 + benchang_ * 100;
             std::ranges::for_each(players_, [score_each_player](auto& player) { player.point_variation_ -= score_each_player; });
             player.point_variation_ += score_each_player * players_.size();
         } else {
             // ron
-            const int score = fu_result.counter_.score1 + option_.benchang_ * (players_.size() - 1) * 100 / player.fu_results_.size();
+            const int score = fu_result.counter_.score1 + benchang_ * (players_.size() - 1) * 100 / player.fu_results_.size();
             players_[fu_result.player_id_].point_variation_ -= score;
             player.point_variation_ += score;
         }
@@ -1228,7 +1249,7 @@ class SyncMajong
             for (uint32_t i = 0; i < k_hand_tile_num; ++i) {
                 hand.emplace(tiles[tile_idx++]);
             }
-            players_.emplace_back(option, player_id, yama_tiles, std::move(hand), doras);
+            players_.emplace_back(option.image_path_, option.player_descs_, player_id, yama_tiles, std::move(hand), doras);
         }
         assert(tile_idx == tiles.size());
     }
@@ -1314,7 +1335,7 @@ class SyncMajong
         return true;
     }
 
-    const SyncMahjongOption& option_;
+    int32_t benchang_{0};
     int32_t round_{0};
     bool ron_stage_{false};
     std::vector<SyncMahjongGamePlayer> players_;

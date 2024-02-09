@@ -869,6 +869,36 @@ GAME_TEST(4, lingshang_with_kan_dora)
     ASSERT_SCORE(25000 + 3900, 25000 - 1300, 25000 - 1300, 25000 - 1300);
 }
 
+GAME_TEST(4, ron_different_points)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "2333345s123m123p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "1s", // 平和三色dora4
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "2s", // no yakus
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "4s", // 平和dora4
+                        },
+                    },
+                    .doras_ = "2s", // doras do not hit
+                }));
+    START_GAME();
+
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣");
+
+    ASSERT_SCORE(25000 + 9000 + 6000, 25000 - 9000, 25000, 25000 - 6000);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
