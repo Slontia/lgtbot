@@ -544,9 +544,9 @@ class SyncMahjongGamePlayer
         }
         table.MergeDown(0, 1, 2);
         table.Get(0, 1).SetContent(HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE);
-        for (size_t i = 0; i < furus_.size(); ++i) {
-            table.Get(0, 2 + i).SetContent(std::to_string(furus_[i].nari_round_));
-            table.Get(1, 2 + i).SetContent(FuruTilesHtml_(option_.image_path_, furus_[i].tiles_));
+        for (int64_t i = furus_.size() - 1; i >= 0; --i) {
+            table.Get(0, 2 + furus_.size() - 1 - i).SetContent(std::to_string(furus_[i].nari_round_));
+            table.Get(1, 2 + furus_.size() - 1 - i).SetContent(FuruTilesHtml_(option_.image_path_, furus_[i].tiles_));
         }
         return table.ToString();
     }
