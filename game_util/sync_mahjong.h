@@ -440,6 +440,12 @@ class SyncMahjongGamePlayer
 
     const std::string& ErrorString() const { return errstr_; }
 
+#ifdef TEST_BOT
+    Tile LastKiriTile() const { return river_.back().tile_; }
+
+    void StartNormalStage(const uint32_t round) { return StartNormalStage_(round); }
+#endif
+
   private:
     enum class FuType { TSUMO, ROB_KAN, RON };
 
@@ -941,7 +947,7 @@ class SyncMahjongGamePlayer
                     player_info.counter_.score1 /= fu_results.size();
                 } else {
                     player_info.counter_.score1 =
-                        (player_info.counter_.fu * pow(2, player_info.counter_.fan + 2) * 6 / fu_results.size() + 90) / 100 * 100; // upper alias to 100
+                        static_cast<int32_t>(player_info.counter_.fu * pow(2, player_info.counter_.fan + 2) * 6 / fu_results.size() + 90) / 100 * 100; // upper alias to 100
                 }
             }
         }
@@ -1355,10 +1361,7 @@ class SyncMajong
   // 立直后自动摸切
   // 三麻
   //
-  // 测试各种振听
   // 立直之后杠
-  // 多人放铳,其中一人无役
   // 最后一巡禁止立直
-  // 测试岭上
   // 测试海底
   // 测试河底

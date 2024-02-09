@@ -899,6 +899,37 @@ GAME_TEST(4, ron_different_points)
     ASSERT_SCORE(25000 + 9000 + 6000, 25000 - 9000, 25000, 25000 - 6000);
 }
 
+GAME_TEST(4, do_not_kiri_red_dora)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "6m",
+                            .hand_ = "233334m0456s678p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "6m",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "6m",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "6m",
+                        },
+                    },
+                    .doras_ = "5z", // doras do not hit
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "5s");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 断幺, red dora, 40 fu 2 fan
+
+    ASSERT_SCORE(25000 + 3900, 25000 - 1300, 25000 - 1300, 25000 - 1300);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
