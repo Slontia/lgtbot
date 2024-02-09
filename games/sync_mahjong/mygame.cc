@@ -145,13 +145,13 @@ class TableStage : public SubGameStage<>
     {
     }
 
-    int64_t PlayerPointVariation(const uint32_t player_id) const { return table_.players_[player_id].point_variation_; }
+    int64_t PlayerPointVariation(const uint32_t player_id) const { return table_.Players()[player_id].PointVariation(); }
 
     int32_t RemainingRichiiPoints() const { return table_.RichiiPoints(); }
 
     void UpdatePlayerPublicHtmls_() {
-        public_dora_html_ = table_.players_[0].PublicDoraHtml();
-        for (const auto& player : table_.players_) {
+        public_dora_html_ = table_.Players()[0].PublicDoraHtml();
+        for (const auto& player : table_.Players()) {
             player_public_htmls_[player.PlayerID()] = player.Html(game_util::mahjong::SyncMahjongGamePlayer::HtmlMode::PUBLIC);
         }
     }
@@ -159,7 +159,7 @@ class TableStage : public SubGameStage<>
     void AllowPlayersToAct_() {
         StartTimer(GET_OPTION_VALUE(option(), 时限));
         ClearReady(); // reset `any_user_ready_`
-        for (const auto& player : table_.players_) {
+        for (const auto& player : table_.Players()) {
             if (player.State() == game_util::mahjong::ActionState::ROUND_OVER) {
                 SetReady(player.PlayerID());
                 continue;
@@ -170,7 +170,7 @@ class TableStage : public SubGameStage<>
     }
 
     void TellAllPlayersHtml_() {
-        for (const auto& player : table_.players_) {
+        for (const auto& player : table_.Players()) {
             Tell(player.PlayerID()) << Markdown(PlayerHtml_(player), k_image_width);
         }
     }
@@ -221,7 +221,7 @@ class TableStage : public SubGameStage<>
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         // TODO: make bot clever
-        table_.players_[pid].PerformDefault();
+        table_.Players()[pid].PerformDefault();
         return StageErrCode::READY;
     }
 
@@ -241,7 +241,8 @@ class TableStage : public SubGameStage<>
         UpdatePlayerPublicHtmls_();
         switch (result) {
             case game_util::mahjong::SyncMajong::RoundOverResult::NORMAL_ROUND:
-                Boardcast() << "本巡结果如图所示，请各玩家进行下一巡的行动" << Markdown(BoardcastHtml_(), k_image_width);
+                Boardcast() << "本巡结果如图所示，请各玩家进行下一巡的行动";
+                Group() << Markdown(BoardcastHtml_(), k_image_width);
             case game_util::mahjong::SyncMajong::RoundOverResult::RON_ROUND:
                 AllowPlayersToAct_();
                 return false;
@@ -266,14 +267,14 @@ class TableStage : public SubGameStage<>
                 is_valid_game_ = true;
                 break;
         }
-        Group() << Markdown(BoardcastHtml_(), k_image_width);
+        Boardcast() << Markdown(BoardcastHtml_(), k_image_width);
         return true;
     }
 
 
     template <typename Func, typename ...Args>
     AtomReqErrCode HandleAction_(const PlayerID pid, MsgSenderBase& reply, const Func func, const Args& ...args) {
-        auto& player = table_.players_[pid];
+        auto& player = table_.Players()[pid];
         if (!(player.*func)(args...)) {
             reply() << "[错误] 行动失败：" << player.ErrorString();
             return StageErrCode::FAILED;
