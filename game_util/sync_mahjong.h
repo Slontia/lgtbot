@@ -7,6 +7,7 @@
 #include <span>
 
 #include "game_util/mahjong_util.h"
+#include "utility/defer.h"
 #include "Mahjong/Rule.h"
 
 using namespace std::string_literals;
@@ -1147,9 +1148,17 @@ class SyncMajong
     RoundOverResult RoundOver() {
         for (auto& player : players_) {
             player.PerformDefault();
-            player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
+            player.public_html_.clear();
         }
         UpdateDora_();
+        const Defer defer([&]
+                {
+                    for (auto& player : players_) {
+                        if (player.public_html_.empty()) {
+                            player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
+                        }
+                    }
+                });
         if (Is_三家和了(players_)) {
             return RoundOverResult::CHUTO_NAGASHI_三家和了;
         }
@@ -1171,7 +1180,7 @@ class SyncMajong
         if (round_ == 1 && Is_四风连打(players_)) {
             return RoundOverResult::CHUTO_NAGASHI_四风连打;
         }
-        if (HandleNyanapaiNagashi_(players_)) {
+        if (HandleNyanapaiNagashi_()) {
             return RoundOverResult::NYANPAI_NAGASHI;
         }
         ++round_;
@@ -1313,24 +1322,33 @@ class SyncMajong
             std::all_of(std::next(players.begin()), players.end(), kiri_basetile_equal);
     }
 
-    static bool HandleNagashiManganForNyanpaiNagashi_(std::vector<SyncMahjongGamePlayer>& players)
+    bool HandleNagashiManganForNyanpaiNagashi_()
     {
-        uint32_t mangan_player_num = 0;
-        for (auto& player : players) {
+        std::vector<bool> is_nagashi_mangan(players_.size(), false);
+        int32_t nagashi_mangan_num = 0;
+        for (auto& player : players_) {
             if (std::ranges::all_of(player.river_, [](const RiverTile& river_tile)
                         {
                             return std::find(k_one_nine_tiles.begin(), k_one_nine_tiles.end(), river_tile.tile_.tile) != k_one_nine_tiles.end();
                         })) {
-                ++mangan_player_num;
-                player.point_variation_ += 4000 * players.size();
+                ++nagashi_mangan_num;
+                is_nagashi_mangan[player.PlayerID()] = true;
             }
         }
-        if (mangan_player_num == 0) {
+        if (nagashi_mangan_num == 0 || nagashi_mangan_num == players_.size()) {
             return false;
         }
-        for (auto& player : players) {
-            player.point_variation_ -= 4000 * mangan_player_num;
+        const int32_t score_each_player = 4000 + benchang_ * 100;
+        for (uint32_t i = 0; i < players_.size(); ++i) {
+            players_[i].point_variation_ -= score_each_player * nagashi_mangan_num;
+            if (is_nagashi_mangan[i]) {
+                players_[i].point_variation_ += score_each_player * players_.size() + richii_points_ / nagashi_mangan_num;
+                players_[i].public_html_ = players_[i].Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
+                players_[i].public_html_ += "\n\n<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(green)
+                    " **流&nbsp;&nbsp;局&nbsp;&nbsp;满&nbsp;&nbsp;贯** " HTML_FONT_TAIL "\n\n</font> </center>\n\n";
+            }
         }
+        richii_points_ = 0;
         return true;
     }
 
@@ -1353,13 +1371,14 @@ class SyncMajong
         }
     }
 
-    static bool HandleNyanapaiNagashi_(std::vector<SyncMahjongGamePlayer>& players)
+    bool HandleNyanapaiNagashi_()
     {
-        if (std::ranges::none_of(players, [](const SyncMahjongGamePlayer& player) { return player.yama_idx_ == k_yama_tile_num; })) {
+        if (std::ranges::none_of(players_,
+                    [](const SyncMahjongGamePlayer& player) { return player.yama_idx_ == k_yama_tile_num; })) {
             return false;
         }
-        if (!HandleNagashiManganForNyanpaiNagashi_(players)) {
-            HandleTinpaiForNyanpaiNagashi_(players);
+        if (!HandleNagashiManganForNyanpaiNagashi_()) {
+            HandleTinpaiForNyanpaiNagashi_(players_);
         }
         return true;
     }

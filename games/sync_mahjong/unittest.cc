@@ -480,12 +480,12 @@ GAME_TEST(4, nyanpai_nagashi_mangan)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
-                            .yama_ = "19m19s19p1234567123456z", // nagashi mangan
+                            .yama_ = "19m19s19p2234567223456z", // nagashi mangan
                             .hand_ = "1z2z", // prevent tinpai
                         },
                         [1] = Tiles::PlayerTiles {
-                            .yama_ = "19m19s19p1234567123456z", // nagashi mangan
-                            .hand_ = "1z2z", // prevent tinpai
+                            .yama_ = "19m19s19p2234567223456z", // nagashi mangan
+                            .hand_ = "19m19s19p2234567z",
                         },
                         [2] = Tiles::PlayerTiles {
                             .yama_ = "2m", // prevent nagashi mangan
@@ -499,12 +499,22 @@ GAME_TEST(4, nyanpai_nagashi_mangan)
                 }));
     START_GAME();
 
-    for (uint32_t i = 0; i < 18; ++i) {
+    // the first game
+    ASSERT_PRI_MSG(OK, 1, "流局");
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    // the second game
+    ASSERT_PRI_MSG(CONTINUE, 1, "立直 摸切");
+    for (uint32_t i = 0; i < 17; ++i) {
         ASSERT_TIMEOUT(CONTINUE);
     }
     ASSERT_TIMEOUT(CHECKOUT);
 
-    ASSERT_SCORE(25000 + 12000 - 4000, 25000 + 12000 - 4000, 25000 - 4000 * 2, 25000 - 4000 * 2);
+    ASSERT_SCORE(
+            25000 + (12000 - 4000) + (600 - 200) /*benchang*/ + 500 /*richii_points*/,
+            25000 + (12000 - 4000) + (600 - 200) /*benchang*/ - 1000 + 500 /*richii_points*/,
+            25000 - 4000 * 2 - 200 * 2 /*benchang*/,
+            25000 - 4000 * 2 - 200 * 2 /*benchang*/);
 }
 
 GAME_TEST(4, cannot_nari_after_richii)
