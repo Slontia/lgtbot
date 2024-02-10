@@ -64,6 +64,7 @@ enum class ActionState
 {
     ROUND_BEGIN, // nari, get tile
     AFTER_CHI_PON, // kiri
+    AFTER_FIRST_CHI, // kiri
     AFTER_GET_TILE, // kiri, kan, richii (if has no furu)
     AFTER_KAN, // kiri, kan, richii (if has no furu)
     AFTER_KAN_CAN_NARI, // kiri, kan
@@ -73,7 +74,6 @@ enum class ActionState
 };
 
 struct FuResult {
-    static constexpr const uint32_t k_tsumo_player_id_ = UINT32_MAX;
     uint32_t player_id_;
     CounterResult counter_;
     Tile tile_;
@@ -156,6 +156,7 @@ class SyncMahjongGamePlayer
                 tsumo_ = std::nullopt;
                 break;
             case ActionState::AFTER_CHI_PON:
+            case ActionState::AFTER_FIRST_CHI:
                 KiriInternal_(false /*is_tsumo*/, false /*richii*/, *hand_.begin());
                 hand_.erase(hand_.begin());
                 break;
@@ -194,7 +195,7 @@ class SyncMahjongGamePlayer
 
     bool Kiri(const std::string_view tile, const bool richii)
     {
-        if (state_ != ActionState::AFTER_CHI_PON && state_ != ActionState::AFTER_GET_TILE && state_ != ActionState::AFTER_KAN && state_ != ActionState::AFTER_KAN_CAN_NARI) {
+        if (state_ != ActionState::AFTER_CHI_PON && state_ != ActionState::AFTER_FIRST_CHI && state_ != ActionState::AFTER_GET_TILE && state_ != ActionState::AFTER_KAN && state_ != ActionState::AFTER_KAN_CAN_NARI) {
             errstr_ = "当前状态不允许切牌";
             return false;
         }
@@ -285,7 +286,6 @@ class SyncMahjongGamePlayer
         furu.tiles_[2] = FuruTile{*kiri_tile.begin(), FuruTile::Type::NARI};
         std::sort(furu.tiles_.begin(), furu.tiles_.begin() + 3,
                 [](const auto& _1, const auto& _2) { return _1.tile_.tile < _2.tile_.tile; });
-        has_chi_ = true;
         state_ = ActionState::AFTER_CHI_PON;
         return true;
     }
@@ -374,7 +374,7 @@ class SyncMahjongGamePlayer
             counter->calculate_score(true, true);
         }
         if (counter.has_value()) {
-            fu_results_.emplace_back(FuResult::k_tsumo_player_id_, std::move(*counter), *tsumo_);
+            fu_results_.emplace_back(k_none_player_id_, std::move(*counter), *tsumo_);
         }
         if (fu_results_.empty()) {
             // `errstr_` is filled by `GetCounter_`
@@ -388,10 +388,6 @@ class SyncMahjongGamePlayer
     {
         if (IsFurutin_()) {
             errstr_ = "当前处于振听状态";
-            return false;
-        }
-        if (has_chi_) {
-            errstr_ = "吃过牌后只能通过自摸和牌";
             return false;
         }
         if (state_ == ActionState::NOTIFIED_RON) {
@@ -543,7 +539,7 @@ class SyncMahjongGamePlayer
         std::string s;
         for (const auto& result : fu_results) {
             std::vector<std::string> texts;
-            const bool as_tsumo = result.player_id_ == FuResult::k_tsumo_player_id_;
+            const bool as_tsumo = result.player_id_ == k_none_player_id_;
             if (!as_tsumo) {
                 texts.emplace_back(LoserHtml(player_descs[result.player_id_]));
             }
@@ -851,7 +847,7 @@ class SyncMahjongGamePlayer
     // If `CanRon_()` returns true, `Ron()` must return true.
     bool CanRon_() const
     {
-        if (IsFurutin_() || has_chi_) {
+        if (IsFurutin_()) {
             return false;
         }
         for (const auto& player_info : cur_round_kiri_info_.other_players_) {
@@ -977,7 +973,7 @@ class SyncMahjongGamePlayer
                 }
                 counter->calculate_score(true, true);
                 if (fu_results.empty() || counter->score1 > fu_results.begin()->counter_.score1) {
-                    fu_results.emplace_back(FuResult::k_tsumo_player_id_, *counter, kiri_tile.tile_);
+                    fu_results.emplace_back(k_none_player_id_, *counter, kiri_tile.tile_);
                 }
             }
         }
@@ -1091,6 +1087,8 @@ class SyncMahjongGamePlayer
         return ret;
     }
 
+    static constexpr const uint32_t k_none_player_id_ = UINT32_MAX;
+
     const std::string image_path_;
     const std::vector<PlayerDesc> player_descs_;
 
@@ -1104,7 +1102,6 @@ class SyncMahjongGamePlayer
     std::optional<Tile> tsumo_;
     std::vector<RiverTile> river_;
     std::vector<Furu> furus_; // do not use array because there may be nuku pei
-    bool has_chi_{false};
     ActionState state_{ActionState::ROUND_OVER};
 
     int32_t round_{0};
@@ -1221,7 +1218,7 @@ class SyncMajong
 
     void HandleOneFuResult_(const lgtbot::game_util::mahjong::FuResult& fu_result, SyncMahjongGamePlayer& player)
     {
-        if (fu_result.player_id_ == game_util::mahjong::FuResult::k_tsumo_player_id_) {
+        if (fu_result.player_id_ == SyncMahjongGamePlayer::k_none_player_id_) {
             // tsumo
             const int score_each_player = fu_result.counter_.score1 + benchang_ * 100;
             std::ranges::for_each(players_, [score_each_player](auto& player) { player.point_variation_ -= score_each_player; });
