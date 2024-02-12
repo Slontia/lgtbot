@@ -315,7 +315,7 @@ class SyncMahjongGamePlayer
             return false;
         }
         const std::string& tile_str = basetile_to_string_simple(tiles.begin()->tile);
-        const auto kiri_tile = GetTilesFrom(cur_round_kiri_info_.other_player_kiri_tiles_, tile_str, errstr_);
+        const auto kiri_tile = GetTilesFrom(cur_round_kiri_info_.other_player_kiri_tiles_, tile_str, errstr_, true);
         if (kiri_tile.empty()) {
             errstr_ = "前巡舍牌中不存在「"s + tile_str + "」";
             rollback();

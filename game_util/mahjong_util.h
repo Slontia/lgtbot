@@ -146,45 +146,46 @@ static void GenerateTilesFromDecodedString(const std::string_view decoded_str, s
     }
 }
 
-static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::string& errstr, const bool exact = false)
+static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::string& errstr, const bool prefer_red_dora = false)
 {
     TileSet tiles;
-    const auto insert = [&](const TileSet::iterator it)
-        {
-            tiles.emplace(*it);
-            src.erase(it);
-        };
     const auto decoded_str = DecodeTilesString(str, errstr);
     assert(decoded_str.size() % 2 == 0);
+    const auto find_tile = [&src](const char num, const char suit)
+        {
+            return src.find(TileIdent(num, suit));
+        };
+    const auto find_toumei_tile = [&src](const char num, const char suit)
+        {
+            return std::islower(suit) ? src.find(TileIdent(num, std::toupper(suit))) : src.end();
+        };
+    const auto find_red_tile = [&src](const char num, const char suit)
+        {
+            return num == '5' ? src.find(TileIdent('0', suit)) : src.end();
+        };
+    const auto find_toumei_red_tile = [&src](const char num, const char suit)
+        {
+            return std::islower(suit) && num == '5' ? src.find(TileIdent('0', std::toupper(suit))) : src.end();
+        };
+    const auto insert_if_found = [&](const auto it)
+        {
+            if (it == src.end()) {
+                return false;
+            }
+            tiles.emplace(*it);
+            src.erase(it);
+            return true;
+        };
+    const auto insert_if_found_multi = [&](const char num, const char suit, const auto ...find_fn)
+        {
+            return (insert_if_found(find_fn(num, suit)) || ...);
+        };
     for (uint32_t i = 0; i < decoded_str.size(); i += 2) {
-        if (const auto it = src.find(TileIdent(decoded_str[i], decoded_str[i + 1])); it != src.end()) {
-            // we found it
-            insert(it);
+        if ((prefer_red_dora && insert_if_found_multi(decoded_str[i], decoded_str[i + 1],
+                        find_red_tile, find_toumei_red_tile, find_tile, find_toumei_tile)) ||
+            (!prefer_red_dora && insert_if_found_multi(decoded_str[i], decoded_str[i + 1],
+                        find_tile, find_toumei_tile, find_red_tile, find_toumei_red_tile))) {
             continue;
-        }
-        if (!exact && std::islower(decoded_str[i + 1])) {
-            const auto it = src.find(TileIdent(decoded_str[i], std::toupper(decoded_str[i + 1])));
-            if (it != src.end()) {
-                // we found a toumei tile instead
-                insert(it);
-                continue;
-            }
-        }
-        if (!exact && decoded_str[i] == '5') {
-            const auto it = src.find(TileIdent('0', decoded_str[i + 1]));
-            if (it != src.end()) {
-                // we found a red dora tile instead
-                insert(it);
-                continue;
-            }
-        }
-        if (!exact && std::islower(decoded_str[i + 1]) && decoded_str[i] == '5') {
-            const auto it = src.find(TileIdent('0', std::toupper(decoded_str[i + 1])));
-            if (it != src.end()) {
-                // we found a red toumei dora tile instead
-                insert(it);
-                continue;
-            }
         }
         errstr = "没有足够的 \"";
         if (std::isupper(decoded_str[i + 1])) {

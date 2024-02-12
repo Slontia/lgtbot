@@ -592,10 +592,10 @@ GAME_TEST(4, can_only_chi_from_specific_players)
                             .hand_ = "123456789m123s1z",
                         },
                         [1] = Tiles::PlayerTiles {
-                            .yama_ = "9m2s",
+                            .yama_ = "5m2s",
                         },
                         [2] = Tiles::PlayerTiles {
-                            .yama_ = "9m4m",
+                            .yama_ = "0m4m",
                         },
                         [3] = Tiles::PlayerTiles {
                             .yama_ = "4m4m",
@@ -607,7 +607,7 @@ GAME_TEST(4, can_only_chi_from_specific_players)
     ASSERT_PRI_MSG(OK, 0, "摸切");
     ASSERT_TIMEOUT(CONTINUE);
 
-    ASSERT_PRI_MSG(OK, 0, "吃 78m 9m");
+    ASSERT_PRI_MSG(OK, 0, "吃 67m 5m");
     ASSERT_PRI_MSG(OK, 0, "1z");
     ASSERT_PRI_MSG(FAILED, 0, "吃 23m 4m");
     ASSERT_PRI_MSG(CONTINUE, 0, "结束");
@@ -1162,6 +1162,42 @@ GAME_TEST(4, chi_red_dora)
     ASSERT_PRI_MSG(OK, 0, "吃 46m 0m");
     ASSERT_PRI_MSG(OK, 0, "2z");
     ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 三色 dora, 30fu 2 fan
+
+    ASSERT_SCORE(25000 + 3000, 25000 - 1000, 25000 - 1000, 25000 - 1000);
+}
+
+GAME_TEST(4, pon_red_dora)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .hand_ = "234567m55s2346p1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "6p",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5s",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "0s",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                    },
+                    .doras_ = "6z6z",
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(FAILED, 0, "碰 0s"); // player 0's hand contains no 0s
+    ASSERT_PRI_MSG(OK, 0, "碰 5s");
+    ASSERT_PRI_MSG(OK, 0, "1z");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 断幺 dora, 30fu 2 fan
 
     ASSERT_SCORE(25000 + 3000, 25000 - 1000, 25000 - 1000, 25000 - 1000);
 }
