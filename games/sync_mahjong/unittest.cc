@@ -1101,6 +1101,37 @@ GAME_TEST(4, cannot_richii_last_round)
     ASSERT_PRI_MSG(FAILED, 0, "立直 摸切");
 }
 
+GAME_TEST(4, ipeiko_cannot_nari)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .hand_ = "12312m456789s7z6z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "7z",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "3m",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "吃 12m 3m");
+    ASSERT_PRI_MSG(OK, 0, "6z");
+    ASSERT_PRI_MSG(FAILED, 0, "荣");
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
