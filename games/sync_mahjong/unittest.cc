@@ -1132,6 +1132,40 @@ GAME_TEST(4, ipeiko_cannot_nari)
     ASSERT_PRI_MSG(FAILED, 0, "荣");
 }
 
+GAME_TEST(4, chi_red_dora)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .hand_ = "123m123s123p46m1z2z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "0m",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                    },
+                    .doras_ = "6z6z",
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "吃 46m 0m");
+    ASSERT_PRI_MSG(OK, 0, "2z");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 三色 dora, 30fu 2 fan
+
+    ASSERT_SCORE(25000 + 3000, 25000 - 1000, 25000 - 1000, 25000 - 1000);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game

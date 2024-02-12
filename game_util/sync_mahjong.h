@@ -516,7 +516,11 @@ class SyncMahjongGamePlayer
                     }
                     break;
                 case FuruTile::Type::NARI:
-                    table.Get(1, i).SetContent("<img src=\"file:///" + image_path + "/2_n" + Tile{.tile = furu_tile.tile_.tile}.to_simple_string() + ".png\"/>");
+                    {
+                        Tile tile = furu_tile.tile_;
+                        tile.toumei = false;
+                        table.Get(1, i).SetContent("<img src=\"file:///" + image_path + "/2_n" + tile.to_simple_string() + ".png\"/>");
+                    }
                     break;
                 case FuruTile::Type::ADD_KAN:
                     table.Get(0, i - 1).SetContent(Image(image_path, furu_tile.tile_, TileStyle::LEFT));
