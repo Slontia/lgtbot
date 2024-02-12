@@ -21,6 +21,7 @@ namespace mahjong {
 static constexpr const uint32_t k_yama_tile_num = 19;
 static constexpr const std::array<BaseTile, 13> k_one_nine_tiles{_1m, _9m, _1s, _9s, _1p, _9p, east, south, west, north, 白, 发, 中};
 static constexpr const uint32_t k_max_dora_num = 4;
+static constexpr const uint32_t k_max_player = 4;
 
 struct RiverTile
 {
@@ -64,7 +65,6 @@ enum class ActionState
 {
     ROUND_BEGIN, // nari, get tile
     AFTER_CHI_PON, // kiri
-    AFTER_FIRST_CHI, // kiri
     AFTER_GET_TILE, // kiri, kan, richii (if has no furu)
     AFTER_KAN, // kiri, kan, richii (if has no furu)
     AFTER_KAN_CAN_NARI, // kiri, kan
@@ -156,7 +156,6 @@ class SyncMahjongGamePlayer
                 tsumo_ = std::nullopt;
                 break;
             case ActionState::AFTER_CHI_PON:
-            case ActionState::AFTER_FIRST_CHI:
                 KiriInternal_(false /*is_tsumo*/, false /*richii*/, *hand_.begin());
                 hand_.erase(hand_.begin());
                 break;
@@ -195,7 +194,7 @@ class SyncMahjongGamePlayer
 
     bool Kiri(const std::string_view tile, const bool richii)
     {
-        if (state_ != ActionState::AFTER_CHI_PON && state_ != ActionState::AFTER_FIRST_CHI && state_ != ActionState::AFTER_GET_TILE && state_ != ActionState::AFTER_KAN && state_ != ActionState::AFTER_KAN_CAN_NARI) {
+        if (state_ != ActionState::AFTER_CHI_PON && state_ != ActionState::AFTER_GET_TILE && state_ != ActionState::AFTER_KAN && state_ != ActionState::AFTER_KAN_CAN_NARI) {
             errstr_ = "当前状态不允许切牌";
             return false;
         }
@@ -247,7 +246,7 @@ class SyncMahjongGamePlayer
             return false;
         }
         const auto tiles = GetTilesFrom(hand_, hand_tiles, errstr_);
-        const auto kiri_tile = GetTilesFrom(cur_round_kiri_info_.other_player_kiri_tiles_, others_kiri_tile, errstr_);
+        const auto kiri_tile = GetTilesFrom(cur_round_kiri_info_.other_player_kiri_tiles_, others_kiri_tile, errstr_, true);
         const auto rollback =
             [&] {
                 hand_.insert(tiles.begin(), tiles.end());
@@ -275,6 +274,11 @@ class SyncMahjongGamePlayer
         }
         if (!is_顺子({tiles.begin()->tile, std::next(tiles.begin())->tile, kiri_tile.begin()->tile})) {
             errstr_ = "「"s + hand_tiles.data() + others_kiri_tile.data() + "」无法形成顺子";
+            rollback();
+            return false;
+        }
+        if (!CheckFromChiPlayer_(*kiri_tile.begin())) {
+            errstr_ = "您只能吃特定玩家的牌，这些玩家已经没有牌可供吃牌";
             rollback();
             return false;
         }
@@ -428,7 +432,17 @@ class SyncMahjongGamePlayer
     {
         std::string s;
         s += PlayerNameHtml(player_descs_[player_id_], point_variation_) + "\n\n";
-        s += "<center>\n\n**剩余牌山：" HTML_COLOR_FONT_HEADER(blue) + std::to_string(k_yama_tile_num - yama_idx_) + HTML_FONT_TAIL + "**\n\n</center>\n\n";
+        s += "<center>\n\n**剩余牌山：" HTML_COLOR_FONT_HEADER(blue);
+        s += std::to_string(k_yama_tile_num - yama_idx_);
+        s += HTML_FONT_TAIL HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE;
+        s += "吃牌来源：" HTML_COLOR_FONT_HEADER(blue);
+        for (uint32_t player_id = 0; player_id < player_descs_.size(); ++player_id) {
+            if (from_chi_players_[player_id]) {
+                s += wind2str(player_descs_[player_id].wind_);
+                s += " ";
+            }
+        }
+        s += HTML_FONT_TAIL "**\n\n</center>\n\n";
         if (!fu_results_.empty()) {
             s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(blue) " **和&nbsp;&nbsp;了** "
                 HTML_FONT_TAIL "\n\n</font> </center>\n\n";
@@ -980,6 +994,15 @@ class SyncMahjongGamePlayer
         return fu_results;
     }
 
+    static bool IsChi_(const std::array<FuruTile, 4>& furu_tiles) { return furu_tiles[0].tile_.tile != furu_tiles[1].tile_.tile; }
+
+    static Tile NariTile_(const std::array<FuruTile, 4>& furu_tiles)
+    {
+        const auto it = std::ranges::find_if(furu_tiles, [](const FuruTile& furu_tile) { return furu_tile.type_ == FuruTile::Type::NARI; });
+        assert(it != furu_tiles.end());
+        return it->tile_;
+    }
+
     void InitTable_(Table& table) const
     {
         table.dora_spec = doras_manager_.Doras().size();
@@ -1010,12 +1033,7 @@ class SyncMahjongGamePlayer
                 }
             }
             if (furu.tiles_[3].type_ == FuruTile::Type::EMPTY) {
-                if (furu.tiles_[0].tile_.tile == furu.tiles_[1].tile_.tile) {
-                    fulu.type = Fulu::Type::Pon;
-                } else {
-                    fulu.type = Fulu::Type::Chi;
-
-                }
+                fulu.type = IsChi_(furu.tiles_) ? Fulu::Type::Chi : Fulu::Type::Pon;
                 table.players[player_id_].门清 = false;
             } else {
                 fulu.type = Fulu::Type::大明杠;
@@ -1087,6 +1105,53 @@ class SyncMahjongGamePlayer
         return ret;
     }
 
+    int32_t CurrentRoundChiTileCount_(const Tile& kiri_tile) const
+    {
+        return std::ranges::count_if(furus_, [&](const Furu& furu)
+                {
+                    return furu.nari_round_ == round_ && IsChi_(furu.tiles_) && NariTile_(furu.tiles_) == kiri_tile;
+                });
+    }
+
+    static bool IsKiriedTileMatch_(const KiriTile& kiri_tile_info, const Tile& tile)
+    {
+        return kiri_tile_info.tile_.tile == tile.tile &&
+            (kiri_tile_info.type_ == KiriTile::Type::NORMAL || kiri_tile_info.type_ == KiriTile::Type::RIVER_BOTTOM);
+    }
+
+    int32_t CurrentRoundCanFromChiPlayersKiriedTileCount_(const Tile& kiri_tile) const
+    {
+        uint32_t can_from_chi_kiri_num = 0;
+        for (const auto& player_kiri_info : cur_round_kiri_info_.other_players_) {
+            if (from_chi_players_[player_kiri_info.player_id_]) {
+                can_from_chi_kiri_num += std::ranges::count_if(player_kiri_info.kiri_tiles_,
+                        std::bind(&SyncMahjongGamePlayer::IsKiriedTileMatch_, std::placeholders::_1, kiri_tile));
+            }
+        }
+        return can_from_chi_kiri_num;
+    }
+
+    void UpdateFromChiPlayers_(const Tile& kiri_tile)
+    {
+        for (const auto& player_kiri_info : cur_round_kiri_info_.other_players_) {
+            if (from_chi_players_[player_kiri_info.player_id_] &&
+                    std::ranges::none_of(player_kiri_info.kiri_tiles_,
+                        //[&](const KiriTile& t) { return IsKiriedTileMatch_(t, kiri_tile); })) {
+                        std::bind(&SyncMahjongGamePlayer::IsKiriedTileMatch_, std::placeholders::_1, kiri_tile))) {
+                from_chi_players_.reset(player_kiri_info.player_id_);
+            }
+        }
+    }
+
+    bool CheckFromChiPlayer_(const Tile& kiri_tile)
+    {
+        if (CurrentRoundChiTileCount_(kiri_tile) >= CurrentRoundCanFromChiPlayersKiriedTileCount_(kiri_tile)) {
+            return false;
+        }
+        UpdateFromChiPlayers_(kiri_tile);
+        return true;
+    }
+
     static constexpr const uint32_t k_none_player_id_ = UINT32_MAX;
 
     const std::string image_path_;
@@ -1102,6 +1167,7 @@ class SyncMahjongGamePlayer
     std::optional<Tile> tsumo_;
     std::vector<RiverTile> river_;
     std::vector<Furu> furus_; // do not use array because there may be nuku pei
+    std::bitset<k_max_player> from_chi_players_{((1U << k_max_player) - 1) & ~(1U << player_id_)};
     ActionState state_{ActionState::ROUND_OVER};
 
     int32_t round_{0};
@@ -1305,7 +1371,7 @@ class SyncMajong
     // should only check for the first round
     static bool Is_四风连打(const std::vector<SyncMahjongGamePlayer>& players)
     {
-        if (players.size() != 4) {
+        if (players.size() != k_max_player) {
             return false;
         }
         const BaseTile first_player_kiri_basetile = players.begin()->cur_round_my_kiri_info_.kiri_tiles_.begin()->tile_.tile;
@@ -1404,3 +1470,5 @@ class SyncMajong
   // 最后一巡禁止立直
   // 测试海底
   // 测试河底
+  //
+  // 吃同一张牌两次

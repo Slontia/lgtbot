@@ -90,8 +90,6 @@ GAME_TEST(4, nari_multiple_times)
     ASSERT_PRI_MSG(OK, 0, "杠 4p"); // obtain 2s
     ASSERT_PRI_MSG(OK, 0, "杠 2s"); // obtain ??
     ASSERT_PRI_MSG(OK, 0, "2z");
-    ASSERT_PRI_MSG(OK, 0, "吃 13m 2m");
-    ASSERT_PRI_MSG(OK, 0, "3z");
     ASSERT_PRI_MSG(CONTINUE, 0, "结束");
 }
 
@@ -584,23 +582,23 @@ GAME_TEST(4, nari_ron)
     ASSERT_SCORE(28000, 24000, 24000, 24000);
 }
 
-GAME_TEST(4, DISABLED_cannot_nari_ron_after_chi)
+GAME_TEST(4, can_only_chi_from_specific_players)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
                             .yama_ = "1z",
-                            .hand_ = "3456677s45m345p1z",
+                            .hand_ = "123456789m123s1z",
                         },
                         [1] = Tiles::PlayerTiles {
-                            .yama_ = "6s",
+                            .yama_ = "9m2s",
                         },
                         [2] = Tiles::PlayerTiles {
-                            .yama_ = "3m",
+                            .yama_ = "9m4m",
                         },
                         [3] = Tiles::PlayerTiles {
-                            .yama_ = "6m",
+                            .yama_ = "4m4m",
                         },
                     }
                 }));
@@ -609,12 +607,142 @@ GAME_TEST(4, DISABLED_cannot_nari_ron_after_chi)
     ASSERT_PRI_MSG(OK, 0, "摸切");
     ASSERT_TIMEOUT(CONTINUE);
 
-    ASSERT_PRI_MSG(OK, 0, "吃 45m 3m");
+    ASSERT_PRI_MSG(OK, 0, "吃 78m 9m");
     ASSERT_PRI_MSG(OK, 0, "1z");
-    ASSERT_PRI_MSG(FAILED, 0, "荣");
+    ASSERT_PRI_MSG(FAILED, 0, "吃 23m 4m");
+    ASSERT_PRI_MSG(CONTINUE, 0, "结束");
+
+    ASSERT_PRI_MSG(OK, 0, "吃 23m 4m");
 }
 
-GAME_TEST(4, DISABLED_cannot_ron_after_chi)
+GAME_TEST(4, chi_same_tile_multiple_times)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "1234567899m23s1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "4m",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "4m",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "1s",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "吃 23m 4m");
+    ASSERT_PRI_MSG(OK, 0, "1z");
+    ASSERT_PRI_MSG(OK, 0, "吃 56m 4m");
+}
+
+GAME_TEST(4, chi_pon_same_tile_multiple_times)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "1234455678m23s1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "4m",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "4m",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "1s",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "吃 23m 4m");
+    ASSERT_PRI_MSG(OK, 0, "1z");
+    ASSERT_PRI_MSG(OK, 0, "碰 4m");
+}
+
+GAME_TEST(4, pon_chi_same_tile_multiple_times)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "123445567m123s1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "4m",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "4m",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "1s",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "碰 4m");
+    ASSERT_PRI_MSG(OK, 0, "1z");
+    ASSERT_PRI_MSG(OK, 0, "吃 23m 4m");
+}
+
+GAME_TEST(4, cannot_chi_same_tile_multiple_times_when_only_one_tile_can_chi)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "1234455678m23s1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "1m6m",
+                            .hand_ = "1z2z", // prevent tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "1z6m",
+                            .hand_ = "1z2z", // prevent tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "1z1z",
+                            .hand_ = "1z2z", // prevent tinpai
+                        },
+                    }
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "吃 23m 1m");
+    ASSERT_PRI_MSG(OK, 0, "1z");
+    ASSERT_PRI_MSG(CONTINUE, 0, "结束");
+
+    ASSERT_PRI_MSG(OK, 0, "吃 45m 6m");
+    ASSERT_PRI_MSG(OK, 0, "2s");
+    ASSERT_PRI_MSG(FAILED, 0, "吃 78m 6m");
+}
+
+GAME_TEST(4, can_ron_after_chi)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
@@ -643,7 +771,7 @@ GAME_TEST(4, DISABLED_cannot_ron_after_chi)
     ASSERT_PRI_MSG(OK, 0, "1z");
     ASSERT_PRI_MSG(CONTINUE, 0, "结束");
 
-    ASSERT_PRI_MSG(FAILED, 0, "荣");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣");
 }
 
 GAME_TEST(4, cannot_richii_when_not_tinpai)

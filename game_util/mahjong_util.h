@@ -146,7 +146,7 @@ static void GenerateTilesFromDecodedString(const std::string_view decoded_str, s
     }
 }
 
-static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::string& errstr)
+static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::string& errstr, const bool exact = false)
 {
     TileSet tiles;
     const auto insert = [&](const TileSet::iterator it)
@@ -162,7 +162,7 @@ static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::strin
             insert(it);
             continue;
         }
-        if (std::islower(decoded_str[i + 1])) {
+        if (!exact && std::islower(decoded_str[i + 1])) {
             const auto it = src.find(TileIdent(decoded_str[i], std::toupper(decoded_str[i + 1])));
             if (it != src.end()) {
                 // we found a toumei tile instead
@@ -170,7 +170,7 @@ static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::strin
                 continue;
             }
         }
-        if (decoded_str[i] == '5') {
+        if (!exact && decoded_str[i] == '5') {
             const auto it = src.find(TileIdent('0', decoded_str[i + 1]));
             if (it != src.end()) {
                 // we found a red dora tile instead
@@ -178,7 +178,7 @@ static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::strin
                 continue;
             }
         }
-        if (std::islower(decoded_str[i + 1]) && decoded_str[i] == '5') {
+        if (!exact && std::islower(decoded_str[i + 1]) && decoded_str[i] == '5') {
             const auto it = src.find(TileIdent('0', std::toupper(decoded_str[i + 1])));
             if (it != src.end()) {
                 // we found a red toumei dora tile instead
