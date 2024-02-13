@@ -221,8 +221,8 @@ class SyncMahjongGamePlayer
         }
         const bool succ = tile.empty() ? KiriTsumo_(richii) : Kiri_(tile, richii);
         if (succ) {
-            state_ = state_ == ActionState::AFTER_CHI_PON || state_ == ActionState::AFTER_KAN_CAN_NARI ? ActionState::AFTER_KIRI :
-                ActionState::ROUND_OVER;
+            state_ = (state_ == ActionState::AFTER_CHI_PON || state_ == ActionState::AFTER_KAN_CAN_NARI) && (CanChi_() || CanPon_() || CanRon_()) ?
+                ActionState::AFTER_KIRI : ActionState::ROUND_OVER;
         }
         return succ;
     }
@@ -422,7 +422,7 @@ class SyncMahjongGamePlayer
 #ifdef TEST_BOT
     Tile LastKiriTile() const { return river_.back().tile_; }
 
-    void StartNormalStage(const uint32_t round) { return StartNormalStage_(round); }
+    void StartNormalStage() { return StartNormalStage_(); }
 #endif
 
   private:
@@ -612,11 +612,13 @@ class SyncMahjongGamePlayer
 
     bool IsRiichi_() const { return !richii_listen_tiles_.empty() && richii_round_ != round_; }
 
-    void StartNormalStage_(const uint32_t round)
+    void StartNormalStage_()
     {
         assert(state_ == ActionState::ROUND_OVER);
-        round_ = round;
         cur_round_my_kiri_info_.kiri_tiles_.clear();
+        if (public_html_.empty()) {
+            public_html_ = Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
+        }
         if (!IsRiichi_() && (CanChi_() || CanPon_())) {
             state_ = ActionState::ROUND_BEGIN;
             return;
@@ -790,12 +792,9 @@ class SyncMahjongGamePlayer
                         std::next(hand_tiles.begin(), 2)->tile, kan_tile.tile}));
             if (!richii_listen_tiles_.empty()) {
                 assert(tsumo_.has_value()); // richii must kan tsumo
-                const Tile tsumo = *tsumo_;
-                tsumo_ = std::nullopt;
-                if (GetListenTiles_() != richii_listen_tiles_) {
+                if (GetListenTiles_(hand_, std::nullopt) != richii_listen_tiles_) {
                     // kan after richii cannot change tinpai
                     hand_.insert(hand_tiles.begin(), hand_tiles.end());
-                    tsumo_ = tsumo;
                     errstr_ = "立直状态下暗杠或加杠不允许改变听牌种类";
                     return false;
                 }
@@ -852,21 +851,50 @@ class SyncMahjongGamePlayer
 
     bool CanChi_() const
     {
-        // TODO
-        return round_ != 1;
+        const auto contains_tile = [&](const int basetile)
+            {
+                return std::ranges::find_if(hand_, [basetile](const Tile& tile) { return tile.tile == basetile; }) != hand_.end();
+            };
+        const auto can_make_flush = [contains_tile](const int basetile)
+            {
+                return basetile == _1m || basetile == _1s || basetile == _1p ?
+                            contains_tile(basetile + 1) && contains_tile(basetile + 2) :
+                       basetile == _9m || basetile == _9s || basetile == _9p ?
+                            contains_tile(basetile - 1) && contains_tile(basetile - 2) :
+                       basetile < east ?
+                            (contains_tile(basetile + 1) && contains_tile(basetile + 2)) ||
+                            (contains_tile(basetile - 1) && contains_tile(basetile - 2)) ||
+                            (contains_tile(basetile + 1) && contains_tile(basetile - 1)) : false;
+            };
+        const auto can_chi = [&](const KiriTile& kiri_tile)
+            {
+                const auto& remaining_kiri_tiles = cur_round_kiri_info_.other_player_kiri_tiles_;
+                return (kiri_tile.type_ == KiriTile::Type::NORMAL || kiri_tile.type_ == KiriTile::Type::RIVER_BOTTOM) &&
+                    can_make_flush(kiri_tile.tile_.tile) &&
+                    std::ranges::find_if(remaining_kiri_tiles,
+                            [basetile = kiri_tile.tile_.tile](const Tile& tile) { return tile.tile == basetile; }) != remaining_kiri_tiles.end();
+            };
+        return std::ranges::any_of(cur_round_kiri_info_.other_players_, [&](const PlayerKiriInfo& player_kiri_info)
+                {
+                    return from_chi_players_[player_kiri_info.player_id_] && std::ranges::any_of(player_kiri_info.kiri_tiles_, can_chi);
+                });
     }
 
     bool CanPon_() const
     {
-        // TODO
-        return round_ != 1;
+        return std::ranges::any_of(cur_round_kiri_info_.other_player_kiri_tiles_, [this](const Tile& kiri_tile)
+                {
+                    return std::ranges::count_if(hand_, [&kiri_tile](const Tile& tile) { return tile.tile == kiri_tile.tile; }) >= 2;
+                });
     }
 
     bool CanDarkKanInRichiiState_() const
     {
-        // TODO
         assert(IsRiichi_());
-        return true;
+        assert(tsumo_.has_value());
+        auto hand = hand_;
+        return std::erase_if(hand, [this](const Tile& tile) { return tile.tile == tsumo_->tile; }) == 3 &&
+            GetListenTiles_(hand, std::nullopt) == richii_listen_tiles_;
     }
 
     // If `CanRon_()` returns true, `Ron()` must return true.
@@ -1093,15 +1121,15 @@ class SyncMahjongGamePlayer
         return true;
     }
 
-    std::vector<BaseTile> GetListenTiles_() const
+    static std::vector<BaseTile> GetListenTiles_(const TileSet& hand, const std::optional<Tile>& tsumo)
     {
         std::vector<BaseTile> ret;
         std::vector<BaseTile> hand_basetiles;
-        for (const Tile& tile : hand_) {
+        for (const Tile& tile : hand) {
             hand_basetiles.emplace_back(tile.tile);
         }
-        if (tsumo_.has_value()) {
-            hand_basetiles.emplace_back(tsumo_->tile);
+        if (tsumo.has_value()) {
+            hand_basetiles.emplace_back(tsumo->tile);
         }
         for (uint8_t basetile = 0; basetile < 9 * 3 + 7; ++basetile) {
             if (4 == std::count(hand_basetiles.begin(), hand_basetiles.end(), basetile)) {
@@ -1115,6 +1143,8 @@ class SyncMahjongGamePlayer
         }
         return ret;
     }
+
+    std::vector<BaseTile> GetListenTiles_() const { return GetListenTiles_(hand_, tsumo_); }
 
     int32_t CurrentRoundChiTileCount_(const Tile& kiri_tile) const
     {
@@ -1225,41 +1255,46 @@ class SyncMajong
             player.public_html_.clear();
         }
         UpdateDora_();
-        const Defer defer([&]
-                {
-                    for (auto& player : players_) {
-                        if (player.public_html_.empty()) {
-                            player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
+        {
+            const Defer defer([&]
+                    {
+                        for (auto& player : players_) {
+                            if (player.public_html_.empty()) {
+                                player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
+                            }
                         }
-                    }
-                });
-        if (Is_三家和了(players_)) {
-            return RoundOverResult::CHUTO_NAGASHI_三家和了;
-        }
-        if (HandleFuResults_()) {
-            return RoundOverResult::FU;
-        }
-        if (ron_stage_ = !ron_stage_ && StartRonStage_()) {
-            return RoundOverResult::RON_ROUND;
-        }
-        if (round_ == 1 && UpdatePublicHtmlFor_九种九牌(players_)) {
-            return RoundOverResult::CHUTO_NAGASHI_九种九牌;
-        }
-        for (auto& player : players_) {
-            if (player.richii_round_ == round_) {
-                player.point_variation_ -= 1000;
-                richii_points_ += 1000;
+                    });
+            if (Is_三家和了(players_)) {
+                return RoundOverResult::CHUTO_NAGASHI_三家和了;
             }
-        }
-        if (round_ == 1 && Is_四风连打(players_)) {
-            return RoundOverResult::CHUTO_NAGASHI_四风连打;
-        }
-        if (HandleNyanapaiNagashi_()) {
-            return RoundOverResult::NYANPAI_NAGASHI;
-        }
-        ++round_;
-        if (Is_四家立直(players_)) {
-            return RoundOverResult::CHUTO_NAGASHI_四家立直;
+            if (HandleFuResults_()) {
+                return RoundOverResult::FU;
+            }
+            if (ron_stage_ = !ron_stage_ && StartRonStage_()) {
+                return RoundOverResult::RON_ROUND;
+            }
+            if (round_ == 1 && UpdatePublicHtmlFor_九种九牌(players_)) {
+                return RoundOverResult::CHUTO_NAGASHI_九种九牌;
+            }
+            for (auto& player : players_) {
+                if (player.richii_round_ == round_) {
+                    player.point_variation_ -= 1000;
+                    richii_points_ += 1000;
+                }
+            }
+            if (round_ == 1 && Is_四风连打(players_)) {
+                return RoundOverResult::CHUTO_NAGASHI_四风连打;
+            }
+            if (HandleNyanapaiNagashi_()) {
+                return RoundOverResult::NYANPAI_NAGASHI;
+            }
+            ++round_;
+            for (auto& player : players_) {
+                ++player.round_;
+            }
+            if (Is_四家立直(players_)) {
+                return RoundOverResult::CHUTO_NAGASHI_四家立直;
+            }
         }
         StartNormalStage_();
         return RoundOverResult::NORMAL_ROUND;
@@ -1276,7 +1311,7 @@ class SyncMajong
     void StartNormalStage_()
     {
         for (auto& player : players_) {
-            player.StartNormalStage_(round_);
+            player.StartNormalStage_();
         }
     }
 

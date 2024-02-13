@@ -156,11 +156,16 @@ class TableStage : public SubGameStage<>
 
     void AllowPlayersToAct_() {
         for (const auto& player : table_.Players()) {
-            if (player.State() != game_util::mahjong::ActionState::ROUND_OVER) {
-                ClearReady(player.PlayerID());
-                Tell(player.PlayerID()) << Markdown(PlayerHtml_(player), k_image_width);
-                Tell(player.PlayerID()) << AvailableActions_(player.State());
+            if (player.State() == game_util::mahjong::ActionState::ROUND_OVER) {
+                continue;
             }
+            ClearReady(player.PlayerID());
+            auto sender = Tell(player.PlayerID());
+            sender << Markdown(PlayerHtml_(player), k_image_width);
+            if (player.State() == game_util::mahjong::ActionState::AFTER_GET_TILE) {
+                sender << "\n自动为您摸了一张牌\n";
+            }
+            sender << "\n" << AvailableActions_(player.State());
         }
         StartTimer(GET_OPTION_VALUE(option(), 时限));
     }
@@ -226,7 +231,6 @@ class TableStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "牌局开始"; // TODO: show image
         UpdatePlayerPublicHtmls_();
         AllowPlayersToAct_();
     }

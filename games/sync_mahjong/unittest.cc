@@ -81,7 +81,6 @@ GAME_TEST(4, nari_multiple_times)
     ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
 
     for (int pid = 1; pid < 4; ++pid) {
-        ASSERT_PRI_MSG(OK, pid, "摸牌");
         ASSERT_PRI_MSG(OK, pid, "摸切");
     }
     ASSERT_PRI_MSG(OK, 0, "碰 2s");
@@ -187,12 +186,15 @@ GAME_TEST(4, four_players_richii)
                             .hand_ = "19m19s19p1345677z",
                         },
                         [1] = Tiles::PlayerTiles {
+                            .yama_ = "3z",
                             .hand_ = "123456789m123s1z",
                         },
                         [2] = Tiles::PlayerTiles {
+                            .yama_ = "4z",
                             .hand_ = "123456789m123s1z",
                         },
                         [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
                             .hand_ = "123456789m123s1z",
                         },
                     }
@@ -205,10 +207,8 @@ GAME_TEST(4, four_players_richii)
     ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
 
     for (int pid = 0; pid < 3; ++pid) {
-        ASSERT_PRI_MSG(OK, pid, "摸牌");
         ASSERT_PRI_MSG(OK, pid, "立直 摸切");
     }
-    ASSERT_PRI_MSG(OK, 3, "摸牌");
     ASSERT_PRI_MSG(CHECKOUT, 3, "立直 摸切");
 
     // the second game
@@ -252,20 +252,12 @@ GAME_TEST(4, four_players_richii_on_different_round)
     ASSERT_PRI_MSG(OK, 2, "摸切");
     ASSERT_PRI_MSG(CONTINUE, 3, "立直 摸切");
 
-    ASSERT_PRI_MSG(OK, 0, "摸牌");
     ASSERT_PRI_MSG(OK, 0, "摸切");
-    ASSERT_PRI_MSG(OK, 1, "摸牌");
     ASSERT_PRI_MSG(OK, 1, "摸切");
-    ASSERT_PRI_MSG(OK, 2, "摸牌");
-    ASSERT_PRI_MSG(OK, 2, "立直 摸切");
-    ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
+    ASSERT_PRI_MSG(CONTINUE, 2, "立直 摸切");
 
-    ASSERT_PRI_MSG(OK, 0, "摸牌");
     ASSERT_PRI_MSG(OK, 0, "立直 摸切");
-    ASSERT_PRI_MSG(OK, 1, "摸牌");
-    ASSERT_PRI_MSG(OK, 1, "立直 摸切");
-    ASSERT_PRI_MSG(OK, 2, "摸切");
-    ASSERT_PRI_MSG(CHECKOUT, 3, "摸切");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "立直 摸切");
 
     ASSERT_FINISHED(false);
 }
@@ -328,10 +320,8 @@ GAME_TEST(4, three_players_tsumo_cause_nagashi)
     ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
 
     for (uint32_t pid = 0; pid < 3; ++pid) {
-        ASSERT_PRI_MSG(OK, pid, "摸牌");
         ASSERT_PRI_MSG(OK, pid, "自摸");
     }
-    ASSERT_PRI_MSG(OK, 3, "摸牌");
     ASSERT_PRI_MSG(CHECKOUT, 3, "摸切"); // nagashi
 
     ASSERT_FINISHED(false);
@@ -369,10 +359,8 @@ GAME_TEST(4, three_players_ron_cause_nagashi)
 
     // the second round -- normal stage
     for (uint32_t pid = 0; pid < 3; ++pid) {
-        ASSERT_PRI_MSG(OK, pid, "摸牌");
         ASSERT_PRI_MSG(OK, pid, "摸切");
     }
-    ASSERT_PRI_MSG(OK, 3, "摸牌");
     ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
 
     // the second round -- ron stage
@@ -413,18 +401,13 @@ GAME_TEST(4, ron_players_obtain_last_game_riichi_points)
     ASSERT_PRI_MSG(CONTINUE, 0, "立直 摸切");
 
     for (uint32_t i = 0; i < 17; ++i) {
-        for (uint32_t pid = 1; pid < 4; ++pid) {
-            ASSERT_PRI_MSG(OK, pid, "摸牌");
-            ASSERT_PRI_MSG(OK, pid, "摸切");
-        }
-        ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+        ASSERT_PRI_MSG(OK, 1, "摸切");
+        ASSERT_PRI_MSG(OK, 2, "摸切");
+        ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
     }
-
-    for (uint32_t pid = 1; pid < 4; ++pid) {
-        ASSERT_PRI_MSG(OK, pid, "摸牌");
-        ASSERT_PRI_MSG(OK, pid, "摸切");
-    }
-    ASSERT_PRI_MSG(CHECKOUT, 0, "摸切");
+    ASSERT_PRI_MSG(OK, 1, "摸切");
+    ASSERT_PRI_MSG(OK, 2, "摸切");
+    ASSERT_PRI_MSG(CHECKOUT, 3, "摸切");
 
     // second game
     ASSERT_PRI_MSG(OK, 0, "自摸");
@@ -572,7 +555,6 @@ GAME_TEST(4, nari_ron)
     ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
 
     for (uint32_t pid = 1; pid < 4; ++pid) {
-        ASSERT_PRI_MSG(OK, pid, "摸牌");
         ASSERT_PRI_MSG(OK, pid, "摸切");
     }
     ASSERT_PRI_MSG(OK, 0, "碰 6s");
@@ -734,8 +716,7 @@ GAME_TEST(4, cannot_chi_same_tile_multiple_times_when_only_one_tile_can_chi)
     ASSERT_TIMEOUT(CONTINUE);
 
     ASSERT_PRI_MSG(OK, 0, "吃 23m 1m");
-    ASSERT_PRI_MSG(OK, 0, "1z");
-    ASSERT_PRI_MSG(CONTINUE, 0, "结束");
+    ASSERT_PRI_MSG(CONTINUE, 0, "1z");
 
     ASSERT_PRI_MSG(OK, 0, "吃 45m 6m");
     ASSERT_PRI_MSG(OK, 0, "2s");
@@ -768,8 +749,7 @@ GAME_TEST(4, can_ron_after_chi)
     ASSERT_TIMEOUT(CONTINUE);
 
     ASSERT_PRI_MSG(OK, 0, "吃 45m 3m");
-    ASSERT_PRI_MSG(OK, 0, "1z");
-    ASSERT_PRI_MSG(CONTINUE, 0, "结束");
+    ASSERT_PRI_MSG(CONTINUE, 0, "1z");
 
     ASSERT_PRI_MSG(CHECKOUT, 0, "荣");
 }
@@ -814,17 +794,17 @@ GAME_TEST(4, richii_nomi_cannot_ron_in_the_same_round_due_to_no_yakus)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
+                            .yama_ = "6z6z",
                             .hand_ = "34566677s12m345p",
                         },
                         [1] = Tiles::PlayerTiles {
                             .yama_ = "3m3m",
-                            .hand_ = "1z2z", // do not tinpai
                         },
                         [2] = Tiles::PlayerTiles {
-                            .hand_ = "1z2z", // do not tinpai
+                            .yama_ = "6z6z",
                         },
                         [3] = Tiles::PlayerTiles {
-                            .hand_ = "1z2z", // do not tinpai
+                            .yama_ = "6z6z",
                         },
                     },
                     .doras_ = "3z3z", // doras do not hit
@@ -837,7 +817,7 @@ GAME_TEST(4, richii_nomi_cannot_ron_in_the_same_round_due_to_no_yakus)
     // skip the ron stage
 
     ASSERT_PRI_MSG(FAILED, 0, "荣");
-    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+    ASSERT_PRI_MSG(CONTINUE, 1, "摸切");
 
     ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 两立直 一发 40 fu 3 fan
 
@@ -901,8 +881,6 @@ GAME_TEST(4, cannot_ron_when_self_furutin)
     ASSERT_TIMEOUT(CONTINUE);
 
     ASSERT_PRI_MSG(FAILED, 0, "荣");
-    ASSERT_PRI_MSG(OK, 0, "摸牌");
-    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
 }
 
 GAME_TEST(4, cannot_ron_when_richii_furutin)
@@ -930,14 +908,10 @@ GAME_TEST(4, cannot_ron_when_richii_furutin)
 
     ASSERT_PRI_MSG(OK, 0, "立直 摸切");
     ASSERT_TIMEOUT(CONTINUE);
-
-    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
     ASSERT_PRI_MSG(CONTINUE, 0, "结束"); // do not ron 3m
-
-    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
-
+    ASSERT_TIMEOUT(CONTINUE);
     ASSERT_PRI_MSG(FAILED, 0, "荣");
-    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
 }
 
 GAME_TEST(4, can_ron_after_jiantao_before_richii)
@@ -966,7 +940,6 @@ GAME_TEST(4, can_ron_after_jiantao_before_richii)
     ASSERT_PRI_MSG(OK, 0, "摸切");
     ASSERT_TIMEOUT(CONTINUE);
 
-    ASSERT_PRI_MSG(OK, 0, "摸牌");
     ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
     ASSERT_PRI_MSG(CONTINUE, 0, "结束"); // do not ron 3m
 
@@ -1097,7 +1070,6 @@ GAME_TEST(4, cannot_richii_last_round)
         ASSERT_TIMEOUT(CONTINUE);
     }
 
-    ASSERT_PRI_MSG(OK, 0, "摸牌");
     ASSERT_PRI_MSG(FAILED, 0, "立直 摸切");
 }
 
@@ -1128,8 +1100,7 @@ GAME_TEST(4, ipeiko_cannot_nari)
     ASSERT_TIMEOUT(CONTINUE);
 
     ASSERT_PRI_MSG(OK, 0, "吃 12m 3m");
-    ASSERT_PRI_MSG(OK, 0, "6z");
-    ASSERT_PRI_MSG(FAILED, 0, "荣");
+    ASSERT_PRI_MSG(CONTINUE, 0, "6z"); // cannot nari ron
 }
 
 GAME_TEST(4, chi_red_dora)
@@ -1262,8 +1233,7 @@ GAME_TEST(4, cannot_nari_ron_when_the_tile_has_been_used)
     ASSERT_TIMEOUT(CONTINUE);
 
     ASSERT_PRI_MSG(OK, 0, "吃 34m 5m");
-    ASSERT_PRI_MSG(OK, 0, "2z");
-    ASSERT_PRI_MSG(FAILED, 0, "荣");
+    ASSERT_PRI_MSG(CONTINUE, 0, "2z");
 }
 
 GAME_TEST(4, gokushi_ron_dark_kan)
