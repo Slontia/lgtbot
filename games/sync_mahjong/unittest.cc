@@ -1202,6 +1202,37 @@ GAME_TEST(4, pon_red_dora)
     ASSERT_SCORE(25000 + 3000, 25000 - 1000, 25000 - 1000, 25000 - 1000);
 }
 
+GAME_TEST(4, double_riichi_tsumo)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z1z",
+                            .hand_ = "123456m345p678s1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                    },
+                    .doras_ = "6z6z",
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "立直 摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "自摸"); // w立直 一发 自摸, 30 fu 4 fan
+
+    ASSERT_SCORE(25000 + 3900 * 3, 25000 - 3900, 25000 - 3900, 25000 - 3900);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
