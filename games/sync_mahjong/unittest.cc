@@ -14,7 +14,7 @@ namespace GAME_MODULE_NAME {
 struct Tiles {
     struct PlayerTiles {
         std::string yama_; // 18
-        std::string hand_; // 13
+        std::string hand_{"1z2z"}; // 13
     };
     PlayerTiles player_tiles_[4];
     std::string doras_;
@@ -1255,7 +1255,6 @@ GAME_TEST(4, cannot_nari_ron_when_the_tile_has_been_used)
                             .hand_ = "1z2z", // not tinpai
                         },
                     },
-                    .doras_ = "6z6z",
                 }));
     START_GAME();
 
@@ -1289,7 +1288,6 @@ GAME_TEST(4, gokushi_ron_dark_kan)
                             .hand_ = "1z2z", // not tinpai
                         },
                     },
-                    .doras_ = "6z6z",
                 }));
     START_GAME();
 
@@ -1324,7 +1322,6 @@ GAME_TEST(4, normal_hand_cannot_ron_dark_kan)
                             .hand_ = "1z2z", // not tinpai
                         },
                     },
-                    .doras_ = "6z6z",
                 }));
     START_GAME();
 
@@ -1333,6 +1330,44 @@ GAME_TEST(4, normal_hand_cannot_ron_dark_kan)
     ASSERT_TIMEOUT(CONTINUE);
 
     ASSERT_PRI_MSG(FAILED, 0, "荣");
+}
+
+GAME_TEST(4, kan_after_richii)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z1z",
+                            .hand_ = "45m345p345s11122z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "立直 摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "杠 1z");
+}
+
+GAME_TEST(4, kan_after_richii_cannot_change_tinpai)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z3m",
+                            .hand_ = "33345m12312344s",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "立直 摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(FAILED, 0, "杠 3m");
 }
 
 } // namespace GAME_MODULE_NAME

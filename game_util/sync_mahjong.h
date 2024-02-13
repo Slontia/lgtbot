@@ -788,11 +788,17 @@ class SyncMahjongGamePlayer
             const Tile kan_tile = kan_tsumo ? *tsumo_ : *std::next(hand_tiles.begin(), 3);
             assert(is_杠({hand_tiles.begin()->tile, std::next(hand_tiles.begin())->tile,
                         std::next(hand_tiles.begin(), 2)->tile, kan_tile.tile}));
-            if (!richii_listen_tiles_.empty() && GetListenTiles_() != richii_listen_tiles_) {
-                // kan after richii cannot change tinpai
-                hand_.insert(hand_tiles.begin(), hand_tiles.end());
-                errstr_ = "立直状态下暗杠或加杠不允许改变听牌种类";
-                return false;
+            if (!richii_listen_tiles_.empty()) {
+                assert(tsumo_.has_value()); // richii must kan tsumo
+                const Tile tsumo = *tsumo_;
+                tsumo_ = std::nullopt;
+                if (GetListenTiles_() != richii_listen_tiles_) {
+                    // kan after richii cannot change tinpai
+                    hand_.insert(hand_tiles.begin(), hand_tiles.end());
+                    tsumo_ = tsumo;
+                    errstr_ = "立直状态下暗杠或加杠不允许改变听牌种类";
+                    return false;
+                }
             }
             furus_.emplace_back();
             auto& furu = furus_.back();
@@ -1472,7 +1478,6 @@ class SyncMajong
   // 三麻
   //
   // 立直之后杠
-  // 最后一巡禁止立直
   // 测试海底
   // 测试河底
   //
