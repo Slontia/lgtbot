@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <optional>
 #include <span>
 
 #include "game_util/mahjong_util.h"

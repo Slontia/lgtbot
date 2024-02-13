@@ -10,6 +10,7 @@
 #include <string>
 #include <variant>
 #include <span>
+#include <optional>
 
 #include "Mahjong/Table.h"
 
