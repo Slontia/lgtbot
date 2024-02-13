@@ -525,7 +525,7 @@ class Mahjong17Steps
 
     std::string DoraHtml_(const bool show_inner_dora) const
     {
-        return DoraHtml(option_.image_path_, show_inner_dora, doras_, option_.with_inner_dora_);
+        return DoraHtml(option_.image_path_, doras_, option_.with_inner_dora_ && show_inner_dora);
     }
 
     std::string DoraString_() const

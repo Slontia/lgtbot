@@ -138,7 +138,7 @@ class SyncMahjongGamePlayer
         , public_html_(Html_(HtmlMode::PUBLIC))
     {}
 
-    std::string PublicDoraHtml() const { return DoraHtml(image_path_, false, doras_manager_.Doras(), false); }
+    std::string PublicDoraHtml() const { return DoraHtml(image_path_, doras_manager_.Doras(), false); }
 
     const std::string& PublicHtml() const { return public_html_; }
 
@@ -447,7 +447,7 @@ class SyncMahjongGamePlayer
         if (!fu_results_.empty()) {
             s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(blue) " **和&nbsp;&nbsp;了** "
                 HTML_FONT_TAIL "\n\n</font> </center>\n\n";
-            s += DoraHtml(image_path_, IsRiichi_(), doras_manager_.Doras(), true);
+            s += DoraHtml(image_path_, doras_manager_.Doras(), IsRiichi_());
             s += "\n\n";
             s += HandHtml_(TileStyle::FORWARD);
             s += "\n\n";

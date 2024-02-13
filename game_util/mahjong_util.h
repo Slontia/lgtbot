@@ -231,26 +231,30 @@ static std::string PlayerNameHtml(const PlayerDesc& player_desc, const int32_t p
     return s;
 }
 
-// TODO: change the style
-static std::string DoraHtml(const std::string& image_path, const bool show_inner_dora, const std::span<const std::pair<Tile, Tile>>& doras, const bool with_inner_dora)
+static std::string DoraHtml(const std::string& image_path, const std::span<const std::pair<Tile, Tile>>& doras, const bool with_inner_dora)
 {
-    const std::string head_str = "<center>\n\n" + BackImage(image_path, TileStyle::FORWARD) + BackImage(image_path, TileStyle::FORWARD);
-    std::string outer_str;
-    std::string inner_str;
-    for (const auto& [dora, inner_dora] : doras) {
-        outer_str += Image(image_path, dora, TileStyle::FORWARD);
-        inner_str += show_inner_dora ? Image(image_path, inner_dora, TileStyle::FORWARD) : BackImage(image_path, TileStyle::FORWARD);
+    std::string s = "<center>\n\n";
+    const auto append_empty_doras = [&]()
+        {
+            constexpr int32_t k_max_dora_num = 5;
+            assert(doras.size() < k_max_dora_num);
+            for (auto i = doras.size(); i < k_max_dora_num; ++i) {
+                s += "<img src=\"file:///" + image_path + "/empty_dora.png\"/>";
+            }
+        };
+    for (const auto& [dora, _] : doras) {
+        s += Image(image_path, dora, TileStyle::FORWARD);
     }
-    std::string tail_str;
-    for (auto i = doras.size(); i < 5; ++i) {
-        tail_str += BackImage(image_path, TileStyle::FORWARD);
-    }
-    tail_str += "\n\n</center>";
-    std::string final_str = head_str + outer_str + tail_str;
+    append_empty_doras();
     if (with_inner_dora) {
-        final_str += "\n\n" + head_str + inner_str + tail_str;
+        s += HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE;
+        for (const auto& [_, inner_dora] : doras) {
+            s += Image(image_path, inner_dora, TileStyle::FORWARD);
+        }
+        append_empty_doras();
     }
-    return final_str;
+    s += "\n\n</center>";
+    return s;
 }
 
 static std::string HandHtml(const std::string& image_path, const TileSet& hand, const TileStyle style, const std::optional<Tile>& tsumo = std::nullopt)
