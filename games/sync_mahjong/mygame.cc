@@ -122,11 +122,13 @@ class SingleTileChecker : public AnyArg
     }
 };
 
+static constexpr const char* k_chinese_number[] = {"零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"};
+
 class TableStage : public SubGameStage<>
 {
   public:
     TableStage(MainStage& main_stage)
-        : GameStage(main_stage, std::to_string(main_stage.GameNo() + 1) + " 局 " + std::to_string(main_stage.GetSyncMahjongOption().benchang_) + " 本场",
+        : GameStage(main_stage, std::string("第") + k_chinese_number[main_stage.GameNo() + 1] + "局",
                 MakeStageCommand("查看场上情况", &TableStage::Info_, VoidChecker("赛况")),
                 MakeStageCommand("摸牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::GetTile_, VoidChecker("摸牌")),
                 MakeStageCommand("吃牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Chi_, VoidChecker("吃"), AnyArg("手中的牌（两张）", "24m"), SingleTileChecker("要吃的牌（一张）", "3m")),
@@ -171,7 +173,27 @@ class TableStage : public SubGameStage<>
 
     std::string TitleHtml_() const
     {
-        return "<style>html,body{background:#c3e4f5;}</style>\n\n" + game_util::mahjong::TitleHtml(name(), table_.Round()) + "\n\n";
+        std::string s = "<style>html,body{background:#c3e4f5;}</style>\n\n";
+        s += game_util::mahjong::TitleHtml(name(), table_.Round());
+        s += "\n\n<center>\n\n**<img src=\"file:///";
+        s += option().ResourceDir();
+        s += "/riichi.png\"/> ";
+        if (table_.RichiiPoints() > 0) {
+            s += HTML_COLOR_FONT_HEADER(blue);
+        }
+        s += HTML_ESCAPE_SPACE;
+        s += std::to_string(table_.RichiiPoints() / 1000);
+        if (table_.RichiiPoints() > 0) {
+            s += HTML_FONT_TAIL;
+        }
+        s += HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE;
+        s += "<img src=\"file:///";
+        s += option().ResourceDir();
+        s += "/benchang.png\"/> ";
+        s += HTML_ESCAPE_SPACE;
+        s += std::to_string(main_stage().GetSyncMahjongOption().benchang_);
+        s += "**\n\n</center>\n\n";
+        return s;
     }
 
     std::string PlayerHtml_(const game_util::mahjong::SyncMahjongGamePlayer &player) const
