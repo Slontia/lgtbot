@@ -1233,6 +1233,108 @@ GAME_TEST(4, double_riichi_tsumo)
     ASSERT_SCORE(25000 + 3900 * 3, 25000 - 3900, 25000 - 3900, 25000 - 3900);
 }
 
+GAME_TEST(4, cannot_nari_ron_when_the_tile_has_been_used)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z1z",
+                            .hand_ = "3467m345p34577s2z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "5m",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                    },
+                    .doras_ = "6z6z",
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "吃 34m 5m");
+    ASSERT_PRI_MSG(OK, 0, "2z");
+    ASSERT_PRI_MSG(FAILED, 0, "荣");
+}
+
+GAME_TEST(4, gokushi_ron_dark_kan)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                            .hand_ = "19s19p19m2234567z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "111z", // not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                    },
+                    .doras_ = "6z6z",
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_PRI_MSG(OK, 1, "杠 1z");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣");
+
+    ASSERT_SCORE(25000 + 48000, 25000 - 48000, 25000, 25000);
+}
+
+GAME_TEST(4, normal_hand_cannot_ron_dark_kan)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                            .hand_ = "45m345p345s11122z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "3m",
+                            .hand_ = "333m", // not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                            .hand_ = "1z2z", // not tinpai
+                        },
+                    },
+                    .doras_ = "6z6z",
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_PRI_MSG(OK, 1, "杠 3m");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(FAILED, 0, "荣");
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
