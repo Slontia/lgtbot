@@ -1135,6 +1135,7 @@ class SyncMahjongGamePlayer
         if (tsumo.has_value()) {
             hand_basetiles.emplace_back(tsumo->tile);
         }
+        std::ranges::sort(hand_basetiles);
         for (uint8_t basetile = 0; basetile < 9 * 3 + 7; ++basetile) {
             if (4 == std::count(hand_basetiles.begin(), hand_basetiles.end(), basetile)) {
                 continue; // all same tiles are in hand

@@ -1385,6 +1385,27 @@ GAME_TEST(4, kan_self_wind)
     ASSERT_SCORE(25000 + 3400, 25000 - 3400, 25000, 25000);
 }
 
+GAME_TEST(4, BUG_cannot_richii)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "4s",
+                            .hand_ = "567m5s234455678p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "3s",
+                            .hand_ = "123066789s0678p",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "立直 4p");
+    ASSERT_PRI_MSG(OK, 1, "立直 8p");
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
