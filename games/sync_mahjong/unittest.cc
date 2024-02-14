@@ -1359,6 +1359,32 @@ GAME_TEST(4, tsumo_normal_suanko)
     ASSERT_SCORE(25000 + 96000, 25000 - 32000, 25000 - 32000, 25000 - 32000);
 }
 
+GAME_TEST(4, kan_self_wind)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "111z23456m1234s",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "4s",
+                        },
+                    },
+                    .doras_ = "6z6z6z6z",
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "杠 1z");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 70 fu 1 fan, 3400
+
+    ASSERT_SCORE(25000 + 3400, 25000 - 3400, 25000, 25000);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
