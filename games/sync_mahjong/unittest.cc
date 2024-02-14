@@ -1340,6 +1340,25 @@ GAME_TEST(4, kan_after_richii_cannot_change_tinpai)
     ASSERT_PRI_MSG(FAILED, 0, "杠 3m");
 }
 
+GAME_TEST(4, tsumo_normal_suanko)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5m",
+                            .hand_ = "1112223334455m",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "自摸");
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    ASSERT_SCORE(25000 + 96000, 25000 - 32000, 25000 - 32000, 25000 - 32000);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game

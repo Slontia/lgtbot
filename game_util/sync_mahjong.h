@@ -422,7 +422,11 @@ class SyncMahjongGamePlayer
 #ifdef TEST_BOT
     Tile LastKiriTile() const { return river_.back().tile_; }
 
-    void StartNormalStage() { return StartNormalStage_(); }
+    void StartNormalStage(const int32_t round)
+    {
+        round_ = round;
+        return StartNormalStage_();
+    }
 #endif
 
   private:
@@ -1245,6 +1249,9 @@ class SyncMajong
 #endif
         AssignTiles_(option, tiles);
         ++round_;
+        for (auto& player : players_) {
+            ++player.round_;
+        }
         StartNormalStage_();
     }
 

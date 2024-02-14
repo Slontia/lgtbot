@@ -48,8 +48,7 @@ TEST_F(TestSyncMahjong, kiri_priority)
                     Tile{.tile = _5s, .red_dora = false, .toumei = false},
                 },
             });
-    player->round_ = 1;
-    player->StartNormalStage();
+    player->StartNormalStage(1);
     EXPECT_TRUE(player->Kiri("5s", false));
     ASSERT_EQ((Tile{.tile = _5s, .red_dora = false, .toumei = false}), player->LastKiriTile());
 }
