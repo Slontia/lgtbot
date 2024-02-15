@@ -1406,6 +1406,30 @@ GAME_TEST(4, BUG_cannot_richii)
     ASSERT_PRI_MSG(OK, 1, "立直 8p");
 }
 
+GAME_TEST(4, all_green_7_pairs)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "6z",
+                            .hand_ = "2233446688p6z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "3s",
+                            .hand_ = "123066789s0678p",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "6z",
+                        }
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "立直 4p");
+    ASSERT_PRI_MSG(OK, 1, "立直 8p");
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
