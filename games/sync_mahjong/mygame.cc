@@ -250,7 +250,6 @@ class TableStage : public SubGameStage<>
 
     virtual void OnAllPlayerReady() override
     {
-        Boardcast() << "全员行动完毕，公布当前赛况";
         OnOver_();
     }
 
@@ -262,35 +261,38 @@ class TableStage : public SubGameStage<>
     {
         const game_util::mahjong::SyncMajong::RoundOverResult result = table_.RoundOver();
         UpdatePlayerPublicHtmls_();
+        const char* message = nullptr;
         switch (result) {
             case game_util::mahjong::SyncMajong::RoundOverResult::NORMAL_ROUND:
-                Boardcast() << "本巡结果如图所示，请各玩家进行下一巡的行动";
-                Group() << Markdown(BoardcastHtml_(), k_image_width);
+                Group() << "本巡结果如图所示，请各玩家进行下一巡的行动\n" << Markdown(BoardcastHtml_(), k_image_width);
             case game_util::mahjong::SyncMajong::RoundOverResult::RON_ROUND:
                 AllowPlayersToAct_();
                 return false;
             case game_util::mahjong::SyncMajong::RoundOverResult::FU:
-                Boardcast() << "有人和牌，本局结束";
+                message = "有人和牌，本局结束";
                 is_valid_game_ = true;
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_三家和了:
-                Boardcast() << "三家和了，中途流局，本局结束";
+                message = "三家和了，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_九种九牌:
-                Boardcast() << "九种九牌，中途流局，本局结束";
+                message = "九种九牌，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_四风连打:
-                Boardcast() << "四风连打，中途流局，本局结束";
+                message = "四风连打，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_四家立直:
-                Boardcast() << "四家立直，中途流局，本局结束";
+                message = "四家立直，中途流局，本局结束";
                 break;
             case game_util::mahjong::SyncMajong::RoundOverResult::NYANPAI_NAGASHI:
-                Boardcast() << "荒牌流局，本局结束";
+                message = "荒牌流局，本局结束";
                 is_valid_game_ = true;
                 break;
         }
-        Boardcast() << Markdown(BoardcastHtml_(), k_image_width);
+        Group() << message << "\n" << Markdown(BoardcastHtml_(), k_image_width);
+        for (const auto& player : table_.Players()) {
+            Tell(player.PlayerID()) << message << "\n" << Markdown(PlayerHtml_(player), k_image_width);
+        }
         return true;
     }
 
