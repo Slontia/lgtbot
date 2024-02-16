@@ -1460,6 +1460,30 @@ GAME_TEST(4, get_tile_directly_because_cannot_chi_cross_suits)
     ASSERT_PRI_MSG(CONTINUE, 1, "摸切");
 }
 
+GAME_TEST(4, prefer_kiri_non_red_dora)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5p",
+                            .hand_ = "0p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "8s",
+                            .hand_ = "4p6p1z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "5p");
+    ASSERT_PRI_MSG(OK, 1, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(FAILED, 1, "吃 46p 0p");
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game

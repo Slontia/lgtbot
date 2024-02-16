@@ -147,7 +147,8 @@ static void GenerateTilesFromDecodedString(const std::string_view decoded_str, s
     }
 }
 
-static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::string& errstr, const bool prefer_red_dora = false)
+enum class GetTileMode { EXACT, FUZZY, PREFER_RED_DORA };
+static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::string& errstr, const GetTileMode mode = GetTileMode::FUZZY)
 {
     TileSet tiles;
     const auto decoded_str = DecodeTilesString(str, errstr);
@@ -182,10 +183,12 @@ static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::strin
             return (insert_if_found(find_fn(num, suit)) || ...);
         };
     for (uint32_t i = 0; i < decoded_str.size(); i += 2) {
-        if ((prefer_red_dora && insert_if_found_multi(decoded_str[i], decoded_str[i + 1],
+        if ((mode == GetTileMode::PREFER_RED_DORA && insert_if_found_multi(decoded_str[i], decoded_str[i + 1],
                         find_red_tile, find_toumei_red_tile, find_tile, find_toumei_tile)) ||
-            (!prefer_red_dora && insert_if_found_multi(decoded_str[i], decoded_str[i + 1],
-                        find_tile, find_toumei_tile, find_red_tile, find_toumei_red_tile))) {
+            (mode == GetTileMode::FUZZY && insert_if_found_multi(decoded_str[i], decoded_str[i + 1],
+                        find_tile, find_toumei_tile, find_red_tile, find_toumei_red_tile)) ||
+            (mode == GetTileMode::EXACT && insert_if_found_multi(decoded_str[i], decoded_str[i + 1],
+                        find_tile))) {
             continue;
         }
         errstr = "没有足够的 \"";

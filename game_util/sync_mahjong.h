@@ -247,7 +247,7 @@ class SyncMahjongGamePlayer
             return false;
         }
         const auto tiles = GetTilesFrom(hand_, hand_tiles, errstr_);
-        const auto kiri_tile = GetTilesFrom(cur_round_kiri_info_.other_player_kiri_tiles_, others_kiri_tile, errstr_, true);
+        const auto kiri_tile = GetTilesFrom(cur_round_kiri_info_.other_player_kiri_tiles_, others_kiri_tile, errstr_, GetTileMode::PREFER_RED_DORA);
         const auto rollback =
             [&] {
                 hand_.insert(tiles.begin(), tiles.end());
@@ -316,7 +316,7 @@ class SyncMahjongGamePlayer
             return false;
         }
         const std::string& tile_str = basetile_to_string_simple(tiles.begin()->tile);
-        const auto kiri_tile = GetTilesFrom(cur_round_kiri_info_.other_player_kiri_tiles_, tile_str, errstr_, true);
+        const auto kiri_tile = GetTilesFrom(cur_round_kiri_info_.other_player_kiri_tiles_, tile_str, errstr_, GetTileMode::PREFER_RED_DORA);
         if (kiri_tile.empty()) {
             errstr_ = "前巡舍牌中不存在「"s + tile_str + "」";
             rollback();
@@ -752,13 +752,20 @@ class SyncMahjongGamePlayer
             errstr_ = "您需要且仅需要指定一张牌";
             return false;
         }
-        const auto tiles = GetTilesFrom(hand_, tile_sv, errstr_);
+        auto tiles = GetTilesFrom(hand_, tile_sv, errstr_, tsumo_.has_value() ? GetTileMode::EXACT : GetTileMode::FUZZY);
         if (tiles.empty()) {
-            if (!MatchTsumo_(tile_sv)) {
+            if (!tsumo_.has_value()) {
                 errstr_ = "您的手牌中不存在「"s + tile_sv.data() + "」";
                 return false;
             }
-            return KiriTsumo_(richii);
+            if (tsumo_->to_simple_string() == tile_sv) {
+                return KiriTsumo_(richii);
+            }
+            tiles = GetTilesFrom(hand_, tile_sv, errstr_, GetTileMode::FUZZY);
+            if (tiles.empty()) {
+                errstr_ = "您的手牌中不存在「"s + tile_sv.data() + "」";
+                return false;
+            }
         }
         assert(tiles.size() == 1);
         if (!KiriInternal_(false, richii, *tiles.begin())) {
