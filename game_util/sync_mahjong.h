@@ -167,13 +167,19 @@ class SyncMahjongGamePlayer
         const std::bitset<k_tile_type_num> disc_bitset(std::get<2>(calsht(calsht_hand, 4 - furus_.size(), 7)));
         BaseTile kiri_basetile = hand_.begin()->tile;
         int32_t min_sht = INT32_MAX;
+        int32_t max_wait_tiles_num = 0;
         for (int32_t basetile = 0; basetile < k_tile_type_num; ++basetile) {
             if (disc_bitset[basetile_to_index(basetile)]) {
                 --calsht_hand[basetile_to_index(basetile)];
-                const int32_t kiri_sht = std::get<0>(calsht(calsht_hand, 4 - furus_.size(), 7));
+                const auto [kiri_sht, _1, _2, wait_tiles] = calsht(calsht_hand, 4 - furus_.size(), 7);
+                const auto wait_tiles_num = std::bitset<k_tile_type_num>(wait_tiles).count();
                 if (kiri_sht < min_sht) {
-                    min_sht = kiri_sht;
                     kiri_basetile = static_cast<BaseTile>(basetile);
+                    min_sht = kiri_sht;
+                    max_wait_tiles_num = wait_tiles_num;
+                } else if (kiri_sht == min_sht && wait_tiles_num > max_wait_tiles_num) {
+                    kiri_basetile = static_cast<BaseTile>(basetile);
+                    max_wait_tiles_num = wait_tiles_num;
                 }
                 ++calsht_hand[basetile_to_index(basetile)];
             }
