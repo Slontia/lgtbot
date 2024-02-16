@@ -156,7 +156,7 @@ class SyncMahjongGamePlayer
             };
         static CalshtDW calsht;
         static std::once_flag once_flag;
-        std::call_once(once_flag, []() { return calsht.initialize("."); });
+        std::call_once(once_flag, []() { return calsht.initialize(); });
         std::vector<int> calsht_hand(k_tile_type_num, 0);
         for (const Tile& tile : hand_) {
             ++calsht_hand[basetile_to_index(tile.tile)];

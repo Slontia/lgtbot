@@ -1,4 +1,3 @@
-add_library(calsht_dw ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/necessary-and-unnecessary-tiles/calsht_dw.cpp)
 target_link_libraries(sync_mahjong Mahjong MahjongAlgorithm calsht_dw)
 add_dependencies(sync_mahjong Mahjong MahjongAlgorithm calsht_dw)
 if (WITH_TEST)

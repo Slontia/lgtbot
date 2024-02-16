@@ -19,3 +19,5 @@
 [submodule "third_party/necessary-and-unnecessary-tiles"]
 	path = third_party/necessary-and-unnecessary-tiles
 	url = git@github.com:tomohxx/necessary-and-unnecessary-tiles.git
+[submodule "./third_party/necessary-and-unnecessary-tiles"]
+	url = git@github.com:slontia/necessary-and-unnecessary-tiles.git
