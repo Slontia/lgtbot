@@ -70,6 +70,8 @@ if (WITH_TOOLS)
 endif()
 
 if (WITH_GAMES)
+  add_subdirectory(third_party/necessary-and-unnecessary-tiles)
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/necessary-and-unnecessary-tiles)
   add_subdirectory(third_party/mahjong)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/mahjong)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/tiny_expr)

@@ -16,3 +16,6 @@
 [submodule "third_party/json"]
 	path = third_party/json
 	url = git@github.com:nlohmann/json
+[submodule "third_party/necessary-and-unnecessary-tiles"]
+	path = third_party/necessary-and-unnecessary-tiles
+	url = git@github.com:tomohxx/necessary-and-unnecessary-tiles.git

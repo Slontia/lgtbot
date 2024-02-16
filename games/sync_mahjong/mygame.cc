@@ -243,8 +243,7 @@ class TableStage : public SubGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        // TODO: make bot clever
-        table_.Players()[pid].PerformDefault();
+        table_.Players()[pid].PerformAi();
         return StageErrCode::READY;
     }
 

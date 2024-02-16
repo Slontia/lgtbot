@@ -10,6 +10,7 @@
 #include "game_util/mahjong_util.h"
 #include "utility/defer.h"
 #include "Mahjong/Rule.h"
+#include "calsht_dw.hpp"
 
 using namespace std::string_literals;
 
@@ -136,13 +137,83 @@ class SyncMahjongGamePlayer
         , cur_round_my_kiri_info_{.player_id_ = player_id}
         , doras_manager_(doras)
         , public_html_(Html_(HtmlMode::PUBLIC))
-    {}
+    {
+    }
 
     std::string PublicDoraHtml() const { return DoraHtml(image_path_, doras_manager_.Doras(), false); }
 
     const std::string& PublicHtml() const { return public_html_; }
 
     std::string PrivateHtml() const { return Html_(HtmlMode::PRIVATE); }
+
+    void KiriAI_()
+    {
+        const auto basetile_to_index = [](const int32_t basetile)
+            {
+                return basetile >= _1m && basetile <= _9m ? 9 * 0 + basetile - _1m :
+                       basetile >= _1s && basetile <= _9s ? 9 * 1 + basetile - _1s :
+                       basetile >= _1p && basetile <= _9p ? 9 * 2 + basetile - _1p : 9 * 3 + basetile - east;
+            };
+        static CalshtDW calsht;
+        static std::once_flag once_flag;
+        std::call_once(once_flag, []() { return calsht.initialize("."); });
+        std::vector<int> calsht_hand(k_tile_type_num, 0);
+        for (const Tile& tile : hand_) {
+            ++calsht_hand[basetile_to_index(tile.tile)];
+        }
+        if (tsumo_.has_value()) {
+            ++calsht_hand[basetile_to_index(tsumo_->tile)];
+        }
+        const std::bitset<k_tile_type_num> disc_bitset(std::get<2>(calsht(calsht_hand, 4 - furus_.size(), 7)));
+        BaseTile kiri_basetile = hand_.begin()->tile;
+        int32_t min_sht = INT32_MAX;
+        for (int32_t basetile = 0; basetile < k_tile_type_num; ++basetile) {
+            if (disc_bitset[basetile_to_index(basetile)]) {
+                --calsht_hand[basetile_to_index(basetile)];
+                const int32_t kiri_sht = std::get<0>(calsht(calsht_hand, 4 - furus_.size(), 7));
+                if (kiri_sht < min_sht) {
+                    min_sht = kiri_sht;
+                    kiri_basetile = static_cast<BaseTile>(basetile);
+                }
+                ++calsht_hand[basetile_to_index(basetile)];
+            }
+        }
+        const bool ret = Kiri(basetile_to_string_simple(kiri_basetile), true) ||
+            Kiri(basetile_to_string_simple(kiri_basetile), false);
+        if (!ret) {
+            std::cerr << "KiriAI_ failed: " << errstr_ << std::endl;
+            assert(false);
+        }
+    }
+
+    void PerformAi()
+    {
+        switch (state_) {
+            case ActionState::ROUND_BEGIN:
+                assert(yama_idx_ < k_yama_tile_num);
+                tsumo_ = yama_[yama_idx_++];
+                state_ = ActionState::AFTER_GET_TILE;
+            case ActionState::AFTER_GET_TILE:
+            case ActionState::AFTER_KAN:
+            case ActionState::AFTER_KAN_CAN_NARI:
+                if (Tsumo()) {
+                    break;
+                }
+                if (IsRiichi_()) {
+                    KiriInternal_(true /*is_tsumo*/, false /*richii*/, *tsumo_);
+                    break;
+                }
+                KiriAI_();
+                tsumo_ = std::nullopt;
+                break;
+            case ActionState::AFTER_CHI_PON:
+                KiriAI_();
+                break;
+            case ActionState::NOTIFIED_RON:
+                Ron();
+                break;
+        }
+    }
 
     void PerformDefault()
     {
@@ -763,8 +834,11 @@ class SyncMahjongGamePlayer
             }
             tiles = GetTilesFrom(hand_, tile_sv, errstr_, GetTileMode::FUZZY);
             if (tiles.empty()) {
-                errstr_ = "您的手牌中不存在「"s + tile_sv.data() + "」";
-                return false;
+                if (!MatchTsumo_(tile_sv)) {
+                    errstr_ = "您的手牌中不存在「"s + tile_sv.data() + "」";
+                    return false;
+                }
+                return KiriTsumo_(richii);
             }
         }
         assert(tiles.size() == 1);
@@ -1195,7 +1269,6 @@ class SyncMahjongGamePlayer
         for (const auto& player_kiri_info : cur_round_kiri_info_.other_players_) {
             if (from_chi_players_[player_kiri_info.player_id_] &&
                     std::ranges::none_of(player_kiri_info.kiri_tiles_,
-                        //[&](const KiriTile& t) { return IsKiriedTileMatch_(t, kiri_tile); })) {
                         std::bind(&SyncMahjongGamePlayer::IsKiriedTileMatch_, std::placeholders::_1, kiri_tile))) {
                 from_chi_players_.reset(player_kiri_info.player_id_);
             }
