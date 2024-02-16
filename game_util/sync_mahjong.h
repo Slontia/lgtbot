@@ -865,6 +865,12 @@ class SyncMahjongGamePlayer
                             contains_tile(basetile + 1) && contains_tile(basetile + 2) :
                        basetile == _9m || basetile == _9s || basetile == _9p ?
                             contains_tile(basetile - 1) && contains_tile(basetile - 2) :
+                       basetile == _2m || basetile == _2s || basetile == _2p ?
+                            (contains_tile(basetile + 1) && contains_tile(basetile + 2)) ||
+                            (contains_tile(basetile + 1) && contains_tile(basetile - 1)) :
+                       basetile == _8m || basetile == _8s || basetile == _8p ?
+                            (contains_tile(basetile - 1) && contains_tile(basetile - 2)) ||
+                            (contains_tile(basetile + 1) && contains_tile(basetile - 1)) :
                        basetile < east ?
                             (contains_tile(basetile + 1) && contains_tile(basetile + 2)) ||
                             (contains_tile(basetile - 1) && contains_tile(basetile - 2)) ||

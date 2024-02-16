@@ -1430,6 +1430,36 @@ GAME_TEST(4, all_green_7_pairs)
     ASSERT_PRI_MSG(OK, 1, "立直 8p");
 }
 
+GAME_TEST(4, get_tile_directly_because_cannot_chi_cross_suits)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "9s1p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "8s",
+                            .hand_ = "9s2p",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "2p",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "1p",
+                        }
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_PRI_MSG(OK, 1, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_PRI_MSG(CONTINUE, 1, "摸切");
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
