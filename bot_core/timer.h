@@ -18,7 +18,10 @@ class Timer
     Timer(TaskSet&& tasks) : is_over_(false)
     {
 #ifdef TEST_BOT
-        ++remaining_thread_count_;
+        {
+            std::lock_guard<std::mutex> l(Timer::mutex_);
+            ++remaining_thread_count_;
+        }
 #endif
         thread_ = std::thread([this, t = std::move(tasks)]()
             {
@@ -42,8 +45,9 @@ class Timer
                                     handle();
 #ifdef TEST_BOT
                                     std::lock_guard<std::mutex> l(Timer::mutex_);
-                                    --remaining_thread_count_;
-                                    remaining_thread_cv_.notify_all();
+                                    if (0 == --remaining_thread_count_) {
+                                        remaining_thread_cv_.notify_all();
+                                    }
 #endif
                                 }).detach();
                     } else {
@@ -51,8 +55,9 @@ class Timer
                     }
                 }
 #ifdef TEST_BOT
-                --remaining_thread_count_;
-                remaining_thread_cv_.notify_all();
+                if (0 == --remaining_thread_count_) {
+                    remaining_thread_cv_.notify_all();
+                }
 #endif
             }); /* make sure thread_ is inited last */
     }

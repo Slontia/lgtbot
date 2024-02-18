@@ -1336,6 +1336,8 @@ TEST_F(TestBot, timeout_during_handle_request_all_ready_and_reset_timer)
   // So the player can execute 准备 command
   ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "准备");
+
+  WaitTimerThreadFinish();
 }
 
 TEST_F(TestBot, leave_during_handle_request)
@@ -1362,6 +1364,8 @@ TEST_F(TestBot, leave_during_handle_request)
   fut_2.wait();
 
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+
+  WaitTimerThreadFinish();
 }
 
 TEST_F(TestBot, leave_and_join_other_game)
