@@ -1318,7 +1318,7 @@ GAME_TEST(4, kan_after_richii)
     ASSERT_PRI_MSG(OK, 0, "立直 摸切");
     ASSERT_TIMEOUT(CONTINUE);
 
-    ASSERT_PRI_MSG(OK, 0, "杠 1z");
+    ASSERT_PRI_MSG(CONTINUE, 0, "杠 1z");
 }
 
 GAME_TEST(4, kan_after_richii_cannot_change_tinpai)
@@ -1482,6 +1482,351 @@ GAME_TEST(4, prefer_kiri_non_red_dora)
     ASSERT_TIMEOUT(CONTINUE);
 
     ASSERT_PRI_MSG(FAILED, 1, "吃 46p 0p");
+}
+
+GAME_TEST(4, auto_kiri_stop_when_can_nari)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                            .hand_ = "4m5m1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z6m",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "自动摸切");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+
+    for (int i = 0; i < 5; ++i) {
+        ASSERT_PRI_MSG(FAILED, 0, "摸切"); // has acted
+        ASSERT_PRI_MSG(OK, 1, "摸切");
+        ASSERT_PRI_MSG(OK, 2, "摸切");
+        ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
+    }
+
+    ASSERT_PRI_MSG(OK, 0, "吃 45m 6m");
+}
+
+GAME_TEST(4, auto_kiri_stop_when_can_dark_kan)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z4m5z",
+                            .hand_ = "4m4m4m1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "自动摸切");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+
+    for (int i = 0; i < 4; ++i) {
+        ASSERT_PRI_MSG(FAILED, 0, "摸切"); // has acted
+        ASSERT_PRI_MSG(OK, 1, "摸切");
+        ASSERT_PRI_MSG(OK, 2, "摸切");
+        ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
+    }
+
+    ASSERT_PRI_MSG(OK, 0, "杠 4m");
+    ASSERT_PRI_MSG(FAILED, 0, "摸切"); // has acted due to auto kiri
+}
+
+GAME_TEST(4, auto_kiri_stop_when_can_add_kan)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z4m5z",
+                            .hand_ = "4m4m1z2z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z4m5z5z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "自动摸切");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_PRI_MSG(FAILED, 0, "摸切"); // has acted
+        ASSERT_PRI_MSG(OK, 1, "摸切");
+        ASSERT_PRI_MSG(OK, 2, "摸切");
+        ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
+    }
+
+    ASSERT_PRI_MSG(OK, 0, "碰 4m");
+    ASSERT_PRI_MSG(OK, 0, "1z");
+
+    for (int i = 0; i < 2; ++i) {
+        ASSERT_PRI_MSG(FAILED, 0, "摸切"); // has acted
+        ASSERT_PRI_MSG(OK, 1, "摸切");
+        ASSERT_PRI_MSG(OK, 2, "摸切");
+        ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
+    }
+
+    ASSERT_PRI_MSG(OK, 0, "杠 4m");
+    ASSERT_PRI_MSG(FAILED, 0, "摸切"); // has acted due to auto kiri
+}
+
+GAME_TEST(4, auto_kiri_stop_when_can_ron)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                            .hand_ = "19s19p19m2234567z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z1z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "自动摸切");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+
+    for (int i = 0; i < 5; ++i) {
+        ASSERT_PRI_MSG(FAILED, 0, "摸切"); // has acted
+        ASSERT_PRI_MSG(OK, 1, "摸切");
+        ASSERT_PRI_MSG(OK, 2, "摸切");
+        ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
+    }
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣");
+}
+
+GAME_TEST(4, auto_kiri_stop_when_can_tsumo)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z1z",
+                            .hand_ = "19s19p19m2234567z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z5z5z5z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "自动摸切");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+
+    for (int i = 0; i < 4; ++i) {
+        ASSERT_PRI_MSG(FAILED, 0, "摸切"); // has acted
+        ASSERT_PRI_MSG(OK, 1, "摸切");
+        ASSERT_PRI_MSG(OK, 2, "摸切");
+        ASSERT_PRI_MSG(CONTINUE, 3, "摸切");
+    }
+
+    ASSERT_PRI_MSG(OK, 0, "自摸");
+}
+
+GAME_TEST(4, auto_get_tile)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                            .hand_ = "4m5m1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "6m",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "自动摸牌");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CONTINUE, 0, "摸切");
+}
+
+GAME_TEST(4, auto_ron)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                            .hand_ = "19s19p19m2234567z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "自动和了");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    ASSERT_SCORE(25000 + 48000, 25000 - 48000, 25000, 25000);
+}
+
+GAME_TEST(4, auto_tsumo)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "5z1z",
+                            .hand_ = "19s19p19m2234567z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "5z5z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "自动和了");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    ASSERT_SCORE(25000 + 48000, 25000 - 16000, 25000 - 16000, 25000 - 16000);
+}
+
+GAME_TEST(4, auto_nari_ron)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "3456677s45m345p1z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "6s",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "3m",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "6m",
+                        },
+                    },
+                    .doras_ = "3z3z", // doras do not hit
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "自动和了");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "碰 6s");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "1z"); // 断幺 1 + 三色 1 = 30 符 2 番
+
+    ASSERT_SCORE(28000, 24000, 24000, 24000);
+}
+
+GAME_TEST(4, all_auto)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "2345m1z",
+                            .hand_ = "19s19p19m1234567z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "2345m2z",
+                            .hand_ = "19s19p19m1234567z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "2345m3z",
+                            .hand_ = "19s19p19m1234567z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "2345m4z",
+                            .hand_ = "19s19p19m1234567z",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    // skip the first round
+    for (uint32_t pid = 0; pid < 4; ++pid) {
+        ASSERT_PRI_MSG(OK, pid, "自动摸牌");
+        ASSERT_PRI_MSG(OK, pid, "自动和了");
+        ASSERT_PRI_MSG(OK, pid, "自动摸切");
+    }
+    ASSERT_TIMEOUT(CHECKOUT); // nagashi for three players tsumo
+
+    ASSERT_FINISHED(false);
 }
 
 } // namespace GAME_MODULE_NAME

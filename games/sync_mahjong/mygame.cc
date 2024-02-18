@@ -141,7 +141,10 @@ class TableStage : public SubGameStage<>
                 MakeStageCommand("结束本回合行动", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Over_, VoidChecker("结束")),
                 MakeStageCommand("宣告立直，然后切掉自己刚刚摸到的牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::RichiiKiriTsumo_, VoidChecker("立直"), VoidChecker("摸切")),
                 MakeStageCommand("切掉一张牌（优先选择手牌，而不是自己刚刚摸到的牌）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Kiri_, SingleTileChecker("要切的牌", "3m")),
-                MakeStageCommand("宣告立直，然后切掉一张牌（优先选择手牌，而不是自己刚刚摸到的牌）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::RichiiKiri_, VoidChecker("立直"), SingleTileChecker("要切的牌", "3m")))
+                MakeStageCommand("宣告立直，然后切掉一张牌（优先选择手牌，而不是自己刚刚摸到的牌）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::RichiiKiri_, VoidChecker("立直"), SingleTileChecker("要切的牌", "3m")),
+                MakeStageCommand("当可以和牌的时候（包括自摸、荣和、鸣牌荣和）自动和牌", &TableStage::SetAutoOption_<game_util::mahjong::AutoOption::AUTO_FU>, VoidChecker("自动和了"), OptionalDefaultChecker<BoolChecker>(true, "开启", "关闭")),
+                MakeStageCommand("每一巡开始的时候不再询问是否鸣牌，而是自动摸牌", &TableStage::SetAutoOption_<game_util::mahjong::AutoOption::AUTO_GET_TILE>, VoidChecker("自动摸牌"), OptionalDefaultChecker<BoolChecker>(true, "开启", "关闭")),
+                MakeStageCommand("摸到牌后，如果摸到的这张牌无法形成自摸、补杠或暗杠，则自动切出去", &TableStage::SetAutoOption_<game_util::mahjong::AutoOption::AUTO_KIRI>, VoidChecker("自动摸切"), OptionalDefaultChecker<BoolChecker>(true, "开启", "关闭")))
           , table_(main_stage.GetSyncMahjongOption())
     {
     }
@@ -249,7 +252,9 @@ class TableStage : public SubGameStage<>
 
     virtual void OnAllPlayerReady() override
     {
-        OnOver_();
+        if (!OnOver_()) {
+            assert(!IsAllReady());
+        }
     }
 
     bool IsValidGame() const { return is_valid_game_; }
@@ -266,7 +271,14 @@ class TableStage : public SubGameStage<>
                 Group() << "本巡结果如图所示，请各玩家进行下一巡的行动\n" << Markdown(BoardcastHtml_(), k_image_width);
             case game_util::mahjong::SyncMajong::RoundOverResult::RON_ROUND:
                 AllowPlayersToAct_();
-                return false;
+                if (!IsAllReady()) {
+                    return false;
+                }
+                // Some players are in auto mode
+#ifndef TEST_BOT
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+#endif
+                return OnOver_();
             case game_util::mahjong::SyncMajong::RoundOverResult::FU:
                 message = "有人和牌，本局结束";
                 is_valid_game_ = true;
@@ -422,6 +434,19 @@ class TableStage : public SubGameStage<>
     AtomReqErrCode Over_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Over);
+    }
+
+    template <game_util::mahjong::AutoOption OPTION>
+    AtomReqErrCode SetAutoOption_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool enable)
+    {
+        auto& player = table_.Players()[pid];
+        player.SetAutoOption(OPTION, enable);
+        static const auto bool_to_str = [](const bool enabled) { return enabled ? "开启" : "关闭"; };
+        reply() << "设置成功，当前设置为："
+            << "\n自动摸牌 " << bool_to_str(player.GetAutoOption(game_util::mahjong::AutoOption::AUTO_GET_TILE))
+            << "\n自动和了 " << bool_to_str(player.GetAutoOption(game_util::mahjong::AutoOption::AUTO_FU))
+            << "\n自动摸切 " << bool_to_str(player.GetAutoOption(game_util::mahjong::AutoOption::AUTO_KIRI));
+        return StageErrCode::OK;
     }
 
     lgtbot::game_util::mahjong::SyncMajong table_;

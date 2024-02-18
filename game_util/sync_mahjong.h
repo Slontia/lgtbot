@@ -120,6 +120,8 @@ class DorasManager
     uint32_t dora_num_{1};
 };
 
+enum class AutoOption { AUTO_FU, AUTO_KIRI, AUTO_GET_TILE };
+
 class SyncMahjongGamePlayer
 {
     friend class SyncMajong;
@@ -146,58 +148,11 @@ class SyncMahjongGamePlayer
 
     std::string PrivateHtml() const { return Html_(HtmlMode::PRIVATE); }
 
-    void KiriAI_()
-    {
-        const auto basetile_to_index = [](const int32_t basetile)
-            {
-                return basetile >= _1m && basetile <= _9m ? 9 * 0 + basetile - _1m :
-                       basetile >= _1s && basetile <= _9s ? 9 * 1 + basetile - _1s :
-                       basetile >= _1p && basetile <= _9p ? 9 * 2 + basetile - _1p : 9 * 3 + basetile - east;
-            };
-        static CalshtDW calsht;
-        static std::once_flag once_flag;
-        std::call_once(once_flag, []() { return calsht.initialize(); });
-        std::vector<int> calsht_hand(k_tile_type_num, 0);
-        for (const Tile& tile : hand_) {
-            ++calsht_hand[basetile_to_index(tile.tile)];
-        }
-        if (tsumo_.has_value()) {
-            ++calsht_hand[basetile_to_index(tsumo_->tile)];
-        }
-        const std::bitset<k_tile_type_num> disc_bitset(std::get<2>(calsht(calsht_hand, 4 - furus_.size(), 7)));
-        BaseTile kiri_basetile = hand_.begin()->tile;
-        int32_t min_sht = INT32_MAX;
-        int32_t max_wait_tiles_num = 0;
-        for (int32_t basetile = 0; basetile < k_tile_type_num; ++basetile) {
-            if (disc_bitset[basetile_to_index(basetile)]) {
-                --calsht_hand[basetile_to_index(basetile)];
-                const auto [kiri_sht, _1, _2, wait_tiles] = calsht(calsht_hand, 4 - furus_.size(), 7);
-                const auto wait_tiles_num = std::bitset<k_tile_type_num>(wait_tiles).count();
-                if (kiri_sht < min_sht) {
-                    kiri_basetile = static_cast<BaseTile>(basetile);
-                    min_sht = kiri_sht;
-                    max_wait_tiles_num = wait_tiles_num;
-                } else if (kiri_sht == min_sht && wait_tiles_num > max_wait_tiles_num) {
-                    kiri_basetile = static_cast<BaseTile>(basetile);
-                    max_wait_tiles_num = wait_tiles_num;
-                }
-                ++calsht_hand[basetile_to_index(basetile)];
-            }
-        }
-        const bool ret = Kiri(basetile_to_string_simple(kiri_basetile), true) ||
-            Kiri(basetile_to_string_simple(kiri_basetile), false);
-        if (!ret) {
-            std::cerr << "KiriAI_ failed: " << errstr_ << std::endl;
-            assert(false);
-        }
-    }
-
     void PerformAi()
     {
         switch (state_) {
             case ActionState::ROUND_BEGIN:
-                assert(yama_idx_ < k_yama_tile_num);
-                tsumo_ = yama_[yama_idx_++];
+                GetTileInternal_();
                 state_ = ActionState::AFTER_GET_TILE;
             case ActionState::AFTER_GET_TILE:
             case ActionState::AFTER_KAN:
@@ -216,7 +171,7 @@ class SyncMahjongGamePlayer
                 KiriAI_();
                 break;
             case ActionState::NOTIFIED_RON:
-                Ron();
+                Ron(); // may be failed
                 break;
         }
     }
@@ -225,8 +180,7 @@ class SyncMahjongGamePlayer
     {
         switch (state_) {
             case ActionState::ROUND_BEGIN:
-                assert(yama_idx_ < k_yama_tile_num);
-                tsumo_ = yama_[yama_idx_++];
+                GetTileInternal_();
             case ActionState::AFTER_GET_TILE:
             case ActionState::AFTER_KAN:
             case ActionState::AFTER_KAN_CAN_NARI:
@@ -249,6 +203,7 @@ class SyncMahjongGamePlayer
         }
         GetTileInternal_();
         state_ = ActionState::AFTER_GET_TILE;
+        TryAutoKiri_();
         return true;
     }
 
@@ -296,12 +251,15 @@ class SyncMahjongGamePlayer
             errstr_ = "您的点数不足 1000，无法立直";
             return false;
         }
-        const bool succ = tile.empty() ? KiriTsumo_(richii) : Kiri_(tile, richii);
-        if (succ) {
-            state_ = (state_ == ActionState::AFTER_CHI_PON || state_ == ActionState::AFTER_KAN_CAN_NARI) && (CanChi_() || CanPon_() || CanRon_()) ?
-                ActionState::AFTER_KIRI : ActionState::ROUND_OVER;
+        if (tile.empty() ? !KiriTsumo_(richii) : !Kiri_(tile, richii)) {
+            return false;
         }
-        return succ;
+        state_ = (state_ == ActionState::AFTER_CHI_PON || state_ == ActionState::AFTER_KAN_CAN_NARI) && (CanChi_() || CanPon_() || CanRon_()) ?
+            ActionState::AFTER_KIRI : ActionState::ROUND_OVER;
+        if (GetAutoOption(AutoOption::AUTO_FU)) {
+            Ron(); // may be failed
+        }
+        return true;
     }
 
     bool Over()
@@ -437,9 +395,10 @@ class SyncMahjongGamePlayer
         }
         if (succ) {
             doras_manager_.TryOpenNewDora(round_);
-            tsumo_ = yama_[yama_idx_++];
+            GetTileInternal_();
             state_ = (state_ == ActionState::ROUND_BEGIN || state_ == ActionState::AFTER_KIRI || state_ == ActionState::AFTER_KAN_CAN_NARI)
                 ? ActionState::AFTER_KAN_CAN_NARI : ActionState::AFTER_KAN;
+            TryAutoKiri_();
         }
         return succ;
     }
@@ -487,6 +446,10 @@ class SyncMahjongGamePlayer
         state_ = ActionState::ROUND_OVER;
         return true;
     }
+
+    void SetAutoOption(const AutoOption option, const bool value) { auto_options_[static_cast<int>(option)] = value; }
+
+    bool GetAutoOption(const AutoOption option) const { return auto_options_[static_cast<int>(option)]; }
 
     ActionState State() const { return state_; }
 
@@ -693,6 +656,16 @@ class SyncMahjongGamePlayer
 
     bool IsRiichi_() const { return !richii_listen_tiles_.empty() && richii_round_ != round_; }
 
+    void TryAutoKiri_()
+    {
+        assert(tsumo_.has_value());
+        if ((IsRiichi_() || GetAutoOption(AutoOption::AUTO_KIRI)) && !CanDarkKanOrAddKanTsumoTile_() && !CanTsumo_()) {
+            KiriInternal_(true /*is_tsumo*/, false /*richii*/, *tsumo_);
+            tsumo_ = std::nullopt;
+            state_ = ActionState::ROUND_OVER;
+        }
+    }
+
     void StartNormalStage_()
     {
         assert(state_ == ActionState::ROUND_OVER);
@@ -700,17 +673,16 @@ class SyncMahjongGamePlayer
         if (public_html_.empty()) {
             public_html_ = Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
         }
-        if (!IsRiichi_() && (CanChi_() || CanPon_())) {
+        if (!IsRiichi_() && !GetAutoOption(AutoOption::AUTO_GET_TILE) && (CanChi_() || CanPon_())) {
             state_ = ActionState::ROUND_BEGIN;
             return;
         }
         GetTileInternal_();
-        if (!IsRiichi_() || CanTsumo_() || CanDarkKanInRichiiState_()) {
-            state_ = ActionState::AFTER_GET_TILE;
+        state_ = ActionState::AFTER_GET_TILE;
+        if (GetAutoOption(AutoOption::AUTO_FU) && Tsumo()) {
             return;
         }
-        KiriInternal_(true /*is_tsumo*/, false /*richii*/, *tsumo_);
-        tsumo_ = std::nullopt;
+        TryAutoKiri_();
     }
 
     void SetKiriInfos_(const std::vector<PlayerKiriInfo>& kiri_infos)
@@ -735,6 +707,9 @@ class SyncMahjongGamePlayer
         SetKiriInfos_(kiri_infos);
         if (CanRon_()) {
             state_ = ActionState::NOTIFIED_RON;
+            if (GetAutoOption(AutoOption::AUTO_FU)) {
+                Ron();
+            }
         }
     }
 
@@ -909,7 +884,7 @@ class SyncMahjongGamePlayer
         const Tile& kan_tile = kan_tsumo ? *tsumo_ : *one_hand_tile.begin();
         bool found = false;
         for (auto& furu : furus_) {
-            if (furu.tiles_[0].tile_.tile == kan_tile.tile && furu.tiles_[1].tile_.tile == kan_tile.tile) {
+            if (IsPon_(furu.tiles_, kan_tile.tile)) {
                 // add kan
                 assert(furu.tiles_[3].type_ == FuruTile::Type::EMPTY);
                 furu.nari_round_ = round_;
@@ -985,13 +960,16 @@ class SyncMahjongGamePlayer
                 });
     }
 
-    bool CanDarkKanInRichiiState_() const
+    bool CanDarkKanOrAddKanTsumoTile_() const
     {
-        assert(IsRiichi_());
         assert(tsumo_.has_value());
-        auto hand = hand_;
-        return std::erase_if(hand, [this](const Tile& tile) { return tile.tile == tsumo_->tile; }) == 3 &&
-            GetListenTiles_(hand, std::nullopt) == richii_listen_tiles_;
+        if (IsRiichi_()) {
+            auto hand = hand_;
+            return std::erase_if(hand, [this](const Tile& tile) { return tile.tile == tsumo_->tile; }) == 3 &&
+                GetListenTiles_(hand, std::nullopt) == richii_listen_tiles_;
+        }
+        return std::ranges::count_if(hand_, [&](const Tile& tile) { return tile.tile == tsumo_->tile; }) >= 3 ||
+            std::ranges::any_of(furus_, [&](const Furu& furu) { return IsPon_(furu.tiles_, tsumo_->tile); });
     }
 
     // If `CanRon_()` returns true, `Ron()` must return true.
@@ -1076,7 +1054,6 @@ class SyncMahjongGamePlayer
 
     std::vector<FuResult> GetFuResultsForRon_() const
     {
-        assert(state_ == ActionState::NOTIFIED_RON);
         std::vector<FuResult> fu_results;
         for (const auto& player_info : cur_round_kiri_info_.other_players_) {
             std::optional<FuResult> player_result;
@@ -1131,6 +1108,11 @@ class SyncMahjongGamePlayer
     }
 
     static bool IsChi_(const std::array<FuruTile, 4>& furu_tiles) { return furu_tiles[0].tile_.tile != furu_tiles[1].tile_.tile; }
+
+    static bool IsPon_(const std::array<FuruTile, 4>& furu_tiles, const BaseTile basetile)
+    {
+        return furu_tiles[0].tile_.tile == basetile && furu_tiles[1].tile_.tile == basetile && furu_tiles[3].type_ == FuruTile::Type::EMPTY;
+    }
 
     static Tile NariTile_(const std::array<FuruTile, 4>& furu_tiles)
     {
@@ -1290,6 +1272,52 @@ class SyncMahjongGamePlayer
         return true;
     }
 
+    void KiriAI_()
+    {
+        const auto basetile_to_index = [](const int32_t basetile)
+            {
+                return basetile >= _1m && basetile <= _9m ? 9 * 0 + basetile - _1m :
+                       basetile >= _1s && basetile <= _9s ? 9 * 1 + basetile - _1s :
+                       basetile >= _1p && basetile <= _9p ? 9 * 2 + basetile - _1p : 9 * 3 + basetile - east;
+            };
+        static CalshtDW calsht;
+        static std::once_flag once_flag;
+        std::call_once(once_flag, []() { return calsht.initialize(); });
+        std::vector<int> calsht_hand(k_tile_type_num, 0);
+        for (const Tile& tile : hand_) {
+            ++calsht_hand[basetile_to_index(tile.tile)];
+        }
+        if (tsumo_.has_value()) {
+            ++calsht_hand[basetile_to_index(tsumo_->tile)];
+        }
+        const std::bitset<k_tile_type_num> disc_bitset(std::get<2>(calsht(calsht_hand, 4 - furus_.size(), 7)));
+        BaseTile kiri_basetile = hand_.begin()->tile;
+        int32_t min_sht = INT32_MAX;
+        int32_t max_wait_tiles_num = 0;
+        for (int32_t basetile = 0; basetile < k_tile_type_num; ++basetile) {
+            if (disc_bitset[basetile_to_index(basetile)]) {
+                --calsht_hand[basetile_to_index(basetile)];
+                const auto [kiri_sht, _1, _2, wait_tiles] = calsht(calsht_hand, 4 - furus_.size(), 7);
+                const auto wait_tiles_num = std::bitset<k_tile_type_num>(wait_tiles).count();
+                if (kiri_sht < min_sht) {
+                    kiri_basetile = static_cast<BaseTile>(basetile);
+                    min_sht = kiri_sht;
+                    max_wait_tiles_num = wait_tiles_num;
+                } else if (kiri_sht == min_sht && wait_tiles_num > max_wait_tiles_num) {
+                    kiri_basetile = static_cast<BaseTile>(basetile);
+                    max_wait_tiles_num = wait_tiles_num;
+                }
+                ++calsht_hand[basetile_to_index(basetile)];
+            }
+        }
+        const bool ret = Kiri(basetile_to_string_simple(kiri_basetile), true) ||
+            Kiri(basetile_to_string_simple(kiri_basetile), false);
+        if (!ret) {
+            std::cerr << "KiriAI_ failed: " << errstr_ << std::endl;
+            assert(false);
+        }
+    }
+
     static constexpr const uint32_t k_none_player_id_ = UINT32_MAX;
 
     const std::string image_path_;
@@ -1323,6 +1351,8 @@ class SyncMahjongGamePlayer
 
     std::string errstr_;
     std::string public_html_;
+
+    bool auto_options_[3] = {false, false, false};
 };
 
 class SyncMajong
@@ -1370,8 +1400,19 @@ class SyncMajong
             if (HandleFuResults_()) {
                 return RoundOverResult::FU;
             }
-            if (ron_stage_ = !ron_stage_ && StartRonStage_()) {
-                return RoundOverResult::RON_ROUND;
+            ron_stage_ = !ron_stage_;
+            if (ron_stage_) {
+                if (StartRonStage_()) {
+                    return RoundOverResult::RON_ROUND;
+                }
+                // `fu_results_` can be filled due to `AUTO_FU`
+                if (Is_三家和了(players_)) {
+                    return RoundOverResult::CHUTO_NAGASHI_三家和了;
+                }
+                if (HandleFuResults_()) {
+                    return RoundOverResult::FU;
+                }
+                ron_stage_ = false;
             }
             if (round_ == 1 && UpdatePublicHtmlFor_九种九牌(players_)) {
                 return RoundOverResult::CHUTO_NAGASHI_九种九牌;
