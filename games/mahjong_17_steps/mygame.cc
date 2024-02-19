@@ -242,7 +242,7 @@ class KiriStage : public SubGameStage<>
     }
 
    private:
-    CheckoutErrCode OnTimeout()
+    CheckoutErrCode OnStageTimeout()
     {
         HookUnreadyPlayers();
         return CheckoutErrCode::Condition(OnOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
@@ -285,10 +285,10 @@ class KiriStage : public SubGameStage<>
         }
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
         Boardcast() << "全员切牌完毕，公布当前赛况";
-        OnOver_();
+        return CheckoutErrCode::Condition(OnOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
     Mahjong17Steps& game_table_;

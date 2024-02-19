@@ -163,7 +163,7 @@ class MainStage : public MainGameStage<>
             " 回合\n\n" + table.ToString() + "\n<br>\n" + result.html_;
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         Boardcast() << "回合超时，下面公布结果";
         return CheckoutErrCode::Condition(Settlement_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
@@ -176,10 +176,10 @@ class MainStage : public MainGameStage<>
         return StageErrCode::READY;
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
         Boardcast() << "全员行动完毕，下面公布结果";
-        Settlement_();
+        return CheckoutErrCode::Condition(Settlement_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
     game_util::unity_chess::Board board_;

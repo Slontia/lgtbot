@@ -196,15 +196,16 @@ class RoundStage : public SubGameStage<>
         }
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         HandleUnreadyPlayers_();
         return StageErrCode::CHECKOUT;
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
         HandleUnreadyPlayers_();
+        return StageErrCode::CHECKOUT;
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override

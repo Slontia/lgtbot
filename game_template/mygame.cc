@@ -85,7 +85,7 @@ class RoundStage : public SubGameStage<>
         Boardcast() << name() << "开始";
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         Boardcast() << name() << "超时结束";
         // Returning |CHECKOUT| means the current stage will be over.
@@ -104,9 +104,12 @@ class RoundStage : public SubGameStage<>
         return GetScoreInternal_(pid, reply, std::rand() % 1000);
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
         Boardcast() << "所有玩家准备完成";
+        // Returning |CONTINUE| means the current stage will be continued.
+        // If |CONTINUE| is returned but all players keep ready, this function will be invoked again.
+        return StageErrCode::CONTINUE;
     }
 
   private:

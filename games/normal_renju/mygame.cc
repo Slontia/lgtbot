@@ -77,7 +77,7 @@ class MainStage : public MainGameStage<>
         SetReady(1 - turn_pid_);
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         const auto to_continue = HandlePass_();
         return RoundOver_(to_continue);
@@ -143,9 +143,10 @@ class MainStage : public MainGameStage<>
         return RoundOver_(true);
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
         assert(false); // will continue or checkout directly
+        return StageErrCode::CHECKOUT;
     }
 
   private:

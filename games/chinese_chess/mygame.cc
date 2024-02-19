@@ -187,9 +187,9 @@ class MainStage : public MainGameStage<>
         return StageErrCode::OK;
     }
 
-    virtual void OnAllPlayerReady()
+    virtual CheckoutErrCode OnStageOver()
     {
-        Settle_();
+        return CheckoutErrCode::Condition(Settle_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
     bool Settle_()
@@ -283,7 +283,7 @@ class MainStage : public MainGameStage<>
                << " 回合后将切换棋盘";
     }
 
-    CheckoutErrCode OnTimeout()
+    CheckoutErrCode OnStageTimeout()
     {
         return CheckoutErrCode::Condition(Settle_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }

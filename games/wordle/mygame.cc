@@ -201,7 +201,7 @@ class RoundStage : public SubGameStage<>
 //        Boardcast() << name() << "开始";
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
 //        Boardcast() << name() << "超时结束";
         // Returning |CHECKOUT| means the current stage will be over.
@@ -356,11 +356,12 @@ class RoundStage : public SubGameStage<>
         return SubmitInternal_(pid, reply, s);
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
 //        Boardcast() << "所有玩家准备完成";
 
         RoundStage::calc();
+        return StageErrCode::CHECKOUT;
     }
 
 

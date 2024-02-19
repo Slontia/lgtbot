@@ -154,7 +154,7 @@ class MainStage : public MainGameStage<>
         return str;
     }
 
-    virtual void OnAllPlayerReady()
+    virtual CheckoutErrCode OnStageOver()
     {
         const auto ret = board_.LineCount();
         if (ret[1 - static_cast<uint32_t>(cur_symbol())]) {
@@ -187,10 +187,12 @@ class MainStage : public MainGameStage<>
             StartTimer(GET_OPTION_VALUE(option(), 局时));
             Boardcast() << "请" << At(cur_pid()) << "行动，" << GET_OPTION_VALUE(option(), 局时)
                         << "秒未行动自动判负\n格式：取出位置 推入位置";
+            return StageErrCode::CONTINUE;
         }
+        return StageErrCode::CHECKOUT;
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         scores_[1 - cur_pid()] = 1;
         Boardcast() << At(cur_pid()) << "超时判负";

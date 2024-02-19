@@ -48,12 +48,13 @@ class Masker
   public:
     struct State
     {
+        enum class PinState { NO_PIN, TEMPORARY, PERMANENT };
         bool is_ready_ = false;
-        bool is_pinned_ = false;
+        PinState pinned_state_ = PinState::NO_PIN;
     };
 
     Masker(const uint64_t match_id, const char* const game_name, const size_t size)
-        : match_id_(match_id), game_name_(game_name), recorder_(size), unset_count_(size), any_user_ready_(false) {}
+        : match_id_(match_id), game_name_(game_name), recorder_(size), any_user_ready_(false) {}
 
     bool Set(const size_t index, const bool is_user)
     {
@@ -62,7 +63,6 @@ class Masker
             any_user_ready_ = true;
         }
         auto& state = recorder_[index];
-        unset_count_ -= !state.is_ready_ && !state.is_pinned_;
         recorder_[index].is_ready_ = true;
         Log_(DebugLog()) << "Set game stage mask finish is_user=" << Bool2Str(is_user) << " " << ToString_(index);
         return IsReady();
@@ -72,31 +72,32 @@ class Masker
     {
         // not reset any_ready to prevent players waiting a left player
         Log_(DebugLog()) << "Unset game stage begin mask " << ToString_(index);
-        Unset_(recorder_[index]);
+        auto& state = recorder_[index];
+        state.is_ready_ = false;
         any_user_ready_ = false;
         Log_(DebugLog()) << "Unset game stage finish mask " << ToString_(index);
     }
 
-    bool Pin(const size_t index)
+    bool Pin(const size_t index, const State::PinState pinned_state)
     {
+        assert(pinned_state != State::PinState::NO_PIN);
         auto& state = recorder_[index];
-        if (!state.is_pinned_) {
+        if (state.pinned_state_ == State::PinState::NO_PIN) {
             Log_(DebugLog()) << "Pin game stage mask begin " << ToString_(index);
-            unset_count_ -= !state.is_ready_;
             any_user_ready_ = true;
-            state.is_pinned_ = true;
             Log_(DebugLog()) << "Pin game stage mask finish " << ToString_(index);
         }
+        state.pinned_state_ = pinned_state;
         return IsReady();
     }
 
     bool Unpin(const size_t index)
     {
         auto& state = recorder_[index];
-        if (state.is_pinned_) {
+        assert(state.pinned_state_ != State::PinState::PERMANENT);
+        if (state.pinned_state_ == State::PinState::TEMPORARY) {
             Log_(DebugLog()) << "Unpin game stage mask begin " << ToString_(index);
-            unset_count_ += !state.is_ready_;
-            state.is_pinned_ = false;
+            state.pinned_state_ = State::PinState::NO_PIN;
             Log_(DebugLog()) << "Unpin game stage mask finish " << ToString_(index);
             return true;
         }
@@ -109,29 +110,31 @@ class Masker
     {
         any_user_ready_ = false;
         for (auto& state : recorder_) {
-            Unset_(state);
+            state.is_ready_ = false;
         }
         Log_(DebugLog()) << "Clear game stage mask finish " << ToString_();
     }
 
-    bool IsReady() const { return unset_count_ == 0 && any_user_ready_; }
-
-  private:
-    void Unset_(State& state)
+    bool IsReady() const
     {
-        unset_count_ += state.is_ready_ && !state.is_pinned_;
-        state.is_ready_ = false;
+        static const auto ready_or_permanent_pinned =
+            [](const State state) { return state.pinned_state_ == State::PinState::PERMANENT || state.is_ready_; };
+        static const auto ready_or_pinned =
+            [](const State state) { return state.pinned_state_ != State::PinState::NO_PIN || state.is_ready_; };
+        return std::ranges::all_of(recorder_, ready_or_permanent_pinned) ||
+            (std::ranges::all_of(recorder_, ready_or_pinned) && any_user_ready_);
     }
 
+  private:
     std::string ToString_(const size_t index)
     {
         return "index=" + std::to_string(index) + " is_ready=" + std::to_string(recorder_[index].is_ready_) +
-            " is_pinned=" + std::to_string(recorder_[index].is_pinned_) + " " + ToString_();
+            " is_pinned=" + std::to_string(recorder_[index].pinned_state_ != State::PinState::NO_PIN) + " " + ToString_();
     }
 
     std::string ToString_()
     {
-        return std::string("any_user_ready=") + Bool2Str(any_user_ready_) + " unset_count=" + std::to_string(unset_count_);
+        return std::string("any_user_ready=") + Bool2Str(any_user_ready_);
     }
 
     template <typename Logger>
@@ -144,7 +147,6 @@ class Masker
     const char* const game_name_;
     std::vector<State> recorder_;
     bool any_user_ready_; // if all players are pinned, IsReady() should return false to prevent substage skipped
-    size_t unset_count_;
 };
 
 template <typename RetType>
@@ -244,13 +246,13 @@ class StageBaseWrapper : virtual public StageBase
 
     void Eliminate(const PlayerID pid) const
     {
-        global_info_.masker_.Pin(pid);
+        global_info_.masker_.Pin(pid, Masker::State::PinState::PERMANENT);
         match_.Eliminate(pid);
     }
 
     void Hook(const PlayerID pid) const
     {
-        global_info_.masker_.Pin(pid);
+        global_info_.masker_.Pin(pid, Masker::State::PinState::TEMPORARY);
         match_.Hook(pid);
     }
 
@@ -566,13 +568,13 @@ class GameStage<MainStage>
     virtual StageErrCode HandleTimeout() override final
     {
         StageLog_(InfoLog()) << "HandleTimeout begin";
-        return Handle_(OnTimeout());
+        return Handle_(OnStageTimeout());
     }
 
     virtual StageErrCode HandleLeave(const PlayerID pid) override final
     {
         StageLog_(InfoLog()) << "HandleLeave begin pid=" << pid;
-        Base::masker().Pin(pid);
+        Base::masker().Pin(pid, Masker::State::PinState::PERMANENT);
         return Handle_(pid, true, OnPlayerLeave(pid));
     }
 
@@ -613,10 +615,10 @@ class GameStage<MainStage>
   protected:
     virtual void OnStageBegin() {}
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CONTINUE; }
-    virtual CheckoutErrCode OnTimeout() { return StageErrCode::CHECKOUT; }
+    virtual CheckoutErrCode OnStageTimeout() { return StageErrCode::CHECKOUT; }
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::READY; }
     // User can use ClearReady to unset masker. In this case, stage will not checkout.
-    virtual void OnAllPlayerReady() {}
+    virtual CheckoutErrCode OnStageOver() { return StageErrCode::CHECKOUT; }
 
     void StartTimer(const uint64_t sec)
     {
@@ -657,7 +659,7 @@ class GameStage<MainStage>
             "秒\n\n以下玩家还未选择，要抓紧了，机会不等人\n";
         for (PlayerID pid = 0; pid < stage.option().PlayerNum(); ++pid) {
             const auto& state = stage.masker().Get(pid);
-            if (!state.is_ready_ && !state.is_pinned_) {
+            if (!state.is_ready_ && state.pinned_state_ == Masker::State::PinState::NO_PIN) {
                 sender << At(pid);
             }
         }
@@ -669,7 +671,7 @@ class GameStage<MainStage>
         stage.Boardcast() << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) << "秒";
         for (PlayerID pid = 0; pid < stage.option().PlayerNum(); ++pid) {
             const auto& state = stage.masker().Get(pid);
-            if (!state.is_ready_ && !state.is_pinned_) {
+            if (!state.is_ready_ && state.pinned_state_ == Masker::State::PinState::NO_PIN) {
                 stage.Tell(pid) << "您还未选择，要抓紧了，机会不等人";
             }
         }
@@ -692,11 +694,19 @@ class GameStage<MainStage>
     {
         StageLog_(InfoLog()) << "Handle errcode rc=" << rc << " is_all_ready=" << Bool2Str(IsAllReady());
         TrySetDeduction_();
-        if (rc != StageErrCode::CHECKOUT && IsAllReady()) {
-            // We do not check IsReady only when rc is READY to handle all player force exit.
-            OnAllPlayerReady();
-            rc = StageErrCode::Condition(IsAllReady(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
-            StageLog_(InfoLog()) << "OnAllPlayerReady finish rc=" << rc;
+        const auto trigger_all_player_ready = [&]() { return rc != StageErrCode::CHECKOUT && IsAllReady(); };
+        if (trigger_all_player_ready()) {
+            while (true) {
+                // We do not check IsReady only when rc is READY to handle all player force exit.
+                rc = OnStageOver();
+                StageLog_(InfoLog()) << "OnStageOver finish rc=" << rc;
+                if (!trigger_all_player_ready()) {
+                    break;
+                }
+#ifndef TEST_BOT
+                std::this_thread::sleep_for(std::chrono::seconds(5)); // prevent frequent messages
+#endif
+            }
         }
         if (rc == StageErrCode::CHECKOUT) {
             Over();
@@ -711,6 +721,11 @@ class GameStage<MainStage>
             Base::masker().Set(pid, is_user);
             rc = StageErrCode::OK;
         }
+#ifndef TEST_BOT
+        if (!is_user && IsAllReady()) { // computer action
+            std::this_thread::sleep_for(std::chrono::seconds(5)); // prevent frequent messages
+        }
+#endif
         return Handle_(rc);
     }
 

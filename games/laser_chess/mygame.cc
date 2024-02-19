@@ -215,9 +215,9 @@ class MainStage : public MainGameStage<>
         return str;
     }
 
-    virtual void OnAllPlayerReady()
+    virtual CheckoutErrCode OnStageOver()
     {
-        ShootAndSettle_();
+        return CheckoutErrCode::Condition(ShootAndSettle_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
     bool ShootAndSettle_()
@@ -263,7 +263,7 @@ class MainStage : public MainGameStage<>
         return finish;
     }
 
-    CheckoutErrCode OnTimeout()
+    CheckoutErrCode OnStageTimeout()
     {
         return CheckoutErrCode::Condition(ShootAndSettle_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }

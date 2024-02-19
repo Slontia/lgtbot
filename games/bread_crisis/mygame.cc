@@ -144,7 +144,7 @@ class RoundStage : public SubGameStage<> {
     Boardcast() << name() << "，请玩家私信选择行动。";
   }
 
-  virtual CheckoutErrCode OnTimeout() override {
+  virtual CheckoutErrCode OnStageTimeout() override {
     //        Boardcast() << name() << "超时结束";
 
     for (int i = 0; i < option().PlayerNum(); i++) {
@@ -183,9 +183,10 @@ class RoundStage : public SubGameStage<> {
     return StageErrCode::READY;
   }
 
-  virtual void OnAllPlayerReady() override {
+  virtual CheckoutErrCode OnStageOver() override {
     Boardcast() << "所有玩家选择完成，下面公布赛况。";
     RoundStage::calc();
+    return StageErrCode::CHECKOUT;
   }
 
   void calc() {

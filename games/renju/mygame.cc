@@ -207,15 +207,17 @@ class MainStage : public MainGameStage<>
         return str;
     }
 
-    virtual void OnAllPlayerReady()
+    virtual CheckoutErrCode OnStageOver()
     {
         if (!SetToBoard_(BoardcastMsgSender())) {
             ClearReady();
             StartTimer(GET_OPTION_VALUE(option(), 时限));
+            return StageErrCode::CONTINUE;
         }
+        return StageErrCode::CHECKOUT;
     }
 
-    CheckoutErrCode OnTimeout()
+    CheckoutErrCode OnStageTimeout()
     {
         HookUnreadyPlayers();
         if (!SetToBoard_(BoardcastMsgSender())) {

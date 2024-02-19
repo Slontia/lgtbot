@@ -125,15 +125,15 @@ class MainStage : public MainGameStage<>
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return players_[pid].score_.back(); }
 
-    CheckoutErrCode OnTimeout()
+    CheckoutErrCode OnStageTimeout()
     {
         HookUnreadyPlayers();
         return CheckoutErrCode::Condition(Over_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
-        Over_();
+        return CheckoutErrCode::Condition(Over_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override

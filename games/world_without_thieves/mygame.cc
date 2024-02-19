@@ -187,7 +187,7 @@ class RoundStage : public SubGameStage<>
         Boardcast() << name() << "，请玩家私信选择身份。";
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
 //        Boardcast() << name() << "超时结束";
 
@@ -323,10 +323,11 @@ class RoundStage : public SubGameStage<>
         return Selected_(pid, reply, S, T + 1);
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
         Boardcast() << "所有玩家选择完成，下面公布赛况。";
         RoundStage::calc();
+        return StageErrCode::CHECKOUT;
     }
 
     void calc()

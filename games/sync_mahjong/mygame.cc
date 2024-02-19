@@ -238,7 +238,7 @@ class TableStage : public SubGameStage<>
         AllowPlayersToAct_();
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         HookUnreadyPlayers();
         return CheckoutErrCode::Condition(OnOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
@@ -250,11 +250,9 @@ class TableStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
-        if (!OnOver_()) {
-            assert(!IsAllReady());
-        }
+        return CheckoutErrCode::Condition(OnOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
     bool IsValidGame() const { return is_valid_game_; }
@@ -271,14 +269,7 @@ class TableStage : public SubGameStage<>
                 Group() << "本巡结果如图所示，请各玩家进行下一巡的行动\n" << Markdown(BoardcastHtml_(), k_image_width);
             case game_util::mahjong::SyncMajong::RoundOverResult::RON_ROUND:
                 AllowPlayersToAct_();
-                if (!IsAllReady()) {
-                    return false;
-                }
-                // Some players are in auto mode
-#ifndef TEST_BOT
-                std::this_thread::sleep_for(std::chrono::seconds(5));
-#endif
-                return OnOver_();
+                return false;
             case game_util::mahjong::SyncMajong::RoundOverResult::FU:
                 message = "有人和牌，本局结束";
                 is_valid_game_ = true;

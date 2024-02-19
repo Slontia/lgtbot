@@ -207,7 +207,7 @@ class RoundStage : public SubGameStage<>
         StartTimer(GET_OPTION_VALUE(option(), 时限));
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         // Returning |CHECKOUT| means the current stage will be over.
 
@@ -246,9 +246,10 @@ class RoundStage : public SubGameStage<>
         return SubmitInternal_(pid, reply, x);
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
         calc();
+        return StageErrCode::CHECKOUT;
     }
 
     void calc()

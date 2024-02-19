@@ -217,7 +217,7 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    CheckoutErrCode OnTimeout()
+    CheckoutErrCode OnStageTimeout()
     {
         HookUnreadyPlayers();
         return StageErrCode::CHECKOUT;

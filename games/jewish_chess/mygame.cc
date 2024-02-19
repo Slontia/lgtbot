@@ -169,7 +169,7 @@ class RoundStage : public SubGameStage<> {
     return StageErrCode::CHECKOUT;
   }
 
-  virtual CheckoutErrCode OnTimeout() override {
+  virtual CheckoutErrCode OnStageTimeout() override {
     auto current_player = main_stage().side_[main_stage().turn_ % 2];
     Boardcast() << "玩家 " << PlayerName(current_player) << " 超时未行动，游戏结束。";
     main_stage().ended_ = true;

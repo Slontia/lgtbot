@@ -414,13 +414,13 @@ class BetStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    CheckoutErrCode OnTimeout()
+    CheckoutErrCode OnStageTimeout()
     {
         HookUnreadyPlayers();
         return StageErrCode::CHECKOUT;
     }
 
-    void OnAllPlayerReady() { }
+    CheckoutErrCode OnStageOver() { return StageErrCode::CHECKOUT; }
  
   private:
     std::string RemainCoinsInfo_(const PlayerID pid) const

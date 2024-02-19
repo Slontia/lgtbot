@@ -833,7 +833,7 @@ class MainStage : public MainGameStage<>
         Boardcast() << Markdown("## 第 1 回合\n\n" + table_html_, k_image_width_);
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         HookUnreadyPlayers();
         return CheckoutErrCode::Condition(OnRoundFinish_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
@@ -852,9 +852,9 @@ class MainStage : public MainGameStage<>
         return StageErrCode::READY;
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
-        OnRoundFinish_();
+        return CheckoutErrCode::Condition(OnRoundFinish_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return role_manager_.GetRole(pid).IsWinner(); }

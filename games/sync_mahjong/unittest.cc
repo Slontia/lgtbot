@@ -1793,6 +1793,43 @@ GAME_TEST(4, auto_nari_ron)
     ASSERT_SCORE(28000, 24000, 24000, 24000);
 }
 
+GAME_TEST(4, only_auto_player_not_leave)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "2345m1z",
+                            .hand_ = "19s19p19m1234567z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "2345m2z",
+                            .hand_ = "333m", // not tinpai
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "2345m2z",
+                            .hand_ = "19s19p19m3334567z", // not tinpai
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "2345m4z",
+                            .hand_ = "19s19p19m3334567z", // not tinpai
+                        },
+                    }
+                }));
+    START_GAME();
+
+    // skip the first round
+    ASSERT_PRI_MSG(OK, 0, "自动摸牌");
+    ASSERT_PRI_MSG(OK, 0, "自动和了");
+    ASSERT_PRI_MSG(OK, 0, "自动摸切");
+    ASSERT_PRI_MSG(OK, 0, "摸切");
+    ASSERT_LEAVE(CONTINUE, 1);
+    ASSERT_LEAVE(CONTINUE, 2);
+    ASSERT_LEAVE(CHECKOUT, 3);
+
+    ASSERT_SCORE(25000 + 48000, 25000 - 16000, 25000 - 16000, 25000 - 16000);
+}
+
 GAME_TEST(4, all_auto)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
@@ -1804,15 +1841,15 @@ GAME_TEST(4, all_auto)
                         },
                         [1] = Tiles::PlayerTiles {
                             .yama_ = "2345m2z",
-                            .hand_ = "19s19p19m1234567z",
+                            .hand_ = "19s19p19m3334567z", // not tinpai
                         },
                         [2] = Tiles::PlayerTiles {
-                            .yama_ = "2345m3z",
-                            .hand_ = "19s19p19m1234567z",
+                            .yama_ = "2345m2z",
+                            .hand_ = "19s19p19m3334567z", // not tinpai
                         },
                         [3] = Tiles::PlayerTiles {
                             .yama_ = "2345m4z",
-                            .hand_ = "19s19p19m1234567z",
+                            .hand_ = "19s19p19m3334567z", // not tinpai
                         },
                     }
                 }));
@@ -1824,9 +1861,9 @@ GAME_TEST(4, all_auto)
         ASSERT_PRI_MSG(OK, pid, "自动和了");
         ASSERT_PRI_MSG(OK, pid, "自动摸切");
     }
-    ASSERT_TIMEOUT(CHECKOUT); // nagashi for three players tsumo
+    ASSERT_TIMEOUT(CHECKOUT);
 
-    ASSERT_FINISHED(false);
+    ASSERT_SCORE(25000 + 48000, 25000 - 16000, 25000 - 16000, 25000 - 16000);
 }
 
 } // namespace GAME_MODULE_NAME

@@ -76,7 +76,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         if (!IsReady(0) && !IsReady(1)) {
             Boardcast() << "双方均超时，游戏立刻结束，以当前盘面结算成绩";
@@ -151,7 +151,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::READY;
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
         nlohmann::json json_array;
         const auto result = board_.Settlement();
@@ -180,7 +180,9 @@ class MainStage : public MainGameStage<>
         if (!IsReady(0) || !IsReady(1)) {
             StartTimer(GET_OPTION_VALUE(option(), 时限));
             Boardcast() << "请继续私信裁判坐标以落子（如 C3），时限 " << GET_OPTION_VALUE(option(), 时限) << " 秒，超时未落子即判负";
+            return StageErrCode::CONTINUE;
         }
+        return StageErrCode::CHECKOUT;
     }
 
     std::string ToHtml_() const

@@ -175,7 +175,7 @@ class SettingStage : public SubGameStage<> {
     return StageErrCode::CONTINUE;
   }
 
-  virtual CheckoutErrCode OnTimeout() override {
+  virtual CheckoutErrCode OnStageTimeout() override {
     for (int i = 0; i < 2; i++) {
       if (IsReady(i) == false) {
         Boardcast() << "玩家 " << PlayerName(i) << " 超时未设置初始等式，游戏结束。";

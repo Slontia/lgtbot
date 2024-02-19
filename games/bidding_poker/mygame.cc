@@ -351,8 +351,8 @@ class BidStage : public SubGameStage<k_type>
     }
 
     // TODO: Hook unready players
-    CheckoutErrCode OnTimeout() { return CheckoutErrCode::Condition(BidOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE); }
-    void OnAllPlayerReady() { BidOver_(); }
+    CheckoutErrCode OnStageTimeout() { return CheckoutErrCode::Condition(BidOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE); }
+    CheckoutErrCode OnStageOver() { return CheckoutErrCode::Condition(BidOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE); }
 
   private:
     bool BidOver_()
@@ -632,7 +632,7 @@ class DiscardStage : public SubGameStage<k_type>
         return StageErrCode::READY;
     }
 
-    CheckoutErrCode OnTimeout()
+    CheckoutErrCode OnStageTimeout()
     {
         return StageErrCode::CHECKOUT;
     }

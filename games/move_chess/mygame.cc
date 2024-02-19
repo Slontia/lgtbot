@@ -378,7 +378,7 @@ class RoundStage : public SubGameStage<>
         Boardcast() << name() << "，请" << (main_stage().round_ % 2 == 1 ? "黑" : "白") << "方落子。";
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
     	int &cp = main_stage().currentPlayer;
         Boardcast() << At(PlayerID(cp)) << "玩家超时，游戏结束。";
@@ -408,10 +408,10 @@ class RoundStage : public SubGameStage<>
 	    return StageErrCode::READY;
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
     	// 不执行任何操作 
-    	return;
+        return StageErrCode::CHECKOUT;
     }
 
   private:

@@ -430,7 +430,7 @@ class RoundStage : public SubGameStage<> {
     return StageErrCode::CONTINUE;
   }
 
-  virtual CheckoutErrCode OnTimeout() override {
+  virtual CheckoutErrCode OnStageTimeout() override {
     for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
       if (!IsReady(pid)) {
         Boardcast() << At(pid) << "超时未做选择，跳过回合";

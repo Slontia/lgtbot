@@ -129,7 +129,7 @@ class RoundStage : public SubGameStage<>
         StartTimer(GET_OPTION_VALUE(option(), 时限));
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         for (int i = 0; i < option().PlayerNum(); i++) {
             if (IsReady(i) == false && !main_stage().player_out_[i]) {
@@ -239,9 +239,10 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    virtual void OnAllPlayerReady() override
+    virtual CheckoutErrCode OnStageOver() override
     {
         RoundStage::calc();
+        return StageErrCode::CHECKOUT;
     }
 
     void calc() {

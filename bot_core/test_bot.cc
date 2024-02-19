@@ -188,7 +188,8 @@ class SubStage : public SubGameStage<>
         : GameStage(main_stage, "子阶段"
                 , MakeStageCommand("结束", &SubStage::Over_, VoidChecker("结束子阶段"))
                 , MakeStageCommand("时间到时重新计时", &SubStage::ToResetTimer_, VoidChecker("重新计时"))
-                , MakeStageCommand("所有人准备好时重置准备情况", &SubStage::ToResetReady_, VoidChecker("重新准备"), ArithChecker(0, 10))
+                , MakeStageCommand("所有人准备好时重置准备情况", &SubStage::ToResetReadyAll_, VoidChecker("全员重新准备"), ArithChecker(0, 10))
+                , MakeStageCommand("重置准备情况时将除自己外设置为准备完成", &SubStage::ToResetOthersReady_, VoidChecker("别人重新准备"))
                 , MakeStageCommand("阻塞", &SubStage::Block_, VoidChecker("阻塞"))
                 , MakeStageCommand("阻塞并准备", &SubStage::BlockAndReady_, VoidChecker("阻塞并准备"))
                 , MakeStageCommand("阻塞并结束", &SubStage::BlockAndOver_, VoidChecker("阻塞并结束"))
@@ -211,7 +212,7 @@ class SubStage : public SubGameStage<>
         StartTimer(GET_OPTION_VALUE(option(), 时限));
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         EXPECT_FALSE(is_over_);
         if (to_reset_timer_) {
@@ -234,17 +235,27 @@ class SubStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    virtual void OnAllPlayerReady()
+    virtual CheckoutErrCode OnStageOver()
     {
-        if (to_reset_ready_ > 0) {
+        if (!to_reset_others_ready_players_.empty()) {
+            for (PlayerID player_id = 0; player_id < option().PlayerNum(); ++player_id) {
+                if (to_reset_others_ready_players_.find(player_id) == to_reset_others_ready_players_.end()) {
+                    ClearReady(player_id);
+                }
+            }
+            to_reset_others_ready_players_.clear();
+        } else if (to_reset_ready_ > 0) {
             --to_reset_ready_;
             ClearReady();
-            if (to_reset_timer_) {
-                to_reset_timer_ = false;
-                StartTimer(GET_OPTION_VALUE(option(), 时限));
-                Boardcast() << "全员行动完毕，但是回合继续";
-            }
+        } else {
+            return StageErrCode::CHECKOUT;
         }
+        if (to_reset_timer_) {
+            to_reset_timer_ = false;
+            StartTimer(GET_OPTION_VALUE(option(), 时限));
+            Boardcast() << "全员行动完毕，但是回合继续";
+        }
+        return StageErrCode::CONTINUE;
     }
 
   private:
@@ -265,9 +276,15 @@ class SubStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode ToResetReady_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t count)
+    AtomReqErrCode ToResetReadyAll_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t count)
     {
         to_reset_ready_ = count;
+        return StageErrCode::OK;
+    }
+
+    AtomReqErrCode ToResetOthersReady_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        to_reset_others_ready_players_.emplace(pid);
         return StageErrCode::OK;
     }
 
@@ -320,6 +337,7 @@ class SubStage : public SubGameStage<>
     uint64_t computer_act_count_;
     bool to_reset_timer_;
     uint32_t to_reset_ready_;
+    std::set<PlayerID> to_reset_others_ready_players_;
     std::map<PlayerID, uint32_t> to_computer_failed_;
     bool is_over_;
 };
@@ -408,7 +426,7 @@ class AtomMainStage : public MainGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         EXPECT_FALSE(is_over_);
         return StageErrCode::CHECKOUT;
@@ -936,7 +954,7 @@ TEST_F(TestBot, force_exit_computer_multi_all_ready_continue)
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#替补至 5");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#开始");
   ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "准备切换 5");
-  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "重新准备 10");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "全员重新准备 10");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#退出 强制");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
 }
@@ -978,7 +996,7 @@ TEST_F(TestBot, all_force_exit_all_ready)
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
   ASSERT_PUB_MSG(EC_OK, "1", "3", "#加入");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#开始");
-  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "重新准备 1");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "全员重新准备 1");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#退出 强制");
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#退出 强制");
   ASSERT_PUB_MSG(EC_OK, "1", "3", "#退出 强制");
@@ -1204,6 +1222,19 @@ TEST_F(TestBot, computer_leave_when_all_users_eliminated)
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏"); // game is over
 }
 
+TEST_F(TestBot, auto_set_ready_when_other_players_are_computer_should_checkout)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "1", "#替补至 2");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "别人重新准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CONTINUE, "1", "准备");
+
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏"); // match 1 is over
+}
+
 // Test Game
 
 TEST_F(TestBot, game_over_by_request)
@@ -1315,7 +1346,7 @@ TEST_F(TestBot, timeout_during_handle_request_all_ready_and_reset_timer)
   ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
   ASSERT_PRI_MSG(EC_OK, "1", "#开始");
 
-  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "重新准备 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "全员重新准备 1");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "重新计时");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备");
 
@@ -1332,7 +1363,7 @@ TEST_F(TestBot, timeout_during_handle_request_all_ready_and_reset_timer)
   NotifySubStage();
   fut.wait(); // now the timer is reset
 
-  // OnTimeout should not be invoked and game should not be over because timer is reset.
+  // OnStageTimeout should not be invoked and game should not be over because timer is reset.
   // So the player can execute 准备 command
   ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "准备");
@@ -1386,6 +1417,20 @@ TEST_F(TestBot, leave_and_join_other_game)
   ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备");
 }
 
+TEST_F(TestBot, auto_set_ready_when_other_players_have_left_should_checkout)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "别人重新准备");
+  ASSERT_PRI_MSG(EC_OK, "2", "#退出 强制");
+
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏"); // match 1 is over
+}
+
 // Eliminate
 
 TEST_F(TestBot, eliminate_first)
@@ -1428,6 +1473,20 @@ TEST_F(TestBot, eliminate_leave_need_not_force)
   ASSERT_PRI_MSG(EC_OK, "1", "#开始");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "淘汰");
   ASSERT_PRI_MSG(EC_OK, "1", "#退出");
+}
+
+TEST_F(TestBot, auto_set_ready_when_other_players_have_eliminated_should_checkout)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "别人重新准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "淘汰");
+
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏"); // match 1 is over
 }
 
 // Record Score

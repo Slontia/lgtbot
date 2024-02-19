@@ -223,15 +223,16 @@ class RaiseStage : public SubGameStage<>
         }
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         FoldForUnreadyPlayers_();
         return StageErrCode::CHECKOUT;
     }
 
-    virtual void OnAllPlayerReady()
+    virtual CheckoutErrCode OnStageOver()
     {
         FoldForUnreadyPlayers_();
+        return StageErrCode::CHECKOUT;
     }
 
     virtual void OnStageBegin() override
@@ -349,15 +350,16 @@ class BetStage : public SubGameStage<>
         }
     }
 
-    virtual CheckoutErrCode OnTimeout() override
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         CheckForUnreadyPlayers_();
         return StageErrCode::CHECKOUT;
     }
 
-    virtual void OnAllPlayerReady()
+    virtual CheckoutErrCode OnStageOver()
     {
         CheckForUnreadyPlayers_();
+        return StageErrCode::CHECKOUT;
     }
 
     virtual void OnStageBegin() override
