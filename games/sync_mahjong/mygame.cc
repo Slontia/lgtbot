@@ -319,7 +319,7 @@ class TableStage : public SubGameStage<>
 
     AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        reply() << Markdown(BoardcastHtml_());
+        reply() << Markdown(is_public ? BoardcastHtml_() : PlayerHtml_(table_.Players()[pid]));
         return StageErrCode::OK;
     }
 
