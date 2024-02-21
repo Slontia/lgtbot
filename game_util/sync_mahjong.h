@@ -511,6 +511,10 @@ class SyncMahjongGamePlayer
             s += "<div align=\"center\"><img src=\"file:///" + image_path_ + "/riichi.png\"/></div>\n\n<br />\n\n";
         }
         s += RiverHtml_(image_path_, river_);
+        if (IsRiichi_() && richii_round_ + 1 == round_) {
+            s += "\n\n<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(green) " **立&nbsp;&nbsp;直** "
+                HTML_FONT_TAIL "\n\n</font> </center>\n\n";
+        }
         return s;
     }
 
