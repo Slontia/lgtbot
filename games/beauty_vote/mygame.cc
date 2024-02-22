@@ -155,7 +155,7 @@ class RoundStage : public SubGameStage<>
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         int num, x0;
-        int max = GET_OPTION_VALUE(option(),最大数字);
+        int max = GET_OPTION_VALUE(option(), 最大数字);
         double x = main_stage().x * 0.8;
 
         if (max >= 100) {
@@ -287,7 +287,7 @@ class RoundStage : public SubGameStage<>
                     }
                 }
             }
-            if (GET_OPTION_VALUE(option(),撞车伤害)) {
+            if (GET_OPTION_VALUE(option(), 撞车伤害)) {
                 for (int i = 0; i < option().PlayerNum(); i++) {
                     if (crash[i] == 1) {
                         main_stage().player_hp_[i]--;
@@ -317,16 +317,18 @@ class RoundStage : public SubGameStage<>
                 if (main_stage().player_select_[i] == 0) {
                     flag0.push_back(i);
                 }
-                if (main_stage().player_select_[i] == GET_OPTION_VALUE(option(),最大数字) && crash[i] == 0) {
+                if (main_stage().player_select_[i] == GET_OPTION_VALUE(option(), 最大数字) && crash[i] == 0) {
                     flag100.push_back(i);
                 }
             }
         }
         if (flag0.size() && flag100.size()) {
             // Eliminate 0
-            for (int i = 0; i < flag0.size(); i++) {
-                main_stage().player_hp_[flag0[i]] = 0;
-                crash[flag0[i]] = 1;
+            if (GET_OPTION_VALUE(option(), 淘汰规则)) {
+                for (int i = 0; i < flag0.size(); i++) {
+                    main_stage().player_hp_[flag0[i]] = 0;
+                    crash[flag0[i]] = 1;
+                }
             }
 
             for (int i = 0; i < flag100.size(); i++) {
@@ -421,10 +423,10 @@ class RoundStage : public SubGameStage<>
         Boardcast() << Markdown(main_stage().T_Board + HP_Board + main_stage().Board + "</table>");
 
         if (is_crash == 1) {
-            Boardcast() << "有玩家撞车，" << (GET_OPTION_VALUE(option(),撞车伤害) ? "生命值额外 -1，且" : "") << "不计入本回合获胜玩家";
+            Boardcast() << "有玩家撞车，" << (GET_OPTION_VALUE(option(), 撞车伤害) ? "生命值额外 -1，且" : "") << "不计入本回合获胜玩家";
         }
         if (flag0.size() && flag100.size()) {
-            Boardcast() << "有玩家出 0，所以玩家" + win_p + "\n出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 获胜，选 0 的玩家被淘汰";
+            Boardcast() << "有玩家出 0，所以玩家" + win_p + "\n出 " + to_string(GET_OPTION_VALUE(option(), 最大数字)) + " 获胜" << (GET_OPTION_VALUE(option(), 淘汰规则) ? "，选 0 的玩家被淘汰" : "");
         } else if (win.size() == 0 && red.size() == 0) {
             Boardcast() << "本回合 X 的值是 " + x + "，没有玩家获胜";
         } else {
@@ -470,7 +472,7 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
         if (num < 0 || num > GET_OPTION_VALUE(option(), 最大数字)) {
-            reply() << "[错误] 不合法的数字，提交的数字应在 0 - " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 之间";
+            reply() << "[错误] 不合法的数字，提交的数字应在 0 - " + to_string(GET_OPTION_VALUE(option(), 最大数字)) + " 之间";
             return StageErrCode::FAILED;
         }
         return SubmitInternal_(pid, reply, num);
@@ -498,7 +500,7 @@ string MainStage::Specialrules(int win_size, int red_size, bool onred, bool is_s
             specialrule += "新特殊规则——";
         }
         specialrule += "撞车：如果有玩家提交了相同的数字，";
-        if (GET_OPTION_VALUE(option(),撞车伤害)) {
+        if (GET_OPTION_VALUE(option(), 撞车伤害)) {
             specialrule += "这些玩家生命值额外 -1，且";
         } else {
             specialrule += "则";
@@ -533,7 +535,11 @@ string MainStage::Specialrules(int win_size, int red_size, bool onred, bool is_s
         } else {
             if (n == 1) { specialrule += "\n"; }
         }
-        specialrule += "当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，当回合出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜，选 0 的玩家被**直接淘汰**。";
+        if (GET_OPTION_VALUE(option(), 淘汰规则)) {
+            specialrule += "当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，当回合出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜，选 0 的玩家被**直接淘汰**。";
+        } else {
+            specialrule += "当前玩家数小于等于3人，自动追加一条规则：当有玩家出 0 时，当回合出 " + to_string(GET_OPTION_VALUE(option(),最大数字)) + " 的玩家获胜。";
+        }
         if (is_status) {
             specialrule += "</tr></td>";
         } else {
@@ -575,7 +581,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     alive_ = option().PlayerNum();
 
     for (int i = 0; i < option().PlayerNum(); i++) {
-        player_hp_[i] = GET_OPTION_VALUE(option(),血量);
+        player_hp_[i] = GET_OPTION_VALUE(option(), 血量);
     }
 
     T_Board += "<table><tr>";
@@ -598,7 +604,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     HP_Board += "<tr bgcolor=\""+ HP_color +"\"><th>血量</th>";
     for (int i = 0; i < option().PlayerNum(); i++) {
         HP_Board += "<td>";
-        HP_Board += to_string(GET_OPTION_VALUE(option(),血量));
+        HP_Board += to_string(GET_OPTION_VALUE(option(), 血量));
         HP_Board += "</td>";
     }
     HP_Board += "<td>X</td></tr>";
