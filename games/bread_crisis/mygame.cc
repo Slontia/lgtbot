@@ -193,7 +193,7 @@ class RoundStage : public SubGameStage<> {
     // clear eliminated players number
     for (int i = 0; i < option().PlayerNum(); i++) {
       if (main_stage().player_eli_[i] == 1) {
-          main_stage().player_number_[i] = 0;
+          main_stage().player_number_[i] = -1;
       }
     }
     
@@ -350,6 +350,9 @@ std::string MainStage::GetName(std::string x) {
 MainStage::VariantSubStage MainStage::OnStageBegin() {
   srand((unsigned int)time(NULL));
   alive_ = option().PlayerNum();
+  for (int i = 0; i < option().PlayerNum(); i++) {
+    player_hp_[i] = GET_OPTION_VALUE(option(), 血量);
+  }
 
   Pic += "<table><tr>";
   for (int i = 0; i < option().PlayerNum(); i++) {
@@ -378,7 +381,7 @@ MainStage::VariantSubStage MainStage::OnStageBegin() {
     Pic += "<td>";
     //        else
     //            Pic+="<td bgcolor=\"#DCDCDC\">";
-    Pic += "30";
+    Pic += std::to_string(GET_OPTION_VALUE(option(), 血量));
     Pic += "</td>";
   }
   Pic += "</tr>";
@@ -425,7 +428,9 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage,
     int max_N = 0;
     std::vector<int> win_player;
     for (int i = 0; i < option().PlayerNum(); i++) {
-      if (player_target_[i] == 0) {
+      if (player_target_[i] != 0) {
+        player_number_[i] = -1;
+      }
         if (player_number_[i] > max_N) {
           win_player.clear();
           win_player.push_back(i);
@@ -433,7 +438,6 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage,
         } else if (player_number_[i] == max_N) {
           win_player.push_back(i);
         }
-      }
     }
     for (int i = 0; i < win_player.size(); i++) {
       player_scores_[win_player[i]] += 5;
