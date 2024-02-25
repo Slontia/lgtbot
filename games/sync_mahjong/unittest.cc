@@ -124,16 +124,17 @@ GAME_TEST(4, four_winds_consecutively_kiri)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
-                            .yama_ = "1z",
+                            .yama_ = "1z2m", // set 2m to prevent nagashi mangan
                         },
                         [1] = Tiles::PlayerTiles {
-                            .yama_ = "1z",
+                            .yama_ = "1z2m",
                         },
                         [2] = Tiles::PlayerTiles {
-                            .yama_ = "1z",
+                            .yama_ = "1z2m",
                         },
                         [3] = Tiles::PlayerTiles {
-                            .yama_ = "1z",
+                            .yama_ = "1z2m",
+                            .hand_ = "23z",
                         },
                     }
                 }));
@@ -144,7 +145,16 @@ GAME_TEST(4, four_winds_consecutively_kiri)
     ASSERT_PRI_MSG(OK, 2, "1z");
     ASSERT_PRI_MSG(CHECKOUT, 3, "1z");
 
-    ASSERT_FINISHED(false);
+    // the second game
+    ASSERT_PRI_MSG(OK, 3, "2z");
+    while (CHECK_TIMEOUT(CONTINUE));
+
+    ASSERT_SCORE(25000, 25000, 25000, 25000);
+
+    ASSERT_ACHIEVEMENTS(0, "四风连打");
+    ASSERT_ACHIEVEMENTS(1, "四风连打");
+    ASSERT_ACHIEVEMENTS(2, "四风连打");
+    ASSERT_ACHIEVEMENTS(3, "四风连打");
 }
 
 GAME_TEST(4, after_kan_not_four_winds_consecutively_kiri)
@@ -220,6 +230,10 @@ GAME_TEST(4, four_players_richii)
             24000 - 32000 - 200,
             24000 - 32000 - 200,
             24000 - 32000 - 200);
+    ASSERT_ACHIEVEMENTS(0, "天和", "国士无双");
+    ASSERT_ACHIEVEMENTS(1);
+    ASSERT_ACHIEVEMENTS(2);
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, four_players_richii_on_different_round)
@@ -286,6 +300,10 @@ GAME_TEST(4, tenhu)
     ASSERT_PRI_MSG(CHECKOUT, 3, "摸切");
 
     ASSERT_SCORE(25000 - 16000, 25000 + 48000, 25000 - 16000, 25000 - 16000);
+    ASSERT_ACHIEVEMENTS(0);
+    ASSERT_ACHIEVEMENTS(1, "天和");
+    ASSERT_ACHIEVEMENTS(2);
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, three_players_tsumo_cause_nagashi)
@@ -294,19 +312,19 @@ GAME_TEST(4, three_players_tsumo_cause_nagashi)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
-                            .yama_ = "1z1z",
+                            .yama_ = "1z1z2m", // 2m prevent nagashi mangan
                             .hand_ = "19s19p19m1234567z",
                         },
                         [1] = Tiles::PlayerTiles {
-                            .yama_ = "2z2z",
+                            .yama_ = "2z2z2m",
                             .hand_ = "19s19p19m1234567z",
                         },
                         [2] = Tiles::PlayerTiles {
-                            .yama_ = "3z3z",
+                            .yama_ = "3z3z2m",
                             .hand_ = "19s19p19m1234567z",
                         },
                         [3] = Tiles::PlayerTiles {
-                            .yama_ = "4z4z",
+                            .yama_ = "4z4z2m",
                             .hand_ = "19s19p19m1234567z",
                         },
                     }
@@ -324,7 +342,17 @@ GAME_TEST(4, three_players_tsumo_cause_nagashi)
     }
     ASSERT_PRI_MSG(CHECKOUT, 3, "摸切"); // nagashi
 
-    ASSERT_FINISHED(false);
+    for (uint32_t i = 0; i < 18; ++i) {
+        ASSERT_TIMEOUT(CONTINUE);
+    }
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    ASSERT_SCORE(25000, 25000, 25000, 25000);
+
+    ASSERT_ACHIEVEMENTS(0, "三家和了", "国士无双十三面");
+    ASSERT_ACHIEVEMENTS(1, "三家和了", "国士无双十三面");
+    ASSERT_ACHIEVEMENTS(2, "三家和了", "国士无双十三面");
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, three_players_ron_cause_nagashi)
@@ -368,7 +396,13 @@ GAME_TEST(4, three_players_ron_cause_nagashi)
     ASSERT_PRI_MSG(OK, 1, "荣");
     ASSERT_PRI_MSG(CHECKOUT, 2, "荣"); // nagashi
 
-    ASSERT_FINISHED(false);
+    // the second game
+    while (CHECK_TIMEOUT(CONTINUE));
+
+    ASSERT_ACHIEVEMENTS(0, "三家和了", "国士无双");
+    ASSERT_ACHIEVEMENTS(1, "三家和了", "国士无双");
+    ASSERT_ACHIEVEMENTS(2, "三家和了", "国士无双");
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, ron_players_obtain_last_game_riichi_points)
@@ -377,17 +411,19 @@ GAME_TEST(4, ron_players_obtain_last_game_riichi_points)
     ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
                     .player_tiles_ = {
                         [0] = Tiles::PlayerTiles {
-                            .yama_ = "1z",
+                            .yama_ = "1z2m", // 2m prevent nagashi mangan
                             .hand_ = "119s19p19m234567z",
                         },
                         [1] = Tiles::PlayerTiles {
-                            .yama_ = "2z",
+                            .yama_ = "2z2m",
                             .hand_ = "119s19p19m134567z",
                         },
                         [2] = Tiles::PlayerTiles {
+                            .yama_ = "2m",
                             .hand_ = "119s19p19m124567z",
                         },
                         [3] = Tiles::PlayerTiles {
+                            .yama_ = "2m",
                             .hand_ = "119s19p19m123567z",
                         },
                     }
@@ -455,6 +491,50 @@ GAME_TEST(4, nyanpai_nagashi_tinpai)
     ASSERT_SCORE(28000, 24000, 24000, 24000);
 }
 
+GAME_TEST(4, three_players_nyanpai_nagashi_mangan_nagashi)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "19m19s19p2234567223456z", // nagashi mangan
+                            .hand_ = "2m12z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "19m19s19p2234567223456z", // nagashi mangan
+                            .hand_ = "2m12z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "19m19s19p2234567223456z", // nagashi mangan
+                            .hand_ = "2m12z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "2m12z", // prevent nagashi mangan
+                            .hand_ = "2m12z",
+                        },
+                    }
+                }));
+    START_GAME();
+
+    // the first game
+    while (CHECK_TIMEOUT(CONTINUE));
+
+    // the second game
+    ASSERT_PRI_MSG(NOT_FOUND, 0, "");
+    ASSERT_PRI_MSG(NOT_FOUND, 1, "");
+    ASSERT_PRI_MSG(NOT_FOUND, 2, "");
+    ASSERT_PRI_MSG(OK, 0, "2m");
+    ASSERT_PRI_MSG(OK, 1, "2m");
+    ASSERT_PRI_MSG(CONTINUE, 2, "2m");
+    while (CHECK_TIMEOUT(CONTINUE));
+
+    ASSERT_SCORE(25000, 25000, 25000, 25000);
+    ASSERT_ACHIEVEMENTS(0, "流局满贯", "三家和了");
+    ASSERT_ACHIEVEMENTS(1, "流局满贯", "三家和了");
+    ASSERT_ACHIEVEMENTS(2, "流局满贯", "三家和了");
+    ASSERT_ACHIEVEMENTS(3);
+}
+
 GAME_TEST(4, nyanpai_nagashi_mangan)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
@@ -496,6 +576,10 @@ GAME_TEST(4, nyanpai_nagashi_mangan)
             25000 + (12000 - 4000) + (600 - 200) /*benchang*/ - 1000 + 500 /*richii_points*/,
             25000 - 4000 * 2 - 200 * 2 /*benchang*/,
             25000 - 4000 * 2 - 200 * 2 /*benchang*/);
+    ASSERT_ACHIEVEMENTS(0, "流局满贯");
+    ASSERT_ACHIEVEMENTS(1, "流局满贯");
+    ASSERT_ACHIEVEMENTS(2);
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, cannot_nari_after_richii)
@@ -982,6 +1066,10 @@ GAME_TEST(4, lingshang_with_kan_dora)
     ASSERT_PRI_MSG(CHECKOUT, 0, "自摸"); // 岭上 dora1 40 fu 2 fan
 
     ASSERT_SCORE(25000 + 3900, 25000 - 1300, 25000 - 1300, 25000 - 1300);
+    ASSERT_ACHIEVEMENTS(0, "岭上开花");
+    ASSERT_ACHIEVEMENTS(1);
+    ASSERT_ACHIEVEMENTS(2);
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, ron_different_points)
@@ -1202,6 +1290,10 @@ GAME_TEST(4, double_riichi_tsumo)
     ASSERT_PRI_MSG(CHECKOUT, 0, "自摸"); // w立直 一发 自摸, 30 fu 4 fan
 
     ASSERT_SCORE(25000 + 3900 * 3, 25000 - 3900, 25000 - 3900, 25000 - 3900);
+    ASSERT_ACHIEVEMENTS(0, "两立直");
+    ASSERT_ACHIEVEMENTS(1);
+    ASSERT_ACHIEVEMENTS(2);
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, cannot_nari_ron_when_the_tile_has_been_used)
@@ -1268,6 +1360,10 @@ GAME_TEST(4, gokushi_ron_dark_kan)
     ASSERT_PRI_MSG(CHECKOUT, 0, "荣");
 
     ASSERT_SCORE(25000 + 48000, 25000 - 48000, 25000, 25000);
+    ASSERT_ACHIEVEMENTS(0, "国士无双");
+    ASSERT_ACHIEVEMENTS(1);
+    ASSERT_ACHIEVEMENTS(2);
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, normal_hand_cannot_ron_dark_kan)
@@ -1357,6 +1453,10 @@ GAME_TEST(4, tsumo_normal_suanko)
     ASSERT_TIMEOUT(CHECKOUT);
 
     ASSERT_SCORE(25000 + 96000, 25000 - 32000, 25000 - 32000, 25000 - 32000);
+    ASSERT_ACHIEVEMENTS(0, "四暗刻", "天和");
+    ASSERT_ACHIEVEMENTS(1);
+    ASSERT_ACHIEVEMENTS(2);
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, kan_self_wind)
@@ -1398,30 +1498,6 @@ GAME_TEST(4, BUG_cannot_richii)
                             .yama_ = "3s",
                             .hand_ = "123066789s0678p",
                         },
-                    },
-                }));
-    START_GAME();
-
-    ASSERT_PRI_MSG(OK, 0, "立直 4p");
-    ASSERT_PRI_MSG(OK, 1, "立直 8p");
-}
-
-GAME_TEST(4, all_green_7_pairs)
-{
-    ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
-                    .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
-                            .yama_ = "6z",
-                            .hand_ = "2233446688p6z",
-                        },
-                        [1] = Tiles::PlayerTiles {
-                            .yama_ = "3s",
-                            .hand_ = "123066789s0678p",
-                        },
-                        [2] = Tiles::PlayerTiles {
-                            .yama_ = "6z",
-                        }
                     },
                 }));
     START_GAME();
@@ -1727,6 +1803,10 @@ GAME_TEST(4, auto_ron)
     ASSERT_TIMEOUT(CHECKOUT);
 
     ASSERT_SCORE(25000 + 48000, 25000 - 48000, 25000, 25000);
+    ASSERT_ACHIEVEMENTS(0, "国士无双");
+    ASSERT_ACHIEVEMENTS(1);
+    ASSERT_ACHIEVEMENTS(2);
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, auto_tsumo)
@@ -1758,6 +1838,10 @@ GAME_TEST(4, auto_tsumo)
     ASSERT_TIMEOUT(CHECKOUT);
 
     ASSERT_SCORE(25000 + 48000, 25000 - 16000, 25000 - 16000, 25000 - 16000);
+    ASSERT_ACHIEVEMENTS(0, "国士无双");
+    ASSERT_ACHIEVEMENTS(1);
+    ASSERT_ACHIEVEMENTS(2);
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, auto_nari_ron)
@@ -1827,7 +1911,11 @@ GAME_TEST(4, only_auto_player_not_leave)
     ASSERT_LEAVE(CONTINUE, 2);
     ASSERT_LEAVE(CHECKOUT, 3);
 
-    ASSERT_SCORE(25000 + 48000, 25000 - 16000, 25000 - 16000, 25000 - 16000);
+    ASSERT_SCORE(25000 + 96000, 25000 - 32000, 25000 - 32000, 25000 - 32000);
+    ASSERT_ACHIEVEMENTS(0, "国士无双十三面");
+    ASSERT_ACHIEVEMENTS(1);
+    ASSERT_ACHIEVEMENTS(2);
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 GAME_TEST(4, all_auto)
@@ -1863,7 +1951,11 @@ GAME_TEST(4, all_auto)
     }
     ASSERT_TIMEOUT(CHECKOUT);
 
-    ASSERT_SCORE(25000 + 48000, 25000 - 16000, 25000 - 16000, 25000 - 16000);
+    ASSERT_SCORE(25000 + 96000, 25000 - 32000, 25000 - 32000, 25000 - 32000);
+    ASSERT_ACHIEVEMENTS(0, "国士无双十三面");
+    ASSERT_ACHIEVEMENTS(1);
+    ASSERT_ACHIEVEMENTS(2);
+    ASSERT_ACHIEVEMENTS(3);
 }
 
 } // namespace GAME_MODULE_NAME

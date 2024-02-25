@@ -46,21 +46,43 @@ class name \
     static constexpr const INNER_CONSTANT(name)<INNER_ENUM(name)::member> member{};
 #define ENUM_END(name) \
 \
-    constexpr name() : v_(INNER_ENUM(name)::name##_INVALID_) {} \
+    constexpr name() noexcept : v_(INNER_ENUM(name)::name##_INVALID_) {} \
+\
+    constexpr name(const name& v) noexcept = default; \
+\
+    constexpr name(name&& v) noexcept = default; \
 \
     template <INNER_ENUM(name) e> \
-    constexpr name(const INNER_CONSTANT(name)<e>) : v_(e) {} \
-\
-    constexpr name(const INNER_ENUM(name)& v) : v_(v) {} \
-\
-    explicit constexpr name(const uint32_t i) : v_(static_cast<INNER_ENUM(name)>(i)) {} \
-\
-    constexpr auto operator<=>(const name&) const = default; \
+    constexpr name(const INNER_CONSTANT(name)<e>) noexcept : v_(e) {} \
 \
     template <INNER_ENUM(name) e> \
-    constexpr auto operator<=>(const INNER_CONSTANT(name)<e>) const { return v_ <=> e; }; \
+    constexpr name(INNER_CONSTANT(name)<e>&&) noexcept : v_(e) {} \
 \
-    constexpr auto operator<=>(const INNER_ENUM(name)& e) const { return v_ <=> e; }; \
+    constexpr name(const INNER_ENUM(name)& v) noexcept : v_(v) {} \
+\
+    explicit constexpr name(const uint32_t i) noexcept : v_(static_cast<INNER_ENUM(name)>(i)) {} \
+\
+    constexpr auto operator<=>(const name&) const noexcept = default; \
+\
+    template <INNER_ENUM(name) e> \
+    constexpr auto operator<=>(const INNER_CONSTANT(name)<e>) const noexcept { return v_ <=> e; }; \
+\
+    template <INNER_ENUM(name) e> \
+    constexpr auto operator<=>(INNER_CONSTANT(name)<e>&&) const noexcept { return v_ <=> e; }; \
+\
+    constexpr auto operator<=>(const INNER_ENUM(name)& e) const noexcept { return v_ <=> e; }; \
+\
+    constexpr name& operator=(const name&) noexcept = default; \
+\
+    constexpr name& operator=(name&&) noexcept = default; \
+\
+    template <INNER_ENUM(name) e> \
+    constexpr name& operator=(const INNER_CONSTANT(name)<e>) noexcept { return v_ = e, *this; }; \
+\
+    template <INNER_ENUM(name) e> \
+    constexpr name& operator=(INNER_CONSTANT(name)<e>&&) noexcept { return v_ = e, *this; }; \
+\
+    constexpr name& operator=(const INNER_ENUM(name)& e) noexcept { return v_ = e, *this; }; \
 \
     template <typename OS> \
     friend inline decltype(auto) operator<<(OS& os, const name& e) { return os << e.ToString(); } \

@@ -19,7 +19,7 @@ template <typename... SubStages> using MainGameStage = GameStage<void, SubStages
 
 const std::string k_game_name = "同步麻将"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 4; // 0 indicates no max-player limits
-const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "森高";
 const std::string k_description = "所有玩家同时摸牌和切牌的麻将游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
@@ -123,6 +123,56 @@ class SingleTileChecker : public AnyArg
 };
 
 static constexpr const char* k_chinese_number[] = {"零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"};
+
+static constexpr std::array<std::optional<Achievement>, game_util::mahjong::k_max_yaku> YakuToAchievement()
+{
+    std::array<std::optional<Achievement>, game_util::mahjong::k_max_yaku> result;
+
+    result[static_cast<int>(Yaku::国士无双)] = Achievement::国士无双;
+    result[static_cast<int>(Yaku::国士无双十三面)] = Achievement::国士无双十三面;
+    result[static_cast<int>(Yaku::九莲宝灯)] = Achievement::九莲宝灯;
+    result[static_cast<int>(Yaku::纯正九莲宝灯)] = Achievement::纯正九莲宝灯;
+    result[static_cast<int>(Yaku::字一色)] = Achievement::字一色;
+    result[static_cast<int>(Yaku::小四喜)] = Achievement::小四喜;
+    result[static_cast<int>(Yaku::大四喜)] = Achievement::大四喜;
+    result[static_cast<int>(Yaku::大三元)] = Achievement::大三元;
+    result[static_cast<int>(Yaku::清老头)] = Achievement::清老头;
+    result[static_cast<int>(Yaku::四暗刻)] = Achievement::四暗刻;
+    result[static_cast<int>(Yaku::绿一色)] = Achievement::绿一色;
+    result[static_cast<int>(Yaku::天和)] = Achievement::天和;
+
+    result[static_cast<int>(Yaku::役满)] = Achievement::累计役满;
+
+    result[static_cast<int>(Yaku::流局满贯)] = Achievement::流局满贯;
+
+    result[static_cast<int>(Yaku::清一色)] = Achievement::清一色;
+    result[static_cast<int>(Yaku::清一色副露版)] = Achievement::清一色;
+
+    result[static_cast<int>(Yaku::二杯口)] = Achievement::二杯口;
+    result[static_cast<int>(Yaku::纯全带幺九)] = Achievement::纯全带幺九;
+    result[static_cast<int>(Yaku::纯全带幺九副露版)] = Achievement::纯全带幺九;
+
+    result[static_cast<int>(Yaku::七对子)] = Achievement::七对子;
+    result[static_cast<int>(Yaku::混全带幺九)] = Achievement::混全带幺九;
+    result[static_cast<int>(Yaku::混全带幺九副露版)] = Achievement::混全带幺九;
+    result[static_cast<int>(Yaku::三色同刻)] = Achievement::三色同刻;
+    result[static_cast<int>(Yaku::三色同顺)] = Achievement::三色同顺;
+    result[static_cast<int>(Yaku::三色同顺副露版)] = Achievement::三色同顺;
+    result[static_cast<int>(Yaku::三暗刻)] = Achievement::三暗刻;
+    result[static_cast<int>(Yaku::一气通贯)] = Achievement::一气通贯;
+    result[static_cast<int>(Yaku::一气通贯副露版)] = Achievement::一气通贯;
+    result[static_cast<int>(Yaku::混老头)] = Achievement::混老头;
+    result[static_cast<int>(Yaku::三杠子)] = Achievement::三杠子;
+    result[static_cast<int>(Yaku::小三元)] = Achievement::小三元;
+    result[static_cast<int>(Yaku::两立直)] = Achievement::两立直;
+
+    result[static_cast<int>(Yaku::河底捞鱼)] = Achievement::河底捞鱼;
+    result[static_cast<int>(Yaku::海底捞月)] = Achievement::海底捞月;
+    result[static_cast<int>(Yaku::岭上开花)] = Achievement::岭上开花;
+    result[static_cast<int>(Yaku::抢杠)] = Achievement::抢杠;
+
+    return result;
+}
 
 class TableStage : public SubGameStage<>
 {
@@ -291,6 +341,9 @@ class TableStage : public SubGameStage<>
                 is_valid_game_ = true;
                 break;
         }
+        if (GET_OPTION_VALUE(option(), 种子).empty()) {
+            std::ranges::for_each(table_.Players(), [this, result](const auto& player) { Achieve_(player, result); });
+        }
         Group() << message << "\n" << Markdown(BoardcastHtml_(), k_image_width);
         for (const auto& player : table_.Players()) {
             Tell(player.PlayerID()) << message << "\n" << Markdown(PlayerHtml_(player), k_image_width);
@@ -298,6 +351,27 @@ class TableStage : public SubGameStage<>
         return true;
     }
 
+    void Achieve_(const game_util::mahjong::SyncMahjongGamePlayer& player, const game_util::mahjong::SyncMajong::RoundOverResult result)
+    {
+        const auto yakus = player.Yakus();
+        if (result == game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_四风连打) {
+            global_info().Achieve(player.PlayerID(), Achievement::四风连打);
+        } else if (!yakus.none() && result == game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_三家和了) {
+            global_info().Achieve(player.PlayerID(), Achievement::三家和了);
+        }
+        const auto update_achievement = [this, pid = player.PlayerID()](const int yaku_id) {
+            constexpr auto yaku_to_achievement = YakuToAchievement();
+            const std::optional<Achievement> achievement = yaku_to_achievement[yaku_id];
+            if (achievement.has_value()) {
+                global_info().Achieve(pid, *achievement);
+            }
+        };
+        for (int i = 0; i < game_util::mahjong::k_max_yaku; ++i) {
+            if (yakus[i]) {
+                update_achievement(i);
+            }
+        }
+    }
 
     template <typename Func, typename ...Args>
     AtomReqErrCode HandleAction_(const PlayerID pid, MsgSenderBase& reply, const Func func, const Args& ...args) {

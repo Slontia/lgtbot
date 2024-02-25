@@ -122,6 +122,8 @@ class DorasManager
 
 enum class AutoOption { AUTO_FU, AUTO_KIRI, AUTO_GET_TILE };
 
+constexpr int k_max_yaku = static_cast<int>(Yaku::双倍役满);
+
 class SyncMahjongGamePlayer
 {
     friend class SyncMajong;
@@ -459,6 +461,18 @@ class SyncMahjongGamePlayer
 
     const std::string& ErrorString() const { return errstr_; }
 
+    std::bitset<k_max_yaku> Yakus() const
+    {
+        std::bitset<k_max_yaku> yakus;
+        for (const FuResult& fu_result : fu_results_) {
+            for (const Yaku yaku : fu_result.counter_.yakus) {
+                yakus.set(static_cast<int>(yaku));
+            }
+            yakus[static_cast<int>(Yaku::役满)] = yakus[static_cast<int>(Yaku::役满)] || fu_result.counter_.fan >= 13;
+        }
+        return yakus;
+    }
+
 #ifdef TEST_BOT
     Tile LastKiriTile() const { return river_.back().tile_; }
 
@@ -488,11 +502,22 @@ class SyncMahjongGamePlayer
             }
         }
         s += HTML_FONT_TAIL "**\n\n</center>\n\n";
-        if (!fu_results_.empty()) {
-            s += "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(blue) " **和&nbsp;&nbsp;了** "
-                HTML_FONT_TAIL "\n\n</font> </center>\n\n";
+        enum class Mode { FU, NAGASHI_MANGAN, NORMAL };
+        const Mode mode = fu_results_.empty() ? Mode::NORMAL :
+                          fu_results_[0].counter_.yakus[0] == Yaku::流局满贯 ? Mode::NAGASHI_MANGAN : Mode::FU;
+#define BIG_TEXT(color, content) "<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(color) content HTML_FONT_TAIL "\n\n</font> </center>\n\n"
+        if (mode == Mode::FU) {
+            s += BIG_TEXT(blue, "**和&nbsp;&nbsp;了**");
             s += DoraHtml(image_path_, doras_manager_.Doras(), IsRiichi_());
             s += "\n\n";
+        } else if (mode == Mode::NAGASHI_MANGAN) {
+            s += BIG_TEXT(blue, " **流&nbsp;&nbsp;局&nbsp;&nbsp;满&nbsp;&nbsp;贯** ");
+        } else if (IsRiichi_() && richii_round_ + 1 == round_) {
+            s += BIG_TEXT(green, " **立&nbsp;&nbsp;直** ");
+        } else if (big_text_) {
+            s += big_text_;
+        }
+        if (mode == Mode::FU) {
             s += HandHtml_(TileStyle::FORWARD);
             s += "\n\n";
             s += RonInfoHtml_(image_path_, player_descs_, fu_results_);
@@ -511,10 +536,6 @@ class SyncMahjongGamePlayer
             s += "<div align=\"center\"><img src=\"file:///" + image_path_ + "/riichi.png\"/></div>\n\n<br />\n\n";
         }
         s += RiverHtml_(image_path_, river_);
-        if (IsRiichi_() && richii_round_ + 1 == round_) {
-            s += "\n\n<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(green) " **立&nbsp;&nbsp;直** "
-                HTML_FONT_TAIL "\n\n</font> </center>\n\n";
-        }
         return s;
     }
 
@@ -1354,6 +1375,7 @@ class SyncMahjongGamePlayer
     DorasManager doras_manager_;
 
     std::string errstr_;
+    const char* big_text_{nullptr};
     std::string public_html_;
 
     bool auto_options_[3] = {false, false, false};
@@ -1430,7 +1452,15 @@ class SyncMajong
             if (round_ == 1 && Is_四风连打(players_)) {
                 return RoundOverResult::CHUTO_NAGASHI_四风连打;
             }
-            if (HandleNyanapaiNagashi_()) {
+            if (IsNyanpaiNagashi_()) {
+                TryFillNagashiManganResult_();
+                if (Is_三家和了(players_)) {
+                    return RoundOverResult::CHUTO_NAGASHI_三家和了;
+                }
+                if (HandleFuResults_()) {
+                    return RoundOverResult::FU;
+                }
+                HandleTinpaiForNyanpaiNagashi_(players_);
                 return RoundOverResult::NYANPAI_NAGASHI;
             }
             ++round_;
@@ -1550,9 +1580,8 @@ class SyncMajong
         bool found = false;
         for (auto& player : players) {
             if (player.river_.empty() && player.fu_results_.empty()) {
+                player.big_text_ = BIG_TEXT(green, "**九&nbsp;&nbsp;种&nbsp;&nbsp;九&nbsp;&nbsp;牌**");
                 player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::OPEN);
-                player.public_html_ += "\n\n<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(green)
-                    " **九&nbsp;&nbsp;种&nbsp;&nbsp;九&nbsp;&nbsp;牌** " HTML_FONT_TAIL "\n\n</font> </center>\n\n";
                 found = true;
             }
         }
@@ -1576,34 +1605,19 @@ class SyncMajong
             std::all_of(std::next(players.begin()), players.end(), kiri_basetile_equal);
     }
 
-    bool HandleNagashiManganForNyanpaiNagashi_()
+    void TryFillNagashiManganResult_()
     {
-        std::vector<bool> is_nagashi_mangan(players_.size(), false);
-        int32_t nagashi_mangan_num = 0;
         for (auto& player : players_) {
             if (std::ranges::all_of(player.river_, [](const RiverTile& river_tile)
                         {
                             return std::find(k_one_nine_tiles.begin(), k_one_nine_tiles.end(), river_tile.tile_.tile) != k_one_nine_tiles.end();
                         })) {
-                ++nagashi_mangan_num;
-                is_nagashi_mangan[player.PlayerID()] = true;
+                CounterResult counter;
+                counter.yakus.emplace_back(Yaku::流局满贯);
+                counter.score1 = 4000;
+                player.fu_results_.emplace_back(SyncMahjongGamePlayer::k_none_player_id_, std::move(counter), Tile{});
             }
         }
-        if (nagashi_mangan_num == 0 || nagashi_mangan_num == players_.size()) {
-            return false;
-        }
-        const int32_t score_each_player = 4000 + benchang_ * 100;
-        for (uint32_t i = 0; i < players_.size(); ++i) {
-            players_[i].point_variation_ -= score_each_player * nagashi_mangan_num;
-            if (is_nagashi_mangan[i]) {
-                players_[i].point_variation_ += score_each_player * players_.size() + richii_points_ / nagashi_mangan_num;
-                players_[i].public_html_ = players_[i].Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
-                players_[i].public_html_ += "\n\n<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(green)
-                    " **流&nbsp;&nbsp;局&nbsp;&nbsp;满&nbsp;&nbsp;贯** " HTML_FONT_TAIL "\n\n</font> </center>\n\n";
-            }
-        }
-        richii_points_ = 0;
-        return true;
     }
 
     static void HandleTinpaiForNyanpaiNagashi_(std::vector<SyncMahjongGamePlayer>& players)
@@ -1616,25 +1630,19 @@ class SyncMajong
         for (auto& player : players) {
             if (player.GetListenTiles_().empty()) {
                 player.point_variation_ -= nyanpai_tinpai_points / (players.size() - tinpai_player_num);
+                player.big_text_ = BIG_TEXT(red, "**未&nbsp;&nbsp;听&nbsp;&nbsp;牌**");
             } else {
                 player.point_variation_ += nyanpai_tinpai_points / tinpai_player_num;
+                player.big_text_ = BIG_TEXT(green, "**听&nbsp;&nbsp;牌**");
                 player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::OPEN);
-                player.public_html_ += "\n\n<center> <font size=\"6\">\n\n " HTML_COLOR_FONT_HEADER(green)
-                    " **听&nbsp;&nbsp;牌** " HTML_FONT_TAIL "\n\n</font> </center>\n\n";
             }
         }
     }
 
-    bool HandleNyanapaiNagashi_()
+    bool IsNyanpaiNagashi_()
     {
-        if (std::ranges::none_of(players_,
-                    [](const SyncMahjongGamePlayer& player) { return player.yama_idx_ == k_yama_tile_num; })) {
-            return false;
-        }
-        if (!HandleNagashiManganForNyanpaiNagashi_()) {
-            HandleTinpaiForNyanpaiNagashi_(players_);
-        }
-        return true;
+        return std::ranges::any_of(players_,
+                [](const SyncMahjongGamePlayer& player) { return player.yama_idx_ == k_yama_tile_num; });
     }
 
     int32_t benchang_{0};
@@ -1646,19 +1654,10 @@ class SyncMajong
 
 };
 
+#undef BIG_TEXT
+
 } // namespace mahjong
 
 } // namespace game_util
 
 } // namespace lgtbot
-  // TODO:
-  // 显示可用舍牌
-  // 显示具体可执行操作
-  // 立直后自动摸切
-  // 三麻
-  //
-  // 立直之后杠
-  // 测试海底
-  // 测试河底
-  //
-  // 吃同一张牌两次

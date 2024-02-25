@@ -170,7 +170,11 @@ class TestGame : public MockMatch, public testing::Test
 #define ASSERT_ACHIEVEMENTS(pid, achievements...) \
     do { \
         ASSERT_TRUE(actual_achievements().has_value()) << "Game not finish"; \
-        ASSERT_EQ((std::vector<std::string>{achievements}), actual_achievements()->at(pid)) << "Achievements not match"; \
+        auto expected_achievements = std::vector<std::string>{achievements}; \
+        std::ranges::sort(expected_achievements); \
+        auto player_actual_achievements = actual_achievements()->at(pid); \
+        std::ranges::sort(player_actual_achievements); \
+        ASSERT_EQ(expected_achievements, player_actual_achievements) << "Achievements not match"; \
     } while (0)
 
 #define START_GAME() \
