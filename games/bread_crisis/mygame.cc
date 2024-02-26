@@ -409,7 +409,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage,
     return std::make_unique<RoundStage>(*this, round_);
   }
   //    Boardcast() << "游戏结束";
-  if (alive_ == 1) {
+  if (alive_ >= 1) {
     int maxHP = 0;
     for (int i = 0; i < option().PlayerNum(); i++) {
       maxHP = std::max(maxHP, (int)player_hp_[i]);
