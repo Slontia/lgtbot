@@ -249,10 +249,6 @@ class SyncMahjongGamePlayer
             errstr_ = "在有副露的情况下不允许立直";
             return false;
         }
-        if (richii && player_descs_[player_id_].base_point_ < 1000) {
-            errstr_ = "您的点数不足 1000，无法立直";
-            return false;
-        }
         if (tile.empty() ? !KiriTsumo_(richii) : !Kiri_(tile, richii)) {
             return false;
         }
