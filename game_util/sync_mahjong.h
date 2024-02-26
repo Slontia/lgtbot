@@ -1180,13 +1180,13 @@ class SyncMahjongGamePlayer
                 table.players[player_id_].门清 = false;
             } else {
                 fulu.type = Fulu::Type::大明杠;
-                table.players[player_id_].门清 = false;
                 for (const FuruTile& furu_tile : furu.tiles_) {
                     if (furu_tile.type_ == FuruTile::Type::DARK) {
                         fulu.type = Fulu::Type::暗杠;
-                        table.players[player_id_].门清 = true;
                         break;
-                    } else if (furu_tile.type_ == FuruTile::Type::ADD_KAN) {
+                    }
+                    table.players[player_id_].门清 = false;
+                    if (furu_tile.type_ == FuruTile::Type::ADD_KAN) {
                         fulu.type = Fulu::Type::加杠;
                         break;
                     }
