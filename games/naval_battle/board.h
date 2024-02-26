@@ -442,7 +442,7 @@ string BossIntro()
     return BOSS_SkillIntro;
 }
 
-void BossNormalAttack(auto sender, Board (&board)[2], int round_, int (&attack_count)[2])
+string BossNormalAttack(Board (&board)[2], int round_, int (&attack_count)[2])
 {
     int X, Y;
     string str;
@@ -467,10 +467,10 @@ void BossNormalAttack(auto sender, Board (&board)[2], int round_, int (&attack_c
         }
     }
     attack_count[1] = count;
-    sender << "BOSS进行普通打击：共成功发射了 " + to_string(count) + " 枚导弹";
+    return "BOSS进行普通打击：共成功发射了 " + to_string(count) + " 枚导弹";
 }
 
-void BossSkillAttack(auto sender, Board (&board)[2], bool overlap, int (&timeout)[2])
+string BossSkillAttack(Board (&board)[2], bool overlap, int (&timeout)[2])
 {
     const int skill_probability[5] = {0, 15, 30, 45, 65};
     int add_p = 0;
@@ -523,13 +523,12 @@ void BossSkillAttack(auto sender, Board (&board)[2], bool overlap, int (&timeout
                 }
             }
             if (try_count > 10000) {
-                sender << "[系统错误] 检查点：逻辑漏洞监测——随机放置飞机失败，已强制中断游戏进程！";
                 board[1].alive++;
                 timeout[1] = 1;
-                return;
+                return "[系统错误] 检查点：逻辑漏洞监测——随机放置飞机失败，已强制中断游戏进程！";
             }
         }
-        sender << "【WARNING】BOSS发动技能 [空军指挥]！已指挥 " + to_string(count) + " 架飞机飞行至地图的其他位置。";
+        return "【WARNING】BOSS发动技能 [空军指挥]！已指挥 " + to_string(count) + " 架飞机飞行至地图的其他位置。";
     }
     else if (skill > 100 - skill_probability[2] - add_p * 2)
     {
@@ -540,7 +539,7 @@ void BossSkillAttack(auto sender, Board (&board)[2], bool overlap, int (&timeout
             str = string(1, 'A' + i) + to_string(Y);
             board[0].Attack(str);
         }
-        sender << "【WARNING】BOSS发动技能 [连环轰炸]！对地图行列进行打击，打击了地图上 " + string(1, 'A' + X) + to_string(Y) + " 所在的整个十字区域";
+        return "【WARNING】BOSS发动技能 [连环轰炸]！对地图行列进行打击，打击了地图上 " + string(1, 'A' + X) + to_string(Y) + " 所在的整个十字区域";
     }
     else if (skill > 100 - skill_probability[3] - add_p * 3)
     {
@@ -579,9 +578,9 @@ void BossSkillAttack(auto sender, Board (&board)[2], bool overlap, int (&timeout
             }
         }
         if (count > 0) {
-            sender << "【WARNING】 BOSS发动技能 [雷达扫描]！使用雷达扫描了 " + string(1, 'A' + X) + to_string(Y) + " 为中心的 5*5 的区域，并发射 " + to_string(count) + " 枚导弹打击了检测到的所有飞机";
+            return "【WARNING】 BOSS发动技能 [雷达扫描]！使用雷达扫描了 " + string(1, 'A' + X) + to_string(Y) + " 为中心的 5*5 的区域，并发射 " + to_string(count) + " 枚导弹打击了检测到的所有飞机";
         } else {
-            sender << "【WARNING】 BOSS发动技能 [雷达扫描]！使用雷达扫描了 " + string(1, 'A' + X) + to_string(Y) + " 为中心的 5*5 的区域，什么都没有发现";
+            return "【WARNING】 BOSS发动技能 [雷达扫描]！使用雷达扫描了 " + string(1, 'A' + X) + to_string(Y) + " 为中心的 5*5 的区域，什么都没有发现";
         }
     }
     else if (skill > 100 - skill_probability[4] - add_p * 4)
@@ -613,6 +612,7 @@ void BossSkillAttack(auto sender, Board (&board)[2], bool overlap, int (&timeout
                 break;
             }
         }
-        sender << "【WARNING】 BOSS发动技能 [火力打击]！发射了一枚高爆导弹，炸毁了位于 " + string(1, 'A' + X) + to_string(Y) + " 的 3*3 的区域";
+        return "【WARNING】 BOSS发动技能 [火力打击]！发射了一枚高爆导弹，炸毁了位于 " + string(1, 'A' + X) + to_string(Y) + " 的 3*3 的区域";
     }
+    return "";
 }

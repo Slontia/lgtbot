@@ -119,7 +119,7 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
         int count = 0, X, Y;
         int investigate = GET_OPTION_VALUE(option(), 侦察);
         if (investigate == 100) {
-            investigate = rand() % (GET_OPTION_VALUE(option(), 边长) - 5) + 4;
+            investigate = rand() % (GET_OPTION_VALUE(option(), 边长) - 5) + 3;
         }
         while (count < investigate) {
             X = rand() % board[0].sizeX + 1;
@@ -144,6 +144,9 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
         // UI从转为要害显示
         board[0].prepare = 0;
         board[1].prepare = 0;
+
+        // 展示初始地图
+        Boardcast() << Markdown(GetAllMap(0, 0, GET_OPTION_VALUE(option(), 要害)));
 
         return std::make_unique<AttackStage>(*this, ++round_);
     }
@@ -552,8 +555,11 @@ class AttackStage : public SubGameStage<>
             if (main_stage().round_ == 18) {
                 Boardcast() << "【BOSS】普通打击已升级，每回合最多发射 8 枚导弹";
             }
-            BossNormalAttack(Boardcast(), main_stage().board, main_stage().round_, main_stage().attack_count);
-            BossSkillAttack(Boardcast(), main_stage().board, GET_OPTION_VALUE(option(), 重叠), main_stage().timeout);
+            Boardcast() << BossNormalAttack(main_stage().board, main_stage().round_, main_stage().attack_count);
+            string skillinfo = BossSkillAttack(main_stage().board, GET_OPTION_VALUE(option(), 重叠), main_stage().timeout);
+            if (skillinfo != "") {
+                Boardcast() << skillinfo;
+            }
             if (main_stage().timeout[1] == 1) {
                 SetReady(0);
             }
