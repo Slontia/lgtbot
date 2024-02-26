@@ -138,6 +138,7 @@ static constexpr std::array<std::optional<Achievement>, game_util::mahjong::k_ma
     result[static_cast<int>(Yaku::大三元)] = Achievement::大三元;
     result[static_cast<int>(Yaku::清老头)] = Achievement::清老头;
     result[static_cast<int>(Yaku::四暗刻)] = Achievement::四暗刻;
+    result[static_cast<int>(Yaku::四暗刻单骑)] = Achievement::四暗刻单骑;
     result[static_cast<int>(Yaku::绿一色)] = Achievement::绿一色;
     result[static_cast<int>(Yaku::天和)] = Achievement::天和;
 
