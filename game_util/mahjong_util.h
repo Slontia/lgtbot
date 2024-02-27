@@ -273,25 +273,6 @@ static std::string HandHtml(const std::string& image_path, const TileSet& hand, 
     return str + "</div>";
 }
 
-static std::string HandHtmlWithName(const std::string& image_path, const TileSet& hand, const TileStyle style, const std::optional<Tile>& tsumo = std::nullopt)
-{
-    html::Table table(2, 0);
-    table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
-    for (const auto& tile : hand) {
-        table.AppendColumn();
-        table.GetLastColumn(0).SetContent(tile.to_simple_string());
-        table.GetLastColumn(1).SetContent(Image(image_path, tile, style));
-    }
-    if (tsumo.has_value()) {
-        table.AppendColumn();
-        table.GetLastColumn(0).SetContent(HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE);
-        table.AppendColumn();
-        table.GetLastColumn(0).SetContent(tsumo->to_simple_string());
-        table.GetLastColumn(1).SetContent(Image(image_path, *tsumo, style));
-    }
-    return table.ToString();
-}
-
 static std::string HandHtmlBack(const std::string& image_path, const TileSet& hand)
 {
     std::string s = "<div nowrap>";

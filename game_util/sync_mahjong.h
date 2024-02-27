@@ -94,6 +94,30 @@ struct SyncMahjongOption
     std::vector<PlayerDesc> player_descs_;
 };
 
+static constexpr std::array<BaseTile, k_tile_type_num> k_dora_sign_to_dora = []()
+    {
+        std::array<BaseTile, k_tile_type_num> result;
+        auto fill_result = [&](const BaseTile start, const BaseTile end)
+            {
+                result[end] = start;
+                for (int basetile = start; basetile < end; ++basetile) {
+                    result[basetile] = static_cast<BaseTile>(basetile + 1);
+                }
+            };
+        fill_result(_1m, _9m);
+        fill_result(_1s, _9s);
+        fill_result(_1p, _9p);
+        fill_result(east, north);
+        fill_result(白, 中);
+        return result;
+    }();
+
+static bool IsDora(const std::span<const std::pair<Tile, Tile>> doras, const BaseTile basetile)
+{
+    const auto is_dora = [basetile](const auto dora_signs) { return k_dora_sign_to_dora[dora_signs.first.tile] == basetile; };
+    return std::ranges::any_of(doras, is_dora);
+}
+
 class DorasManager
 {
   public:
@@ -598,6 +622,31 @@ class SyncMahjongGamePlayer
         return table.ToString();
     }
 
+    static std::string HandHtmlWithName_(const std::string& image_path, const TileSet& hand, const TileStyle style, const DorasManager& dora_manager, const std::optional<Tile>& tsumo = std::nullopt)
+    {
+        html::Table table(2, 0);
+        table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
+        const auto tile_str = [&dora_manager](const Tile& tile)
+            {
+                return IsDora(dora_manager.Doras(), tile.tile) || tile.red_dora
+                    ? HTML_COLOR_FONT_HEADER(blue) + tile.to_simple_string() + HTML_FONT_TAIL
+                    : tile.to_simple_string();
+            };
+        for (const auto& tile : hand) {
+            table.AppendColumn();
+            table.GetLastColumn(0).SetContent(tile_str(tile));
+            table.GetLastColumn(1).SetContent(Image(image_path, tile, style));
+        }
+        if (tsumo.has_value()) {
+            table.AppendColumn();
+            table.GetLastColumn(0).SetContent(HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE);
+            table.AppendColumn();
+            table.GetLastColumn(0).SetContent(tile_str(*tsumo));
+            table.GetLastColumn(1).SetContent(Image(image_path, *tsumo, style));
+        }
+        return table.ToString();
+    }
+
     static std::string YakusHtml_(const std::string& image_path, const Tile& tile, const CounterResult& counter, const bool as_tsumo, const std::vector<std::string>& texts = {})
     {
         const auto score = as_tsumo ? counter.score1 : counter.score1 / 3;
@@ -667,8 +716,9 @@ class SyncMahjongGamePlayer
     }
 
     std::string HandHtml_(const TileStyle tile_style) const {
-        const auto hand_html_func = tile_style == TileStyle::HAND ? &HandHtmlWithName : &HandHtml;
-        return AppendFuruHtmls_(hand_html_func(image_path_, hand_, tile_style, tsumo_));
+        std::string hand_html = tile_style == TileStyle::HAND ? HandHtmlWithName_(image_path_, hand_, tile_style, doras_manager_, tsumo_)
+                                                              : HandHtml(image_path_, hand_, tile_style, tsumo_);
+        return AppendFuruHtmls_(std::move(hand_html));
     }
 
     std::string HandHtmlBack_() const {
