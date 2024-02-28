@@ -776,12 +776,17 @@ class SyncMahjongGamePlayer
     void StartRonStage_(const std::vector<PlayerKiriInfo>& kiri_infos)
     {
         SetKiriInfos_(kiri_infos);
-        if (CanRon_()) {
-            state_ = ActionState::NOTIFIED_RON;
-            if (GetAutoOption(AutoOption::AUTO_FU)) {
-                Ron();
-            }
+        if (!CanRon_()) {
+            return;
         }
+        state_ = ActionState::NOTIFIED_RON;
+        if (!GetAutoOption(AutoOption::AUTO_FU)) {
+            return;
+        }
+        if (public_html_.empty()) {
+            public_html_ = Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
+        }
+        Ron();
     }
 
     void GetTileInternal_()
@@ -1483,6 +1488,9 @@ class SyncMajong
                 }
                 if (HandleFuResults_()) {
                     return RoundOverResult::FU;
+                }
+                for (auto& player : players_) {
+                    player.public_html_.clear();
                 }
                 ron_stage_ = false;
             }
