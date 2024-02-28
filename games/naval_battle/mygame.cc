@@ -119,7 +119,7 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
         int count = 0, X, Y;
         int investigate = GET_OPTION_VALUE(option(), 侦察);
         if (investigate == 100) {
-            investigate = rand() % (GET_OPTION_VALUE(option(), 边长) - 5) + 3;
+            investigate = rand() % 5 + (GET_OPTION_VALUE(option(), 边长) - 7);
         }
         while (count < investigate) {
             X = rand() % board[0].sizeX + 1;
