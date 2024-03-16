@@ -28,7 +28,7 @@ const std::string k_description = "选择行动，与他人博弈抢夺金币的
 
 const char* const settlement_details[7] = {
     R"EOF(· 完整判定顺序为：
-「撤离」→「捡金币」→「夺血条」→「守金币」→“爆金币”→「抢金币」→玩家出局
+「撤离」→「捡金币」→「夺血条」→「守金币」→「抢金币」→“爆金币”→玩家出局
  - 每个指令的详细判定细节请用指令「#规则 爆金币 指令名」来查看)EOF",
 
     R"EOF(「撤离」最先判定
@@ -45,24 +45,24 @@ const char* const settlement_details[7] = {
  · [自守]只在抵挡到伤害时才触发。如果多名玩家同时守一名玩家，所有操作都会结算，例如：
  -【1号】捡金币成功，【2号】守【1号】，【3号】也守【1号】。【1号】获取金币[变为失败]，【2号】和【3号】都能获得【1号】捡的金币（而不是平分）。特别的：如果此时【4号】抢【1号】，因【1号】获取金币失败，所以【4号】抢会判定[失败]。)EOF",
 
-    R"EOF(“爆金币” 在「抢金币」「守金币」「夺血条」后判定
- - 玩家在爆金币时失金币归零并出局，同时按照记录的总伤害结算夺血条的金币收益。
- - 玩家爆金币时如果金币为负数，依然会归零，同时爆出的金币也会[变成负数]。
- - 玩家出局后不能继续行动，但是仍可能通过其他玩家爆金币来获得金币收益，且这些金币会保留到终局结算。)EOF",
-
-    R"EOF(「抢金币」最后才判定
+    R"EOF(「抢金币」在「捡金币」「夺血条」「守金币」后判定
  · 仅看[目标当回合的操作是否能获得金币]，具体见以下例子：
  -【1号】抢【2号】，【2号】抢【3号】，【3号】捡金币成功。逐层递进，则【1号】、【2号】都判定[成功]。
  -【1号】抢【2号】，【2号】抢【3号】，【3号】抢【1号】。形成闭环，没有目标获得了金币，所以【1号】、【2号】、【3号】都判定[失败]。
  -【1号】守【2号】，【2号】抢【1号】。根据规则，先判定【1号】守[成功]（因此【1号】获得了金币），所以【2号】抢会判定[成功]。
  -【2号】在此轮对【1号】夺血条导致【1号】出局爆金币（因此【2号】本回合操作获得了金币），【3号】抢【2号】会判定[成功]。
  -【2号】在**前一轮**对【1号】夺血条；【2号】在此轮“捡 0”，【1号】在此轮爆金币（因此【2号】本回合操作并**没有获得金币**，即使金币因【1号】爆金币发生了增长），【3号】抢【2号】会判定[失败]。)EOF",
+ 
+    R"EOF(“爆金币” 与 玩家出局 最后才判定
+ - 玩家在爆金币时失金币归零并出局，同时按照记录的总伤害结算夺血条的金币收益。
+ - 玩家爆金币时如果金币为负数，依然会归零，同时爆出的金币也会[变成负数]。
+ - 玩家出局后不能继续行动，但是仍可能通过其他玩家爆金币来获得金币收益，且这些金币会保留到终局结算。)EOF",
 };
 
 const std::vector<RuleCommand> k_rule_commands = {
     RuleCommand("查看某指令的具体判定细节（疑难解答汇总）",
             [](const int type) { return settlement_details[type]; },
-            AlterChecker<int>({{"判定", 0}, {"撤离", 1}, {"捡金币", 2}, {"夺血条", 3}, {"守金币", 4}, {"爆金币", 5}, {"抢金币", 6}})),
+            AlterChecker<int>({{"判定", 0}, {"撤离", 1}, {"捡金币", 2}, {"夺血条", 3}, {"守金币", 4}, {"抢金币", 5}, {"爆金币", 6}})),
 };
 
 std::string GameOption::StatusInfo() const { return ""; }
@@ -346,11 +346,24 @@ class RoundStage : public SubGameStage<>
 
     bool CheckPlayerGainCoins(int target, vector<int> &player_gaincoins_num, int count)
     {
-        if (main_stage().player_action_[target] == 'P' || main_stage().player_action_[target] == 'G' && main_stage().player_action_[target] == 'T') {
+        if (main_stage().player_action_[target] == 'P' || main_stage().player_action_[target] == 'G') {
             if (player_gaincoins_num[target] > 0) {
                 return true;
             } else {
                 return false;
+            }
+        }
+        if (main_stage().player_action_[target] == 'T') {
+            if (main_stage().player_hp_[main_stage().player_target_[target]] > 0) {
+                return false;
+            } else {
+                int T_target = main_stage().player_target_[target];
+                int coin_change = -main_stage().player_coinselect_[target] + main_stage().player_total_damage_[target][T_target] * main_stage().player_coins_[T_target] * 0.15;
+                if (coin_change > 0) {
+                    return true;
+                } else {
+                    return false;
+                }
             }
         }
         if (main_stage().player_action_[target] == 'S') {
@@ -494,22 +507,6 @@ class RoundStage : public SubGameStage<>
             }
         }
 
-        // 爆金币
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (main_stage().player_hp_[i] <= 0 && main_stage().player_out_[i] == 0) {
-                for (int j = 0; j < option().PlayerNum(); j++) {
-                    int gain_coins = main_stage().player_total_damage_[j][i] * main_stage().player_coins_[i] * 0.15;
-                    main_stage().player_coins_[j] += gain_coins;
-                    player_gaincoins_num[j] += gain_coins;
-                    // 判定夺血条成功
-                    if (action[j] == 'T' && target[j] == i) {
-                        takehp_success[j] = true;
-                    }
-                }
-                main_stage().player_coins_[i] = 0;
-            }
-        }
-        
         // 抢金币【S】
         for (int i = 0; i < option().PlayerNum(); i++) {
             if (action[i] == 'S' && main_stage().player_out_[i] == 0 && action[target[i]] != 'L') {
@@ -518,12 +515,25 @@ class RoundStage : public SubGameStage<>
                     main_stage().player_coins_[target[i]] -= coinselect[i];
                     snatchcoins_success[i] = true;
                 } else {
-                    // 如果玩家已经爆金币，则不再支付金币
-                    if (main_stage().player_hp_[i] > 0) {
-                        main_stage().player_coins_[i] -= coinselect[i];
-                    }
+                    main_stage().player_coins_[i] -= coinselect[i];
                     main_stage().player_coins_[target[i]] += coinselect[i];
                 }
+            }
+        }
+
+        // 爆金币
+        for (int i = 0; i < option().PlayerNum(); i++) {
+            if (main_stage().player_hp_[i] <= 0 && main_stage().player_out_[i] == 0) {
+                for (int j = 0; j < option().PlayerNum(); j++) {
+                    // int gain_coins = main_stage().player_total_damage_[j][i] * main_stage().player_coins_[i] * 0.15;
+                    main_stage().player_coins_[j] += main_stage().player_total_damage_[j][i] * main_stage().player_coins_[i] * 0.15;
+                    // player_gaincoins_num[j] += gain_coins;
+                    // 判定夺血条成功
+                    if (action[j] == 'T' && target[j] == i) {
+                        takehp_success[j] = true;
+                    }
+                }
+                main_stage().player_coins_[i] = 0;
             }
         }
 
