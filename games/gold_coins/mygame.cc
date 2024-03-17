@@ -307,7 +307,7 @@ class RoundStage : public SubGameStage<>
     virtual CheckoutErrCode OnStageTimeout() override
     {
         for (int i = 0; i < option().PlayerNum(); i++) {
-            if (IsReady(i) == false) {
+            if (!IsReady(i)) {
                 main_stage().player_action_[i] = 'L';
                 main_stage().player_target_[i] = 0;
                 main_stage().player_coinselect_[i] = 0;
@@ -346,38 +346,30 @@ class RoundStage : public SubGameStage<>
 
     bool CheckPlayerGainCoins(int target, vector<int> &player_gaincoins_num, int count)
     {
+        int coins_change = 0;
         if (main_stage().player_action_[target] == 'P' || main_stage().player_action_[target] == 'G') {
-            if (player_gaincoins_num[target] > 0) {
-                return true;
-            } else {
-                return false;
-            }
+            coins_change = player_gaincoins_num[target];
         }
-        if (main_stage().player_action_[target] == 'T') {
-            if (main_stage().player_hp_[main_stage().player_target_[target]] > 0) {
-                return false;
-            } else {
-                int T_target = main_stage().player_target_[target];
-                int coin_change = -main_stage().player_coinselect_[target] + main_stage().player_total_damage_[target][T_target] * main_stage().player_coins_[T_target] * 0.15;
-                if (coin_change > 0) {
-                    return true;
-                } else {
-                    return false;
-                }
-            }
+        if (main_stage().player_action_[target] == 'T' && main_stage().player_hp_[main_stage().player_target_[target]] <= 0) {
+            int T_target = main_stage().player_target_[target];
+            coins_change = main_stage().player_total_damage_[target][T_target] * main_stage().player_coins_[T_target] * 0.15 - main_stage().player_coinselect_[target];
         }
         if (main_stage().player_action_[target] == 'S') {
             if (player_gaincoins_num[main_stage().player_target_[target]] > 0) {
                 return true;
-            } else if (player_gaincoins_num[main_stage().player_target_[target]] < 0) {   // 获取标记
+            } else if (player_gaincoins_num[main_stage().player_target_[target]] < 0) {
                 return false;
             }
+            // 闭环检测（递归次数超过玩家人数）
             if (count > option().PlayerNum()) {
-                player_gaincoins_num[target] = -1;   // 标记抢夺失败
+                player_gaincoins_num[target] = -main_stage().player_coinselect_[target];   // 标记抢夺失败
                 return false;
             }
             return CheckPlayerGainCoins(main_stage().player_target_[target], player_gaincoins_num, count + 1);
         }
+        // 目标金币变化>0，返回成功
+        if (coins_change > 0) { return true; }
+
         return false;
     }
 
@@ -525,9 +517,7 @@ class RoundStage : public SubGameStage<>
         for (int i = 0; i < option().PlayerNum(); i++) {
             if (main_stage().player_hp_[i] <= 0 && main_stage().player_out_[i] == 0) {
                 for (int j = 0; j < option().PlayerNum(); j++) {
-                    // int gain_coins = main_stage().player_total_damage_[j][i] * main_stage().player_coins_[i] * 0.15;
                     main_stage().player_coins_[j] += main_stage().player_total_damage_[j][i] * main_stage().player_coins_[i] * 0.15;
-                    // player_gaincoins_num[j] += gain_coins;
                     // 判定夺血条成功
                     if (action[j] == 'T' && target[j] == i) {
                         takehp_success[j] = true;
