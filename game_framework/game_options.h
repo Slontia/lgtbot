@@ -14,7 +14,7 @@
 #endif
 
 #ifndef GAME_OPTION_FILENAME
-#define GAME_OPTION_FILENAME "options.h"
+#error GAME_OPTION_FILENAME is not defined
 #endif
 
 // Include the 'options.h' in global namespace. We can include some headers in 'options.h' with 'INIT_OPTION_DEPEND` macro.

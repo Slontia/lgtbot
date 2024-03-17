@@ -10,7 +10,9 @@
 #include <random>
 #include <algorithm>
 
-#include "game_framework/game_stage.h"
+#include "bot_core/msg_sender.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 
 namespace lgtbot {
@@ -20,8 +22,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "二择猜拳";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
@@ -88,7 +90,7 @@ static std::string StarsString(const uint32_t n) {
 
 using CardMap = std::map<Card, CardState>;
 
-static CardMap GetCardMap(const GameOption& option)
+static CardMap GetCardMap(const MyGameOption& option)
 {
     CardMap cards;
     const auto emplace_card = [&](const auto& card) {
@@ -284,21 +286,21 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
    public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match,
-                MakeStageCommand("查看比赛情况", &MainStage::Info_, VoidChecker("赛况")))
-        , k_origin_card_map_(GetCardMap(option))
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility,
+                MakeStageCommand(*this, "查看比赛情况", &MainStage::Info_, VoidChecker("赛况")))
+        , k_origin_card_map_(GetCardMap(Global().Options()))
         , players_{k_origin_card_map_, k_origin_card_map_}
         , round_(1)
-        , tables_{ThreeRoundTable(option.ResourceDir()),
-                  ThreeRoundTable(option.ResourceDir()),
-                  ThreeRoundTable(option.ResourceDir())}
+        , tables_{ThreeRoundTable(Global().ResourceDir()),
+                  ThreeRoundTable(Global().ResourceDir()),
+                  ThreeRoundTable(Global().ResourceDir())}
     {
     }
 
-    virtual VariantSubStage OnStageBegin() override;
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override;
 
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
+    virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
 
     int64_t PlayerScore(const PlayerID pid) const
     {
@@ -310,7 +312,7 @@ class MainStage : public MainGameStage<RoundStage>
         const int ret = Compare(players_[0].alter_->first,
                                 players_[1].alter_->first);
         {
-            auto sender = Boardcast();
+            auto sender = Global().Boardcast();
             sender << "最终选择：\n"
                 << At(PlayerID(0)) << "：" << CardName(players_[0].alter_->first) << "\n"
                 << At(PlayerID(1)) << "：" << CardName(players_[1].alter_->first) << "\n\n";
@@ -331,7 +333,7 @@ class MainStage : public MainGameStage<RoundStage>
                 ++(players_[winner].win_count_);
                 players_[1 - winner].win_count_ = 0;
                 players_[winner].score_ += point;
-                sender << Name(winner) << "胜利，获得 " << point << " 分";
+                sender << ::Name(winner) << "胜利，获得 " << point << " 分";
                 if (has_star) {
                     sender << "和 1 颗星";
                     players_[winner].stars_++;
@@ -355,7 +357,7 @@ class MainStage : public MainGameStage<RoundStage>
         html::Table table(k_table_header_rows, k_card_type_num);
         table.SetTableStyle(" align=\"center\" cellspacing=\"3\" cellpadding=\"0\" ");
         table.MergeRight(0, 0, k_card_type_num);
-        table.Get(0, 0).SetContent(PlayerAvatar(pid, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE " **" + PlayerName(pid) + "**");
+        table.Get(0, 0).SetContent(Global().PlayerAvatar(pid, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE " **" + Global().PlayerName(pid) + "**");
         table.Get(0, 0).SetColor("#4fa16b");
         bool is_remains[k_card_type_num] = {false, false, false, false};
         uint32_t counts[k_card_type_num] = {0, 0, 0, 0};
@@ -379,7 +381,7 @@ class MainStage : public MainGameStage<RoundStage>
         return table.ToString();
     }
 
-    std::string Image_(const std::string& name) const { return ImageStr(option().ResourceDir(), name); }
+    std::string Image_(const std::string& name) const { return ImageStr(Global().ResourceDir(), name); }
 
     void ShowInfo()
     {
@@ -387,7 +389,7 @@ class MainStage : public MainGameStage<RoundStage>
         for (uint32_t i = 0; i < (round_ - 1) / 3 + 1; ++i) {
             str += "\n\n## 第 " + std::to_string(i * 3 + 1) + "~" + std::to_string(i * 3 + 3) + " 回合\n\n" + tables_[i].ToHtml();
         }
-        Boardcast() << Markdown(str);
+        Global().Boardcast() << Markdown(str);
     }
 
    private:
@@ -406,9 +408,9 @@ class MainStage : public MainGameStage<RoundStage>
         const auto show_info = [&](const PlayerID pid)
             {
                 const auto& player = players_[pid];
-                sender << Name(pid) << "\n积分：" << player.score_
-                                    << "\n连胜：" << player.win_count_
-                                    << "\n可用卡牌：" << AvailableCards<true>(player.cards_);
+                sender << ::Name(pid) << "\n积分：" << player.score_
+                                      << "\n连胜：" << player.win_count_
+                                      << "\n可用卡牌：" << AvailableCards<true>(player.cards_);
             };
         show_info(0);
         sender << "\n\n";
@@ -424,22 +426,22 @@ class ChooseStage : public SubGameStage<>
 {
    public:
     ChooseStage(MainStage& main_stage)
-            : GameStage(main_stage, IS_LEFT ? "左拳阶段" : "右拳阶段",
-                    MakeStageCommand("出拳", &ChooseStage::Choose_, CardChecker()))
+            : StageFsm(main_stage, IS_LEFT ? "左拳阶段" : "右拳阶段",
+                    MakeStageCommand(*this, "出拳", &ChooseStage::Choose_, CardChecker()))
     {}
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "请从手牌中选择一张私信给裁判，作为本次出牌";
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Global().Boardcast() << "请从手牌中选择一张私信给裁判，作为本次出牌";
+        Global().StartTimer(GAME_OPTION(时限));
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             return StageErrCode::OK;
         }
-        auto& player = main_stage().players_[pid];
+        auto& player = Main().players_[pid];
         std::vector<CardMap::iterator> its;
         for (auto it = player.cards_.begin(); it != player.cards_.end(); ++it) {
             if (it->second == CardState::UNUSED) {
@@ -454,15 +456,15 @@ class ChooseStage : public SubGameStage<>
     void DefaultAct()
     {
         for (PlayerID pid = 0; pid < uint64_t(2); ++pid) {
-            if (IsReady(pid)) {
+            if (Global().IsReady(pid)) {
                 continue;
             }
-            auto& player = main_stage().players_[pid];
+            auto& player = Main().players_[pid];
             for (auto it = player.cards_.begin(); it != player.cards_.end(); ++it) {
                 if (it->second == CardState::UNUSED) {
                     // set default value: the first unused card
                     SetCard_(pid, it);
-                    Tell(pid) << "已自动为您选择：" << CardName(it->first);
+                    Global().Tell(pid) << "已自动为您选择：" << CardName(it->first);
                     break;
                 }
             }
@@ -473,8 +475,8 @@ class ChooseStage : public SubGameStage<>
     AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Card& card)
     {
         // TODO: test repeat choose
-        auto& player = main_stage().players_[pid];
-        auto& cards = main_stage().players_[pid].cards_;
+        auto& player = Main().players_[pid];
+        auto& cards = Main().players_[pid].cards_;
         if (is_public) {
             reply() << "[错误] 请私信裁判选择";
             return StageErrCode::FAILED;
@@ -488,7 +490,7 @@ class ChooseStage : public SubGameStage<>
             reply() << "[错误] 该卡牌已被使用，请换一张，您目前可用的卡牌：\n" << AvailableCards<false>(cards);
             return StageErrCode::FAILED;
         }
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             PlayerCard(player)->second = CardState::UNUSED;
         }
         SetCard_(pid, it);
@@ -500,11 +502,11 @@ class ChooseStage : public SubGameStage<>
     {
         it->second = CardState::CHOOSED;
 
-        auto& player = main_stage().players_[pid];
+        auto& player = Main().players_[pid];
         PlayerCard(player) = it;
 
-        const auto round = main_stage().round();
-        main_stage().tables_[(round - 1) / 3].SetCard(pid, (round - 1) % 3, !IS_LEFT, it->first, true);
+        const auto round = Main().round();
+        Main().tables_[(round - 1) / 3].SetCard(pid, (round - 1) % 3, !IS_LEFT, it->first, true);
     }
 
     CardMap::iterator& PlayerCard(Player& player) { return IS_LEFT ? player.left_ : player.right_; }
@@ -514,22 +516,22 @@ class AlterStage : public SubGameStage<>
 {
    public:
     AlterStage(MainStage& main_stage)
-            : GameStage(main_stage, "二择阶段",
-                    MakeStageCommand("选择决胜卡牌", &AlterStage::Alter_, CardChecker()))
+            : StageFsm(main_stage, "二择阶段",
+                    MakeStageCommand(*this, "选择决胜卡牌", &AlterStage::Alter_, CardChecker()))
     {}
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "请从两张卡牌中选择一张私信给裁判，作为用于本回合决胜的卡牌";
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Global().Boardcast() << "请从两张卡牌中选择一张私信给裁判，作为用于本回合决胜的卡牌";
+        Global().StartTimer(GAME_OPTION(时限));
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             return StageErrCode::OK;
         }
-        auto& player = main_stage().players_[pid];
+        auto& player = Main().players_[pid];
         SetAlter_(pid, rand() % 2 ? player.left_ : player.right_);
         return StageErrCode::READY;
     }
@@ -537,12 +539,12 @@ class AlterStage : public SubGameStage<>
     void DefaultAct()
     {
         for (PlayerID pid = 0; pid < uint64_t(2); ++pid) {
-            if (IsReady(pid)) {
+            if (Global().IsReady(pid)) {
                 continue;
             }
-            auto& player = main_stage().players_[pid];
+            auto& player = Main().players_[pid];
             player.alter_ = player.left_;
-            Tell(pid) << "已自动为您选择左拳卡牌";
+            Global().Tell(pid) << "已自动为您选择左拳卡牌";
         }
     }
 
@@ -550,7 +552,7 @@ class AlterStage : public SubGameStage<>
     AtomReqErrCode Alter_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Card& card)
     {
         // TODO: test repeat choose
-        auto& player = main_stage().players_[pid];
+        auto& player = Main().players_[pid];
         auto& cards = player.cards_;
         if (is_public) {
             reply() << "[错误] 请私信裁判选择";
@@ -572,10 +574,10 @@ class AlterStage : public SubGameStage<>
 
     void SetAlter_(const PlayerID pid, const CardMap::iterator it)
     {
-        auto& player = main_stage().players_[pid];
+        auto& player = Main().players_[pid];
         player.alter_ = it;
         const bool choose_left = player.alter_ == player.left_;
-        main_stage().tables_[(main_stage().round() - 1) / 3].SetCard(pid, (main_stage().round() - 1) % 3,
+        Main().tables_[(Main().round() - 1) / 3].SetCard(pid, (Main().round() - 1) % 3,
                 choose_left, choose_left ? player.right_->first : player.left_->first, false);
     }
 };
@@ -584,88 +586,92 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
 {
   public:
     RoundStage(MainStage& main_stage, const uint64_t round)
-            : GameStage(main_stage, "第" + std::to_string(round) + "回合")
+            : StageFsm(main_stage, "第" + std::to_string(round) + "回合")
     {
         if ((round - 1) % 3 == 0) {
             main_stage.tables_[(round - 1) / 3].Init(
-                    PlayerAvatar(0, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + PlayerName(0),
-                    PlayerAvatar(1, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + PlayerName(1), round);
+                    Global().PlayerAvatar(0, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + Global().PlayerName(0),
+                    Global().PlayerAvatar(1, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + Global().PlayerName(1), round);
         }
     }
 
-    virtual VariantSubStage OnStageBegin() override
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override
     {
-        if (GET_OPTION_VALUE(option(), 固定左拳) && main_stage().round() > 1) {
+        if (GAME_OPTION(固定左拳) && Main().round() > 1) {
             for (PlayerID pid : {0, 1}) {
-                main_stage().tables_[(main_stage().round() - 1) / 3].SetCard(pid, (main_stage().round() - 1) % 3, 0,
-                        main_stage().players_[pid].left_->first, true);
+                Main().tables_[(Main().round() - 1) / 3].SetCard(pid, (Main().round() - 1) % 3, 0,
+                        Main().players_[pid].left_->first, true);
             }
-            return MakeRightChooseStage_();
+            MakeRightChooseStage_(setter);
         } else {
-            return std::make_unique<ChooseStage<true>>(main_stage());
+            setter.Emplace<ChooseStage<true>>(Main());
+            return;
         }
     }
 
-    virtual VariantSubStage NextSubStage(ChooseStage<true>& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(ChooseStage<true>& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         sub_stage.DefaultAct();
-        return MakeRightChooseStage_();
+        MakeRightChooseStage_(setter);
     }
 
-    virtual VariantSubStage NextSubStage(ChooseStage<false>& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(ChooseStage<false>& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         sub_stage.DefaultAct();
         {
-            auto sender = Boardcast();
+            auto sender = Global().Boardcast();
             const auto show_choose = [&](const PlayerID pid)
                 {
-                    sender << At(pid) << "\n左拳：" << CardName(main_stage().players_[pid].left_->first)
-                                      << "\n右拳：" << CardName(main_stage().players_[pid].right_->first);
+                    sender << At(pid) << "\n左拳：" << CardName(Main().players_[pid].left_->first)
+                                      << "\n右拳：" << CardName(Main().players_[pid].right_->first);
                 };
             show_choose(0);
             sender << "\n\n";
             show_choose(1);
         }
-        main_stage().ShowInfo();
-        return std::make_unique<AlterStage>(main_stage());
+        Main().ShowInfo();
+        setter.Emplace<AlterStage>(Main());
+        return;
     }
 
-    virtual VariantSubStage NextSubStage(AlterStage& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(AlterStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         sub_stage.DefaultAct();
-        return {};
+        return;
     }
 
   private:
-    std::unique_ptr<ChooseStage<false>> MakeRightChooseStage_()
+    void MakeRightChooseStage_(SubStageFsmSetter& setter)
     {
         {
-            auto sender = Boardcast();
+            auto sender = Global().Boardcast();
             const auto show_choose = [&](const PlayerID pid)
                 {
-                    sender << At(pid) << "\n左拳：" << CardName(main_stage().players_[pid].left_->first)
+                    sender << At(pid) << "\n左拳：" << CardName(Main().players_[pid].left_->first)
                                       << "\n右拳：";
                 };
             show_choose(0);
             sender << "\n\n";
             show_choose(1);
         }
-        main_stage().ShowInfo();
-        return std::make_unique<ChooseStage<false>>(main_stage());
+        Main().ShowInfo();
+        setter.Emplace<ChooseStage<false>>(Main());
+        return;
     }
 
 };
 
-MainStage::VariantSubStage MainStage::OnStageBegin()
+void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
-    Boardcast() << Markdown(CardInfoStr_());
-    return std::make_unique<RoundStage>(*this, 1);
+    Global().Boardcast() << Markdown(CardInfoStr_());
+    setter.Emplace<RoundStage>(*this, 1);
+    return;
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
+void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
     if (reason == CheckoutReason::BY_LEAVE) {
-        return {};
+        return;
     }
 
     // clear choose
@@ -676,7 +682,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
         player.left_->second = CardState::UNUSED;
         player.right_->second = CardState::UNUSED;
         player.alter_->second = CardState::USED;
-        if (GET_OPTION_VALUE(option(), 固定左拳)) {
+        if (GAME_OPTION(固定左拳)) {
             if (player.right_ != player.alter_) {
                 player.left_ = player.right_;
             }
@@ -691,21 +697,22 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
             if (players_[pid].win_count_ == 3) {
                 players_[pid].score_ = 1;
                 players_[1 - pid].score_ = 0;
-                Boardcast() << At(pid) << "势如破竹，连下三城，中途胜利！";
+                Global().Boardcast() << At(pid) << "势如破竹，连下三城，中途胜利！";
                 return true;
             }
             return false;
         };
     if (check_win_count(0) || check_win_count(1)) {
         ShowInfo();
-        return {};
+        return;
     }
 
     if (++round_ <= 8) {
-        if (!GET_OPTION_VALUE(option(), 固定左拳)) {
+        if (!GAME_OPTION(固定左拳)) {
             ShowInfo();
         }
-        return std::make_unique<RoundStage>(*this, round_);
+        setter.Emplace<RoundStage>(*this, round_);
+        return;
     }
 
     // choose the last card
@@ -716,7 +723,7 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
         player.left_->second = CardState::USED;
         tables_[2].SetCard(pid, 2, 0, player.alter_->first, true);
     }
-    Boardcast() << "8回合全部结束，自动结算最后一张手牌";
+    Global().Boardcast() << "8回合全部结束，自动结算最后一张手牌";
     Battle();
 
     check_win_count(0) || check_win_count(1); // the last card also need check
@@ -726,8 +733,10 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
         players_[0].score_ = players_[0].stars_;
         players_[1].score_ = players_[1].stars_;
     }
-    return {};
+    return;
 }
+
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
 
 } // namespace GAME_MODULE_NAME
 
@@ -735,4 +744,3 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

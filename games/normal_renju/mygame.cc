@@ -2,7 +2,8 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 #include "utility/coding.h"
 #include "game_util/renju.h"
@@ -16,8 +17,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "五子棋"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 2; // 0 indicates no max-player limits
@@ -49,17 +50,17 @@ enum class State { INIT, SWAP_1, SWAP_2, PLACE };
 class MainStage : public MainGameStage<>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match,
-                MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
-                MakeStageCommand("pass", &MainStage::Pass_, VoidChecker("pass")),
-                MakeStageCommand("假先落三子", &MainStage::InitSet_,
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility,
+                MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
+                MakeStageCommand(*this, "pass", &MainStage::Pass_, VoidChecker("pass")),
+                MakeStageCommand(*this, "假先落三子", &MainStage::InitSet_,
                     AnyArg("黑棋坐标"), AnyArg("白棋坐标"), AnyArg("黑棋坐标")),
-                MakeStageCommand("假后落两子", &MainStage::Swap1Set_, AnyArg("白棋坐标"), AnyArg("黑棋坐标")),
-                MakeStageCommand("落一子", &MainStage::Set_, AnyArg("坐标")))
+                MakeStageCommand(*this, "假后落两子", &MainStage::Swap1Set_, AnyArg("白棋坐标"), AnyArg("黑棋坐标")),
+                MakeStageCommand(*this, "落一子", &MainStage::Set_, AnyArg("坐标")))
         , round_(0)
-        , player_scores_(option.PlayerNum(), 0)
-        , board_(option.ResourceDir(), BoardOptions{.to_expand_board_ = false, .is_overline_win_ = false})
+        , player_scores_(Global().PlayerNum(), 0)
+        , board_(Global().ResourceDir(), BoardOptions{.to_expand_board_ = false, .is_overline_win_ = false})
         , turn_pid_(rand() % 2)
         , black_pid_(turn_pid_)
         , state_(State::INIT)
@@ -71,10 +72,10 @@ class MainStage : public MainGameStage<>
 
     virtual void OnStageBegin() override
     {
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
-        Boardcast() << Markdown(HtmlHead_() + board_.ToHtml());
-        Boardcast() << "请" << At(turn_pid_) << "行动，时限 " << GET_OPTION_VALUE(option(), 时限) << " 秒，下前 3 手棋（如「J10 H9 E8」）";
-        SetReady(1 - turn_pid_);
+        Global().StartTimer(GAME_OPTION(时限));
+        Global().Boardcast() << Markdown(HtmlHead_() + board_.ToHtml());
+        Global().Boardcast() << "请" << At(turn_pid_) << "行动，时限 " << GAME_OPTION(时限) << " 秒，下前 3 手棋（如「J10 H9 E8」）";
+        Global().SetReady(1 - turn_pid_);
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
@@ -85,14 +86,14 @@ class MainStage : public MainGameStage<>
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
-        Boardcast() << At(pid) << "强退认负";
+        Global().Boardcast() << At(pid) << "强退认负";
         player_scores_[1 - pid] = 1;
         return StageErrCode::CHECKOUT;
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             return StageErrCode::OK;
         }
         board_.ClearHighlight();
@@ -136,7 +137,7 @@ class MainStage : public MainGameStage<>
             const auto result = set(black_pid_ == pid ? AreaType::BLACK : AreaType::WHITE);
             if (result == Result::WIN_WHITE || result == Result::WIN_BLACK) {
                 player_scores_[pid] = 1;
-                Boardcast() << "玩家" << At(pid) << "五子连胜";
+                Global().Boardcast() << "玩家" << At(pid) << "五子连胜";
             }
             return RoundOver_(result == Result::CONTINUE_OK);
         }
@@ -249,14 +250,14 @@ class MainStage : public MainGameStage<>
         if (state_ == State::SWAP_1 || state_ == State::SWAP_2) {
             black_pid_ = 1 - pid;
             state_ = State::PLACE;
-            Boardcast() << "玩家" << At(pid) << "决定落子，使用白棋";
+            Global().Boardcast() << "玩家" << At(pid) << "决定落子，使用白棋";
         }
         last_round_passed_ = false;
         board_.ClearHighlight();
         const auto result = board_.Set(pos->first, pos->second, black_pid_ == pid ? AreaType::BLACK : AreaType::WHITE);
         if (result == Result::WIN_WHITE || result == Result::WIN_BLACK) {
             player_scores_[pid] = 1;
-            Boardcast() << "玩家" << At(pid) << "五子连胜";
+            Global().Boardcast() << "玩家" << At(pid) << "五子连胜";
         }
         return RoundOver_(result == Result::CONTINUE_OK);
     }
@@ -270,27 +271,27 @@ class MainStage : public MainGameStage<>
     CheckoutErrCode RoundOver_(const bool to_continue)
     {
         turn_pid_ = 1 - turn_pid_;
-        Boardcast() << Markdown(HtmlHead_() + board_.ToHtml());
+        Global().Boardcast() << Markdown(HtmlHead_() + board_.ToHtml());
         if (!to_continue) {
             return StageErrCode::CHECKOUT;
         }
         ++round_;
-        ClearReady();
-        SetReady(1 - turn_pid_);
+        Global().ClearReady();
+        Global().SetReady(1 - turn_pid_);
         if (state_ == State::SWAP_1 || state_ == State::SWAP_2) {
-            Boardcast() << "请" << At(turn_pid_) << "行动，时限 " << GET_OPTION_VALUE(option(), 时限) << " 秒\n您有几种选择："
+            Global().Boardcast() << "请" << At(turn_pid_) << "行动，时限 " << GAME_OPTION(时限) << " 秒\n您有几种选择："
                     "\n1. 回复一个坐标以落子一颗白棋（如「J10」）：若如此行动，您本局执白"
                     "\n2. pass 一手：若如此行动，您本局执黑"
                 << (state_ == State::SWAP_1 ? "\n3. 回复两个坐标以分别落子一颗白棋和一颗黑棋（如「J10 G9」），若如此行动，则由对手决定执黑还是执白" : "");
         } else if (state_ == State::PLACE) {
-            Boardcast() << "请" << At(turn_pid_) << "回复坐标以落子（如 J10），时限 " << GET_OPTION_VALUE(option(), 时限) << " 秒";
+            Global().Boardcast() << "请" << At(turn_pid_) << "回复坐标以落子（如 J10），时限 " << GAME_OPTION(时限) << " 秒";
         } else if (state_ == State::INIT) {
             // the first round player give up the turn
-            Boardcast() << "请" << At(turn_pid_) << "行动，时限 " << GET_OPTION_VALUE(option(), 时限) << " 秒，下前 3 手棋（如「J10 H9 E8」）";
+            Global().Boardcast() << "请" << At(turn_pid_) << "行动，时限 " << GAME_OPTION(时限) << " 秒，下前 3 手棋（如「J10 H9 E8」）";
         } else {
             assert(false);
         }
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Global().StartTimer(GAME_OPTION(时限));
         return StageErrCode::CONTINUE;
     }
 
@@ -299,24 +300,24 @@ class MainStage : public MainGameStage<>
     {
         if (state_ == State::PLACE) {
             if (last_round_passed_) {
-                Boardcast() << At(PlayerID{turn_pid_}) << "也 pass 了一手，双方接连 pass，游戏平局";
+                Global().Boardcast() << At(PlayerID{turn_pid_}) << "也 pass 了一手，双方接连 pass，游戏平局";
                 return false;
             } else {
-                Boardcast() << At(PlayerID{turn_pid_}) << "pass 了一手";
+                Global().Boardcast() << At(PlayerID{turn_pid_}) << "pass 了一手";
                 last_round_passed_ = true;
             }
         } else if (state_ == State::SWAP_1 || state_ == State::SWAP_2) {
-            Boardcast() << At(PlayerID{turn_pid_}) << "决定使用黑棋";
+            Global().Boardcast() << At(PlayerID{turn_pid_}) << "决定使用黑棋";
             black_pid_ = turn_pid_;
             state_ = State::PLACE;
         } else if (round_ == 0) {
             assert(state_ == State::INIT);
-            Boardcast() << At(PlayerID{turn_pid_}) << "放弃了假先行动，由对手担任假先方";
+            Global().Boardcast() << At(PlayerID{turn_pid_}) << "放弃了假先行动，由对手担任假先方";
             black_pid_ = 1 - turn_pid_;
         } else {
             assert(state_ == State::INIT);
             assert(round_ == 1);
-            Boardcast() << "双方均放弃假先行动，游戏平局";
+            Global().Boardcast() << "双方均放弃假先行动，游戏平局";
             return false;
         }
         return true;
@@ -330,11 +331,11 @@ class MainStage : public MainGameStage<>
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(pid, 0).SetContent(
-                        std::string("![](file:///") + option().ResourceDir() + (black_pid_ == pid ? "c_b.bmp)" : "c_w.bmp)"));
+                        std::string("![](file:///") + Global().ResourceDir() + (black_pid_ == pid ? "c_b.bmp)" : "c_w.bmp)"));
                 if (turn_pid_ == pid) {
-                    player_table.Get(pid, 1).SetContent(HTML_COLOR_FONT_HEADER(red) " **" + PlayerName(pid) + "** " HTML_FONT_TAIL);
+                    player_table.Get(pid, 1).SetContent(HTML_COLOR_FONT_HEADER(red) " **" + Global().PlayerName(pid) + "** " HTML_FONT_TAIL);
                 } else {
-                    player_table.Get(pid, 1).SetContent("**" + PlayerName(pid) + "**");
+                    player_table.Get(pid, 1).SetContent("**" + Global().PlayerName(pid) + "**");
                 }
             };
         print_player(0);
@@ -353,10 +354,11 @@ class MainStage : public MainGameStage<>
     bool last_round_passed_;
 };
 
-} // namespace lgtbot
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
+} // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // namespace lgtbot
 
-#include "game_framework/make_main_stage.h"

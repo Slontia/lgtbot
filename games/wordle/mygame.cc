@@ -10,7 +10,8 @@
 #include <stdlib.h>
 #include <cstring>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 
 using namespace std;
@@ -22,8 +23,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const string k_game_name = "wordle"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 2; // 0 indicates no max-player limits
@@ -116,18 +117,18 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match, MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility, MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
         , round_(0)
-        , player_scores_(option.PlayerNum(), 0)
-        , player_word_(option.PlayerNum(), "")
-        , player_now_(option.PlayerNum(), "")
-        , player_used_(option.PlayerNum(), "")
+        , player_scores_(Global().PlayerNum(), 0)
+        , player_word_(Global().PlayerNum(), "")
+        , player_now_(Global().PlayerNum(), "")
+        , player_used_(Global().PlayerNum(), "")
     {
     }
 
-    virtual VariantSubStage OnStageBegin() override;
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override;
+    virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return player_scores_[pid]; }
 
@@ -175,8 +176,8 @@ class MainStage : public MainGameStage<RoundStage>
         s2 = player_word_[1];
         g1 = player_now_[0];
         g2 = player_now_[1];
-        Boardcast() << g1 << " " << g2 ;
-        Boardcast() << cmpWordle(s2, g1) << " " << cmpWordle(s1, g2);
+        Global().Boardcast() << g1 << " " << g2 ;
+        Global().Boardcast() << cmpWordle(s2, g1) << " " << cmpWordle(s1, g2);
 
 
         return StageErrCode::OK;
@@ -190,32 +191,32 @@ class RoundStage : public SubGameStage<>
 {
   public:
     RoundStage(MainStage& main_stage, const uint64_t round)
-        : GameStage(main_stage, "第 " + to_string(round) + " 回合",
-                MakeStageCommand("猜测", &RoundStage::Submit_, AnyArg("提交", "提交")))
+        : StageFsm(main_stage, "第 " + to_string(round) + " 回合",
+                MakeStageCommand(*this, "猜测", &RoundStage::Submit_, AnyArg("提交", "提交")))
     {
     }
 
     virtual void OnStageBegin() override
     {
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
-//        Boardcast() << name() << "开始";
+        Global().StartTimer(GAME_OPTION(时限));
+//        Global().Boardcast() << Name() << "开始";
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
     {
-//        Boardcast() << name() << "超时结束";
+//        Global().Boardcast() << Name() << "超时结束";
         // Returning |CHECKOUT| means the current stage will be over.
 
-        for(int i=0;i<option().PlayerNum();i++)
+        for(int i=0;i<Global().PlayerNum();i++)
         {
-//             Boardcast()<<to_string(IsReady(i))<<to_string(main_stage().player_eli_[i]);
-             if(IsReady(i) == false)
+//             Global().Boardcast()<<to_string(Global().IsReady(i))<<to_string(Main().player_eli_[i]);
+             if(Global().IsReady(i) == false)
              {
                  // Here is for one who committed nothing
-                 main_stage().player_now_[i]="";
-                 for(int j = 0; j < main_stage().wordLength; j++)
+                 Main().player_now_[i]="";
+                 for(int j = 0; j < Main().wordLength; j++)
                  {
-                     main_stage().player_now_[i]+=" ";
+                     Main().player_now_[i]+=" ";
                  }
              }
         }
@@ -227,16 +228,16 @@ class RoundStage : public SubGameStage<>
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
-//        Boardcast() << PlayerName(pid) << "退出游戏";
+//        Global().Boardcast() << Global().PlayerName(pid) << "退出游戏";
         // Returning |CONTINUE| means the current stage will be continued.
 
 
 
         // Here is for one who committed nothing
-        main_stage().player_now_[pid]=" ";
-        for(int j = 0; j < main_stage().wordLength; j++)
+        Main().player_now_[pid]=" ";
+        for(int j = 0; j < Main().wordLength; j++)
         {
-            main_stage().player_now_[pid]+=" ";
+            Main().player_now_[pid]+=" ";
         }
 
         return StageErrCode::CONTINUE;
@@ -245,9 +246,9 @@ class RoundStage : public SubGameStage<>
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         string s = "";
-        int l = main_stage().wordLength;
-        int r = main_stage().round_;
-        string a = main_stage().player_word_[0];
+        int l = Main().wordLength;
+        int r = Main().round_;
+        string a = Main().player_word_[0];
 
         for(int i = 0; i < l; i++) s += ' ';
 
@@ -358,7 +359,7 @@ class RoundStage : public SubGameStage<>
 
     virtual CheckoutErrCode OnStageOver() override
     {
-//        Boardcast() << "所有玩家准备完成";
+//        Global().Boardcast() << "所有玩家准备完成";
 
         RoundStage::calc();
         return StageErrCode::CHECKOUT;
@@ -377,7 +378,7 @@ class RoundStage : public SubGameStage<>
         }
 
         string color;
-        char x = main_stage().player_used_[player][now - 'a'];
+        char x = Main().player_used_[player][now - 'a'];
         if(x == '0') color = "#EEEEEE";
         if(x == '-') color = "#F8F8F8";
         if(x == '2') color = "#ADFF2F";
@@ -398,7 +399,7 @@ class RoundStage : public SubGameStage<>
     // draw keyboard
     string AddKeyboard(string s1, string s2, string g1, string g2, string r1, string r2)
     {
-        int l = main_stage().wordLength;
+        int l = Main().wordLength;
         for(int i = 0; i < l; i++)
         {
             if(g1[i] <= 'z' && g1[i] >= 'a')
@@ -412,13 +413,13 @@ class RoundStage : public SubGameStage<>
                     }
                 }
                 if(app == 0)
-                    main_stage().player_used_[0][g1[i] - 'a'] = '-';
+                    Main().player_used_[0][g1[i] - 'a'] = '-';
 
 
                 if(r1[i] == '2')
-                    main_stage().player_used_[0][g1[i] - 'a'] = '2';
-                if(r1[i] == '1' && main_stage().player_used_[0][g1[i] - 'a'] != '2')
-                    main_stage().player_used_[0][g1[i] - 'a'] = '1';
+                    Main().player_used_[0][g1[i] - 'a'] = '2';
+                if(r1[i] == '1' && Main().player_used_[0][g1[i] - 'a'] != '2')
+                    Main().player_used_[0][g1[i] - 'a'] = '1';
             }
 
             if(g2[i] <= 'z' && g2[i] >= 'a')
@@ -432,12 +433,12 @@ class RoundStage : public SubGameStage<>
                     }
                 }
                 if(app == 0)
-                    main_stage().player_used_[1][g2[i] - 'a'] = '-';
+                    Main().player_used_[1][g2[i] - 'a'] = '-';
 
                 if(r2[i] == '2')
-                    main_stage().player_used_[1][g2[i] - 'a'] = '2';
-                if(r2[i] == '1' && main_stage().player_used_[1][g2[i] - 'a'] != '2')
-                    main_stage().player_used_[1][g2[i] - 'a'] = '1';
+                    Main().player_used_[1][g2[i] - 'a'] = '2';
+                if(r2[i] == '1' && Main().player_used_[1][g2[i] - 'a'] != '2')
+                    Main().player_used_[1][g2[i] - 'a'] = '1';
             }
         }
 
@@ -485,7 +486,7 @@ class RoundStage : public SubGameStage<>
         if(type == '2') color="#ADFF2F"; // Green
         if(type == '3') color="#BBBBBB"; // Grey
 
-        string now = main_stage().UI;
+        string now = Main().UI;
 
         now += "<th bgcolor=\"" + color + "\">";
 
@@ -501,7 +502,7 @@ class RoundStage : public SubGameStage<>
         now += "</th>";
 
 
-        main_stage().UI = now;
+        Main().UI = now;
     }
 
     // calc() is where the code calculate results after players made their choice.
@@ -509,17 +510,17 @@ class RoundStage : public SubGameStage<>
     {
         // s->string g->guess r->result
         string s1, s2, g1, g2, r1, r2;
-        int l = main_stage().wordLength;
-        s1 = main_stage().player_word_[0];
-        s2 = main_stage().player_word_[1];
-        g1 = main_stage().player_now_[0];
-        g2 = main_stage().player_now_[1];
+        int l = Main().wordLength;
+        s1 = Main().player_word_[0];
+        s2 = Main().player_word_[1];
+        g1 = Main().player_now_[0];
+        g2 = Main().player_now_[1];
         r1 = cmpWordle(s2, g1);
         r2 = cmpWordle(s1, g2);
 
-        main_stage().UI += "<tr>";
+        Main().UI += "<tr>";
 
-        main_stage().UI += "<td bgcolor=\"#FFFFFF\"><font size=7>　</font></td>";
+        Main().UI += "<td bgcolor=\"#FFFFFF\"><font size=7>　</font></td>";
 
         for(int i = 0; i < l; i++)
         {
@@ -531,24 +532,24 @@ class RoundStage : public SubGameStage<>
             AddUI(g2[i],r2[i]);
         }
 
-        main_stage().UI += "<td bgcolor=\"#FFFFFF\"><font size=7>　</font></td>";
+        Main().UI += "<td bgcolor=\"#FFFFFF\"><font size=7>　</font></td>";
 
-        main_stage().UI += "</tr>";
+        Main().UI += "</tr>";
 
         string keyboardUI = AddKeyboard(s1, s2, g1, g2, r1, r2);
 
-        // Boardcast the result. Note that the table need an end mark </table>
-        Boardcast() << Markdown(main_stage().UI + keyboardUI);
+        // Global().Boardcast the result. Note that the table need an end mark </table>
+        Global().Boardcast() << Markdown(Main().UI + keyboardUI);
 
         if(s2 == g1)
         {
-            main_stage().player_scores_[0] = 1;
-            main_stage().gameEnd = 1;
+            Main().player_scores_[0] = 1;
+            Main().gameEnd = 1;
         }
         if(s1 == g2)
         {
-            main_stage().player_scores_[1] = 1;
-            main_stage().gameEnd = 1;
+            Main().player_scores_[1] = 1;
+            Main().gameEnd = 1;
         }
 
 
@@ -557,13 +558,13 @@ class RoundStage : public SubGameStage<>
   private:
     AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, string submission)
     {
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "[错误] 您本回合已经完成提交。";
             return StageErrCode::FAILED;
         }
 
 
-        int l = main_stage().wordLength;
+        int l = Main().wordLength;
 
         for(int i = 0; i < l; i++)
         {
@@ -575,9 +576,9 @@ class RoundStage : public SubGameStage<>
 
         // When single game, the game can end whenever the player want
         // These codes were temporary annotated because I can't find a way to check whether it is a single game.
-//        if(submission == "end" && option().PlayerNum() == 1)
+//        if(submission == "end" && Global().PlayerNum() == 1)
 //        {
-//            main_stage().gameEnd = 1;
+//            Main().gameEnd = 1;
 
 //            string temp="";
 //            for(int i = 0; i < l; i++)
@@ -594,7 +595,7 @@ class RoundStage : public SubGameStage<>
         }
 
 
-        if(main_stage().wordList[l].find(submission) == main_stage().wordList[l].end()) {
+        if(Main().wordList[l].find(submission) == Main().wordList[l].end()) {
             reply() << "[错误] 这不是一个有效的单词。";
             return StageErrCode::FAILED;
         }
@@ -606,10 +607,10 @@ class RoundStage : public SubGameStage<>
 
     AtomReqErrCode SubmitInternal_(const PlayerID pid, MsgSenderBase& reply, const string submission)
     {
-//        auto& player_score = main_stage().player_scores_[pid];
+//        auto& player_score = Main().player_scores_[pid];
 //        player_score += score;
 
-        main_stage().player_now_[pid] = submission;
+        Main().player_now_[pid] = submission;
 
         reply() << "提交成功。";
         // Returning |READY| means the player is ready. The current stage will be over when all surviving players are ready.
@@ -618,7 +619,7 @@ class RoundStage : public SubGameStage<>
 
 };
 
-MainStage::VariantSubStage MainStage::OnStageBegin()
+void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
 
     // Most init steps are in this function.
@@ -629,37 +630,40 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     player_used_[1] = "00000000000000000000000000+";
 
     // 1. Read all given words.
-    FILE *fp=fopen((string(option().ResourceDir())+("words.txt")).c_str(),"r");
+    FILE *fp=fopen((string(Global().ResourceDir())+("words.txt")).c_str(),"r");
     if(fp == NULL)
     {
-        Boardcast() << "[错误] 单词列表不存在。(W)";
+        Global().Boardcast() << "[错误] 单词列表不存在。(W)";
         gameEnd = 1;
-        return make_unique<RoundStage>(*this, ++round_);
+        setter.Emplace<RoundStage>(*this, ++round_);
+        return;
     }
 
-    int hard = GET_OPTION_VALUE(option(), 高难);
-    int mode = GET_OPTION_VALUE(option(), 随机);
+    int hard = GAME_OPTION(高难);
+    int mode = GAME_OPTION(随机);
     if(hard == 1)
     {
         fclose(fp);
-        fp = fopen((string(option().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
+        fp = fopen((string(Global().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
         if(fp == NULL)
         {
-            Boardcast() << "[错误] 单词列表不存在。(G)";
+            Global().Boardcast() << "[错误] 单词列表不存在。(G)";
             gameEnd = 1;
-            return make_unique<RoundStage>(*this, ++round_);
+            setter.Emplace<RoundStage>(*this, ++round_);
+            return;
         }
     }
 
     if(hard == 2)
     {
         fclose(fp);
-        fp = fopen((string(option().ResourceDir())+("wordsHard.txt")).c_str(),"r");
+        fp = fopen((string(Global().ResourceDir())+("wordsHard.txt")).c_str(),"r");
         if(fp == NULL)
         {
-            Boardcast() << "[错误] 单词列表不存在。(H)";
+            Global().Boardcast() << "[错误] 单词列表不存在。(H)";
             gameEnd = 1;
-            return make_unique<RoundStage>(*this, ++round_);
+            setter.Emplace<RoundStage>(*this, ++round_);
+            return;
         }
     }
 
@@ -688,11 +692,11 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     while(fin != 0 && fin < 100)
     {
 
-        wordLength = GET_OPTION_VALUE(option(), 长度);
+        wordLength = GAME_OPTION(长度);
 
         if((wordLength >= 2 && wordLength <= 4 || wordLength >= 9 && wordLength <= 11) && hard == 1)
         {
-            Boardcast() << "[警告] 配置「高难 1」不支持此单词长度，将自动在5-8中随机单词长度";
+            Global().Boardcast() << "[警告] 配置「高难 1」不支持此单词长度，将自动在5-8中随机单词长度";
             wordLength = 0;
         }
 
@@ -822,23 +826,25 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
     {
         if(mode == 1)
         {
-            fp = fopen((string(option().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
+            fp = fopen((string(Global().ResourceDir())+("wordsGuess.txt")).c_str(),"r");
             if(fp == NULL)
             {
-                Boardcast() << "[错误] 单词列表不存在。(G)";
+                Global().Boardcast() << "[错误] 单词列表不存在。(G)";
                 gameEnd = 1;
-                return make_unique<RoundStage>(*this, ++round_);
+                setter.Emplace<RoundStage>(*this, ++round_);
+                return;
             }
         }
 
         if(mode == 2 || (wordLength >= 2 && wordLength <= 4 || wordLength >= 9 && wordLength <= 11))
         {
-            fp = fopen((string(option().ResourceDir())+("wordsHard.txt")).c_str(),"r");
+            fp = fopen((string(Global().ResourceDir())+("wordsHard.txt")).c_str(),"r");
             if(fp == NULL)
             {
-                Boardcast() << "[错误] 单词列表不存在。(H)";
+                Global().Boardcast() << "[错误] 单词列表不存在。(H)";
                 gameEnd = 1;
-                return make_unique<RoundStage>(*this, ++round_);
+                setter.Emplace<RoundStage>(*this, ++round_);
+                return;
             }
         }
 
@@ -862,41 +868,45 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
 
 
-    // 5. Boardcast the game start
-    Boardcast() << "本局游戏参与玩家： \n" << PlayerName(0) << "\n" << PlayerName(1);
-    Boardcast() << "本局游戏双方单词长度： " + to_string(wordLength) + (wordLength <= 4? "\n本局不告知双方单词":"");
+    // 5. Global().Boardcast the game start
+    Global().Boardcast() << "本局游戏参与玩家： \n" << Global().PlayerName(0) << "\n" << Global().PlayerName(1);
+    Global().Boardcast() << "本局游戏双方单词长度： " + to_string(wordLength) + (wordLength <= 4? "\n本局不告知双方单词":"");
 
     if(player_word_[0] == "" || player_word_[1] == "")
     {
-        Boardcast() << "[错误] 获取双方玩家单词失败，游戏将自动结束。";
+        Global().Boardcast() << "[错误] 获取双方玩家单词失败，游戏将自动结束。";
         gameEnd = 1;
-        return make_unique<RoundStage>(*this, ++round_);
+        setter.Emplace<RoundStage>(*this, ++round_);
+        return;
     }
 
     if(wordLength > 4){
-        Tell(0) << "你的单词是：" << player_word_[0];
-        Tell(1) << "你的单词是：" << player_word_[1];
+        Global().Tell(0) << "你的单词是：" << player_word_[0];
+        Global().Tell(1) << "你的单词是：" << player_word_[1];
     }
 
-    return make_unique<RoundStage>(*this, ++round_);
+    setter.Emplace<RoundStage>(*this, ++round_);
+    return;
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
+void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
     round_++;
 
-//    Boardcast()<<to_string(round_)<<to_string(player_wins_[0])<<to_string(player_wins_[1]);
+//    Global().Boardcast()<<to_string(round_)<<to_string(player_wins_[0])<<to_string(player_wins_[1]);
 
-    if (round_ <= GET_OPTION_VALUE(option(), 回合数) && !gameEnd ) {
-        return make_unique<RoundStage>(*this, round_);
+    if (round_ <= GAME_OPTION(回合数) && !gameEnd ) {
+        setter.Emplace<RoundStage>(*this, round_);
+        return;
     }
 
-    Boardcast() << "本局游戏双方单词: \n"
-                << PlayerName(0) << ":" << player_word_[0] << "\n"
-                << PlayerName(1) << ":" << player_word_[1];
+    Global().Boardcast() << "本局游戏双方单词: \n"
+                << Global().PlayerName(0) << ":" << player_word_[0] << "\n"
+                << Global().PlayerName(1) << ":" << player_word_[1];
 
-    return {};
 }
+
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
 
 } // namespace GAME_MODULE_NAME
 
@@ -904,4 +914,3 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

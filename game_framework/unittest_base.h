@@ -10,7 +10,7 @@
 #include <glog/logging.h>
 #endif
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
 #include "game_framework/game_options.h"
 #include "game_framework/game_main.h"
 #include "game_framework/mock_match.h"
@@ -25,7 +25,7 @@ DEFINE_string(resource_dir, "./resource_dir/", "The path of game image resources
 DEFINE_bool(gen_image, false, "Whether generate image or not");
 DEFINE_string(image_dir, "./.lgtbot_image/", "The path of directory to store generated images");
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
+internal::MainStage* MakeMainStage(MainStageFactory factory);
 
 extern const std::string k_game_name;
 
@@ -69,7 +69,10 @@ class TestGame : public MockMatch, public testing::Test
     bool StartGame()
     {
         MockMsgSender sender(image_dir());
-        main_stage_.reset(MakeMainStage(sender, option_, *this));
+        if (!option_.ToValid(sender)) {
+            return false;
+        }
+        main_stage_.reset(MakeMainStage(MainStageFactory{static_cast<GameOption&>(option_), *this}));
         if (main_stage_) {
             main_stage_->HandleStageBegin();
         }

@@ -9,6 +9,7 @@
 #include "game_framework/game_options.h"
 #include "game_framework/game_main.h"
 #include "game_framework/mock_match.h"
+#include "game_framework/stage.h"
 
 DEFINE_uint64(player, 0, "Player number: if set to 0, best player num will be set");
 DEFINE_uint64(repeat, 1, "Repeat times: if set to 0, will run unlimitedly");
@@ -44,7 +45,7 @@ namespace game {
 
 namespace GAME_MODULE_NAME {
 
-MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
+internal::MainStage* MakeMainStage(MainStageFactory factory);
 
 int Run(const uint64_t index)
 {
@@ -72,7 +73,7 @@ int Run(const uint64_t index)
     }
 
     MockMsgSender sender(image_dir);
-    std::unique_ptr<MainStageBase> main_stage(MakeMainStage(sender, option, match));
+    std::unique_ptr<MainStageBase> main_stage(MakeMainStage(MainStageFactory{option, match}));
     if (!main_stage) {
         std::cerr << "Start Game Failed!" << std::endl;
         return -1;

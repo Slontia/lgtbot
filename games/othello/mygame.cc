@@ -2,7 +2,8 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 #include "utility/coding.h"
 #include "game_util/othello.h"
@@ -16,8 +17,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "决胜奥赛罗"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 2; // 0 indicates no max-player limits
@@ -47,23 +48,23 @@ uint64_t GameOption::BestPlayerNum() const { return 2; }
 class MainStage : public MainGameStage<>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match,
-                MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
-                MakeStageCommand("落子", &MainStage::Place_, AnyArg("位置", "A0")))
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility,
+                MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
+                MakeStageCommand(*this, "落子", &MainStage::Place_, AnyArg("位置", "A0")))
         , round_(0)
         , player_scores_{2, 2} // the initial chess count
-        , board_(option.ResourceDir())
+        , board_(Global().ResourceDir())
     {
     }
 
     virtual void OnStageBegin() override
     {
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
-        Group() << Markdown(ToHtml_());
-        Tell(0) << Markdown(ToHtml_());
-        Tell(1) << Markdown(ToHtml_());
-        Boardcast() << "游戏开始，请私信裁判坐标以落子（如 C3），时限 " << GET_OPTION_VALUE(option(), 时限) << " 秒，超时未落子即判负";
+        Global().StartTimer(GAME_OPTION(时限));
+        Global().Group() << Markdown(ToHtml_());
+        Global().Tell(0) << Markdown(ToHtml_());
+        Global().Tell(1) << Markdown(ToHtml_());
+        Global().Boardcast() << "游戏开始，请私信裁判坐标以落子（如 C3），时限 " << GAME_OPTION(时限) << " 秒，超时未落子即判负";
     }
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return player_scores_[pid]; }
@@ -72,22 +73,22 @@ class MainStage : public MainGameStage<>
     {
         player_scores_[pid] = 0;
         player_scores_[1 - pid] = 1;
-        Boardcast() << "玩家" << At(pid) << "强退判负";
+        Global().Boardcast() << "玩家" << At(pid) << "强退判负";
         return StageErrCode::CHECKOUT;
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
     {
-        if (!IsReady(0) && !IsReady(1)) {
-            Boardcast() << "双方均超时，游戏立刻结束，以当前盘面结算成绩";
-        } else if (IsReady(0)) {
+        if (!Global().IsReady(0) && !Global().IsReady(1)) {
+            Global().Boardcast() << "双方均超时，游戏立刻结束，以当前盘面结算成绩";
+        } else if (Global().IsReady(0)) {
             player_scores_[0] = 1;
             player_scores_[1] = 0;
-            Boardcast() << "玩家" << At(PlayerID{1}) << "超时判负";
+            Global().Boardcast() << "玩家" << At(PlayerID{1}) << "超时判负";
         } else {
             player_scores_[1] = 1;
             player_scores_[0] = 0;
-            Boardcast() << "玩家" << At(PlayerID{0}) << "超时判负";
+            Global().Boardcast() << "玩家" << At(PlayerID{0}) << "超时判负";
         }
         return StageErrCode::CHECKOUT;
     }
@@ -105,7 +106,7 @@ class MainStage : public MainGameStage<>
             reply() << "落子失败：请私信裁判落子";
             return StageErrCode::FAILED;
         }
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "落子失败：您已经落子过了";
             return StageErrCode::FAILED;
         }
@@ -137,7 +138,7 @@ class MainStage : public MainGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             return StageErrCode::OK;
         }
         const auto chess_type = PlayerIDToChessType_(pid);
@@ -165,21 +166,21 @@ class MainStage : public MainGameStage<>
             }
             player_scores_[pid] = result[static_cast<uint8_t>(PlayerIDToChessType_(pid))];
             if (!board_.PlacablePositions(PlayerIDToChessType_(pid)).empty()) {
-                ClearReady(pid);
+                Global().ClearReady(pid);
             }
         }
-        Boardcast() << "双方落子成功";
-        BoardcastAiInfo(nlohmann::json{
+        Global().Boardcast() << "双方落子成功";
+        Global().BoardcastAiInfo(nlohmann::json{
                     { "player_coordinates", std::move(json_array) },
                     { "board", board_.ToString() }
                 });
         ++round_;
-        Group() << Markdown(ToHtml_());
-        Tell(0) << Markdown(ToHtml_());
-        Tell(1) << Markdown(ToHtml_());
-        if (!IsReady(0) || !IsReady(1)) {
-            StartTimer(GET_OPTION_VALUE(option(), 时限));
-            Boardcast() << "请继续私信裁判坐标以落子（如 C3），时限 " << GET_OPTION_VALUE(option(), 时限) << " 秒，超时未落子即判负";
+        Global().Group() << Markdown(ToHtml_());
+        Global().Tell(0) << Markdown(ToHtml_());
+        Global().Tell(1) << Markdown(ToHtml_());
+        if (!Global().IsReady(0) || !Global().IsReady(1)) {
+            Global().StartTimer(GAME_OPTION(时限));
+            Global().Boardcast() << "请继续私信裁判坐标以落子（如 C3），时限 " << GAME_OPTION(时限) << " 秒，超时未落子即判负";
             return StageErrCode::CONTINUE;
         }
         return StageErrCode::CHECKOUT;
@@ -193,9 +194,9 @@ class MainStage : public MainGameStage<>
         player_table.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
         const auto print_player = [&](const PlayerID pid)
             {
-                player_table.Get(0, 0 + pid * 2).SetContent(std::string("![](file:///") + option().ResourceDir() +
+                player_table.Get(0, 0 + pid * 2).SetContent(std::string("![](file:///") + Global().ResourceDir() +
                         (PlayerIDToChessType_(pid) == ChessType::BLACK ? "black" : "white") + ".png)");
-                player_table.Get(0, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
+                player_table.Get(0, 1 + pid * 2).SetContent("**" + Global().PlayerName(pid) + "**");
                 player_table.Get(1, 1 + pid * 2).SetContent("棋子数量： " HTML_COLOR_FONT_HEADER(yellow) + std::to_string(player_scores_[pid]) + HTML_FONT_TAIL);
             };
         print_player(0);
@@ -211,10 +212,11 @@ class MainStage : public MainGameStage<>
     Board board_;
 };
 
-} // namespace lgtbot
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
+} // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // namespace lgtbot
 
-#include "game_framework/make_main_stage.h"

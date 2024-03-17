@@ -10,7 +10,8 @@
 #include <random>
 #include <algorithm>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 #include "game_util/alchemist.h"
 
@@ -21,8 +22,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "炼金术士";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
@@ -95,15 +96,15 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match)
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility)
         , round_(0)
     {
-        for (uint64_t i = 0; i < option.PlayerNum(); ++i) {
-            players_.emplace_back(option.ResourceDir(), GET_OPTION_VALUE(option, 模式));
+        for (uint64_t i = 0; i < Global().PlayerNum(); ++i) {
+            players_.emplace_back(Global().ResourceDir(), GAME_OPTION(模式));
         }
 
-        const std::string& seed_str = GET_OPTION_VALUE(option, 种子);
+        const std::string& seed_str = GAME_OPTION(种子);
         std::variant<std::random_device, std::seed_seq> rd;
         std::mt19937 g([&]
             {
@@ -116,27 +117,27 @@ class MainStage : public MainGameStage<RoundStage>
                 }
             }());
 
-        if (GET_OPTION_VALUE(option, 副数) > 0) {
-            for (uint32_t color_idx = 0; color_idx < GET_OPTION_VALUE(option, 颜色); ++color_idx) {
-                for (uint32_t point_idx = 0; point_idx < GET_OPTION_VALUE(option, 点数); ++point_idx) {
-                    for (uint32_t i = 0; i < GET_OPTION_VALUE(option, 副数); ++i) {
+        if (GAME_OPTION(副数) > 0) {
+            for (uint32_t color_idx = 0; color_idx < GAME_OPTION(颜色); ++color_idx) {
+                for (uint32_t point_idx = 0; point_idx < GAME_OPTION(点数); ++point_idx) {
+                    for (uint32_t i = 0; i < GAME_OPTION(副数); ++i) {
                         cards_.emplace_back(std::in_place, k_colors[color_idx], k_points[point_idx]);
                     }
                 }
             }
-            for (uint32_t i = 0; i < GET_OPTION_VALUE(option, 副数); ++i) {
+            for (uint32_t i = 0; i < GAME_OPTION(副数); ++i) {
                 cards_.emplace_back(std::nullopt); // add stone
             }
             std::shuffle(cards_.begin(), cards_.end(), g);
         } else {
-            std::uniform_int_distribution<uint32_t> distrib(0, GET_OPTION_VALUE(option, 颜色) * GET_OPTION_VALUE(option, 点数));
-            for (uint32_t i = 0; i < GET_OPTION_VALUE(option, 回合数); ++i) {
+            std::uniform_int_distribution<uint32_t> distrib(0, GAME_OPTION(颜色) * GAME_OPTION(点数));
+            for (uint32_t i = 0; i < GAME_OPTION(回合数); ++i) {
                 const auto k = distrib(g);
                 if (k == 0) {
                     cards_.emplace_back(std::nullopt); // add stone
                 } else {
-                    cards_.emplace_back(std::in_place, k_colors[(k - 1) % GET_OPTION_VALUE(option, 颜色)],
-                            k_points[(k - 1) / GET_OPTION_VALUE(option, 点数)]);
+                    cards_.emplace_back(std::in_place, k_colors[(k - 1) % GAME_OPTION(颜色)],
+                            k_points[(k - 1) / GAME_OPTION(点数)]);
                 }
             }
         }
@@ -160,9 +161,9 @@ class MainStage : public MainGameStage<RoundStage>
         set_stone(row_2, col_2);
     }
 
-    virtual VariantSubStage OnStageBegin() override;
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override;
 
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
+    virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
 
     virtual int64_t PlayerScore(const PlayerID pid) const override
     {
@@ -174,10 +175,10 @@ class MainStage : public MainGameStage<RoundStage>
         html::Table table(players_.size() / 2 + 1, 2);
         table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\" ");
         for (PlayerID pid = 0; pid < players_.size(); ++pid) {
-            table.Get(pid / 2, pid % 2).SetContent("\n\n### " + PlayerAvatar(pid, 40) + "&nbsp;&nbsp; " + PlayerName(pid) +
+            table.Get(pid / 2, pid % 2).SetContent("\n\n### " + Global().PlayerAvatar(pid, 40) + "&nbsp;&nbsp; " + Global().PlayerName(pid) +
                     "\n\n### " HTML_COLOR_FONT_HEADER(green) "当前积分：" +
                     std::to_string(players_[pid].score_) + " / " +
-                    std::to_string(WinScoreThreshold(GET_OPTION_VALUE(option(), 模式))) + HTML_FONT_TAIL "\n\n" +
+                    std::to_string(WinScoreThreshold(GAME_OPTION(模式))) + HTML_FONT_TAIL "\n\n" +
                     players_[pid].board_->ToHtml());
         }
         if (players_.size() % 2) {
@@ -189,7 +190,7 @@ class MainStage : public MainGameStage<RoundStage>
     std::vector<Player> players_;
 
   private:
-    VariantSubStage NewStage_();
+    void NewStage_(SubStageFsmSetter& setter);
 
     void MatchOver_();
 
@@ -201,25 +202,25 @@ class RoundStage : public SubGameStage<>
 {
   public:
     RoundStage(MainStage& main_stage, const uint64_t round, const std::optional<game_util::alchemist::Card>& card)
-            : GameStage(main_stage, "第" + std::to_string(round) + "回合",
-                MakeStageCommand("查看本回合开始时盘面情况，可用于图片重发", &RoundStage::Info_, VoidChecker("赛况")),
-                MakeStageCommand("跳过该回合行动", &RoundStage::Pass_, VoidChecker("pass")),
-                MakeStageCommand("设置卡片", &RoundStage::Set_, AnyArg("坐标", "C5")))
+            : StageFsm(main_stage, "第" + std::to_string(round) + "回合",
+                MakeStageCommand(*this, "查看本回合开始时盘面情况，可用于图片重发", &RoundStage::Info_, VoidChecker("赛况")),
+                MakeStageCommand(*this, "跳过该回合行动", &RoundStage::Pass_, VoidChecker("pass")),
+                MakeStageCommand(*this, "设置卡片", &RoundStage::Set_, AnyArg("坐标", "C5")))
             , card_(card)
-            , board_html_(main_stage.BoardHtml("## 第 " + std::to_string(round) + " / " + std::to_string(GET_OPTION_VALUE(option(), 回合数)) + " 回合"))
+            , board_html_(main_stage.BoardHtml("## 第 " + std::to_string(round) + " / " + std::to_string(GAME_OPTION(回合数)) + " 回合"))
     {}
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "本回合卡片为 " << (card_.has_value() ? card_->String() : "骷髅") << "，请公屏或私信裁判设置坐标：";
-        SendInfo(BoardcastMsgSender());
-        StartTimer(GET_OPTION_VALUE(option(), 局时));
+        Global().Boardcast() << "本回合卡片为 " << (card_.has_value() ? card_->String() : "骷髅") << "，请公屏或私信裁判设置坐标：";
+        SendInfo(Global().BoardcastMsgSender());
+        Global().StartTimer(GAME_OPTION(局时));
     }
 
   private:
     CheckoutErrCode OnStageTimeout()
     {
-        HookUnreadyPlayers();
+        Global().HookUnreadyPlayers();
         return StageErrCode::CHECKOUT;
     }
 
@@ -253,8 +254,8 @@ class RoundStage : public SubGameStage<>
 
     AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& coor_str)
     {
-        auto& player = main_stage().players_[pid];
-        if (IsReady(pid)) {
+        auto& player = Main().players_[pid];
+        if (Global().IsReady(pid)) {
             reply() << "您已经设置过，无法重复设置";
             return StageErrCode::FAILED;
         }
@@ -263,7 +264,7 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
         if (card_.has_value()) {
-            const auto ret = player.board_->SetOrClearLine(coor->first, coor->second, *card_, GET_OPTION_VALUE(option(), 模式));
+            const auto ret = player.board_->SetOrClearLine(coor->first, coor->second, *card_, GAME_OPTION(模式));
             if (ret == game_util::alchemist::FAIL_ALREADY_SET) {
                 reply() << "[错误] 该位置已被占用，试试其它位置吧";
                 return StageErrCode::FAILED;
@@ -312,65 +313,67 @@ class RoundStage : public SubGameStage<>
     void SendInfo(MsgSenderBase& sender)
     {
         sender() << Markdown(board_html_);
-        sender() << Image(std::string(option().ResourceDir() + ImageName()) + ".png");
+        sender() << Image(std::string(Global().ResourceDir() + ImageName()) + ".png");
     }
 
     const std::optional<game_util::alchemist::Card> card_;
     const std::string board_html_;
 };
 
-MainStage::VariantSubStage MainStage::NewStage_()
+void MainStage::NewStage_(SubStageFsmSetter& setter)
 {
     const auto round = round_;
     const auto& card = cards_[round];
-    return std::make_unique<RoundStage>(*this, ++round_, card);
+    setter.Emplace<RoundStage>(*this, ++round_, card);
 }
 
-MainStage::VariantSubStage MainStage::OnStageBegin()
+void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
-    return NewStage_();
+    return NewStage_(setter);
 }
 
 void MainStage::MatchOver_()
 {
-    Boardcast() << Markdown(BoardHtml("## 终局"));
-    if (!GET_OPTION_VALUE(option(), 种子).empty() || GET_OPTION_VALUE(option(), 颜色) < 6 ||
-            GET_OPTION_VALUE(option(), 点数) < 6) {
+    Global().Boardcast() << Markdown(BoardHtml("## 终局"));
+    if (!GAME_OPTION(种子).empty() || GAME_OPTION(颜色) < 6 ||
+            GAME_OPTION(点数) < 6) {
         return; // in this case, we do not save achievement
     }
-    for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+    for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
         const auto result = players_[pid].board_->GetAreaStatistic();
         if (result.card_count_ == 0 && result.stone_count_ == 0 &&
-                players_[pid].score_ >= WinScoreThreshold(GET_OPTION_VALUE(option(), 模式))) {
-            global_info().Achieve(pid, Achievement::片甲不留);
+                players_[pid].score_ >= WinScoreThreshold(GAME_OPTION(模式))) {
+            Global().Achieve(pid, Achievement::片甲不留);
         }
-        if (result.stone_count_ == 2 && players_[pid].score_ >= WinScoreThreshold(GET_OPTION_VALUE(option(), 模式))) {
-            global_info().Achieve(pid, Achievement::纹丝不动);
+        if (result.stone_count_ == 2 && players_[pid].score_ >= WinScoreThreshold(GAME_OPTION(模式))) {
+            Global().Achieve(pid, Achievement::纹丝不动);
         }
-        if (!GET_OPTION_VALUE(option(), 模式) && players_[pid].score_ >= 12) {
-            global_info().Achieve(pid, Achievement::超额完成（经典）);
+        if (!GAME_OPTION(模式) && players_[pid].score_ >= 12) {
+            Global().Achieve(pid, Achievement::超额完成（经典）);
         }
-        if (GET_OPTION_VALUE(option(), 模式) && players_[pid].score_ >= 220) {
-            global_info().Achieve(pid, Achievement::超额完成（竞技）);
+        if (GAME_OPTION(模式) && players_[pid].score_ >= 220) {
+            Global().Achieve(pid, Achievement::超额完成（竞技）);
         }
     }
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
+void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
-    if (round_ == GET_OPTION_VALUE(option(), 回合数)) {
-        Boardcast() << "游戏达到最大回合数，游戏结束";
+    if (round_ == GAME_OPTION(回合数)) {
+        Global().Boardcast() << "游戏达到最大回合数，游戏结束";
         MatchOver_();
-        return {};
+        return;
     }
     if (std::any_of(players_.begin(), players_.end(),
-                [&](const Player& player) { return player.score_ >= WinScoreThreshold(GET_OPTION_VALUE(option(), 模式)); })) {
-        Boardcast() << "有玩家达到胜利分数，游戏结束";
+                [&](const Player& player) { return player.score_ >= WinScoreThreshold(GAME_OPTION(模式)); })) {
+        Global().Boardcast() << "有玩家达到胜利分数，游戏结束";
         MatchOver_();
-        return {};
+        return;
     }
-    return NewStage_();
+    return NewStage_(setter);
 }
+
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
 
 } // namespace GAME_MODULE_NAME
 
@@ -378,4 +381,3 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

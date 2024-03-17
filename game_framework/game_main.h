@@ -103,26 +103,31 @@ class GameOptionBase
 class StageBase
 {
   public:
-    StageBase() : is_over_(false) {}
-    virtual ~StageBase() {}
-    virtual const char* StageInfoC() const = 0;
-    virtual const char* CommandInfoC(const bool text_mode) const = 0;
+    virtual ~StageBase() = default;
+
     virtual void HandleStageBegin() = 0;
+
     virtual StageErrCode HandleTimeout() = 0;
-    virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
-                                       MsgSenderBase& reply) = 0;
+
     virtual StageErrCode HandleLeave(const PlayerID pid) = 0;
+
     virtual StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) = 0;
-    bool IsOver() const { return is_over_; }
-    virtual void Over() { is_over_ = true; }
-  private:
-    bool is_over_;
+
+    virtual bool IsOver() const = 0;
 };
 
 class MainStageBase : virtual public StageBase
 {
   public:
+    virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
+                                       MsgSenderBase& reply) = 0;
+
+    virtual const char* StageInfoC() const = 0;
+
+    virtual const char* CommandInfoC(const bool text_mode) const = 0;
+
     virtual int64_t PlayerScore(const PlayerID pid) const = 0;
+
     virtual const char* const* VerdictateAchievements(const PlayerID pid) const = 0;
 };
 

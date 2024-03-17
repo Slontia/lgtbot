@@ -10,7 +10,8 @@
 #include <random>
 #include <algorithm>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 #include "game_util/numcomb.h"
 
@@ -23,8 +24,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "数字蜂巢";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
@@ -71,22 +72,22 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match)
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility)
         , round_(0)
     {
         srand((unsigned int)time(NULL));
         const std::array<const char*, 5> skin_names = {"random", "pure", "green", "pink", "gold"};
         int skin_num = skin_names.size();
-        int skin = GET_OPTION_VALUE(option, 皮肤);
-        if (GET_OPTION_VALUE(option, 皮肤) == 0) {
+        int skin = GAME_OPTION(皮肤);
+        if (GAME_OPTION(皮肤) == 0) {
             skin = rand() % (skin_num - 1) + 1;
         }
-        imageDir = option.ResourceDir() / std::filesystem::path(skin_names[skin]);
+        imageDir = Global().ResourceDir() / std::filesystem::path(skin_names[skin]);
 
-        for (uint64_t i = 0; i < option.PlayerNum(); ++i) {
-            players_.emplace_back((option.ResourceDir() / std::filesystem::path(skin_names[skin]) / "").string());
-            if (GET_OPTION_VALUE(option, 皮肤) == 0) {
+        for (uint64_t i = 0; i < Global().PlayerNum(); ++i) {
+            players_.emplace_back((Global().ResourceDir() / std::filesystem::path(skin_names[skin]) / "").string());
+            if (GAME_OPTION(皮肤) == 0) {
                 if (++skin >= skin_num) skin = 1;
             }
         }
@@ -100,11 +101,11 @@ class MainStage : public MainGameStage<RoundStage>
                 }
             }
         }
-        for (uint32_t i = 0; i < GET_OPTION_VALUE(option, 癞子); ++i) {
+        for (uint32_t i = 0; i < GAME_OPTION(癞子); ++i) {
             cards_.emplace_back();
         }
 
-        seed_str = GET_OPTION_VALUE(option, 种子);
+        seed_str = GAME_OPTION(种子);
         if (seed_str.empty()) {
             std::random_device rd;
             std::uniform_int_distribution<unsigned long long> dis;
@@ -115,15 +116,15 @@ class MainStage : public MainGameStage<RoundStage>
         std::shuffle(cards_.begin(), cards_.end(), g);
 
         it_ = cards_.begin();
-        if (std::all_of(cards_.begin(), cards_.begin() + GET_OPTION_VALUE(option, 跳过非癞子),
+        if (std::all_of(cards_.begin(), cards_.begin() + GAME_OPTION(跳过非癞子),
                 [](const comb::AreaCard& card) { return !card.IsWild(); })) {
-            it_ += GET_OPTION_VALUE(option, 跳过非癞子);
+            it_ += GAME_OPTION(跳过非癞子);
         }
     }
 
-    virtual VariantSubStage OnStageBegin() override;
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override;
 
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
+    virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
 
     int64_t PlayerScore(const PlayerID pid) const
     {
@@ -135,7 +136,7 @@ class MainStage : public MainGameStage<RoundStage>
         html::Table table(players_.size() / 2 + 1, 2);
         table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\"");
         for (PlayerID pid = 0; pid < players_.size(); ++pid) {
-            table.Get(pid / 2, pid % 2).SetContent("### " + PlayerAvatar(pid, 40) + "&nbsp;&nbsp; " + PlayerName(pid) +
+            table.Get(pid / 2, pid % 2).SetContent("### " + Global().PlayerAvatar(pid, 40) + "&nbsp;&nbsp; " + Global().PlayerName(pid) +
                     "\n\n### " HTML_COLOR_FONT_HEADER(green) "当前积分：" + std::to_string(players_[pid].score_) + HTML_FONT_TAIL "\n\n" +
                     players_[pid].comb_->ToHtml());
         }
@@ -152,7 +153,7 @@ class MainStage : public MainGameStage<RoundStage>
     std::string seed_str;
 
   private:
-    VariantSubStage NewStage_();
+    void NewStage_(SubStageFsmSetter& setter);
 
     uint32_t round_;
     std::vector<comb::AreaCard> cards_;
@@ -163,37 +164,37 @@ class RoundStage : public SubGameStage<>
 {
   public:
     RoundStage(MainStage& main_stage, const uint64_t round, const comb::AreaCard& card)
-            : GameStage(main_stage, "第" + std::to_string(round) + "回合",
-                MakeStageCommand("设置数字", &RoundStage::Set_, ArithChecker<uint32_t>(0, 19, "数字")),
-                MakeStageCommand("查看本回合开始时蜂巢情况，可用于图片重发", &RoundStage::Info_, VoidChecker("赛况")))
+            : StageFsm(main_stage, "第" + std::to_string(round) + "回合",
+                MakeStageCommand(*this, "设置数字", &RoundStage::Set_, ArithChecker<uint32_t>(0, 19, "数字")),
+                MakeStageCommand(*this, "查看本回合开始时蜂巢情况，可用于图片重发", &RoundStage::Info_, VoidChecker("赛况")))
             , card_(card)
             , comb_html_(main_stage.CombHtml("## 第 " + std::to_string(round) + " 回合"))
     {}
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "本回合砖块为 " << card_.ImageName() << "，请公屏或私信裁判设置数字：";
-        SendInfo(BoardcastMsgSender());
-        StartTimer(GET_OPTION_VALUE(option(), 局时));
+        Global().Boardcast() << "本回合砖块为 " << card_.ImageName() << "，请公屏或私信裁判设置数字：";
+        SendInfo(Global().BoardcastMsgSender());
+        Global().StartTimer(GAME_OPTION(局时));
     }
 
   private:
     void HandleUnreadyPlayers_()
     {
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            if (!IsReady(pid)) {
-                auto& player = main_stage().players_[pid];
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            if (!Global().IsReady(pid)) {
+                auto& player = Main().players_[pid];
                 const auto [idx, result] = player.comb_->SeqFill(card_);
-                auto sender = Boardcast();
+                auto sender = Global().Boardcast();
                 sender << At(pid) << "因为超时未做选择，自动填入空位置 " << idx;
                 if (result.point_ > 0) {
                     sender << "，意外收获 " << result.point_ << " 点积分";
                     player.score_ += result.point_;
                     player.line_count_ += result.line_;
                 }
-                Hook(pid);
             }
         }
+        Global().HookUnreadyPlayers();
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
@@ -210,10 +211,10 @@ class RoundStage : public SubGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             return StageErrCode::OK;
         }
-        auto& player = main_stage().players_[pid];
+        auto& player = Main().players_[pid];
         if (const auto& [point, line] = player.comb_->SeqFill(card_).second; point > 0) {
             player.score_ += point;
             player.line_count_ += line;
@@ -223,8 +224,8 @@ class RoundStage : public SubGameStage<>
 
     AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t idx)
     {
-        auto& player = main_stage().players_[pid];
-        if (IsReady(pid)) {
+        auto& player = Main().players_[pid];
+        if (Global().IsReady(pid)) {
             reply() << "您已经设置过，无法重复设置";
             return StageErrCode::FAILED;
         }
@@ -252,53 +253,56 @@ class RoundStage : public SubGameStage<>
     void SendInfo(MsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
-        sender() << Image((main_stage().imageDir / std::filesystem::path(card_.ImageName() + ".png")).string());
+        sender() << Image((Main().imageDir / std::filesystem::path(card_.ImageName() + ".png")).string());
     }
 
     const comb::AreaCard card_;
     const std::string comb_html_;
 };
 
-MainStage::VariantSubStage MainStage::NewStage_()
+void MainStage::NewStage_(SubStageFsmSetter& setter)
 {
     const auto round = round_;
     const auto& card = *(it_++);
-    return std::make_unique<RoundStage>(*this, ++round_, card);
+    setter.Emplace<RoundStage>(*this, ++round_, card);
+    return;
 }
 
-MainStage::VariantSubStage MainStage::OnStageBegin()
+void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
-    return NewStage_();
+    NewStage_(setter);
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
+void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
-    if (round_ < GET_OPTION_VALUE(option(), 回合数)) {
-        return NewStage_();
+    if (round_ < GAME_OPTION(回合数)) {
+        NewStage_(setter);
+        return;
     }
-    Boardcast() << Markdown(CombHtml("## 终局"));
-    if (GET_OPTION_VALUE(option(), 种子).empty()) {
-        Boardcast() << "本局随机数种子：" + seed_str;
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+    Global().Boardcast() << Markdown(CombHtml("## 终局"));
+    if (GAME_OPTION(种子).empty()) {
+        Global().Boardcast() << "本局随机数种子：" + seed_str;
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             if (players_[pid].line_count_ >= 12) {
-                global_info().Achieve(pid, Achievement::处女蜂王);
+                Global().Achieve(pid, Achievement::处女蜂王);
             }
             if (players_[pid].line_count_ >= 15) {
-                global_info().Achieve(pid, Achievement::蜂王);
+                Global().Achieve(pid, Achievement::蜂王);
             }
             if (players_[pid].score_ >= 200) {
-                global_info().Achieve(pid, Achievement::幼年蜂);
+                Global().Achieve(pid, Achievement::幼年蜂);
             }
             if (players_[pid].score_ >= 250) {
-                global_info().Achieve(pid, Achievement::青年蜂);
+                Global().Achieve(pid, Achievement::青年蜂);
             }
             if (players_[pid].score_ >= 300) {
-                global_info().Achieve(pid, Achievement::壮年蜂);
+                Global().Achieve(pid, Achievement::壮年蜂);
             }
         }
     }
-    return {};
 }
+
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
 
 } // namespace GAME_MODULE_NAME
 
@@ -306,4 +310,3 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

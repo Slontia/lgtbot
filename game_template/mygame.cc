@@ -2,7 +2,8 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 
 namespace lgtbot {
@@ -12,8 +13,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "测试游戏"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 0; // 0 indicates no max-player limits
@@ -24,6 +25,7 @@ const std::vector<RuleCommand> k_rule_commands = {};
 
 std::string GameOption::StatusInfo() const
 {
+    return "";
 }
 
 bool GameOption::ToValid(MsgSenderBase& reply)
@@ -44,15 +46,15 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match, MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility, MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
         , round_(0)
-        , player_scores_(option.PlayerNum(), 0)
+        , player_scores_(Global().PlayerNum(), 0)
     {
     }
 
-    virtual VariantSubStage OnStageBegin() override;
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override;
+    virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return player_scores_[pid]; }
 
@@ -74,27 +76,27 @@ class RoundStage : public SubGameStage<>
 {
   public:
     RoundStage(MainStage& main_stage, const uint64_t round)
-        : GameStage(main_stage, "第 " + std::to_string(round) + " 回合",
-                MakeStageCommand("获得分数", &RoundStage::GetScore_, ArithChecker<int64_t>(0, 1000, "分数")))
+        : StageFsm(main_stage, "第 " + std::to_string(round) + " 回合",
+                MakeStageCommand(*this, "获得分数", &RoundStage::GetScore_, ArithChecker<int64_t>(0, 1000, "分数")))
     {
     }
 
     virtual void OnStageBegin() override
     {
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
-        Boardcast() << name() << "开始";
+        Global().StartTimer(GAME_OPTION(时限));
+        Global().Boardcast() << Name() << "开始";
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
     {
-        Boardcast() << name() << "超时结束";
+        Global().Boardcast() << Name() << "超时结束";
         // Returning |CHECKOUT| means the current stage will be over.
         return StageErrCode::CHECKOUT;
     }
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
-        Boardcast() << PlayerName(pid) << "退出游戏";
+        Global().Boardcast() << Global().PlayerName(pid) << "退出游戏";
         // Returning |CONTINUE| means the current stage will be continued.
         return StageErrCode::CONTINUE;
     }
@@ -106,7 +108,7 @@ class RoundStage : public SubGameStage<>
 
     virtual CheckoutErrCode OnStageOver() override
     {
-        Boardcast() << "所有玩家准备完成";
+        Global().Boardcast() << "所有玩家准备完成";
         // Returning |CONTINUE| means the current stage will be continued.
         // If |CONTINUE| is returned but all players keep ready, this function will be invoked again.
         return StageErrCode::CONTINUE;
@@ -119,7 +121,7 @@ class RoundStage : public SubGameStage<>
             reply() << "[错误] 请私信裁判获取分数";
             return StageErrCode::FAILED;
         }
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "[错误] 您本回合已经获取过分数了";
             return StageErrCode::FAILED;
         }
@@ -128,7 +130,7 @@ class RoundStage : public SubGameStage<>
 
     AtomReqErrCode GetScoreInternal_(const PlayerID pid, MsgSenderBase& reply, const int64_t score)
     {
-        auto& player_score = main_stage().player_scores_[pid];
+        auto& player_score = Main().player_scores_[pid];
         player_score += score;
         reply() << "获取成功，您获得了 " << score << " 分，当前共 " << player_score << " 分";
         // Returning |READY| means the player is ready. The current stage will be over when all surviving players are ready.
@@ -136,25 +138,25 @@ class RoundStage : public SubGameStage<>
     }
 };
 
-MainStage::VariantSubStage MainStage::OnStageBegin()
+void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
-    return std::make_unique<RoundStage>(*this, ++round_);
+    setter.Emplace<RoundStage>(*this, ++round_);
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
+void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
-    if ((++round_) <= GET_OPTION_VALUE(option(), 回合数)) {
-        return std::make_unique<RoundStage>(*this, round_);
+    if ((++round_) <= GAME_OPTION(回合数)) {
+        setter.Emplace<RoundStage>(*this, round_);
+        return;
     }
-    Boardcast() << "游戏结束";
-    // Returning empty variant means the game will be over.
-    return {};
+    Global().Boardcast() << "游戏结束";
 }
 
-} // namespace lgtbot
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
+} // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // namespace lgtbot
 
-#include "game_framework/make_main_stage.h"

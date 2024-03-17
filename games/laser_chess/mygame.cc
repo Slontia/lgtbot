@@ -9,7 +9,8 @@
 #include <vector>
 #include <random>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 #include "utility/coding.h"
 #include "game_util/laser_chess.h"
@@ -25,8 +26,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "镭射象棋";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
@@ -64,11 +65,11 @@ std::array<Board(*)(std::string), GameMap::Count() - 1> game_map_initers =
 class MainStage : public MainGameStage<>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match,
-                MakeStageCommand("查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
-                MakeStageCommand("跳过行动", &MainStage::Pass_, VoidChecker("pass")),
-                MakeStageCommand("移动棋子", &MainStage::Set_,
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility,
+                MakeStageCommand(*this, "查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
+                MakeStageCommand(*this, "跳过行动", &MainStage::Pass_, VoidChecker("pass")),
+                MakeStageCommand(*this, "移动棋子", &MainStage::Set_,
                     AnyArg("棋子当前位置", "B5"), AlterChecker<Choise>(
                             {{ "上", Choise::UP },
                             { "右", Choise::RIGHT },
@@ -81,8 +82,8 @@ class MainStage : public MainGameStage<>
                             { "顺", Choise::CLOCKWISE },
                             { "逆", Choise::ANTICLOCKWISE }}
                         )))
-        , map_(GET_OPTION_VALUE(option, 地图) == GameMap::随机 ? GameMap::Members()[rand() % (GameMap::Count() - 1)] : GET_OPTION_VALUE(option, 地图))
-        , board_(game_map_initers[map_.ToUInt()](option.ResourceDir()))
+        , map_(GAME_OPTION(地图) == GameMap::随机 ? GameMap::Members()[rand() % (GameMap::Count() - 1)] : GAME_OPTION(地图))
+        , board_(game_map_initers[map_.ToUInt()](Global().ResourceDir()))
         , round_(0)
         , scores_{0}
     {
@@ -90,10 +91,10 @@ class MainStage : public MainGameStage<>
 
     virtual void OnStageBegin()
     {
-        StartTimer(GET_OPTION_VALUE(option(), 局时));
+        Global().StartTimer(GAME_OPTION(局时));
         board_html_ = board_.ToHtml();
-        Boardcast() << Markdown(ShowInfo_());
-        Boardcast() << "请双方行动，" << GET_OPTION_VALUE(option(), 局时)
+        Global().Boardcast() << Markdown(ShowInfo_());
+        Global().Boardcast() << "请双方行动，" << GAME_OPTION(局时)
                     << "秒未行动自动 pass\n格式：棋子位置 行动方式";
     }
 
@@ -154,7 +155,7 @@ class MainStage : public MainGameStage<>
             reply() << "行动失败：请私信裁判行动";
             return StageErrCode::FAILED;
         }
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "行动失败：您已经行动完成";
             return StageErrCode::FAILED;
         }
@@ -168,7 +169,7 @@ class MainStage : public MainGameStage<>
             reply() << "行动失败：请私信裁判行动";
             return StageErrCode::FAILED;
         }
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "行动失败：您已经行动完成";
             return StageErrCode::FAILED;
         }
@@ -192,7 +193,7 @@ class MainStage : public MainGameStage<>
 
     std::string ShowInfo_() const
     {
-        std::string str = "## 第 " + std::to_string(round_) + " / " + std::to_string(GET_OPTION_VALUE(option(), 回合数)) + " 回合\n\n";
+        std::string str = "## 第 " + std::to_string(round_) + " / " + std::to_string(GAME_OPTION(回合数)) + " 回合\n\n";
         html::Table player_table(2, 4);
         player_table.MergeDown(0, 0, 2);
         player_table.MergeDown(0, 2, 2);
@@ -200,8 +201,8 @@ class MainStage : public MainGameStage<>
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(0, 0 + pid * 2).SetContent(
-                        std::string("![](file:///") + option().ResourceDir() + std::string("king_") + bool_to_rb(pid) + ".png)");
-                player_table.Get(0, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
+                        std::string("![](file:///") + Global().ResourceDir() + std::string("king_") + bool_to_rb(pid) + ".png)");
+                player_table.Get(0, 1 + pid * 2).SetContent("**" + Global().PlayerName(pid) + "**");
                 player_table.Get(1, 1 + pid * 2).SetContent("棋子数量： " HTML_COLOR_FONT_HEADER(blue) + std::to_string(board_.ChessCount(pid)) + HTML_FONT_TAIL);
             };
         print_player(0);
@@ -224,28 +225,28 @@ class MainStage : public MainGameStage<>
     {
         bool finish = true;
         ++round_;
-        HookUnreadyPlayers();
+        Global().HookUnreadyPlayers();
 
         const auto settle_ret = board_.Settle();
         board_html_ = settle_ret.html_;
 
-        Boardcast() << Markdown(ShowInfo_());
+        Global().Boardcast() << Markdown(ShowInfo_());
         if (settle_ret.king_alive_num_[0] == 0 && settle_ret.king_alive_num_[1] == 0) {
-            Boardcast() << "双方王同归于尽，根据剩余棋子数量计算胜负";
+            Global().Boardcast() << "双方王同归于尽，根据剩余棋子数量计算胜负";
             scores_[0] = board_.ChessCount(0);
             scores_[1] = board_.ChessCount(1);
         } else if (settle_ret.king_alive_num_[0] == 0) {
-            Boardcast() << "玩家" << At(PlayerID{0}) << "的王被命中，输掉了比赛";
+            Global().Boardcast() << "玩家" << At(PlayerID{0}) << "的王被命中，输掉了比赛";
             scores_[1] = 1;
         } else if (settle_ret.king_alive_num_[1] == 0) {
-            Boardcast() << "玩家" << At(PlayerID{1}) << "的王被命中，输掉了比赛";
+            Global().Boardcast() << "玩家" << At(PlayerID{1}) << "的王被命中，输掉了比赛";
             scores_[0] = 1;
-        } else if (round_ >= GET_OPTION_VALUE(option(), 回合数)) {
-            Boardcast() << "达到最大回合数，根据剩余棋子数量计算胜负";
+        } else if (round_ >= GAME_OPTION(回合数)) {
+            Global().Boardcast() << "达到最大回合数，根据剩余棋子数量计算胜负";
             scores_[0] = board_.ChessCount(0);
             scores_[1] = board_.ChessCount(1);
         } else {
-            auto sender = Boardcast();
+            auto sender = Global().Boardcast();
             if (settle_ret.crashed_) {
                 sender << "双方移动的棋子因碰撞而湮灭\n\n";
             }
@@ -256,9 +257,9 @@ class MainStage : public MainGameStage<>
                 sender << "玩家" << At(PlayerID{1}) << "被命中了 " << settle_ret.chess_dead_num_[1] << " 枚棋子\n\n";
             }
             finish = false;
-            ClearReady();
-            StartTimer(GET_OPTION_VALUE(option(), 局时));
-            sender << "请双方行动，" << GET_OPTION_VALUE(option(), 局时) << "秒未行动默认 pass\n格式：棋子位置 行动方式";
+            Global().ClearReady();
+            Global().StartTimer(GAME_OPTION(局时));
+            sender << "请双方行动，" << GAME_OPTION(局时) << "秒未行动默认 pass\n格式：棋子位置 行动方式";
         }
         return finish;
     }
@@ -275,10 +276,11 @@ class MainStage : public MainGameStage<>
     std::string board_html_;
 };
 
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

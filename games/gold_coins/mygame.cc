@@ -5,7 +5,8 @@
 #include <vector>
 #include <algorithm>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 
 using namespace std;
@@ -17,8 +18,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "爆金币"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 0; // 0 indicates no max-player limits
@@ -85,23 +86,23 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match, MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况"))),
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility, MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况"))),
         round_(0),
         alive_(0),
-        player_scores_(option.PlayerNum(), 0),
-        player_hp_(option.PlayerNum(), 10),
-        player_coins_(option.PlayerNum(), 10),
-        player_last_hp_(option.PlayerNum(), 10),
-        player_last_coins_(option.PlayerNum(), 10),
-        player_out_(option.PlayerNum(), 0),
-        player_alive_round_(option.PlayerNum(), 0),
-        player_action_(option.PlayerNum(), 'P'),
-        player_target_(option.PlayerNum(), -1),
-        player_coinselect_(option.PlayerNum(), 0) {}
+        player_scores_(Global().PlayerNum(), 0),
+        player_hp_(Global().PlayerNum(), 10),
+        player_coins_(Global().PlayerNum(), 10),
+        player_last_hp_(Global().PlayerNum(), 10),
+        player_last_coins_(Global().PlayerNum(), 10),
+        player_out_(Global().PlayerNum(), 0),
+        player_alive_round_(Global().PlayerNum(), 0),
+        player_action_(Global().PlayerNum(), 'P'),
+        player_target_(Global().PlayerNum(), -1),
+        player_coinselect_(Global().PlayerNum(), 0) {}
 
-    virtual VariantSubStage OnStageBegin() override;
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override;
+    virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return player_scores_[pid]; }
     
@@ -139,7 +140,7 @@ class MainStage : public MainGameStage<RoundStage>
     
     string leave_color = "E5E5E5";   // 撤离颜色
 
-    int image_width = option().PlayerNum() < 8 ? option().PlayerNum() * 80 + 70 : (option().PlayerNum() < 16 ? option().PlayerNum() * 60 + 50 : option().PlayerNum() * 40 + 30);
+    int image_width = Global().PlayerNum() < 8 ? Global().PlayerNum() * 80 + 70 : (Global().PlayerNum() < 16 ? Global().PlayerNum() * 60 + 50 : Global().PlayerNum() * 40 + 30);
 
     string GetName(std::string x);
     string GetStatusBoard();
@@ -150,7 +151,7 @@ class MainStage : public MainGameStage<RoundStage>
         string status_Board = GetStatusBoard();
 
         string coin_Board = "";
-        coin_Board += "<tr><td align=\"left\" colspan=" + to_string(option().PlayerNum() + 1) + "><font size=5>· 本轮金币数：" + to_string(round_coin) + "</font></td></tr>";
+        coin_Board += "<tr><td align=\"left\" colspan=" + to_string(Global().PlayerNum() + 1) + "><font size=5>· 本轮金币数：" + to_string(round_coin) + "</font></td></tr>";
 
         reply() << Markdown(T_Board + status_Board + Board + coin_Board + "</table>", image_width);
         return StageErrCode::OK;
@@ -163,16 +164,16 @@ class RoundStage : public SubGameStage<>
 {
   public:
     RoundStage(MainStage& main_stage, const uint64_t round)
-        : GameStage(main_stage, "第 " + std::to_string(round) + " 回合",
-                MakeStageCommand("捡金币", &RoundStage::Pick_Up_Coins_,
+        : StageFsm(main_stage, "第 " + std::to_string(round) + " 回合",
+                MakeStageCommand(*this, "捡金币", &RoundStage::Pick_Up_Coins_,
                                 VoidChecker("捡"), ArithChecker<int64_t>(0, 5, "金币数")),
-                MakeStageCommand("抢金币", &RoundStage::Snatch_Coins_,
-                                VoidChecker("抢"), ArithChecker<int64_t>(1, main_stage.option().PlayerNum(), "对象号码"), ArithChecker<int64_t>(1, 5, "金币数")),
-                MakeStageCommand("守金币", &RoundStage::Guard_Coins_,
-                                VoidChecker("守"), ArithChecker<int64_t>(1, main_stage.option().PlayerNum(), "对象号码"), ArithChecker<int64_t>(1, 5, "金币数")),
-                MakeStageCommand("夺血条", &RoundStage::Take_HP_,
-                                VoidChecker("夺"), ArithChecker<int64_t>(1, main_stage.option().PlayerNum(), "对象号码"), ArithChecker<int64_t>(1, 5, "金币数")),
-                MakeStageCommand("撤离", &RoundStage::Leave_,
+                MakeStageCommand(*this, "抢金币", &RoundStage::Snatch_Coins_,
+                                VoidChecker("抢"), ArithChecker<int64_t>(1, main_stage.Global().PlayerNum(), "对象号码"), ArithChecker<int64_t>(1, 5, "金币数")),
+                MakeStageCommand(*this, "守金币", &RoundStage::Guard_Coins_,
+                                VoidChecker("守"), ArithChecker<int64_t>(1, main_stage.Global().PlayerNum(), "对象号码"), ArithChecker<int64_t>(1, 5, "金币数")),
+                MakeStageCommand(*this, "夺血条", &RoundStage::Take_HP_,
+                                VoidChecker("夺"), ArithChecker<int64_t>(1, main_stage.Global().PlayerNum(), "对象号码"), ArithChecker<int64_t>(1, 5, "金币数")),
+                MakeStageCommand(*this, "撤离", &RoundStage::Leave_,
                                 VoidChecker("撤离"))) {}
 
   private:
@@ -182,8 +183,8 @@ class RoundStage : public SubGameStage<>
         if (is_public) {
             return "[错误] 请私信裁判进行行动";
         }
-        if (IsReady(pid)) {
-            if (main_stage().player_out_[pid] == 2) {
+        if (Global().IsReady(pid)) {
+            if (Main().player_out_[pid] == 2) {
                 return "[错误] 您已经撤离，无需行动";
             } else {
                 return "[错误] 您本回合已经行动过了";
@@ -211,7 +212,7 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
 
-        if (main_stage().player_out_[target - 1] > 0) {
+        if (Main().player_out_[target - 1] > 0) {
             reply() << "[错误] 目标已经出局或撤离。";
             return StageErrCode::FAILED;
         }
@@ -230,15 +231,15 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
 
-        if (main_stage().player_out_[target - 1] > 0) {
+        if (Main().player_out_[target - 1] > 0) {
             reply() << "[错误] 目标已经出局或撤离。";
             return StageErrCode::FAILED;
         }
-        if (main_stage().player_action_[pid] == 'G' && main_stage().player_target_[pid] == target - 1) {
+        if (Main().player_action_[pid] == 'G' && Main().player_target_[pid] == target - 1) {
             reply() << "[错误] 〈守金币〉不能连续两轮选择同一对象";
             return StageErrCode::FAILED;
         }
-        if (main_stage().player_action_[pid] == 'T') {
+        if (Main().player_action_[pid] == 'T') {
             reply() << "[错误] 〈守金币〉与〈夺血条〉不能连续两轮选";
             return StageErrCode::FAILED;
         }
@@ -253,7 +254,7 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
 
-        if (main_stage().player_out_[target - 1] > 0) {
+        if (Main().player_out_[target - 1] > 0) {
             reply() << "[错误] 目标已经出局或撤离。";
             return StageErrCode::FAILED;
         }
@@ -261,11 +262,11 @@ class RoundStage : public SubGameStage<>
             reply() << "[错误] 〈夺血条〉不能指定自己。";
             return StageErrCode::FAILED;
         }
-        if (main_stage().player_action_[pid] == 'T' && main_stage().player_target_[pid] == target - 1) {
+        if (Main().player_action_[pid] == 'T' && Main().player_target_[pid] == target - 1) {
             reply() << "[错误] 〈夺血条〉不能连续两轮选择同一对象";
             return StageErrCode::FAILED;
         }
-        if (main_stage().player_action_[pid] == 'G') {
+        if (Main().player_action_[pid] == 'G') {
             reply() << "[错误] 〈夺血条〉与〈守金币〉不能连续两轮选";
             return StageErrCode::FAILED;
         }
@@ -285,9 +286,9 @@ class RoundStage : public SubGameStage<>
 
     AtomReqErrCode Selected_(const PlayerID pid, MsgSenderBase& reply, char action, const int64_t target, const int64_t coinselect)
     {
-        main_stage().player_action_[pid] = action;
-        main_stage().player_target_[pid] = target - 1;
-        main_stage().player_coinselect_[pid] = coinselect;
+        Main().player_action_[pid] = action;
+        Main().player_target_[pid] = target - 1;
+        Main().player_coinselect_[pid] = coinselect;
         reply() << "行动成功";
         // Returning |READY| means the player is ready. The current stage will be over when all surviving players are ready.
         return StageErrCode::READY;
@@ -295,25 +296,25 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (main_stage().player_out_[i] == 2) {
-                SetReady(i);
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            if (Main().player_out_[i] == 2) {
+                Global().SetReady(i);
             }
         }
-        Boardcast() << "本轮爆出了 " + to_string(main_stage().round_coin) + " 枚金币\n请玩家私信选择行动。";
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Global().Boardcast() << "本轮爆出了 " + to_string(Main().round_coin) + " 枚金币\n请玩家私信选择行动。";
+        Global().StartTimer(GAME_OPTION(时限));
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
     {
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (!IsReady(i)) {
-                main_stage().player_action_[i] = 'L';
-                main_stage().player_target_[i] = 0;
-                main_stage().player_coinselect_[i] = 0;
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            if (!Global().IsReady(i)) {
+                Main().player_action_[i] = 'L';
+                Main().player_target_[i] = 0;
+                Main().player_coinselect_[i] = 0;
             }
         }
-        Boardcast() << "有玩家超时仍未行动，已自动撤离";
+        Global().Boardcast() << "有玩家超时仍未行动，已自动撤离";
         RoundStage::calc();
         // Returning |CHECKOUT| means the current stage will be over.
         return StageErrCode::CHECKOUT;
@@ -321,16 +322,16 @@ class RoundStage : public SubGameStage<>
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
-        main_stage().player_action_[pid] = 'L';
-        main_stage().player_target_[pid] = 0;
-        main_stage().player_coinselect_[pid] = 0;
+        Main().player_action_[pid] = 'L';
+        Main().player_target_[pid] = 0;
+        Main().player_coinselect_[pid] = 0;
         // Returning |CONTINUE| means the current stage will be continued.
         return StageErrCode::CONTINUE;
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (main_stage().player_coins_[pid] >= 20) {
+        if (Main().player_coins_[pid] >= 20) {
             Selected_(pid, reply, 'L', 0, 0);
         } else {
             Selected_(pid, reply, 'P', 0, rand() % 6);
@@ -347,25 +348,25 @@ class RoundStage : public SubGameStage<>
     bool CheckPlayerGainCoins(int target, vector<int> &player_gaincoins_num, int count)
     {
         int coins_change = 0;
-        if (main_stage().player_action_[target] == 'P' || main_stage().player_action_[target] == 'G') {
+        if (Main().player_action_[target] == 'P' || Main().player_action_[target] == 'G') {
             coins_change = player_gaincoins_num[target];
         }
-        if (main_stage().player_action_[target] == 'T' && main_stage().player_hp_[main_stage().player_target_[target]] <= 0) {
-            int T_target = main_stage().player_target_[target];
-            coins_change = main_stage().player_total_damage_[target][T_target] * main_stage().player_coins_[T_target] * 0.15 - main_stage().player_coinselect_[target];
+        if (Main().player_action_[target] == 'T' && Main().player_hp_[Main().player_target_[target]] <= 0) {
+            int T_target = Main().player_target_[target];
+            coins_change = Main().player_total_damage_[target][T_target] * Main().player_coins_[T_target] * 0.15 - Main().player_coinselect_[target];
         }
-        if (main_stage().player_action_[target] == 'S') {
-            if (player_gaincoins_num[main_stage().player_target_[target]] > 0) {
+        if (Main().player_action_[target] == 'S') {
+            if (player_gaincoins_num[Main().player_target_[target]] > 0) {
                 return true;
-            } else if (player_gaincoins_num[main_stage().player_target_[target]] < 0) {
+            } else if (player_gaincoins_num[Main().player_target_[target]] < 0) {
                 return false;
             }
             // 闭环检测（递归次数超过玩家人数）
-            if (count > option().PlayerNum()) {
-                player_gaincoins_num[target] = -main_stage().player_coinselect_[target];   // 标记抢夺失败
+            if (count > Global().PlayerNum()) {
+                player_gaincoins_num[target] = -Main().player_coinselect_[target];   // 标记抢夺失败
                 return false;
             }
-            return CheckPlayerGainCoins(main_stage().player_target_[target], player_gaincoins_num, count + 1);
+            return CheckPlayerGainCoins(Main().player_target_[target], player_gaincoins_num, count + 1);
         }
         // 目标金币变化>0，返回成功
         if (coins_change > 0) { return true; }
@@ -374,35 +375,35 @@ class RoundStage : public SubGameStage<>
     }
 
     void calc() {
-        vector<int> player_gaincoins_num(option().PlayerNum(), 0);   // 玩家本回合获得的金币数
-        vector<bool> pickcoins_is_guarded(option().PlayerNum(), false);   // 玩家捡金币是否被守金币
-        vector<bool> pickcoins_success(option().PlayerNum(), false);   // 玩家执行捡金币是否显示成功
-        vector<bool> snatchcoins_success(option().PlayerNum(), false);   // 玩家执行抢金币是否显示成功
-        vector<bool> guard_success(option().PlayerNum(), false);   // 玩家执行守金币是否显示成功
-        vector<bool> takehp_success(option().PlayerNum(), false);   // 玩家执行夺血条是否显示成功
+        vector<int> player_gaincoins_num(Global().PlayerNum(), 0);   // 玩家本回合获得的金币数
+        vector<bool> pickcoins_is_guarded(Global().PlayerNum(), false);   // 玩家捡金币是否被守金币
+        vector<bool> pickcoins_success(Global().PlayerNum(), false);   // 玩家执行捡金币是否显示成功
+        vector<bool> snatchcoins_success(Global().PlayerNum(), false);   // 玩家执行抢金币是否显示成功
+        vector<bool> guard_success(Global().PlayerNum(), false);   // 玩家执行守金币是否显示成功
+        vector<bool> takehp_success(Global().PlayerNum(), false);   // 玩家执行夺血条是否显示成功
         
         vector<int> pickCount = {0, 0, 0, 0, 0, 0};
-        vector<char> action = main_stage().player_action_;
-        vector<int64_t> target = main_stage().player_target_;
-        vector<int64_t> coinselect = main_stage().player_coinselect_;
+        vector<char> action = Main().player_action_;
+        vector<int64_t> target = Main().player_target_;
+        vector<int64_t> coinselect = Main().player_coinselect_;
 
         // 撤离【L】
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (action[i] == 'L' && main_stage().player_out_[i] == 0) {
-                Tell(i) << "您已选择撤离，不再参与后续游戏。";
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            if (action[i] == 'L' && Main().player_out_[i] == 0) {
+                Global().Tell(i) << "您已选择撤离，不再参与后续游戏。";
                 // 返还总伤害的一半
-                for (int j = 0; j < option().PlayerNum(); j++) {
-                    main_stage().player_coins_[j] += main_stage().player_total_damage_[j][i] * 0.5;
+                for (int j = 0; j < Global().PlayerNum(); j++) {
+                    Main().player_coins_[j] += Main().player_total_damage_[j][i] * 0.5;
                 }
             }
         }
 
         // 捡金币【P】
         int coins, pickStop;
-        coins = main_stage().round_coin;
+        coins = Main().round_coin;
         pickStop = 6;
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (action[i] == 'P' && main_stage().player_out_[i] == 0) {
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            if (action[i] == 'P' && Main().player_out_[i] == 0) {
                 pickCount[coinselect[i]]++;
             }
         }
@@ -414,28 +415,28 @@ class RoundStage : public SubGameStage<>
                 break;
             }
 		}
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (action[i] == 'P' && coinselect[i] < pickStop && coinselect[i] > 0 && main_stage().player_out_[i] == 0) {
-                main_stage().player_coins_[i] += coinselect[i];
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            if (action[i] == 'P' && coinselect[i] < pickStop && coinselect[i] > 0 && Main().player_out_[i] == 0) {
+                Main().player_coins_[i] += coinselect[i];
                 player_gaincoins_num[i] = coinselect[i];
                 pickcoins_success[i] = true;
             }
         }
 
         // 夺血条【T】（每个玩家依次判定）
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (main_stage().player_out_[i] > 0 || action[i] == 'L') continue;
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            if (Main().player_out_[i] > 0 || action[i] == 'L') continue;
 
             int hp_taken = 0;
             int hp_guarded = 0;
-            for (int j = 0; j < option().PlayerNum(); j++) {
-                if (main_stage().player_out_[j] > 0 || action[target[j]] == 'L') continue;
+            for (int j = 0; j < Global().PlayerNum(); j++) {
+                if (Main().player_out_[j] > 0 || action[target[j]] == 'L') continue;
                 // 结算夺血条
                 if (action[j] == 'T' && target[j] == i) {
-                    main_stage().player_coins_[j] -= coinselect[j];
-                    main_stage().player_hp_[j] += coinselect[j];
+                    Main().player_coins_[j] -= coinselect[j];
+                    Main().player_hp_[j] += coinselect[j];
                     player_gaincoins_num[j] = -coinselect[j];
-                    main_stage().player_total_damage_[j][target[j]] += coinselect[j];
+                    Main().player_total_damage_[j][target[j]] += coinselect[j];
                     hp_taken += coinselect[j];
                 }
                 // 记录守护总值
@@ -445,107 +446,107 @@ class RoundStage : public SubGameStage<>
             }
             // 伤害被守护抵消
             if (hp_taken - hp_guarded > 0) {
-                main_stage().player_hp_[i] = main_stage().player_hp_[i] - hp_taken + hp_guarded;
+                Main().player_hp_[i] = Main().player_hp_[i] - hp_taken + hp_guarded;
             }
             // 自守成功判定
             if (action[i] == 'G' && target[i] == i && hp_taken > 0) {
                 int offset = min<int>(hp_taken, coinselect[i]);
                 int gain_coins = offset * 2 > 8 ? 8 : offset * 2;
                 int gain_hp = offset > 3 ? 3 : offset;
-                main_stage().player_coins_[i] += gain_coins;
-                main_stage().player_hp_[i] += gain_hp;
+                Main().player_coins_[i] += gain_coins;
+                Main().player_hp_[i] += gain_hp;
                 guard_success[i] = true;
             }
         }
 
         // 守金币【G】
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (main_stage().player_out_[i] > 0 || action[target[i]] == 'L') continue;
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            if (Main().player_out_[i] > 0 || action[target[i]] == 'L') continue;
 
             if (action[i] == 'G') {
-                main_stage().player_coins_[i] -= coinselect[i];
+                Main().player_coins_[i] -= coinselect[i];
                 player_gaincoins_num[i] = -coinselect[i];
                 // 对方捡金币且成功
                 if (action[target[i]] == 'P' && pickcoins_success[target[i]]) {
                     pickcoins_is_guarded[target[i]] = true;
-                    main_stage().player_coins_[i] += coinselect[target[i]];
-                    main_stage().player_coins_[target[i]] += coinselect[i];
+                    Main().player_coins_[i] += coinselect[target[i]];
+                    Main().player_coins_[target[i]] += coinselect[i];
                     player_gaincoins_num[i] += coinselect[target[i]];
                     guard_success[i] = true;
                 }
                 // 对方抢金币
                 if (action[target[i]] == 'S') {
-                    main_stage().player_coins_[i] += coinselect[i] * 2;
-                    main_stage().player_coins_[target[i]] -= coinselect[i];
+                    Main().player_coins_[i] += coinselect[i] * 2;
+                    Main().player_coins_[target[i]] -= coinselect[i];
                     player_gaincoins_num[i] += coinselect[i] * 2;
                     guard_success[i] = true;
                 }
                 // 对方夺血条
                 if (action[target[i]] == 'T') {
-                    main_stage().player_hp_[target[i]] = 0;
-                    int gain_coins = (main_stage().player_coinselect_[i] - 2) * main_stage().player_coins_[target[i]] * 0.3;
-                    main_stage().player_coins_[i] += gain_coins;
+                    Main().player_hp_[target[i]] = 0;
+                    int gain_coins = (Main().player_coinselect_[i] - 2) * Main().player_coins_[target[i]] * 0.3;
+                    Main().player_coins_[i] += gain_coins;
                     player_gaincoins_num[i] += gain_coins;
                     guard_success[i] = true;
                 }
             }
         }
         // 结算被守玩家捡金币的没收
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (action[i] == 'P' && main_stage().player_out_[i] == 0 && pickcoins_is_guarded[i]) {
-                main_stage().player_coins_[i] -= coinselect[i];
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            if (action[i] == 'P' && Main().player_out_[i] == 0 && pickcoins_is_guarded[i]) {
+                Main().player_coins_[i] -= coinselect[i];
                 player_gaincoins_num[i] = 0;
                 pickcoins_success[i] = false;
             }
         }
 
         // 抢金币【S】
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (action[i] == 'S' && main_stage().player_out_[i] == 0 && action[target[i]] != 'L') {
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            if (action[i] == 'S' && Main().player_out_[i] == 0 && action[target[i]] != 'L') {
                 if (CheckPlayerGainCoins(target[i], player_gaincoins_num, 0)) {
-                    main_stage().player_coins_[i] += coinselect[i];
-                    main_stage().player_coins_[target[i]] -= coinselect[i];
+                    Main().player_coins_[i] += coinselect[i];
+                    Main().player_coins_[target[i]] -= coinselect[i];
                     snatchcoins_success[i] = true;
                 } else {
-                    main_stage().player_coins_[i] -= coinselect[i];
-                    main_stage().player_coins_[target[i]] += coinselect[i];
+                    Main().player_coins_[i] -= coinselect[i];
+                    Main().player_coins_[target[i]] += coinselect[i];
                 }
             }
         }
 
         // 爆金币
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (main_stage().player_hp_[i] <= 0 && main_stage().player_out_[i] == 0) {
-                for (int j = 0; j < option().PlayerNum(); j++) {
-                    main_stage().player_coins_[j] += main_stage().player_total_damage_[j][i] * main_stage().player_coins_[i] * 0.15;
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            if (Main().player_hp_[i] <= 0 && Main().player_out_[i] == 0) {
+                for (int j = 0; j < Global().PlayerNum(); j++) {
+                    Main().player_coins_[j] += Main().player_total_damage_[j][i] * Main().player_coins_[i] * 0.15;
                     // 判定夺血条成功
                     if (action[j] == 'T' && target[j] == i) {
                         takehp_success[j] = true;
                     }
                 }
-                main_stage().player_coins_[i] = 0;
+                Main().player_coins_[i] = 0;
             }
         }
 
         // board
-        string status_Board = main_stage().GetStatusBoard();
+        string status_Board = Main().GetStatusBoard();
 
-        string b = "<tr><td>R" + to_string(main_stage().round_) + "</td>";
-        for (int i = 0; i < option().PlayerNum(); i++) {
+        string b = "<tr><td>R" + to_string(Main().round_) + "</td>";
+        for (int i = 0; i < Global().PlayerNum(); i++) {
             string color = "";
             if (pickcoins_success[i]) {
-                color = " bgcolor=\"" + main_stage().pickcoins_success_color + "\"";
+                color = " bgcolor=\"" + Main().pickcoins_success_color + "\"";
             } else if (snatchcoins_success[i]) {
-                color = " bgcolor=\"" + main_stage().snatchcoins_success_color + "\"";
+                color = " bgcolor=\"" + Main().snatchcoins_success_color + "\"";
             } else if (guard_success[i]) {
-                color = " bgcolor=\"" + main_stage().guard_success_color + "\"";
+                color = " bgcolor=\"" + Main().guard_success_color + "\"";
             } else if (takehp_success[i]) {
-                color = " bgcolor=\"" + main_stage().takehp_success_color + "\"";
-            } else if (action[i] == 'L' && main_stage().player_out_[i] == 0) {
-                color = " bgcolor=\"" + main_stage().leave_color + "\"";
+                color = " bgcolor=\"" + Main().takehp_success_color + "\"";
+            } else if (action[i] == 'L' && Main().player_out_[i] == 0) {
+                color = " bgcolor=\"" + Main().leave_color + "\"";
             }
             b += "<td" + color + ">";
-            if (main_stage().player_out_[i] > 0) {
+            if (Main().player_out_[i] > 0) {
                 b += " ";
             } else {
                 if (action[i] == 'P') {
@@ -563,39 +564,39 @@ class RoundStage : public SubGameStage<>
             b += "</td>";
         }
         b += "</tr>";
-        main_stage().Board += b;
+        Main().Board += b;
 
         // 判定 出局&撤离
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            if (main_stage().player_out_[i] == 0) {
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            if (Main().player_out_[i] == 0) {
                 // 撤离【L】
                 if (action[i] == 'L') {
-                    main_stage().player_out_[i] = 2;
+                    Main().player_out_[i] = 2;
                 }
                 // 出局
-                if (main_stage().player_hp_[i] <= 0) {
-                    main_stage().player_out_[i] = 1;
-                    Eliminate(i);
+                if (Main().player_hp_[i] <= 0) {
+                    Main().player_out_[i] = 1;
+                    Global().Eliminate(i);
                 }
                 // 保存存活回合数
-                if (main_stage().player_out_[i] > 0) {
-                    main_stage().alive_--;
-                    main_stage().player_alive_round_[i] = main_stage().round_;
+                if (Main().player_out_[i] > 0) {
+                    Main().alive_--;
+                    Main().player_alive_round_[i] = Main().round_;
                 }
             }
         }
 
         string coin_Board = "";
-        if (main_stage().alive_ > 0 && main_stage().round_ < GET_OPTION_VALUE(option(), 回合数)) {
-            main_stage().round_coin = rand() % (main_stage().alive_ + 1) + main_stage().alive_ * 2;
-            coin_Board += "<tr><td align=\"left\" colspan=" + to_string(option().PlayerNum() + 1) + "><font size=5>· 本轮金币数：" + to_string(main_stage().round_coin) + "</font></td></tr>";
+        if (Main().alive_ > 0 && Main().round_ < GAME_OPTION(回合数)) {
+            Main().round_coin = rand() % (Main().alive_ + 1) + Main().alive_ * 2;
+            coin_Board += "<tr><td align=\"left\" colspan=" + to_string(Global().PlayerNum() + 1) + "><font size=5>· 本轮金币数：" + to_string(Main().round_coin) + "</font></td></tr>";
         }
 
-        Boardcast() << Markdown(main_stage().T_Board + status_Board + main_stage().Board + coin_Board + "</table>", main_stage().image_width);
+        Global().Boardcast() << Markdown(Main().T_Board + status_Board + Main().Board + coin_Board + "</table>", Main().image_width);
 
-        for (int i = 0; i < option().PlayerNum(); i++) {
-            main_stage().player_last_hp_[i] = main_stage().player_hp_[i];
-            main_stage().player_last_coins_[i] = main_stage().player_coins_[i];
+        for (int i = 0; i < Global().PlayerNum(); i++) {
+            Main().player_last_hp_[i] = Main().player_hp_[i];
+            Main().player_last_coins_[i] = Main().player_coins_[i];
         }
     }
 };
@@ -623,7 +624,7 @@ string MainStage::GetName(std::string x) {
 string MainStage::GetStatusBoard() {
     string status_Board = "";
     status_Board += "<tr bgcolor=\""+ HP_color +"\"><th>血量</th>";
-    for (int i = 0; i < option().PlayerNum(); i++) {
+    for (int i = 0; i < Global().PlayerNum(); i++) {
         status_Board += "<td>";
         if (player_out_[i] == 0 && player_action_[i] != 'L') {
             if (player_hp_[i] > 0) {
@@ -647,7 +648,7 @@ string MainStage::GetStatusBoard() {
         status_Board += "</td>";
     }
     status_Board += "</tr><tr bgcolor=\""+ coins_color +"\"><th>金币</th>";
-    for (int i = 0; i < option().PlayerNum(); i++) {
+    for (int i = 0; i < Global().PlayerNum(); i++) {
         status_Board += "<td>";
         status_Board += to_string(player_last_coins_[i]);
         if (player_coins_[i] > player_last_coins_[i]) {
@@ -664,36 +665,36 @@ string MainStage::GetStatusBoard() {
     return status_Board;
 }
 
-MainStage::VariantSubStage MainStage::OnStageBegin()
+void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
     srand((unsigned int)time(NULL));
-    alive_ = option().PlayerNum();
-    player_total_damage_.resize(option().PlayerNum());
+    alive_ = Global().PlayerNum();
+    player_total_damage_.resize(Global().PlayerNum());
 
-    for (int i = 0; i < option().PlayerNum(); i++) {
+    for (int i = 0; i < Global().PlayerNum(); i++) {
         player_hp_[i] = 10;
         player_last_hp_[i] = 10;
-        player_coins_[i] = GET_OPTION_VALUE(option(), 金币);
-        player_last_coins_[i] = GET_OPTION_VALUE(option(), 金币);
-        player_total_damage_[i].resize(option().PlayerNum());
+        player_coins_[i] = GAME_OPTION(金币);
+        player_last_coins_[i] = GAME_OPTION(金币);
+        player_total_damage_[i].resize(Global().PlayerNum());
     }
 
-    for (int i = 0; i < option().PlayerNum(); i++) {
-        for (int j = 0; j < option().PlayerNum(); j++) {
+    for (int i = 0; i < Global().PlayerNum(); i++) {
+        for (int j = 0; j < Global().PlayerNum(); j++) {
             player_total_damage_[i][j] = 0;
         }
     }
 
     T_Board += "<table><tr>";
-    for (int i = 0; i < option().PlayerNum(); i++) {
-        T_Board += "<th>" + to_string(i + 1) + " 号： " + GetName(PlayerName(i)) + "　</th>";
+    for (int i = 0; i < Global().PlayerNum(); i++) {
+        T_Board += "<th>" + to_string(i + 1) + " 号： " + GetName(Global().PlayerName(i)) + "　</th>";
         if (i % 4 == 3) T_Board += "</tr><tr>";
     }
     T_Board += "</tr><br>";
 
     T_Board += "<table style=\"text-align:center\"><tbody>";
     T_Board += "<tr bgcolor=\"#FFE4C4\"><th style=\"width:70px;\">序号</th>";
-    for (int i = 0; i < option().PlayerNum(); i++) {
+    for (int i = 0; i < Global().PlayerNum(); i++) {
         T_Board += "<th style=\"width:60px;\">";
         T_Board += to_string(i + 1) + " 号";
         T_Board += "</th>";
@@ -704,37 +705,38 @@ MainStage::VariantSubStage MainStage::OnStageBegin()
 
     string coin_Board = "";
     round_coin = rand() % (alive_ + 1) + alive_ * 2;
-    coin_Board += "<tr><td align=\"left\" colspan=" + to_string(option().PlayerNum() + 1) + "><font size=5>· 本轮金币数：" + to_string(round_coin) + "</font></td></tr>";
+    coin_Board += "<tr><td align=\"left\" colspan=" + to_string(Global().PlayerNum() + 1) + "><font size=5>· 本轮金币数：" + to_string(round_coin) + "</font></td></tr>";
 
     string PreBoard = "";
     PreBoard += "本局玩家序号如下：\n";
-    for (int i = 0; i < option().PlayerNum(); i++) {
-        PreBoard += to_string(i + 1) + " 号：" + PlayerName(i);
+    for (int i = 0; i < Global().PlayerNum(); i++) {
+        PreBoard += to_string(i + 1) + " 号：" + Global().PlayerName(i);
 
-        if (i != (int)option().PlayerNum() - 1) {
+        if (i != (int)Global().PlayerNum() - 1) {
         PreBoard += "\n";
         }
     }
 
-    Boardcast() << PreBoard;
-    Boardcast() << Markdown(T_Board + status_Board + coin_Board + "</table>", image_width);
+    Global().Boardcast() << PreBoard;
+    Global().Boardcast() << Markdown(T_Board + status_Board + coin_Board + "</table>", image_width);
 
-    return std::make_unique<RoundStage>(*this, ++round_);
+    setter.Emplace<RoundStage>(*this, ++round_);
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
+void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
-    if ((++round_) <= GET_OPTION_VALUE(option(), 回合数) && alive_ > 0) {
-        return std::make_unique<RoundStage>(*this, round_);
+    if ((++round_) <= GAME_OPTION(回合数) && alive_ > 0) {
+        setter.Emplace<RoundStage>(*this, round_);
+        return;
     }
 
     if (alive_ > 0) {
-        Boardcast() << "达到最大回合数限制，剩余玩家自动撤离";
+        Global().Boardcast() << "达到最大回合数限制，剩余玩家自动撤离";
     } else {
-        Boardcast() << "所有玩家均出局或撤离，游戏结束";
+        Global().Boardcast() << "所有玩家均出局或撤离，游戏结束";
     }
 
-    for(int i = 0; i < option().PlayerNum(); i++) {
+    for(int i = 0; i < Global().PlayerNum(); i++) {
         if (player_out_[i] > 0) {
             player_scores_[i] = player_coins_[i] - player_alive_round_[i];
         } else {
@@ -742,13 +744,14 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
         }
     }
     // Returning empty variant means the game will be over.
-    return {};
+    return;
 }
 
-} // namespace lgtbot
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
+} // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // namespace lgtbot
 
-#include "game_framework/make_main_stage.h"

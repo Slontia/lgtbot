@@ -9,7 +9,8 @@
 
 #include <stdlib.h>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 
 using namespace std;
@@ -21,8 +22,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "合纵连横"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 2; // 0 indicates no max-player limits
@@ -311,16 +312,16 @@ public:
 class MainStage : public MainGameStage<RoundStage>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match, MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility, MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
         , round_(0)
-        , player_scores_(option.PlayerNum(), 0)
+        , player_scores_(Global().PlayerNum(), 0)
         , stop(0)
     {
     }
 
-    virtual VariantSubStage OnStageBegin() override;
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override;
+    virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return player_scores_[pid]; }
 
@@ -350,47 +351,47 @@ class RoundStage : public SubGameStage<>
 {
   public:
     RoundStage(MainStage& main_stage, const uint64_t round)
-        : GameStage(main_stage, "第 " + std::to_string(round) + " 回合",
-                MakeStageCommand("落子", &RoundStage::MakeMove_, AnyArg("落子", "A1")))
+        : StageFsm(main_stage, "第 " + std::to_string(round) + " 回合",
+                MakeStageCommand(*this, "落子", &RoundStage::MakeMove_, AnyArg("落子", "A1")))
     {
     }
 
     virtual void OnStageBegin() override
     {
-		Boardcast() << Markdown(main_stage().board.GetUI());
-		SetReady(!main_stage().currentPlayer);
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
+		Global().Boardcast() << Markdown(Main().board.GetUI());
+		Global().SetReady(!Main().currentPlayer);
+        Global().StartTimer(GAME_OPTION(时限));
         
-        Boardcast() << name() << "，请" << (main_stage().round_ % 2 == 1 ? "黑" : "白") << "方落子。";
+        Global().Boardcast() << Name() << "，请" << (Main().round_ % 2 == 1 ? "黑" : "白") << "方落子。";
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
     {
-    	int &cp = main_stage().currentPlayer;
-        Boardcast() << At(PlayerID(cp)) << "玩家超时，游戏结束。";
-        main_stage().player_scores_[!cp] = 1;
-		main_stage().stop = 1;
-		SetReady(0), SetReady(1);
+    	int &cp = Main().currentPlayer;
+        Global().Boardcast() << At(PlayerID(cp)) << "玩家超时，游戏结束。";
+        Main().player_scores_[!cp] = 1;
+		Main().stop = 1;
+		Global().SetReady(0), Global().SetReady(1);
         // Returning |CHECKOUT| means the current stage will be over.
         return StageErrCode::CHECKOUT;
     }
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
-        Boardcast() << PlayerName(pid) << "退出游戏，游戏立刻结束。";
-        main_stage().player_scores_[!pid] = 1;
-        main_stage().stop = 1;
-        SetReady(0), SetReady(1);
+        Global().Boardcast() << Global().PlayerName(pid) << "退出游戏，游戏立刻结束。";
+        Main().player_scores_[!pid] = 1;
+        Main().stop = 1;
+        Global().SetReady(0), Global().SetReady(1);
         // Returning |CONTINUE| means the current stage will be continued.
         return StageErrCode::CONTINUE;
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        Boardcast() << "暂无bot";
-	    main_stage().stop = 1;
-	    main_stage().player_scores_[!pid] = 1;
-	    SetReady(0), SetReady(1);
+        Global().Boardcast() << "暂无bot";
+	    Main().stop = 1;
+	    Main().player_scores_[!pid] = 1;
+	    Global().SetReady(0), Global().SetReady(1);
 	    return StageErrCode::READY;
     }
 
@@ -404,12 +405,12 @@ class RoundStage : public SubGameStage<>
     AtomReqErrCode MakeMove_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, string str)
     {
         
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "[错误] 现在是对方的回合";
             return StageErrCode::FAILED;
         }
         
-        string ret = main_stage().board.CheckMove(str, (!(main_stage().round_ % 2)) + 1);
+        string ret = Main().board.CheckMove(str, (!(Main().round_ % 2)) + 1);
         
         // 不合法的落子选择 
         if (ret != "OK")
@@ -422,27 +423,28 @@ class RoundStage : public SubGameStage<>
     }
 };
 
-MainStage::VariantSubStage MainStage::OnStageBegin()
+void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
 	// 随机生成先后手 
 	srand((unsigned int)time(NULL));
 	currentPlayer = rand() % 2;
-	Boardcast() << "先手（黑棋）：" << At(PlayerID(currentPlayer));
+	Global().Boardcast() << "先手（黑棋）：" << At(PlayerID(currentPlayer));
 	
 	// 设置读取棋盘大小 
-	board.sizeX = (GET_OPTION_VALUE(option(), 边长));
-	board.sizeY = (GET_OPTION_VALUE(option(), 边长));
+	board.sizeX = (GAME_OPTION(边长));
+	board.sizeY = (GAME_OPTION(边长));
 	
-    return std::make_unique<RoundStage>(*this, ++round_);
+    setter.Emplace<RoundStage>(*this, ++round_);
+    return;
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
+void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
 	// 有人退出，强制结束 
 	if (stop == 1)
 	{
-		Boardcast() << Markdown(board.GetUI());
-		return {};
+		Global().Boardcast() << Markdown(board.GetUI());
+		return;
 	}
 	// 棋盘已满 
 	if ((++round_) > board.sizeX * board.sizeY)
@@ -461,13 +463,16 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 		}
 		player_scores_[0] = score1;
 		player_scores_[1] = score2;
-		Boardcast() << Markdown(board.GetUI());
-		return {};
+		Global().Boardcast() << Markdown(board.GetUI());
+		return;
 	}
 	// 交换玩家 
 	currentPlayer = !currentPlayer;
-    return std::make_unique<RoundStage>(*this, round_);
+    setter.Emplace<RoundStage>(*this, round_);
+    return;
 }
+
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
 
 } // namespace GAME_MODULE_NAME
 
@@ -475,4 +480,3 @@ MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const 
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

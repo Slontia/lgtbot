@@ -11,7 +11,8 @@
 #include <ranges>
 #include <algorithm>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 #include "utility/coding.h"
 #include "game_util/chinese_chess.h"
@@ -25,8 +26,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "群雄象棋";
 const uint64_t k_max_player = 6; /* 0 means no max-player limits */
@@ -66,31 +67,31 @@ static std::ostream& operator<<(std::ostream& os, const Coor& coor) { return os 
 class MainStage : public MainGameStage<>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match,
-                MakeStageCommand("查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
-                MakeStageCommand("查看拼接后的棋盘", &MainStage::ShowImage_,
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility,
+                MakeStageCommand(*this, "查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
+                MakeStageCommand(*this, "查看拼接后的棋盘", &MainStage::ShowImage_,
                     VoidChecker("棋盘"),
                     AlterChecker(KingdomId::ParseMap()),
                     AlterChecker(KingdomId::ParseMap())),
-                MakeStageCommand("跳过某个王国的行动", &MainStage::Pass_,
+                MakeStageCommand(*this, "跳过某个王国的行动", &MainStage::Pass_,
                     AlterChecker(KingdomId::ParseMap()),
                     VoidChecker("pass")),
-                MakeStageCommand("移动棋子", &MainStage::Move_,
-                    ArithChecker<uint32_t>(0, option.PlayerNum() * GET_OPTION_VALUE(option, 阵营), "棋盘编号"),
+                MakeStageCommand(*this, "移动棋子", &MainStage::Move_,
+                    ArithChecker<uint32_t>(0, utility.PlayerNum() * GET_OPTION_VALUE(utility.Options(), 阵营), "棋盘编号"),
                     AnyArg("移动前位置", "A1"), AnyArg("移动后位置", "B1")))
-        , board_(option.PlayerNum(), GET_OPTION_VALUE(option, 阵营))
+        , board_(Global().PlayerNum(), GAME_OPTION(阵营))
         , round_(0)
     {}
 
     virtual void OnStageBegin()
     {
-        board_.SetImagePath(option().ResourceDir());
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            board_.SetPlayerName(pid, PlayerName(pid));
+        board_.SetImagePath(Global().ResourceDir());
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            board_.SetPlayerName(pid, Global().PlayerName(pid));
         }
         BoardcastBoardToAllPlayers_();
-        ResetTimer_(Boardcast());
+        ResetTimer_(Global().Boardcast());
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
@@ -197,14 +198,14 @@ class MainStage : public MainGameStage<>
         // do settle and switch
         const auto ret = board_.Settle();
         ++round_;
-        if (round_ % GET_OPTION_VALUE(option(), 切换回合) == 0) {
-            Boardcast() << "棋盘发生切换，" << GET_OPTION_VALUE(option(), 切换回合) << " 回合后再次切换";
+        if (round_ % GAME_OPTION(切换回合) == 0) {
+            Global().Boardcast() << "棋盘发生切换，" << GAME_OPTION(切换回合) << " 回合后再次切换";
             board_.Switch();
         }
 
         // output html
         BoardcastBoardToAllPlayers_();
-        auto sender = Boardcast();
+        auto sender = Global().Boardcast();
 
         // fill settle report
         std::string settle_report;
@@ -231,28 +232,28 @@ class MainStage : public MainGameStage<>
         if (!ret.eat_results_.empty() || !ret.crashed_chesses_.empty()) {
             peace_round_count_ = 0;
             sender << "\n";
-        } else if (round_ <= GET_OPTION_VALUE(option(), 最小回合限制)) {
+        } else if (round_ <= GAME_OPTION(最小回合限制)) {
             // do nothing
-        } else if (++peace_round_count_ >= GET_OPTION_VALUE(option(), 和平回合限制)) {
-            sender << "已经连续 " << GET_OPTION_VALUE(option(), 和平回合限制) << " 回合没有发生吃子或碰撞，游戏结束";
+        } else if (++peace_round_count_ >= GAME_OPTION(和平回合限制)) {
+            sender << "已经连续 " << GAME_OPTION(和平回合限制) << " 回合没有发生吃子或碰撞，游戏结束";
             return true;
         } else {
-            sender << "[注意] 若 " << (GET_OPTION_VALUE(option(), 和平回合限制) - peace_round_count_)
+            sender << "[注意] 若 " << (GAME_OPTION(和平回合限制) - peace_round_count_)
                 << " 回合结束前仍未发生吃子或碰撞，游戏将结束\n\n";
         }
-        if (round_ == GET_OPTION_VALUE(option(), 最小回合限制)) {
-            sender << "[注意] 从下一回合开始，若连续 " << (GET_OPTION_VALUE(option(), 和平回合限制) - peace_round_count_)
+        if (round_ == GAME_OPTION(最小回合限制)) {
+            sender << "[注意] 从下一回合开始，若连续 " << (GAME_OPTION(和平回合限制) - peace_round_count_)
                 << " 回合未发生吃子或碰撞，游戏将结束\n\n";
         }
 
         // reset ready for players
         uint32_t alive_player_count = 0;
-        for (uint32_t i = 0; i < option().PlayerNum(); ++i) {
+        for (uint32_t i = 0; i < Global().PlayerNum(); ++i) {
             if (board_.GetUnreadyKingdomIds(i).empty()) {
-                SetReady(i);
+                Global().SetReady(i);
             } else {
                 ++alive_player_count;
-                ClearReady(i);
+                Global().ClearReady(i);
             }
         }
         if (alive_player_count <= 1) {
@@ -267,19 +268,19 @@ class MainStage : public MainGameStage<>
     void BoardcastBoardToAllPlayers_()
     {
         cur_html_ = RoundTitleHtml_() + board_.ToHtml();
-        Group() << Markdown(cur_html_);
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            Tell(pid) << Markdown(cur_html_);
+        Global().Group() << Markdown(cur_html_);
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            Global().Tell(pid) << Markdown(cur_html_);
         }
     }
 
     template <typename Sender>
     void ResetTimer_(Sender&& sender)
     {
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
-        sender << "请所有玩家行动，" << GET_OPTION_VALUE(option(), 时限)
+        Global().StartTimer(GAME_OPTION(时限));
+        sender << "请所有玩家行动，" << GAME_OPTION(时限)
                << " 秒未行动自动 pass\n格式：棋盘编号 移动前位置 移动后位置\n\n"
-               << (GET_OPTION_VALUE(option(), 切换回合) - round_ % GET_OPTION_VALUE(option(), 切换回合))
+               << (GAME_OPTION(切换回合) - round_ % GAME_OPTION(切换回合))
                << " 回合后将切换棋盘";
     }
 
@@ -294,10 +295,11 @@ class MainStage : public MainGameStage<>
     std::string cur_html_;
 };
 
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

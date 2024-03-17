@@ -10,7 +10,8 @@
 #include <memory>
 #include <random>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 
 namespace lgtbot {
 
@@ -19,8 +20,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "远足";
 const uint64_t k_max_player = 0; /* 0 means no max-player limits */
@@ -390,9 +391,9 @@ class RoundStage;
 
 class MainStage : public MainGameStage<RoundStage> {
  public:
-  MainStage(const GameOption& option, MatchBase& match);
-  virtual VariantSubStage OnStageBegin() override;
-  virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
+  MainStage(const StageUtility& utility);
+  virtual void FirstStageFsm(SubStageFsmSetter setter) override;
+  virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
   int64_t PlayerScore(const PlayerID pid) const;
 
   bool JudgeOver();
@@ -409,31 +410,31 @@ class MainStage : public MainGameStage<RoundStage> {
 class RoundStage : public SubGameStage<> {
  public:
   RoundStage(MainStage& main_stage)
-      : GameStage(main_stage, "第" + std::to_string(++main_stage.turn_) + "回合",
-                  MakeStageCommand("设置数字", &RoundStage::Set_, AnyArg("位置", "a"),
+      : StageFsm(main_stage, "第" + std::to_string(++main_stage.turn_) + "回合",
+                  MakeStageCommand(*this, "设置数字", &RoundStage::Set_, AnyArg("位置", "a"),
                                    AlterChecker<int>(char_op)),
-                  MakeStageCommand("跳过", &RoundStage::Pass_, VoidChecker("pass"))) {}
+                  MakeStageCommand(*this, "跳过", &RoundStage::Pass_, VoidChecker("pass"))) {}
 
   virtual void OnStageBegin() override {
     generate_two_num(num_1, num_2, number);
-    for (int i = 0; i < main_stage().num_player_; i++) {
-      main_stage().ui_.SetName(i, PlayerName(i));
-      main_stage().ui_.SetBoard(i, main_stage().boards_[i]);
+    for (int i = 0; i < Main().num_player_; i++) {
+      Main().ui_.SetName(i, Global().PlayerName(i));
+      Main().ui_.SetBoard(i, Main().boards_[i]);
     }
-    main_stage().Print();
-    Boardcast() << ("本回合数字：" + std::to_string(num_1) + " " + std::to_string(num_2));
-    StartTimer(GET_OPTION_VALUE(option(), 时限));
+    Main().Print();
+    Global().Boardcast() << ("本回合数字：" + std::to_string(num_1) + " " + std::to_string(num_2));
+    Global().StartTimer(GAME_OPTION(时限));
   }
 
   virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
-    Boardcast() << "玩家 " << PlayerName(pid) << " 中途退出。";
+    Global().Boardcast() << "玩家 " << Global().PlayerName(pid) << " 中途退出。";
     return StageErrCode::CONTINUE;
   }
 
   virtual CheckoutErrCode OnStageTimeout() override {
-    for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-      if (!IsReady(pid)) {
-        Boardcast() << At(pid) << "超时未做选择，跳过回合";
+    for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+      if (!Global().IsReady(pid)) {
+        Global().Boardcast() << At(pid) << "超时未做选择，跳过回合";
       }
     }
     return StageErrCode::CHECKOUT;
@@ -444,7 +445,7 @@ class RoundStage : public SubGameStage<> {
   }
 
   AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply) {
-    if (IsReady(pid)) {
+    if (Global().IsReady(pid)) {
       reply() << "跳过失败：您已经完成落子，无法跳过";
       return StageErrCode::FAILED;
     }
@@ -454,11 +455,11 @@ class RoundStage : public SubGameStage<> {
 
   AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
                       const std::string& pos, const int op) {
-    if (IsReady(pid)) {
+    if (Global().IsReady(pid)) {
       reply() << "您已经设置过，无法重复设置";
       return StageErrCode::FAILED;
     }
-    auto& board = main_stage().boards_[pid];
+    auto& board = Main().boards_[pid];
     if (pos.length() != 1) {
       reply() << "位置格式错误，应为一位字母，如 a";
       return StageErrCode::FAILED;
@@ -481,12 +482,12 @@ class RoundStage : public SubGameStage<> {
     }
     board.num[px][py] = number[op];
     board.opcnt[op]--;
-    const auto point = calc(board) - main_stage().score_[pid];
+    const auto point = calc(board) - Main().score_[pid];
     auto sender = reply();
     sender << "设置数字" << number[op] << "成功";
     if (point > 0) {
       sender << "，本次操作收获" << point << "点积分";
-      main_stage().score_[pid] += point;
+      Main().score_[pid] += point;
       board.score += point;
     }
     return StageErrCode::READY;
@@ -496,26 +497,26 @@ class RoundStage : public SubGameStage<> {
   int number[7];
 };
 
-MainStage::MainStage(const GameOption& option, MatchBase& match)
-    : GameStage(option, match), ui_(option.PlayerNum()), turn_(0), num_player_(option.PlayerNum()) {
-  auto map_file = map_files[GET_OPTION_VALUE(option, 地图)];
-  map_name = map_names[GET_OPTION_VALUE(option, 地图)];
+MainStage::MainStage(const StageUtility& utility)
+    : StageFsm(utility), ui_(Global().PlayerNum()), turn_(0), num_player_(Global().PlayerNum()) {
+  auto map_file = map_files[GAME_OPTION(地图)];
+  map_name = map_names[GAME_OPTION(地图)];
   if (map_file == "random") {
     int index = rand() % (map_files.size() - 1) + 1;
     map_file = map_files[index];
     map_name = map_names[index];
   }
-  initGame(std::string(option.ResourceDir()) + "/" + map_file);
-  boards_.resize(option.PlayerNum());
-  score_.resize(option.PlayerNum(), 0);
-  for (int i = 0; i < option.PlayerNum(); i++) {
+  initGame(std::string(Global().ResourceDir()) + "/" + map_file);
+  boards_.resize(Global().PlayerNum());
+  score_.resize(Global().PlayerNum(), 0);
+  for (int i = 0; i < Global().PlayerNum(); i++) {
     initBoard(boards_[i]);
   }
   for (int i = 0; i < initial_random_cnt; i++) {
     int val = 3 + rand() % 10;
     int x = 1 + rand() % n, y = 1 + rand() % m;
     if ('a' <= map[x][y] && map[x][y] <= 'z') {
-      for (int i = 0; i < option.PlayerNum(); i++) {
+      for (int i = 0; i < Global().PlayerNum(); i++) {
         boards_[i].num[x][y] = val;
       }
     } else
@@ -523,14 +524,16 @@ MainStage::MainStage(const GameOption& option, MatchBase& match)
   }
 }
 
-MainStage::VariantSubStage MainStage::OnStageBegin() { return std::make_unique<RoundStage>(*this); }
+void MainStage::FirstStageFsm(SubStageFsmSetter setter) { setter.Emplace<RoundStage>(*this);
+ return; }
 
-MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage,
-                                                   const CheckoutReason reason) {
+void MainStage::NextStageFsm(RoundStage& sub_stage,
+                                                   const CheckoutReason reason, SubStageFsmSetter setter) {
   if (JudgeOver()) {
-    return {};
+    return;
   }
-  return std::make_unique<RoundStage>(*this);
+  setter.Emplace<RoundStage>(*this);
+  return;
 }
 
 int64_t MainStage::PlayerScore(const PlayerID pid) const { return score_.at(pid); }
@@ -538,9 +541,11 @@ int64_t MainStage::PlayerScore(const PlayerID pid) const { return score_.at(pid)
 bool MainStage::JudgeOver() { return turn_ >= turn; }
 
 void MainStage::Print() {
-  const int width = option().PlayerNum() == 1 ? 400 : 700;
-  Boardcast() << Markdown(ui_.ToHtml(), width);
+  const int width = Global().PlayerNum() == 1 ? 400 : 700;
+  Global().Boardcast() << Markdown(ui_.ToHtml(), width);
 }
+
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
 
 } // namespace GAME_MODULE_NAME
 
@@ -548,4 +553,3 @@ void MainStage::Print() {
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

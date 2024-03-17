@@ -67,9 +67,18 @@ if (WITH_TEST)
   find_package(GTest REQUIRED)
   list(APPEND THIRD_PARTIES GTest::GTest GTest::Main)
 
-  add_executable(test_bot test_bot.cc ${SOURCE_FILES})
+  add_executable(test_bot
+    test_bot.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/stage.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/stage_utility.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/player_ready_masker.cc
+    ${SOURCE_FILES})
   target_link_libraries(test_bot ${THIRD_PARTIES})
-  target_compile_definitions(test_bot PUBLIC TEST_BOT)
+  target_compile_definitions(test_bot PUBLIC
+    GAME_ACHIEVEMENT_FILENAME="test_bot.cc"
+    GAME_OPTION_FILENAME="test_bot.cc"
+    GAME_MODULE_NAME=test_game
+    TEST_BOT)
   target_include_directories(test_bot PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}) # to include empty options.h
   add_test(NAME test_bot COMMAND test_bot)
 

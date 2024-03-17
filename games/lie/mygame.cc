@@ -6,7 +6,8 @@
 #include <functional>
 #include <memory>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 
 namespace lgtbot {
 
@@ -15,8 +16,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "LIE";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
@@ -56,8 +57,9 @@ class MyTable
         bool is_lie_;
     };
 
-    MyTable(const GameOption& option)
+    MyTable(const MyGameOption& option, const std::string_view resource_dir)
         : option_(option)
+        , resource_dir_{resource_dir}
         , table_(GET_OPTION_VALUE(option, 失败数量) * 2 + 3, GET_OPTION_VALUE(option, 数字种类))
         , player_nums_{std::vector<int>(GET_OPTION_VALUE(option, 数字种类), 0),
                         std::vector<int>(GET_OPTION_VALUE(option, 数字种类), 0)}
@@ -127,9 +129,9 @@ class MyTable
     }
 
   private:
-    std::string Image_(std::string name) const
+    std::string Image_(const std::string_view name) const
     {
-        return std::string("![](file:///") + option_.ResourceDir() + "/" + std::move(name) + ".png)";
+        return std::string("![](file:///") + resource_dir_.data() + "/" + name.data() + ".png)";
     }
 
     void DrawLose_(const bool with_light)
@@ -146,7 +148,8 @@ class MyTable
         }
     }
 
-    const GameOption& option_;
+    const MyGameOption& option_;
+    std::string_view resource_dir_;
     html::Table table_;
     std::array<std::vector<int>, 2> player_nums_;
     std::optional<Result> last_result_;
@@ -157,9 +160,9 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
    public:
-    MainStage(const GameOption& option, MatchBase& match);
-    virtual VariantSubStage OnStageBegin() override;
-    virtual VariantSubStage NextSubStage(RoundStage& sub_stage, const CheckoutReason reason) override;
+    MainStage(const StageUtility& utility);
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override;
+    virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
     int64_t PlayerScore(const PlayerID pid) const;
     MyTable& table() { return table_; }
 
@@ -167,7 +170,7 @@ class MainStage : public MainGameStage<RoundStage>
     bool JudgeOver();
     void Info_()
     {
-        Boardcast() << Markdown("## 第" + std::to_string(round_) + "回合\n\n" + table_.ToHtml(questioner_));
+        Global().Boardcast() << Markdown("## 第" + std::to_string(round_) + "回合\n\n" + table_.ToHtml(questioner_));
     }
 
     MyTable table_;
@@ -180,10 +183,10 @@ class NumberStage : public SubGameStage<>
 {
    public:
     NumberStage(MainStage& main_stage, const PlayerID questioner, int& actual_number, int& lie_number)
-            : GameStage(main_stage, "设置数字阶段",
-                    MakeStageCommand("设置数字", &NumberStage::Number_,
-                        ArithChecker<int>(1, GET_OPTION_VALUE(main_stage.option(), 数字种类), "实际数字"),
-                        ArithChecker<int>(1, GET_OPTION_VALUE(main_stage.option(), 数字种类), "提问数字")))
+            : StageFsm(main_stage, "设置数字阶段",
+                    MakeStageCommand(*this, "设置数字", &NumberStage::Number_,
+                        ArithChecker<int>(1, GET_OPTION_VALUE(main_stage.Global().Options(), 数字种类), "实际数字"),
+                        ArithChecker<int>(1, GET_OPTION_VALUE(main_stage.Global().Options(), 数字种类), "提问数字")))
             , questioner_(questioner)
             , actual_number_(actual_number)
             , lie_number_(lie_number)
@@ -191,16 +194,16 @@ class NumberStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "请" << At(questioner_) << "设置数字";
-        SetReady(1 - questioner_);
-        StartTimer(60);
+        Global().Boardcast() << "请" << At(questioner_) << "设置数字";
+        Global().SetReady(1 - questioner_);
+        Global().StartTimer(60);
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         if (questioner_ == pid) {
-            actual_number_ = std::rand() % GET_OPTION_VALUE(option(), 数字种类) + 1;
-            lie_number_ = std::rand() % 5 >= 2 ? std::rand() % GET_OPTION_VALUE(option(), 数字种类) + 1
+            actual_number_ = std::rand() % GAME_OPTION(数字种类) + 1;
+            lie_number_ = std::rand() % 5 >= 2 ? std::rand() % GAME_OPTION(数字种类) + 1
                                                : actual_number_; // 50% same
             return StageErrCode::READY;
         }
@@ -233,17 +236,17 @@ class GuessStage : public SubGameStage<>
 {
    public:
     GuessStage(MainStage& main_stage, const PlayerID guesser)
-            : GameStage(main_stage, "猜测阶段",
-                    MakeStageCommand("猜测", &GuessStage::Guess_, BoolChecker("质疑", "相信"))),
+            : StageFsm(main_stage, "猜测阶段",
+                    MakeStageCommand(*this, "猜测", &GuessStage::Guess_, BoolChecker("质疑", "相信"))),
               guesser_(guesser),
               doubt_(false) // default value
     {}
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "请" << At(guesser_) << "选择「相信」或「质疑」";
-        SetReady(1 - guesser_);
-        StartTimer(60);
+        Global().Boardcast() << "请" << At(guesser_) << "选择「相信」或「质疑」";
+        Global().SetReady(1 - guesser_);
+        Global().StartTimer(60);
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
@@ -276,7 +279,7 @@ class RoundStage : public SubGameStage<NumberStage, GuessStage>
 {
    public:
     RoundStage(MainStage& main_stage, const uint64_t round, const uint64_t questioner)
-            : GameStage(main_stage, "第" + std::to_string(round) + "回合"),
+            : StageFsm(main_stage, "第" + std::to_string(round) + "回合"),
               questioner_(questioner),
               actual_number_(1), // default value
               lie_number_(1), // default value
@@ -285,38 +288,40 @@ class RoundStage : public SubGameStage<NumberStage, GuessStage>
 
     PlayerID loser() const { return loser_; }
 
-    virtual VariantSubStage OnStageBegin() override
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override
     {
-        return std::make_unique<NumberStage>(main_stage(), questioner_, actual_number_, lie_number_);
+        setter.Emplace<NumberStage>(Main(), questioner_, actual_number_, lie_number_);
+        return;
     }
 
-    virtual VariantSubStage NextSubStage(NumberStage& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(NumberStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         if (reason == CheckoutReason::BY_LEAVE) {
-            return {};
+            return;
         }
-        Tell(questioner_) << (reason == CheckoutReason::BY_TIMEOUT ? "设置超时，视为" : "设置成功")
+        Global().Tell(questioner_) << (reason == CheckoutReason::BY_TIMEOUT ? "设置超时，视为" : "设置成功")
                           << "\n实际数字：" << actual_number_ << "\n提问数字：" << lie_number_;
-        Boardcast() << At(questioner_) << "提问数字" << lie_number_;
-        return std::make_unique<GuessStage>(main_stage(), 1 - questioner_);
+        Global().Boardcast() << At(questioner_) << "提问数字" << lie_number_;
+        setter.Emplace<GuessStage>(Main(), 1 - questioner_);
+        return;
     }
 
-    virtual VariantSubStage NextSubStage(GuessStage& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(GuessStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         const bool doubt = sub_stage.doubt();
         if (reason == CheckoutReason::BY_TIMEOUT) {
-            Tell(questioner_) << "选择超时，默认为相信";
+            Global().Tell(questioner_) << "选择超时，默认为相信";
         }
         const bool suc = doubt ^ (actual_number_ == lie_number_);
         loser_ = suc ? questioner_ : PlayerID{1 - questioner_};
         // add(loser_, questioner_, actual_number_, is_lie)
-        main_stage().table().Lose(MyTable::Result{loser_, questioner_, actual_number_, actual_number_ != lie_number_});
-        auto boardcast = Boardcast();
+        Main().table().Lose(MyTable::Result{loser_, questioner_, actual_number_, actual_number_ != lie_number_});
+        auto boardcast = Global().Boardcast();
         boardcast << "实际数字为" << actual_number_ << "，"
                   << (doubt ? "怀疑" : "相信") << (suc ? "成功" : "失败") << "，"
                   << "玩家" << At(loser_) << "获得数字" << actual_number_ << "\n数字获得情况：\n"
                   << At(PlayerID(0)) << "：" << At(PlayerID(1));
-        return {};
+        return;
     }
 
    private:
@@ -326,28 +331,30 @@ class RoundStage : public SubGameStage<NumberStage, GuessStage>
     PlayerID loser_;
 };
 
-MainStage::MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match)
-        , table_(option)
+MainStage::MainStage(const StageUtility& utility)
+        : StageFsm(utility)
+        , table_(utility.Options(), utility.ResourceDir())
         , questioner_(0)
         , round_(1)
 {
 }
 
-MainStage::VariantSubStage MainStage::OnStageBegin()
+void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
-    table_.SetName(PlayerAvatar(0, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + PlayerName(0),
-            PlayerAvatar(1, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + PlayerName(1));
-    return std::make_unique<RoundStage>(*this, 1, std::rand() % 2);
+    table_.SetName(Global().PlayerAvatar(0, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + Global().PlayerName(0),
+            Global().PlayerAvatar(1, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + Global().PlayerName(1));
+    setter.Emplace<RoundStage>(*this, 1, std::rand() % 2);
+    return;
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(RoundStage& sub_stage, const CheckoutReason reason)
+void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
     questioner_ = sub_stage.loser();
     if (JudgeOver()) {
-        return {};
+        return;
     }
-    return std::make_unique<RoundStage>(*this, ++round_, questioner_);
+    setter.Emplace<RoundStage>(*this, ++round_, questioner_);
+    return;
 }
 
 int64_t MainStage::PlayerScore(const PlayerID pid) const
@@ -362,10 +369,11 @@ bool MainStage::JudgeOver()
     return is_over;
 }
 
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

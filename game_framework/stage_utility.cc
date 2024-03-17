@@ -1,0 +1,157 @@
+// Copyright (c) 2024-present, Chang Liu <github.com/slontia>. All rights reserved.
+//
+// This source code is licensed under LGPLv2 (found in the LICENSE file).
+
+#include "game_framework/stage_utility.h"
+
+#include "game_framework/util.h"
+
+#ifndef GAME_MODULE_NAME
+#error GAME_MODULE_NAME is not defined
+#endif
+
+namespace lgtbot {
+
+namespace game {
+
+namespace GAME_MODULE_NAME {
+
+namespace internal {
+
+PublicStageUtility::PublicStageUtility(const GameOption& option, MatchBase& match)
+    : option_(option)
+    , match_(match)
+    , masker_(match.MatchId(), match.GameName(), option.PlayerNum())
+    , achievement_counts_(option.PlayerNum())
+{
+    std::ranges::for_each(achievement_counts_, [](AchievementCounts& counts) { std::ranges::fill(counts, 0); });
+}
+
+MsgSenderBase& PublicStageUtility::BoardcastMsgSender() const
+{
+    return IsInDeduction() ? EmptyMsgSender::Get() : match_.BoardcastMsgSender();
+}
+
+MsgSenderBase& PublicStageUtility::TellMsgSender(const PlayerID pid) const
+{
+    return IsInDeduction() ? EmptyMsgSender::Get() : match_.TellMsgSender(pid);
+}
+
+MsgSenderBase& PublicStageUtility::GroupMsgSender() const
+{
+    return IsInDeduction() ? EmptyMsgSender::Get() : match_.GroupMsgSender();
+}
+
+MsgSenderBase& PublicStageUtility::BoardcastAiInfoMsgSender() const
+{
+    return IsInDeduction() ? EmptyMsgSender::Get() : match_.BoardcastAiInfoMsgSender();
+}
+
+void PublicStageUtility::BoardcastAiInfo(nlohmann::json j)
+{
+    BoardcastAiInfoMsgSender()() << nlohmann::json{
+            { "match_id", match_.MatchId() },
+            { "info_id", bot_message_id_++ },
+            { "info", std::move(j) },
+        }.dump();
+}
+
+int PublicStageUtility::SaveMarkdown(const std::string& markdown, const uint32_t width)
+{
+    const std::filesystem::path path = std::filesystem::path(option_.SavedImageDir()) /
+        ("match_saved_" + std::to_string(saved_image_no_ ++) + ".png");
+    return MarkdownToImage(markdown, path.string(), width);
+}
+
+void PublicStageUtility::Eliminate(const PlayerID pid)
+{
+    Leave(pid);
+    match_.Eliminate(pid);
+}
+
+void PublicStageUtility::HookUnreadyPlayers()
+{
+    for (PlayerID pid = 0; pid < PlayerNum(); ++pid) {
+        if (!IsReady(pid)) {
+            Hook(pid);
+        }
+    }
+}
+
+void PublicStageUtility::Hook(const PlayerID pid)
+{
+    if (!masker_.IsInactive(pid)) {
+        Tell(pid) << "您已经进入挂机状态，若其他玩家已经行动完成，裁判将不再继续等待您，执行任意游戏请求可恢复至原状态";
+    }
+    masker_.SetTemporaryInactive(pid);
+    match_.Hook(pid);
+}
+
+void PublicStageUtility::StartTimer(const uint64_t sec)
+{
+    timer_finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
+    // cannot pass substage pointer because substage may has been released when alert
+    match_.StartTimer(sec, this,
+            option_.global_options_.public_timer_alert_ ? TimerCallbackPublic_ : TimerCallbackPrivate_);
+}
+
+void PublicStageUtility::StopTimer()
+{
+    match_.StopTimer();
+    timer_finish_time_ = std::nullopt;
+}
+
+void PublicStageUtility::Leave(const PlayerID pid)
+{
+    assert(!IsInDeduction());
+    masker_.SetPermanentInactive(pid);
+    if (IsInDeduction()) {
+        Boardcast() << "所有玩家都失去了行动能力，于是游戏将直接推演至终局";
+    }
+}
+
+void PublicStageUtility::TimerCallbackPublic_(void* const p, const uint64_t alert_sec)
+{
+    auto& utility = *static_cast<PublicStageUtility*>(p);
+    auto sender = utility.Boardcast();
+    sender << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) <<
+        "秒\n\n以下玩家还未选择，要抓紧了，机会不等人\n";
+    for (PlayerID pid = 0; pid < utility.PlayerNum(); ++pid) {
+        if (!utility.masker_.IsReady(pid) && !utility.masker_.IsInactive(pid)) {
+            sender << At(pid);
+        }
+    }
+}
+
+void PublicStageUtility::TimerCallbackPrivate_(void* const p, const uint64_t alert_sec)
+{
+    auto& utility = *static_cast<PublicStageUtility*>(p);
+    utility.Boardcast() << "剩余时间" << (alert_sec / 60) << "分" << (alert_sec % 60) << "秒";
+    for (PlayerID pid = 0; pid < utility.PlayerNum(); ++pid) {
+        if (!utility.masker_.IsReady(pid) && !utility.masker_.IsInactive(pid)) {
+            utility.Tell(pid) << "您还未选择，要抓紧了，机会不等人";
+        }
+    }
+}
+
+} // namespace internal
+
+uint8_t StageUtility::AchievementCount(const PlayerID pid, const Achievement& achievement) const
+{
+    return achievement_counts_[pid][achievement.ToUInt()];
+}
+
+void StageUtility::Activate(const PlayerID pid)
+{
+    if (masker_.IsTemporaryInactive(pid)) {
+        Tell(pid) << "挂机状态已取消";
+    }
+    masker_.SetActive(pid);
+    assert(!masker_.IsInactive(pid));
+}
+
+} // namespace GAME_MODULE_NAME
+
+} // namespace game
+
+} // gamespace lgtbot

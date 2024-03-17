@@ -8,7 +8,8 @@
 #include <memory>
 #include <vector>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 #include "game_util/mahjong_17_steps.h"
 
@@ -21,8 +22,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "十七步";
 const uint64_t k_max_player = 4; /* 0 means no max-player limits */
@@ -77,31 +78,32 @@ class MainStage : public MainGameStage<TableStage>
     };
 
   public:
-    MainStage(const GameOption& option, MatchBase& match) : GameStage(option, match), table_idx_(0)
+    MainStage(const StageUtility& utility) : StageFsm(utility), table_idx_(0)
     {
         std::variant<std::random_device, std::seed_seq> rd;
         std::mt19937 g([&]
             {
-                if (GET_OPTION_VALUE(option, 种子).empty()) {
+                if (GAME_OPTION(种子).empty()) {
                     auto& real_rd = rd.emplace<std::random_device>();
                     return std::mt19937(real_rd());
                 } else {
-                    auto& real_rd = rd.emplace<std::seed_seq>(GET_OPTION_VALUE(option, 种子).begin(), GET_OPTION_VALUE(option, 种子).end());
+                    auto& real_rd = rd.emplace<std::seed_seq>(GAME_OPTION(种子).begin(), GAME_OPTION(种子).end());
                     return std::mt19937(real_rd);
                 }
             }());
-        const auto offset = std::uniform_int_distribution<uint32_t>(1, option.PlayerNum())(g);
-        for (uint64_t pid = 0; pid < option.PlayerNum(); ++pid) {
-            players_.emplace_back((pid + offset) % option.PlayerNum());
+        const auto offset = std::uniform_int_distribution<uint32_t>(1, Global().PlayerNum())(g);
+        for (uint64_t pid = 0; pid < Global().PlayerNum(); ++pid) {
+            players_.emplace_back((pid + offset) % Global().PlayerNum());
         }
     }
 
-    virtual VariantSubStage OnStageBegin() override
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override
     {
-        return std::make_unique<TableStage>(*this, "东一局");
+        setter.Emplace<TableStage>(*this, "东一局");
+        return;
     }
 
-    virtual VariantSubStage NextSubStage(TableStage& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(TableStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         const uint32_t max_round = 4;
         ++table_idx_;
@@ -109,10 +111,9 @@ class MainStage : public MainGameStage<TableStage>
             for (auto& player : players_) {
                 player.wind_idx_ = (player.wind_idx_ + 1) % max_round % 4;
             }
-            return std::make_unique<TableStage>(*this, table_idx_ == 1 ? "东二局" :
-                                                       table_idx_ == 2 ? "东三局" : "东四局");
+            setter.Emplace<TableStage>(*this, table_idx_ == 1 ? "东二局" : table_idx_ == 2 ? "东三局" : "东四局");
+            return;
         }
-        return {};
     }
 
     int64_t PlayerScore(const PlayerID pid) const
@@ -130,25 +131,25 @@ class PrepareStage : public SubGameStage<>
 {
    public:
     PrepareStage(MainStage& main_stage, Mahjong17Steps& game_table)
-            : GameStage(main_stage, "配牌阶段",
-                    MakeStageCommand("从牌山中添加手牌", &PrepareStage::Add_,
+            : StageFsm(main_stage, "配牌阶段",
+                    MakeStageCommand(*this, "从牌山中添加手牌", &PrepareStage::Add_,
                         VoidChecker("添加"), AnyArg("要添加的牌（无空格）", "123p445566m789s2z")),
-                    MakeStageCommand("将手牌放回牌山", &PrepareStage::Remove_,
+                    MakeStageCommand(*this, "将手牌放回牌山", &PrepareStage::Remove_,
                         VoidChecker("移除"), AnyArg("要移除的牌（无空格）", "1p44m")),
-                    MakeStageCommand("完成配牌，宣布立直", &PrepareStage::Finish_, VoidChecker("立直")),
-                    MakeStageCommand("查看当前手牌配置情况", &PrepareStage::Info_, VoidChecker("赛况"),
+                    MakeStageCommand(*this, "完成配牌，宣布立直", &PrepareStage::Finish_, VoidChecker("立直")),
+                    MakeStageCommand(*this, "查看当前手牌配置情况", &PrepareStage::Info_, VoidChecker("赛况"),
                         OptionalDefaultChecker<BoolChecker>(true, "图片", "文字")))
             , game_table_(game_table)
     {}
 
     virtual void OnStageBegin() override
     {
-        StartTimer(GET_OPTION_VALUE(option(), 配牌时限));
-        Boardcast() << "请私信裁判进行配牌，时限 " << GET_OPTION_VALUE(option(), 配牌时限) << " 秒";
-        SaveMarkdown(game_table_.SpecHtml());
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            Tell(pid) << Markdown(game_table_.PrepareHtml(pid));
-            Tell(pid) << "请配牌，您可通过「帮助」命令查看命令格式";
+        Global().StartTimer(GAME_OPTION(配牌时限));
+        Global().Boardcast() << "请私信裁判进行配牌，时限 " << GAME_OPTION(配牌时限) << " 秒";
+        Global().SaveMarkdown(game_table_.SpecHtml());
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            Global().Tell(pid) << Markdown(game_table_.PrepareHtml(pid));
+            Global().Tell(pid) << "请配牌，您可通过「帮助」命令查看命令格式";
         }
     }
 
@@ -176,7 +177,7 @@ class PrepareStage : public SubGameStage<>
             reply() << "[错误] 移除失败，请私信裁判进行移除";
             return StageErrCode::FAILED;
         }
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "[错误] 喂，立都立了还带换牌的啊！";
             return StageErrCode::FAILED;
         }
@@ -191,7 +192,7 @@ class PrepareStage : public SubGameStage<>
 
     AtomReqErrCode Finish_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "[错误] 您已经立直过一次了，即便再立直一次，番数也不会增加哦~";
             return StageErrCode::FAILED;
         }
@@ -224,33 +225,33 @@ class KiriStage : public SubGameStage<>
 {
    public:
     KiriStage(MainStage& main_stage, Mahjong17Steps& game_table)
-            : GameStage(main_stage, "切牌阶段",
-                    MakeStageCommand("查看各个玩家舍牌情况", &KiriStage::Info_, VoidChecker("赛况"),
+            : StageFsm(main_stage, "切牌阶段",
+                    MakeStageCommand(*this, "查看各个玩家舍牌情况", &KiriStage::Info_, VoidChecker("赛况"),
                         OptionalDefaultChecker<BoolChecker>(true, "图片", "文字")),
-                    MakeStageCommand("从牌山中切出该牌", &KiriStage::Kiri_, AnyArg("舍牌", "2s")))
+                    MakeStageCommand(*this, "从牌山中切出该牌", &KiriStage::Kiri_, AnyArg("舍牌", "2s")))
             , game_table_(game_table)
     {}
 
     virtual void OnStageBegin() override
     {
-        StartTimer(GET_OPTION_VALUE(option(), 切牌时限));
+        Global().StartTimer(GAME_OPTION(切牌时限));
         SendInfo_();
-        Boardcast() << "请从牌山中选择一张切出去，时限 " << GET_OPTION_VALUE(option(), 切牌时限) << " 秒";
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            Tell(pid) << "请从牌山中选择一张切出去，时限 " << GET_OPTION_VALUE(option(), 切牌时限) << " 秒";
+        Global().Boardcast() << "请从牌山中选择一张切出去，时限 " << GAME_OPTION(切牌时限) << " 秒";
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            Global().Tell(pid) << "请从牌山中选择一张切出去，时限 " << GAME_OPTION(切牌时限) << " 秒";
         }
     }
 
    private:
     CheckoutErrCode OnStageTimeout()
     {
-        HookUnreadyPlayers();
+        Global().HookUnreadyPlayers();
         return CheckoutErrCode::Condition(OnOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
     AtomReqErrCode Kiri_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str)
     {
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "[错误] 您已经切过牌了";
             return StageErrCode::FAILED;
         }
@@ -278,16 +279,16 @@ class KiriStage : public SubGameStage<>
 
     void SendInfo_()
     {
-        Group() << Markdown(game_table_.PublicHtml());
-        SaveMarkdown(game_table_.SpecHtml());
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            Tell(pid) << Markdown(game_table_.KiriHtml(pid));
+        Global().Group() << Markdown(game_table_.PublicHtml());
+        Global().SaveMarkdown(game_table_.SpecHtml());
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            Global().Tell(pid) << Markdown(game_table_.KiriHtml(pid));
         }
     }
 
     virtual CheckoutErrCode OnStageOver() override
     {
-        Boardcast() << "全员切牌完毕，公布当前赛况";
+        Global().Boardcast() << "全员切牌完毕，公布当前赛况";
         return CheckoutErrCode::Condition(OnOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
@@ -296,30 +297,30 @@ class KiriStage : public SubGameStage<>
   private:
     void Achieve_(const PlayerID pid)
     {
-        if (!GET_OPTION_VALUE(option(), 种子).empty()) {
+        if (!GAME_OPTION(种子).empty()) {
             return; // no achievements for game with a seed
         }
         for (const Yaku yaku : game_table_.GetYakumanYakus(pid)) {
             if (yaku == Yaku::国士无双) {
-                global_info().Achieve(pid, Achievement::国士无双);
+                Global().Achieve(pid, Achievement::国士无双);
             } else if (yaku == Yaku::九莲宝灯) {
-                global_info().Achieve(pid, Achievement::九莲宝灯);
+                Global().Achieve(pid, Achievement::九莲宝灯);
             } else if (yaku == Yaku::字一色) {
-                global_info().Achieve(pid, Achievement::字一色);
+                Global().Achieve(pid, Achievement::字一色);
             } else if (yaku == Yaku::小四喜) {
-                global_info().Achieve(pid, Achievement::小四喜);
+                Global().Achieve(pid, Achievement::小四喜);
             } else if (yaku == Yaku::大四喜) {
-                global_info().Achieve(pid, Achievement::大四喜);
+                Global().Achieve(pid, Achievement::大四喜);
             } else if (yaku == Yaku::大三元) {
-                global_info().Achieve(pid, Achievement::大三元);
+                Global().Achieve(pid, Achievement::大三元);
             } else if (yaku == Yaku::清老头) {
-                global_info().Achieve(pid, Achievement::清老头);
+                Global().Achieve(pid, Achievement::清老头);
             } else if (yaku == Yaku::四暗刻) {
-                global_info().Achieve(pid, Achievement::四暗刻);
+                Global().Achieve(pid, Achievement::四暗刻);
             } else if (yaku == Yaku::绿一色) {
-                global_info().Achieve(pid, Achievement::绿一色);
+                Global().Achieve(pid, Achievement::绿一色);
             } else if (yaku == Yaku::役满) {
-                global_info().Achieve(pid, Achievement::累计役满);
+                Global().Achieve(pid, Achievement::累计役满);
             }
         }
 
@@ -331,23 +332,23 @@ class KiriStage : public SubGameStage<>
         SendInfo_();
         switch (state) {
         case Mahjong17Steps::GameState::CONTINUE:
-            Boardcast() << "全员安全，请继续私信裁判切牌，时限 " << GET_OPTION_VALUE(option(), 切牌时限) << " 秒";
-            for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-                Tell(pid) << "请继续切牌，时限 " << GET_OPTION_VALUE(option(), 切牌时限) << " 秒";
+            Global().Boardcast() << "全员安全，请继续私信裁判切牌，时限 " << GAME_OPTION(切牌时限) << " 秒";
+            for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+                Global().Tell(pid) << "请继续切牌，时限 " << GAME_OPTION(切牌时限) << " 秒";
             }
-            ClearReady();
-            StartTimer(GET_OPTION_VALUE(option(), 切牌时限));
+            Global().ClearReady();
+            Global().StartTimer(GAME_OPTION(切牌时限));
             return false;
         case Mahjong17Steps::GameState::HAS_RON: {
             // FIXME: if timeout, the ready set any_ready is not be set, then the round will not be over
             std::vector<std::pair<PlayerID, int32_t>> player_scores;
-            for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-                main_stage().players_[pid].score_ += game_table_.PointChange(pid);
-                player_scores.emplace_back(pid, main_stage().players_[pid].score_);
+            for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+                Main().players_[pid].score_ += game_table_.PointChange(pid);
+                player_scores.emplace_back(pid, Main().players_[pid].score_);
                 Achieve_(pid);
             }
             std::ranges::sort(player_scores, [](const auto& _1, const auto& _2) { return _1.second > _2.second; });
-            auto sender = Boardcast();
+            auto sender = Global().Boardcast();
             sender << "有玩家和牌，本局结束，当前各个玩家分数：";
             for (uint32_t i = 0; i < player_scores.size(); ++i) {
                 sender << "\n" << (i + 1) << " 位：" << At(player_scores[i].first) << "【" << player_scores[i].second << " 分】";
@@ -355,7 +356,7 @@ class KiriStage : public SubGameStage<>
             return true;
         }
         case Mahjong17Steps::GameState::FLOW:
-            Boardcast() << "十七巡结束，流局";
+            Global().Boardcast() << "十七巡结束，流局";
             return true;
         }
         return true;
@@ -366,23 +367,23 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
 {
   public:
     TableStage(MainStage& main_stage, const std::string& stage_name)
-        : GameStage(main_stage, stage_name)
+        : StageFsm(main_stage, stage_name)
         , game_table_(Mahjong17Steps(Mahjong17StepsOption{
                     .tile_option_{
-                        .with_red_dora_ = GET_OPTION_VALUE(main_stage.option(), 赤宝牌),
-                        .with_toumei_ = GET_OPTION_VALUE(main_stage.option(), 透明牌),
-                        .seed_ = GET_OPTION_VALUE(main_stage.option(), 种子).empty() ? "" : GET_OPTION_VALUE(main_stage.option(), 种子) + stage_name,
+                        .with_red_dora_ = GAME_OPTION(赤宝牌),
+                        .with_toumei_ = GAME_OPTION(透明牌),
+                        .seed_ = GAME_OPTION(种子).empty() ? "" : GAME_OPTION(种子) + stage_name,
                     },
                     .name_ = stage_name,
-                    .with_inner_dora_ = GET_OPTION_VALUE(main_stage.option(), 里宝牌),
-                    .dora_num_ = GET_OPTION_VALUE(main_stage.option(), 宝牌),
-                    .ron_required_point_ = GET_OPTION_VALUE(main_stage.option(), 起和点),
-                    .image_path_ = main_stage.option().ResourceDir(),
+                    .with_inner_dora_ = GAME_OPTION(里宝牌),
+                    .dora_num_ = GAME_OPTION(宝牌),
+                    .ron_required_point_ = GAME_OPTION(起和点),
+                    .image_path_ = main_stage.Global().ResourceDir(),
                     .player_descs_ = [&]()
                             {
                                 std::vector<PlayerDesc> descs;
-                                for (PlayerID pid = 0; pid < main_stage.option().PlayerNum(); ++pid) {
-                                    descs.emplace_back(PlayerName(pid), PlayerAvatar(pid, 45), PlayerAvatar(pid, 30),
+                                for (PlayerID pid = 0; pid < main_stage.Global().PlayerNum(); ++pid) {
+                                    descs.emplace_back(Global().PlayerName(pid), Global().PlayerAvatar(pid, 45), Global().PlayerAvatar(pid, 30),
                                             k_winds[main_stage.players_[pid].wind_idx_],
                                             main_stage.players_[pid].score_);
                                 }
@@ -391,26 +392,29 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
                 }))
     {}
 
-    virtual VariantSubStage OnStageBegin() override
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override
     {
-        return std::make_unique<PrepareStage>(main_stage(), game_table_);
+        setter.Emplace<PrepareStage>(Main(), game_table_);
+        return;
     }
 
-    virtual VariantSubStage NextSubStage(PrepareStage& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(PrepareStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             game_table_.AddToHand(pid); // for those not finish preparing
         }
-        return std::make_unique<KiriStage>(main_stage(), game_table_);
+        setter.Emplace<KiriStage>(Main(), game_table_);
+        return;
     }
 
-    virtual VariantSubStage NextSubStage(KiriStage& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(KiriStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
-        return {};
     }
 
     Mahjong17Steps game_table_;
 };
+
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
 
 } // namespace GAME_MODULE_NAME
 
@@ -418,4 +422,3 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

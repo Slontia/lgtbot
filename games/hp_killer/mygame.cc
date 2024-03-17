@@ -10,7 +10,8 @@
 #include <random>
 #include <algorithm>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 #include "occupation.h"
 
@@ -21,8 +22,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "HP杀"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 9; // 0 indicates no max-player limits
@@ -147,18 +148,18 @@ std::string GameOption::StatusInfo() const
     return "共 " + std::to_string(GET_VALUE(回合数)) + " 回合，每回合超时时间 " + std::to_string(GET_VALUE(时限)) + " 秒";
 }
 
-static const std::vector<Occupation>& GetOccupationList(const GameOption& option)
+static std::vector<Occupation>& GetOccupationList(MyGameOption& option, const uint32_t player_num)
 {
-    return option.PlayerNum() == 5 ? GET_OPTION_VALUE(option, 五人身份) :
-           option.PlayerNum() == 6 ? GET_OPTION_VALUE(option, 六人身份) :
-           option.PlayerNum() == 7 ? GET_OPTION_VALUE(option, 七人身份) :
-           option.PlayerNum() == 8 ? GET_OPTION_VALUE(option, 八人身份) :
-           option.PlayerNum() == 9 ? GET_OPTION_VALUE(option, 九人身份) : (assert(false), GET_OPTION_VALUE(option, 五人身份));
+    return player_num == 5 ? GET_OPTION_VALUE(option, 五人身份) :
+           player_num == 6 ? GET_OPTION_VALUE(option, 六人身份) :
+           player_num == 7 ? GET_OPTION_VALUE(option, 七人身份) :
+           player_num == 8 ? GET_OPTION_VALUE(option, 八人身份) :
+           player_num == 9 ? GET_OPTION_VALUE(option, 九人身份) : (assert(false), GET_OPTION_VALUE(option, 五人身份));
 }
 
-static std::vector<Occupation>& GetOccupationList(GameOption& option)
+static const std::vector<Occupation>& GetOccupationList(const MyGameOption& option, const uint32_t player_num)
 {
-    return const_cast<std::vector<Occupation>&>(GetOccupationList(const_cast<const GameOption&>(option)));
+    return GetOccupationList(const_cast<MyGameOption&>(option), player_num);
 }
 
 bool GameOption::ToValid(MsgSenderBase& reply)
@@ -177,7 +178,7 @@ bool GameOption::ToValid(MsgSenderBase& reply)
         return false;
     }
 #endif
-    auto& occupation_list = GetOccupationList(*this);
+    auto& occupation_list = GetOccupationList(*this, PlayerNum());
     if (occupation_list.empty()) {
         return true;
     }
@@ -776,39 +777,39 @@ class MainStage : public MainGameStage<>
   public:
     using RoleMaker = std::unique_ptr<RoleBase>(*)(uint64_t, Token, const RoleOption&, const uint64_t, RoleManager&);
 
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match,
-                MakeStageCommand("查看某名角色技能", &MainStage::RoleRule_, EnumChecker<Occupation>()),
-                MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
-                MakeStageCommand("攻击某名角色", &MainStage::Hurt_, VoidChecker("攻击"),
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility,
+                MakeStageCommand(*this, "查看某名角色技能", &MainStage::RoleRule_, EnumChecker<Occupation>()),
+                MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
+                MakeStageCommand(*this, "攻击某名角色", &MainStage::Hurt_, VoidChecker("攻击"),
                     RepeatableChecker<BasicChecker<Token>>("角色代号", "A"), ArithChecker<int32_t>(0, 25, "血量")),
-                MakeStageCommand("[魔女] 诅咒某名角色", &MainStage::Curse_, VoidChecker("诅咒"),
+                MakeStageCommand(*this, "[魔女] 诅咒某名角色", &MainStage::Curse_, VoidChecker("诅咒"),
                     BasicChecker<Token>("角色代号", "A"), ArithChecker<int32_t>(5, 10, "血量")),
-                MakeStageCommand("治愈某名角色", &MainStage::Cure_, VoidChecker("治愈"),
+                MakeStageCommand(*this, "治愈某名角色", &MainStage::Cure_, VoidChecker("治愈"),
                     BasicChecker<Token>("角色代号", "A"),
                     BoolChecker(std::to_string(k_heavy_cure_hp), std::to_string(k_normal_cure_hp))),
-                MakeStageCommand("[侦探] 检查某名角色上一回合行动", &MainStage::Detect_, VoidChecker("侦查"),
+                MakeStageCommand(*this, "[侦探] 检查某名角色上一回合行动", &MainStage::Detect_, VoidChecker("侦查"),
                     BasicChecker<Token>("角色代号", "A")),
-                MakeStageCommand("[替身] 替某名角色承担本回合伤害", &MainStage::BlockHurt_, VoidChecker("挡刀"),
+                MakeStageCommand(*this, "[替身] 替某名角色承担本回合伤害", &MainStage::BlockHurt_, VoidChecker("挡刀"),
                     BasicChecker<Token>("角色代号（若为空，则为杀手代号）", "A")),
-                MakeStageCommand("[灵媒] 获取某名死者的职业", &MainStage::Exocrism_, VoidChecker("通灵"),
+                MakeStageCommand(*this, "[灵媒] 获取某名死者的职业", &MainStage::Exocrism_, VoidChecker("通灵"),
                     BasicChecker<Token>("角色代号", "A")),
-                MakeStageCommand("[守卫] 盾反某几名角色", &MainStage::ShieldAnti_, VoidChecker("盾反"),
+                MakeStageCommand(*this, "[守卫] 盾反某几名角色", &MainStage::ShieldAnti_, VoidChecker("盾反"),
                     RepeatableChecker<BatchChecker<BasicChecker<Token>, ArithChecker<int32_t>>>(
                             BasicChecker<Token>("角色代号", "A"),
                             ArithChecker<int32_t>(-1000, 1000, "预测下一回合血量"))),
-                MakeStageCommand("[特工] 为一名或多名角色分配隐藏伤害", &MainStage::AssignHiddenDamange_, VoidChecker("蓄力"),
+                MakeStageCommand(*this, "[特工] 为一名或多名角色分配隐藏伤害", &MainStage::AssignHiddenDamange_, VoidChecker("蓄力"),
                     RepeatableChecker<BatchChecker<BasicChecker<Token>, ArithChecker<int32_t>>>(
                         BasicChecker<Token>("角色代号", "A"), ArithChecker<int32_t>(5, 15, "血量"))),
-                MakeStageCommand("[特工] 释放隐藏伤害", &MainStage::FlushHiddenDamange_, VoidChecker("释放"),
+                MakeStageCommand(*this, "[特工] 释放隐藏伤害", &MainStage::FlushHiddenDamange_, VoidChecker("释放"),
                     RepeatableChecker<BasicChecker<Token>>("角色代号", "A")),
-                MakeStageCommand("跳过本回合行动", &MainStage::Pass_, VoidChecker("pass")))
+                MakeStageCommand(*this, "跳过本回合行动", &MainStage::Pass_, VoidChecker("pass")))
 #ifdef TEST_BOT
-        , role_manager_(GET_OPTION_VALUE(option, 身份列表).empty()
-                ? GetRoleVec_(option, DefaultRoleOption_(option), role_manager_)
-                : LoadRoleVec_(GET_OPTION_VALUE(option, 身份列表), DefaultRoleOption_(option), role_manager_))
+        , role_manager_(GAME_OPTION(身份列表).empty()
+                ? GetRoleVec_(Global().Options(), DefaultRoleOption_(Global().Options()), Global().PlayerNum(), role_manager_)
+                : LoadRoleVec_(GAME_OPTION(身份列表), DefaultRoleOption_(Global().Options()), role_manager_))
 #else
-        , role_manager_(GetRoleVec_(option, DefaultRoleOption_(option), role_manager_))
+        , role_manager_(GetRoleVec_(Global().Options(), DefaultRoleOption_(Global().Options()), Global().PlayerNum(), role_manager_))
 #endif
         , k_image_width_((k_avatar_width_ + k_cellspacing_ + k_cellpadding_) * role_manager_.Size() + 150)
         , role_info_(RoleInfo_())
@@ -820,34 +821,34 @@ class MainStage : public MainGameStage<>
     }
 
     virtual void OnStageBegin() override {
-        Boardcast() << "游戏开始，将私信各位玩家角色代号及职业\n\n第 1 回合开始，请私信裁判行动";
+        Global().Boardcast() << "游戏开始，将私信各位玩家角色代号及职业\n\n第 1 回合开始，请私信裁判行动";
         role_manager_.Foreach([&](const auto& role)
             {
                 if (role.PlayerId().has_value()) {
-                    Tell(*role.PlayerId()) << role.PrivateInfo(*this) << "\n\n" << k_role_rules[static_cast<uint32_t>(role.GetOccupation())];
+                    Global().Tell(*role.PlayerId()) << role.PrivateInfo(*this) << "\n\n" << k_role_rules[static_cast<uint32_t>(role.GetOccupation())];
                 }
             });
         table_html_ = Html_(false);
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Global().StartTimer(GAME_OPTION(时限));
         RolesOnRoundBegin_();
-        Boardcast() << Markdown("## 第 1 回合\n\n" + table_html_, k_image_width_);
+        Global().Boardcast() << Markdown("## 第 1 回合\n\n" + table_html_, k_image_width_);
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
     {
-        HookUnreadyPlayers();
+        Global().HookUnreadyPlayers();
         return CheckoutErrCode::Condition(OnRoundFinish_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             return StageErrCode::OK;
         }
         if (rand() % 2) {
-            Hurt_(pid, false, reply, {Token{static_cast<uint32_t>(rand() % option().PlayerNum())}}, 15); // randomly hurt one role
+            Hurt_(pid, false, reply, {Token{static_cast<uint32_t>(rand() % Global().PlayerNum())}}, 15); // randomly hurt one role
         } else {
-            Cure_(pid, false, reply, Token{static_cast<uint32_t>(rand() % option().PlayerNum())}, false); // randomly hurt one role
+            Cure_(pid, false, reply, Token{static_cast<uint32_t>(rand() % Global().PlayerNum())}, false); // randomly hurt one role
         }
         return StageErrCode::READY;
     }
@@ -864,12 +865,12 @@ class MainStage : public MainGameStage<>
         return InfoForRole(role_manager, occupation, [this](const RoleBase& role)
                 {
                     const auto& player_id = role.PlayerId();
-                    return player_id.has_value() ? PlayerName(*player_id) : "[NPC]";
+                    return player_id.has_value() ? Global().PlayerName(*player_id) : "[NPC]";
                 }, "中之人");
     }
 
   private:
-    static RoleOption DefaultRoleOption_(const GameOption& option)
+    static RoleOption DefaultRoleOption_(const MyGameOption& option)
     {
         return RoleOption {
             .hp_ = GET_OPTION_VALUE(option, 血量),
@@ -911,7 +912,7 @@ class MainStage : public MainGameStage<>
                         hurted_role.GetOccupation() == Occupation::骑士 && hurter_role.GetToken() != hurted_role.GetToken() && action) {
                     for (const auto token_hp : action->token_hps_) {
                         if (std::get<Token>(token_hp) == hurter_role.GetToken()) {
-                            Tell(*hurted_role.PlayerId()) << "您反制 " << hurter_role.GetToken().ToChar() << " 的攻击成功并免受伤害";
+                            Global().Tell(*hurted_role.PlayerId()) << "您反制 " << hurter_role.GetToken().ToChar() << " 的攻击成功并免受伤害";
                             return true;
                         }
                     }
@@ -942,7 +943,7 @@ class MainStage : public MainGameStage<>
                 } else if (const auto action = std::get_if<DetectAction>(&role.CurAction())) {
                     auto& detected_role = role_manager_.GetRole(action->token_);
                     assert(role.PlayerId().has_value());
-                    auto sender = Tell(*role.PlayerId());
+                    auto sender = Global().Tell(*role.PlayerId());
                     sender << "上一回合角色 " << action->token_.ToChar() << " 的行动是";
                     sender << RoleAction(detected_role);
                     if (!detected_role.IsAlive() && (std::get_if<AttackAction>(&detected_role.CurAction()) ||
@@ -953,7 +954,7 @@ class MainStage : public MainGameStage<>
                 } else if (const auto action = std::get_if<ExocrismAction>(&role.CurAction())) {
                     auto& exocrism_role = role_manager_.GetRole(action->token_);
                     assert(role.PlayerId().has_value());
-                    auto sender = Tell(*role.PlayerId());
+                    auto sender = Global().Tell(*role.PlayerId());
                     sender << "死亡角色 " << exocrism_role.GetToken().ToChar() << " 的职业是「" << exocrism_role.GetOccupation() << "」";
                     if (exocrism_role.GetOccupation() == Occupation::恶灵) {
                         DisableAct_(exocrism_role, true);
@@ -1001,7 +1002,7 @@ class MainStage : public MainGameStage<>
                 {
                     if (const int32_t* const hp_p = GetHpFromMultiTargetAction(role.GetToken(), shield_anti_action->token_hps_);
                             hp_p != nullptr && !is_blocked_hurt(role) && role.GetHp() == *hp_p) {
-                        Tell(*guard_role->PlayerId()) << "为角色 " << role.GetToken().ToChar() << " 盾反成功";
+                        Global().Tell(*guard_role->PlayerId()) << "为角色 " << role.GetToken().ToChar() << " 盾反成功";
                         be_attackeds[role.GetToken().id_] = false;
                         role_manager_.Foreach([&](auto& hurter_role)
                             {
@@ -1055,7 +1056,7 @@ class MainStage : public MainGameStage<>
                 role_manager_.Foreach(Occupation::特工, [&](auto& agent_role)
                         {
                             if (agent_role.IsAlive() && agent_role.GetToken() != role.GetToken()) {
-                                Tell(*agent_role.PlayerId()) << "死亡角色 " << role.GetToken().ToChar() << " 的阵营是「"
+                                Global().Tell(*agent_role.PlayerId()) << "死亡角色 " << role.GetToken().ToChar() << " 的阵营是「"
                                                              << role.GetTeam().ToString() << "阵营」";
                             }
                         });
@@ -1067,13 +1068,13 @@ class MainStage : public MainGameStage<>
                         ((other_role = role_manager_.GetRole(Occupation::内奸)) || (other_role = role_manager_.GetRole(Occupation::初版内奸)))) {
                     other_role->SetAllowHeavyHurt(true);
                     other_role->SetAllowHeavyCure(true);
-                    Tell(*other_role->PlayerId()) << "杀手已经死亡，您获得了造成 " << k_heavy_hurt_hp
+                    Global().Tell(*other_role->PlayerId()) << "杀手已经死亡，您获得了造成 " << k_heavy_hurt_hp
                             << " 点伤害和治愈 " << k_heavy_cure_hp << " 点 HP 的权利";
                 } else if (((role.GetOccupation() == Occupation::双子（正） && (other_role = role_manager_.GetRole(Occupation::双子（邪）))) ||
                             (role.GetOccupation() == Occupation::双子（邪） && (other_role = role_manager_.GetRole(Occupation::双子（正）))))
                         && other_role->GetHp() > 0) { // cannot use IsAlive() because the is_alive_ field may have not been updated
                     other_role->SetNextRoundTeam(role.GetTeam());
-                    Tell(*other_role->PlayerId()) << "另一位双子死亡，您下一回合的阵营变更为：" << role.GetTeam() << "阵营";
+                    Global().Tell(*other_role->PlayerId()) << "另一位双子死亡，您下一回合的阵营变更为：" << role.GetTeam() << "阵营";
                 }
             });
         if (has_dead) {
@@ -1148,7 +1149,7 @@ class MainStage : public MainGameStage<>
             break;
 
         default:
-            if ((++round_) > GET_OPTION_VALUE(option(), 回合数)) {
+            if ((++round_) > GAME_OPTION(回合数)) {
                 --round_;
                 sender << "游戏达到最大回合限制，游戏平局";
             } else {
@@ -1157,7 +1158,7 @@ class MainStage : public MainGameStage<>
                         if ((!last_round_civilian_lost_ && civilian_lost && role.GetTeam() == Team::平民) ||
                                 (!last_round_killer_lost_ && killer_lost && role.GetTeam() == Team::杀手)) {
                             if (role.PlayerId().has_value()) {
-                                Tell(*role.PlayerId()) << "很遗憾，您所在的阵营失败了";
+                                Global().Tell(*role.PlayerId()) << "很遗憾，您所在的阵营失败了";
                             }
                             if (role.CanAct()) {
                                 DisableAct_(role);
@@ -1190,7 +1191,7 @@ class MainStage : public MainGameStage<>
 
     bool Settlement_()
     {
-        auto sender = Boardcast();
+        auto sender = Global().Boardcast();
         sender << "第 " << round_ << " 回合结束，下面公布各角色血量：";
         SettlementAction_();
         RolesOnRoundEnd_(sender);
@@ -1209,8 +1210,8 @@ class MainStage : public MainGameStage<>
             role.DisableAct();
         }
         if (role.PlayerId()) {
-            Tell(*role.PlayerId()) << "您失去了行动能力";
-            Eliminate(*role.PlayerId());
+            Global().Tell(*role.PlayerId()) << "您失去了行动能力";
+            Global().Eliminate(*role.PlayerId());
         }
     }
 
@@ -1233,7 +1234,7 @@ class MainStage : public MainGameStage<>
         return v;
     }
 
-    static RoleManager::RoleVec GetRoleVec_(const GameOption& option, const RoleOption& role_option, RoleManager& role_manager)
+    static RoleManager::RoleVec GetRoleVec_(const MyGameOption& option, const RoleOption& role_option, const uint32_t player_num, RoleManager& role_manager)
     {
         const auto make_roles = [&]<typename T>(const std::initializer_list<T>& occupation_lists)
             {
@@ -1242,7 +1243,7 @@ class MainStage : public MainGameStage<>
                 std::mt19937 g(rd());
                 const auto& occupation_list = std::data(occupation_lists)[std::uniform_int_distribution<int>(0, occupation_lists.size() - 1)(rd)];
                 std::vector<PlayerID> pids;
-                for (uint32_t i = 0; i < option.PlayerNum(); ++i) {
+                for (uint32_t i = 0; i < player_num; ++i) {
                     pids.emplace_back(i);
                 }
                 std::vector<Token> tokens;
@@ -1263,10 +1264,10 @@ class MainStage : public MainGameStage<>
                 std::ranges::sort(v, [](const auto& _1, const auto& _2) { return _1->GetToken() < _2->GetToken(); });
                 return v;
             };
-        if (const auto& occupation_list = GetOccupationList(option); !occupation_list.empty()) {
+        if (const auto& occupation_list = GetOccupationList(option, player_num); !occupation_list.empty()) {
             return make_roles({occupation_list});
         }
-        switch (option.PlayerNum()) {
+        switch (player_num) {
         case 5: return make_roles(std::initializer_list<std::initializer_list<Occupation>>{
                     {Occupation::杀手, Occupation::恶灵, Occupation::守卫, Occupation::平民, Occupation::初版内奸},
                 });
@@ -1298,7 +1299,7 @@ class MainStage : public MainGameStage<>
 
     std::string Image_(const char* const name, const int32_t width) const
     {
-        return std::string("<img src=\"file:///") + option().ResourceDir() + "/" + name + ".png\" style=\"width:" +
+        return std::string("<img src=\"file:///") + Global().ResourceDir() + "/" + name + ".png\" style=\"width:" +
             std::to_string(width) + "px; vertical-align: middle;\">";
     }
 
@@ -1353,7 +1354,7 @@ class MainStage : public MainGameStage<>
         new_line("玩家", k_dark_blue, [&](html::Box& box, const RoleBase& role)
                 {
                     const auto image = (role.IsAlive() && !with_action) ? Image_("unknown_player", k_avatar_width_)       :
-                                       role.PlayerId().has_value()      ? PlayerAvatar(*role.PlayerId(), k_avatar_width_) :
+                                       role.PlayerId().has_value()      ? Global().PlayerAvatar(*role.PlayerId(), k_avatar_width_) :
                                        "<p style=\"width:" + std::to_string(k_avatar_width_) + "px;\"></p>";
                     box.SetContent(image);
                 });
@@ -1370,7 +1371,7 @@ class MainStage : public MainGameStage<>
         new_line("初始状态", k_light_grey, [&](html::Box& box, const RoleBase& role)
                 {
                     box.SetContent("<p align=\"left\"><font size=\"4\">" +
-                            Image_("blank", k_icon_size_) + std::to_string(GET_OPTION_VALUE(option(), 血量)) + "</font></p>");
+                            Image_("blank", k_icon_size_) + std::to_string(GAME_OPTION(血量)) + "</font></p>");
                     box.SetColor(k_light_grey);
                 });
         for (uint32_t r = 0; r < (with_action ? round_ : round_ - 1); ++r) {
@@ -1397,7 +1398,7 @@ class MainStage : public MainGameStage<>
                 if (!status) {
                     continue;
                 }
-                const auto last_hp = r == 0 ? GET_OPTION_VALUE(option(), 血量) : role.GetHistoryStatus(r - 1)->hp_;
+                const auto last_hp = r == 0 ? GAME_OPTION(血量) : role.GetHistoryStatus(r - 1)->hp_;
                 if (!with_action && last_hp <= 0) { // hind the hp from dead role to protect Ghost's identity
                     continue;
                 }
@@ -1414,9 +1415,9 @@ class MainStage : public MainGameStage<>
         for (uint32_t token_id = 0; token_id < role_manager_.Size(); ++token_id) {
             if (const auto& role = role_manager_.GetRole(Token{token_id}); role.GetOccupation() == Occupation::骑士) {
                 s += "\n- 骑士的中之人是：";
-                s += PlayerAvatar(*role.PlayerId(), 30);
+                s += Global().PlayerAvatar(*role.PlayerId(), 30);
                 s += HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE;
-                s += PlayerName(*role.PlayerId());
+                s += Global().PlayerName(*role.PlayerId());
             }
         }
 
@@ -1444,13 +1445,13 @@ class MainStage : public MainGameStage<>
     {
         if (!Settlement_()) {
             table_html_ = Html_(false);
-            Boardcast() << Markdown("## 第 " + std::to_string(round_) + " 回合\n\n" + table_html_, k_image_width_);
-            ClearReady();
-            StartTimer(GET_OPTION_VALUE(option(), 时限));
+            Global().Boardcast() << Markdown("## 第 " + std::to_string(round_) + " 回合\n\n" + table_html_, k_image_width_);
+            Global().ClearReady();
+            Global().StartTimer(GAME_OPTION(时限));
             RolesOnRoundBegin_();
             return false;
         }
-        Boardcast() << Markdown("## 终局\n\n" + Html_(true), k_image_width_);
+        Global().Boardcast() << Markdown("## 终局\n\n" + Html_(true), k_image_width_);
         return true;
     }
 
@@ -1460,7 +1461,7 @@ class MainStage : public MainGameStage<>
             reply() << "行动失败：请您私信裁判行动";
             return StageErrCode::FAILED;
         }
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "行动失败：您已完成行动，或您不需要行动";
             return StageErrCode::FAILED;
         }
@@ -1654,7 +1655,7 @@ class BodyDoubleRole : public RoleBase
 
     virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
-        if (main_stage.option().PlayerNum() > 5) {
+        if (main_stage.Global().PlayerNum() > 5) {
             return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForTeam(role_manager_, Team::平民);
         }
         return RoleBase::PrivateInfo(main_stage);
@@ -1678,7 +1679,7 @@ class GhostRole : public RoleBase
 
     virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
-        if (main_stage.option().PlayerNum() > 5) {
+        if (main_stage.Global().PlayerNum() > 5) {
             return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForTeam(role_manager_, Team::平民);
         }
         return RoleBase::PrivateInfo(main_stage);
@@ -1695,7 +1696,7 @@ class AssassinRole : public RoleBase
 
     virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
-        if (main_stage.option().PlayerNum() > 5) {
+        if (main_stage.Global().PlayerNum() > 5) {
             return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForTeam(role_manager_, Team::平民);
         }
         return RoleBase::PrivateInfo(main_stage);
@@ -1753,7 +1754,7 @@ class WitchRole : public RoleBase
 
     virtual std::string PrivateInfo(const MainStage& main_stage) const
     {
-        if (main_stage.option().PlayerNum() > 5) {
+        if (main_stage.Global().PlayerNum() > 5) {
             return RoleBase::PrivateInfo(main_stage) + "，" + TokenInfoForTeam(role_manager_, Team::平民);
         }
         return RoleBase::PrivateInfo(main_stage);
@@ -2086,10 +2087,11 @@ MainStage::RoleMaker MainStage::k_role_makers_[Occupation::Count()] = {
     [static_cast<uint32_t>(Occupation(Occupation::特工))] = &MainStage::MakeRole_<AgentRole>,
 };
 
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

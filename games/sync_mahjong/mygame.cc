@@ -2,7 +2,8 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 
 #include "game_util/sync_mahjong.h"
@@ -14,8 +15,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "同步麻将"; // the game name which should be unique among all the games
 const uint64_t k_max_player = 4; // 0 indicates no max-player limits
@@ -49,19 +50,19 @@ class TableStage;
 class MainStage : public MainGameStage<TableStage>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match)
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility)
         , sync_mahjong_option_{
             .tiles_option_ = game_util::mahjong::TilesOption{
-                .with_red_dora_ = GET_OPTION_VALUE(option, 赤宝牌),
-                .with_toumei_ = GET_OPTION_VALUE(option, 透明牌),
+                .with_red_dora_ = GAME_OPTION(赤宝牌),
+                .with_toumei_ = GAME_OPTION(透明牌),
             },
-            .image_path_ = option.ResourceDir(),
+            .image_path_ = Global().ResourceDir(),
             .player_descs_ = [&]()
                     {
                         std::vector<game_util::mahjong::PlayerDesc> descs;
-                        for (PlayerID pid = 0; pid < option.PlayerNum(); ++pid) {
-                            descs.emplace_back(PlayerName(pid), PlayerAvatar(pid, 45), PlayerAvatar(pid, 30),
+                        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+                            descs.emplace_back(Global().PlayerName(pid), Global().PlayerAvatar(pid, 45), Global().PlayerAvatar(pid, 30),
                                     static_cast<Wind>(pid.Get() + 1), 25000);
                         }
                         return descs;
@@ -69,14 +70,15 @@ class MainStage : public MainGameStage<TableStage>
         }
     {
 #ifdef TEST_BOT
-        if (!GET_OPTION_VALUE(option, 配牌).empty()) {
-            sync_mahjong_option_.tiles_option_ = GET_OPTION_VALUE(option, 配牌);
+        if (!GAME_OPTION(配牌).empty()) {
+            sync_mahjong_option_.tiles_option_ = GAME_OPTION(配牌);
         }
 #endif
     }
 
-    virtual VariantSubStage OnStageBegin() override;
-    virtual VariantSubStage NextSubStage(TableStage& sub_stage, const CheckoutReason reason) override;
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override;
+
+    virtual void NextStageFsm(TableStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return sync_mahjong_option_.player_descs_[pid].base_point_; }
 
@@ -96,7 +98,7 @@ class MainStage : public MainGameStage<TableStage>
 #else
         sync_mahjong_option_.tiles_option_.
 #endif
-        seed_ = GET_OPTION_VALUE(option(), 种子).empty() ? "" : GET_OPTION_VALUE(option(), 种子) + std::to_string(sync_mahjong_option_.benchang_);
+        seed_ = GAME_OPTION(种子).empty() ? "" : GAME_OPTION(种子) + std::to_string(sync_mahjong_option_.benchang_);
     }
 
     game_util::mahjong::SyncMahjongOption sync_mahjong_option_;
@@ -179,23 +181,23 @@ class TableStage : public SubGameStage<>
 {
   public:
     TableStage(MainStage& main_stage)
-        : GameStage(main_stage, std::string("第") + k_chinese_number[main_stage.GameNo() + 1] + "局",
-                MakeStageCommand("查看场上情况", &TableStage::Info_, VoidChecker("赛况")),
-                MakeStageCommand("摸牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::GetTile_, VoidChecker("摸牌")),
-                MakeStageCommand("吃牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Chi_, VoidChecker("吃"), AnyArg("手中的牌（两张）", "24m"), SingleTileChecker("要吃的牌（一张）", "3m")),
-                MakeStageCommand("碰牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Pon_, VoidChecker("碰"), AnyArg("要碰的牌（可以指明一张或两张，比如手里有055m，可以指明 05m 或 5m，只有前者会碰掉 0m）", "05m")),
-                MakeStageCommand("杠牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Kan_, VoidChecker("杠"), SingleTileChecker("要杠的牌（一张）", "4m")),
-                MakeStageCommand("九种九牌流局", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Nagashi_, VoidChecker("流局")),
-                MakeStageCommand("自摸和牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Tsumo_, VoidChecker("自摸")),
-                MakeStageCommand("荣和（副露荣和或者荣和）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Ron_, VoidChecker("荣")),
-                MakeStageCommand("切掉自己刚刚摸到的牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::KiriTsumo_, VoidChecker("摸切")),
-                MakeStageCommand("结束本回合行动", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Over_, VoidChecker("结束")),
-                MakeStageCommand("宣告立直，然后切掉自己刚刚摸到的牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::RichiiKiriTsumo_, VoidChecker("立直"), VoidChecker("摸切")),
-                MakeStageCommand("切掉一张牌（优先选择手牌，而不是自己刚刚摸到的牌）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Kiri_, SingleTileChecker("要切的牌", "3m")),
-                MakeStageCommand("宣告立直，然后切掉一张牌（优先选择手牌，而不是自己刚刚摸到的牌）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::RichiiKiri_, VoidChecker("立直"), SingleTileChecker("要切的牌", "3m")),
-                MakeStageCommand("当可以和牌的时候（包括自摸、荣和、鸣牌荣和）自动和牌", &TableStage::SetAutoOption_<game_util::mahjong::AutoOption::AUTO_FU>, VoidChecker("自动和了"), OptionalDefaultChecker<BoolChecker>(true, "开启", "关闭")),
-                MakeStageCommand("每一巡开始的时候不再询问是否鸣牌，而是自动摸牌", &TableStage::SetAutoOption_<game_util::mahjong::AutoOption::AUTO_GET_TILE>, VoidChecker("自动摸牌"), OptionalDefaultChecker<BoolChecker>(true, "开启", "关闭")),
-                MakeStageCommand("摸到牌后，如果摸到的这张牌无法形成自摸、补杠或暗杠，则自动切出去", &TableStage::SetAutoOption_<game_util::mahjong::AutoOption::AUTO_KIRI>, VoidChecker("自动摸切"), OptionalDefaultChecker<BoolChecker>(true, "开启", "关闭")))
+        : StageFsm(main_stage, std::string("第") + k_chinese_number[main_stage.GameNo() + 1] + "局",
+                MakeStageCommand(*this, "查看场上情况", &TableStage::Info_, VoidChecker("赛况")),
+                MakeStageCommand(*this, "摸牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::GetTile_, VoidChecker("摸牌")),
+                MakeStageCommand(*this, "吃牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Chi_, VoidChecker("吃"), AnyArg("手中的牌（两张）", "24m"), SingleTileChecker("要吃的牌（一张）", "3m")),
+                MakeStageCommand(*this, "碰牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Pon_, VoidChecker("碰"), AnyArg("要碰的牌（可以指明一张或两张，比如手里有055m，可以指明 05m 或 5m，只有前者会碰掉 0m）", "05m")),
+                MakeStageCommand(*this, "杠牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Kan_, VoidChecker("杠"), SingleTileChecker("要杠的牌（一张）", "4m")),
+                MakeStageCommand(*this, "九种九牌流局", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Nagashi_, VoidChecker("流局")),
+                MakeStageCommand(*this, "自摸和牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Tsumo_, VoidChecker("自摸")),
+                MakeStageCommand(*this, "荣和（副露荣和或者荣和）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Ron_, VoidChecker("荣")),
+                MakeStageCommand(*this, "切掉自己刚刚摸到的牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::KiriTsumo_, VoidChecker("摸切")),
+                MakeStageCommand(*this, "结束本回合行动", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Over_, VoidChecker("结束")),
+                MakeStageCommand(*this, "宣告立直，然后切掉自己刚刚摸到的牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::RichiiKiriTsumo_, VoidChecker("立直"), VoidChecker("摸切")),
+                MakeStageCommand(*this, "切掉一张牌（优先选择手牌，而不是自己刚刚摸到的牌）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Kiri_, SingleTileChecker("要切的牌", "3m")),
+                MakeStageCommand(*this, "宣告立直，然后切掉一张牌（优先选择手牌，而不是自己刚刚摸到的牌）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::RichiiKiri_, VoidChecker("立直"), SingleTileChecker("要切的牌", "3m")),
+                MakeStageCommand(*this, "当可以和牌的时候（包括自摸、荣和、鸣牌荣和）自动和牌", &TableStage::SetAutoOption_<game_util::mahjong::AutoOption::AUTO_FU>, VoidChecker("自动和了"), OptionalDefaultChecker<BoolChecker>(true, "开启", "关闭")),
+                MakeStageCommand(*this, "每一巡开始的时候不再询问是否鸣牌，而是自动摸牌", &TableStage::SetAutoOption_<game_util::mahjong::AutoOption::AUTO_GET_TILE>, VoidChecker("自动摸牌"), OptionalDefaultChecker<BoolChecker>(true, "开启", "关闭")),
+                MakeStageCommand(*this, "摸到牌后，如果摸到的这张牌无法形成自摸、补杠或暗杠，则自动切出去", &TableStage::SetAutoOption_<game_util::mahjong::AutoOption::AUTO_KIRI>, VoidChecker("自动摸切"), OptionalDefaultChecker<BoolChecker>(true, "开启", "关闭")))
           , table_(main_stage.GetSyncMahjongOption())
     {
     }
@@ -213,29 +215,29 @@ class TableStage : public SubGameStage<>
             if (player.State() == game_util::mahjong::ActionState::ROUND_OVER) {
                 continue;
             }
-            ClearReady(player.PlayerID());
-            auto sender = Tell(player.PlayerID());
+            Global().ClearReady(player.PlayerID());
+            auto sender = Global().Tell(player.PlayerID());
             sender << Markdown(PlayerHtml_(player), k_image_width);
             if (player.State() == game_util::mahjong::ActionState::AFTER_GET_TILE) {
                 sender << "\n自动为您摸了一张牌\n";
             }
             sender << "\n" << AvailableActions_(player.State());
         }
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Global().StartTimer(GAME_OPTION(时限));
     }
 
     void TellAllPlayersHtml_() {
         for (const auto& player : table_.Players()) {
-            Tell(player.PlayerID()) << Markdown(PlayerHtml_(player), k_image_width);
+            Global().Tell(player.PlayerID()) << Markdown(PlayerHtml_(player), k_image_width);
         }
     }
 
     std::string TitleHtml_() const
     {
         std::string s = "<style>html,body{background:#c3e4f5;}</style>\n\n";
-        s += game_util::mahjong::TitleHtml(name(), table_.Round());
+        s += game_util::mahjong::TitleHtml(Name(), table_.Round());
         s += "\n\n<center>\n\n**<img src=\"file:///";
-        s += option().ResourceDir();
+        s += Global().ResourceDir();
         s += "/riichi.png\"/> ";
         if (table_.RichiiPoints() > 0) {
             s += HTML_COLOR_FONT_HEADER(blue);
@@ -247,10 +249,10 @@ class TableStage : public SubGameStage<>
         }
         s += HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE;
         s += "<img src=\"file:///";
-        s += option().ResourceDir();
+        s += Global().ResourceDir();
         s += "/benchang.png\"/> ";
         s += HTML_ESCAPE_SPACE;
-        s += std::to_string(main_stage().GetSyncMahjongOption().benchang_);
+        s += std::to_string(Main().GetSyncMahjongOption().benchang_);
         s += "**\n\n</center>\n\n";
         return s;
     }
@@ -261,7 +263,7 @@ class TableStage : public SubGameStage<>
         s += player.PublicDoraHtml();
         s += "\n\n";
         s += player.PrivateHtml();
-        for (PlayerID other_pid = 0; other_pid < option().PlayerNum(); ++other_pid) {
+        for (PlayerID other_pid = 0; other_pid < Global().PlayerNum(); ++other_pid) {
             s += "\n\n";
             if (player.PlayerID() == other_pid) {
                 continue;
@@ -276,7 +278,7 @@ class TableStage : public SubGameStage<>
         std::string s = TitleHtml_();
         s += public_dora_html_;
         s += "\n\n";
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             s += "\n\n";
             s += table_.Players()[pid].PublicHtml();
         }
@@ -291,7 +293,7 @@ class TableStage : public SubGameStage<>
 
     virtual CheckoutErrCode OnStageTimeout() override
     {
-        HookUnreadyPlayers();
+        Global().HookUnreadyPlayers();
         return CheckoutErrCode::Condition(OnOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
@@ -317,7 +319,7 @@ class TableStage : public SubGameStage<>
         const char* message = nullptr;
         switch (result) {
             case game_util::mahjong::SyncMajong::RoundOverResult::NORMAL_ROUND:
-                Group() << "本巡结果如图所示，请各玩家进行下一巡的行动\n" << Markdown(BoardcastHtml_(), k_image_width);
+                Global().Group() << "本巡结果如图所示，请各玩家进行下一巡的行动\n" << Markdown(BoardcastHtml_(), k_image_width);
             case game_util::mahjong::SyncMajong::RoundOverResult::RON_ROUND:
                 AllowPlayersToAct_();
                 return false;
@@ -342,12 +344,12 @@ class TableStage : public SubGameStage<>
                 is_valid_game_ = true;
                 break;
         }
-        if (GET_OPTION_VALUE(option(), 种子).empty()) {
+        if (GAME_OPTION(种子).empty()) {
             std::ranges::for_each(table_.Players(), [this, result](const auto& player) { Achieve_(player, result); });
         }
-        Group() << message << "\n" << Markdown(BoardcastHtml_(), k_image_width);
+        Global().Group() << message << "\n" << Markdown(BoardcastHtml_(), k_image_width);
         for (const auto& player : table_.Players()) {
-            Tell(player.PlayerID()) << message << "\n" << Markdown(PlayerHtml_(player), k_image_width);
+            Global().Tell(player.PlayerID()) << message << "\n" << Markdown(PlayerHtml_(player), k_image_width);
         }
         return true;
     }
@@ -356,15 +358,15 @@ class TableStage : public SubGameStage<>
     {
         const auto yakus = player.Yakus();
         if (result == game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_四风连打) {
-            global_info().Achieve(player.PlayerID(), Achievement::四风连打);
+            Global().Achieve(player.PlayerID(), Achievement::四风连打);
         } else if (!yakus.none() && result == game_util::mahjong::SyncMajong::RoundOverResult::CHUTO_NAGASHI_三家和了) {
-            global_info().Achieve(player.PlayerID(), Achievement::三家和了);
+            Global().Achieve(player.PlayerID(), Achievement::三家和了);
         }
         const auto update_achievement = [this, pid = player.PlayerID()](const int yaku_id) {
             constexpr auto yaku_to_achievement = YakuToAchievement();
             const std::optional<Achievement> achievement = yaku_to_achievement[yaku_id];
             if (achievement.has_value()) {
-                global_info().Achieve(pid, *achievement);
+                Global().Achieve(pid, *achievement);
             }
         };
         for (int i = 0; i < game_util::mahjong::k_max_yaku; ++i) {
@@ -385,7 +387,7 @@ class TableStage : public SubGameStage<>
             reply() << "行动成功，您本回合行动已结束";
             return StageErrCode::READY;
         } else {
-            StartTimer(GET_OPTION_VALUE(option(), 时限));
+            Global().StartTimer(GAME_OPTION(时限));
         }
         reply() << Markdown(PlayerHtml_(player), k_image_width);
         reply() << "行动成功，" << AvailableActions_(player.State());
@@ -520,13 +522,14 @@ class TableStage : public SubGameStage<>
     bool is_valid_game_{false};
 };
 
-MainStage::VariantSubStage MainStage::OnStageBegin()
+void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
     UpateSeed_();
-    return std::make_unique<TableStage>(*this);
+    setter.Emplace<TableStage>(*this);
+    return;
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(TableStage& sub_stage, const CheckoutReason reason)
+void MainStage::NextStageFsm(TableStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
     for (uint32_t pid = 0; pid < sync_mahjong_option_.player_descs_.size(); ++pid) {
         sync_mahjong_option_.player_descs_[pid].base_point_ += sub_stage.PlayerPointVariation(pid);
@@ -534,23 +537,20 @@ MainStage::VariantSubStage MainStage::NextSubStage(TableStage& sub_stage, const 
     if (sub_stage.IsValidGame()) {
         ++game_;
     }
-    if (game_ < GET_OPTION_VALUE(option(), 局数)) {
+    if (game_ < GAME_OPTION(局数)) {
         sync_mahjong_option_.benchang_ += 2;
         sync_mahjong_option_.richii_points_ = sub_stage.RemainingRichiiPoints();
         UpateSeed_();
-        return std::make_unique<TableStage>(*this);
+        setter.Emplace<TableStage>(*this);
+        return;
     }
-    return {};
 }
 
-} // namespace lgtbot
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
+} // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // namespace lgtbot
 
-#include "game_framework/make_main_stage.h"
-
-// TEST:
-// 只有摸完牌的玩家打出的牌才是河底牌
-// 次巡和牌玩家平分前巡立直供托

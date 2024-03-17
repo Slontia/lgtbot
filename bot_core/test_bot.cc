@@ -18,10 +18,7 @@ EXTEND_OPTION("时间限制", 时限, (ArithChecker<int>(0, 10)), 1)
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
 
-#define GAME_OPTION_FILENAME "test_bot.cc"
-#define GAME_ACHIEVEMENT_FILENAME "test_bot.cc"
-#define GAME_MODULE_NAME test_game
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
 
 #include "bot_core/msg_sender.h"
 #include "bot_core/bot_core.h"
@@ -178,38 +175,34 @@ bool GameOption::ToValid(MsgSenderBase& reply) { return true; }
 uint64_t GameOption::BestPlayerNum() const { return 2; }
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 class SubStage : public SubGameStage<>
 {
   public:
     SubStage(MainStage& main_stage)
-        : GameStage(main_stage, "子阶段"
-                , MakeStageCommand("结束", &SubStage::Over_, VoidChecker("结束子阶段"))
-                , MakeStageCommand("时间到时重新计时", &SubStage::ToResetTimer_, VoidChecker("重新计时"))
-                , MakeStageCommand("所有人准备好时重置准备情况", &SubStage::ToResetReadyAll_, VoidChecker("全员重新准备"), ArithChecker(0, 10))
-                , MakeStageCommand("重置准备情况时将除自己外设置为准备完成", &SubStage::ToResetOthersReady_, VoidChecker("别人重新准备"))
-                , MakeStageCommand("阻塞", &SubStage::Block_, VoidChecker("阻塞"))
-                , MakeStageCommand("阻塞并准备", &SubStage::BlockAndReady_, VoidChecker("阻塞并准备"))
-                , MakeStageCommand("阻塞并结束", &SubStage::BlockAndOver_, VoidChecker("阻塞并结束"))
-                , MakeStageCommand("准备", &SubStage::Ready_, VoidChecker("准备"))
-                , MakeStageCommand("断言并清除电脑行动次数", &SubStage::CheckComputerActCount_, VoidChecker("电脑行动次数"), ArithChecker<uint64_t>(0, UINT64_MAX))
-                , MakeStageCommand("电脑失败次数", &SubStage::ToComputerFailed_, VoidChecker("电脑失败"),
+        : StageFsm(main_stage, "子阶段"
+                , MakeStageCommand(*this, "结束", &SubStage::Over_, VoidChecker("结束子阶段"))
+                , MakeStageCommand(*this, "时间到时重新计时", &SubStage::ToResetTimer_, VoidChecker("重新计时"))
+                , MakeStageCommand(*this, "所有人准备好时重置准备情况", &SubStage::ToResetReadyAll_, VoidChecker("全员重新准备"), ArithChecker(0, 10))
+                , MakeStageCommand(*this, "重置准备情况时将除自己外设置为准备完成", &SubStage::ToResetOthersReady_, VoidChecker("别人重新准备"))
+                , MakeStageCommand(*this, "阻塞", &SubStage::Block_, VoidChecker("阻塞"))
+                , MakeStageCommand(*this, "阻塞并准备", &SubStage::BlockAndReady_, VoidChecker("阻塞并准备"))
+                , MakeStageCommand(*this, "阻塞并结束", &SubStage::BlockAndOver_, VoidChecker("阻塞并结束"))
+                , MakeStageCommand(*this, "准备", &SubStage::Ready_, VoidChecker("准备"))
+                , MakeStageCommand(*this, "断言并清除电脑行动次数", &SubStage::CheckComputerActCount_, VoidChecker("电脑行动次数"), ArithChecker<uint64_t>(0, UINT64_MAX))
+                , MakeStageCommand(*this, "电脑失败次数", &SubStage::ToComputerFailed_, VoidChecker("电脑失败"),
                     BasicChecker<PlayerID>(), ArithChecker<uint64_t>(0, UINT64_MAX))
-                , MakeStageCommand("淘汰", &SubStage::Eliminate_, VoidChecker("淘汰"))
-                , MakeStageCommand("挂机", &SubStage::Hook_, VoidChecker("挂机"))
+                , MakeStageCommand(*this, "淘汰", &SubStage::Eliminate_, VoidChecker("淘汰"))
+                , MakeStageCommand(*this, "挂机", &SubStage::Hook_, VoidChecker("挂机"))
           )
-        , computer_act_count_(0)
-        , to_reset_timer_(false)
-        , to_reset_ready_(0)
-        , is_over_(false)
     {}
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "子阶段开始";
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Global().Boardcast() << "子阶段开始";
+        Global().StartTimer(GAME_OPTION(时限));
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
@@ -217,11 +210,11 @@ class SubStage : public SubGameStage<>
         EXPECT_FALSE(is_over_);
         if (to_reset_timer_) {
             to_reset_timer_ = false;
-            StartTimer(GET_OPTION_VALUE(option(), 时限));
-            Boardcast() << "时间到，但是回合继续";
+            Global().StartTimer(GAME_OPTION(时限));
+            Global().Boardcast() << "时间到，但是回合继续";
             return StageErrCode::OK;
         }
-        Boardcast() << "时间到，回合结束";
+        Global().Boardcast() << "时间到，回合结束";
         return StageErrCode::CHECKOUT;
     }
 
@@ -238,22 +231,22 @@ class SubStage : public SubGameStage<>
     virtual CheckoutErrCode OnStageOver()
     {
         if (!to_reset_others_ready_players_.empty()) {
-            for (PlayerID player_id = 0; player_id < option().PlayerNum(); ++player_id) {
+            for (PlayerID player_id = 0; player_id < Global().PlayerNum(); ++player_id) {
                 if (to_reset_others_ready_players_.find(player_id) == to_reset_others_ready_players_.end()) {
-                    ClearReady(player_id);
+                    Global().ClearReady(player_id);
                 }
             }
             to_reset_others_ready_players_.clear();
         } else if (to_reset_ready_ > 0) {
             --to_reset_ready_;
-            ClearReady();
+            Global().ClearReady();
         } else {
             return StageErrCode::CHECKOUT;
         }
         if (to_reset_timer_) {
             to_reset_timer_ = false;
-            StartTimer(GET_OPTION_VALUE(option(), 时限));
-            Boardcast() << "全员行动完毕，但是回合继续";
+            Global().StartTimer(GAME_OPTION(时限));
+            Global().Boardcast() << "全员行动完毕，但是回合继续";
         }
         return StageErrCode::CONTINUE;
     }
@@ -324,19 +317,19 @@ class SubStage : public SubGameStage<>
 
     AtomReqErrCode Eliminate_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        Eliminate(pid);
+        Global().Eliminate(pid);
         return StageErrCode::OK;
     }
 
     AtomReqErrCode Hook_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        Hook(pid);
+        Global().Hook(pid);
         return StageErrCode::OK;
     }
 
-    uint64_t computer_act_count_;
-    bool to_reset_timer_;
-    uint32_t to_reset_ready_;
+    uint64_t computer_act_count_{0};
+    bool to_reset_timer_{false};
+    uint32_t to_reset_ready_{0};
     std::set<PlayerID> to_reset_others_ready_players_;
     std::map<PlayerID, uint32_t> to_computer_failed_;
     bool is_over_;
@@ -345,32 +338,31 @@ class SubStage : public SubGameStage<>
 class MainStage : public MainGameStage<SubStage>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match,
-                MakeStageCommand("准备切换", &MainStage::ToCheckout_, VoidChecker("准备切换"), ArithChecker(0, 10)),
-                MakeStageCommand("设置玩家分数", &MainStage::Score_, VoidChecker("分数"), ArithChecker<int64_t>(-10, 10)),
-                MakeStageCommand("获得成就", &MainStage::Achievement_, VoidChecker("成就"), ArithChecker<uint8_t>(1, 10)))
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility,
+                MakeStageCommand(*this, "准备切换", &MainStage::ToCheckout_, VoidChecker("准备切换"), ArithChecker(0, 10)),
+                MakeStageCommand(*this, "设置玩家分数", &MainStage::Score_, VoidChecker("分数"), ArithChecker<int64_t>(-10, 10)),
+                MakeStageCommand(*this, "获得成就", &MainStage::Achievement_, VoidChecker("成就"), ArithChecker<uint8_t>(1, 10)))
         , to_checkout_(0)
-        , scores_(option.PlayerNum(), 0)
+        , scores_(utility.PlayerNum(), 0)
     {}
 
-    virtual VariantSubStage OnStageBegin() override
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override
     {
-        return std::make_unique<SubStage>(*this);
+        setter.Emplace<SubStage>(*this);
     }
 
-    virtual VariantSubStage NextSubStage(SubStage& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(SubStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         if (to_checkout_) {
-            Boardcast() << "回合结束，切换子阶段";
+            Global().Boardcast() << "回合结束，切换子阶段";
             --to_checkout_;
-            return std::make_unique<SubStage>(*this);
+            setter.Emplace<SubStage>(*this);
         }
-        Boardcast() << "回合结束，游戏结束";
+        Global().Boardcast() << "回合结束，游戏结束";
         for (const PlayerID pid : achievement_pids_) {
-            global_info().Achieve(pid, Achievement::普通成就);
+            Global().Achieve(pid, Achievement::普通成就);
         }
-        return {};
     }
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return scores_[pid]; };
@@ -404,16 +396,16 @@ class MainStage : public MainGameStage<SubStage>
 class AtomMainStage : public MainGameStage<>
 {
   public:
-    AtomMainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match,
-                MakeStageCommand("阻塞并结束", &AtomMainStage::BlockAndOver_, VoidChecker("阻塞并结束")))
+    AtomMainStage(const StageUtility& utility)
+        : StageFsm(utility,
+                MakeStageCommand(*this, "阻塞并结束", &AtomMainStage::BlockAndOver_, VoidChecker("阻塞并结束")))
         , is_over_(false)
     {}
 
     virtual void OnStageBegin() override
     {
-        Boardcast() << "原子主阶段开始";
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Global().Boardcast() << "原子主阶段开始";
+        Global().StartTimer(GAME_OPTION(时限));
     }
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return 0; };
@@ -479,12 +471,15 @@ class TestBot : public testing::Test
     template <class MyMainStage = lgtbot::game::GAME_MODULE_NAME::MainStage>
     void AddGame(const char* const name, const uint64_t max_player, const GameHandle::game_options_allocator new_option)
     {
+        using namespace lgtbot::game::GAME_MODULE_NAME;
         const_cast<GameHandleMap&>(static_cast<BotCtx*>(bot_)->game_handles_).emplace(name, std::make_unique<GameHandle>(
                     name, name, max_player, "这是规则介绍", std::vector<GameHandle::Achievement>{}, 1, "这是开发者",
                     "这是游戏描述", new_option,
                     [](const lgtbot::game::GameOptionBase* const options) {},
-                    [](MsgSenderBase&, const lgtbot::game::GameOptionBase& option, MatchBase& match)
-                            -> lgtbot::game::MainStageBase* { return new MyMainStage(static_cast<const lgtbot::game::GAME_MODULE_NAME::GameOption&>(option), match); },
+                    [](MsgSenderBase&, const lgtbot::game::GameOptionBase& option, MatchBase& match) -> lgtbot::game::MainStageBase*
+                    {
+                        return new internal::MainStage(std::make_unique<MyMainStage>(StageUtility{static_cast<const GameOption&>(option), match}));
+                    },
                     [](const lgtbot::game::MainStageBase* const main_stage) { delete main_stage; },
                     [](const char* const msg) -> const char* { return nullptr; },
                     []() {}
@@ -494,12 +489,15 @@ class TestBot : public testing::Test
     template <class MyMainStage = lgtbot::game::GAME_MODULE_NAME::MainStage>
     void AddGame(const char* const name, const uint64_t max_player)
     {
+        using namespace lgtbot::game::GAME_MODULE_NAME;
         const_cast<GameHandleMap&>(static_cast<BotCtx*>(bot_)->game_handles_).emplace(name, std::make_unique<GameHandle>(
                     name, name, max_player, "这是规则介绍", std::vector<GameHandle::Achievement>{}, 1, "这是开发者",
                     "这是游戏描述", []() -> lgtbot::game::GameOptionBase* { return new lgtbot::game::GAME_MODULE_NAME::GameOption(); },
                     [](const lgtbot::game::GameOptionBase* const options) { delete options; },
-                    [](MsgSenderBase&, const lgtbot::game::GameOptionBase& option, MatchBase& match)
-                            -> lgtbot::game::MainStageBase* { return new MyMainStage(static_cast<const lgtbot::game::GAME_MODULE_NAME::GameOption&>(option), match); },
+                    [](MsgSenderBase&, const lgtbot::game::GameOptionBase& option, MatchBase& match) -> lgtbot::game::MainStageBase*
+                    {
+                        return new internal::MainStage(std::make_unique<MyMainStage>(StageUtility{static_cast<const GameOption&>(option), match}));
+                    },
                     [](const lgtbot::game::MainStageBase* const main_stage) { delete main_stage; },
                     [](const char* const msg) -> const char* { return nullptr; },
                     []() {}
@@ -1485,6 +1483,34 @@ TEST_F(TestBot, auto_set_ready_when_other_players_have_eliminated_should_checkou
   ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "别人重新准备");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "淘汰");
+
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏"); // match 1 is over
+}
+
+TEST_F(TestBot, all_players_elimindated)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备切换 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "淘汰");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "淘汰");
+
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏"); // match 1 is over
+}
+
+TEST_F(TestBot, all_players_elimindated_or_leaved)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备切换 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "淘汰");
+  ASSERT_PRI_MSG(EC_OK, "2", "#退出 强制");
 
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏"); // match 1 is over
 }

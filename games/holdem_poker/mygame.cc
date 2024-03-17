@@ -2,7 +2,8 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 
 #include "game_util/poker.h"
@@ -18,8 +19,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "德州波卡"; // the game name which should be unique among all the games
 constexpr uint64_t k_max_player = 15;
@@ -130,23 +131,23 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage<poker::CardType::POKER>, RoundStage<poker::CardType::BOKAA>>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match)
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility)
         , round_(1)
-        , player_chip_infos_(option.PlayerNum(), PlayerChipInfo(GET_OPTION_VALUE(option, 筹码)))
+        , player_chip_infos_(Global().PlayerNum(), PlayerChipInfo(GAME_OPTION(筹码)))
     {
     }
 
-    virtual VariantSubStage OnStageBegin() override;
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override;
 
-    virtual VariantSubStage NextSubStage(RoundStage<poker::CardType::POKER>& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(RoundStage<poker::CardType::POKER>& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
-        return NextSubStage_(sub_stage, reason);
+        return NextSubStage_(sub_stage, reason, setter);
     }
 
-    virtual VariantSubStage NextSubStage(RoundStage<poker::CardType::BOKAA>& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(RoundStage<poker::CardType::BOKAA>& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
-        return NextSubStage_(sub_stage, reason);
+        return NextSubStage_(sub_stage, reason, setter);
     }
 
     virtual int64_t PlayerScore(const PlayerID pid) const override
@@ -160,18 +161,19 @@ class MainStage : public MainGameStage<RoundStage<poker::CardType::POKER>, Round
 
   private:
     template <poker::CardType k_type>
-    VariantSubStage NextSubStage_(RoundStage<k_type>& sub_stage, const CheckoutReason reason)
+    void NextSubStage_(RoundStage<k_type>& sub_stage, const CheckoutReason reason, SubStageFsmSetter& setter)
     {
-        if (GET_OPTION_VALUE(option(), 幸存) >= std::ranges::count_if(player_chip_infos_,
+        if (GAME_OPTION(幸存) >= std::ranges::count_if(player_chip_infos_,
                 [](const PlayerChipInfo& chip_info) { return chip_info.remain_chips_ > 0; })) {
-            Boardcast() << "达到了幸存玩家人数设置阈值，游戏结束";
-            return {};
+            Global().Boardcast() << "达到了幸存玩家人数设置阈值，游戏结束";
+            return;
         }
-        if (round_ == GET_OPTION_VALUE(option(), 局数)) {
-            Boardcast() << "达到了最大回合限制，游戏结束";
-            return {};
+        if (round_ == GAME_OPTION(局数)) {
+            Global().Boardcast() << "达到了最大回合限制，游戏结束";
+            return;
         }
-        return std::make_unique<RoundStage<k_type>>(*this, ++round_);
+        setter.Emplace<RoundStage<k_type>>(*this, ++round_);
+        return;
     }
 
     int round_;
@@ -194,14 +196,14 @@ class RaiseStage : public SubGameStage<>
 {
   public:
     RaiseStage(MainStage& main_stage, const char* const state, const int32_t bet_chips, const int32_t raise_chips)
-        : GameStage(main_stage, std::string(state) + " 加注阶段",
-                MakeStageCommand("投入所有的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
+        : StageFsm(main_stage, std::string(state) + " 加注阶段",
+                MakeStageCommand(*this, "投入所有的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
                     &RaiseStage::AllIn_, VoidChecker("allin", "a")),
-                MakeStageCommand("跟注，并加注一定的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,  &RaiseStage::Raise_,
+                MakeStageCommand(*this, "跟注，并加注一定的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,  &RaiseStage::Raise_,
                     VoidChecker("raise", "r"), ArithChecker<int32_t>(1, INT32_MAX, "筹码数")),
-                MakeStageCommand("跟注（筹码不足时会 all in）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
+                MakeStageCommand(*this, "跟注（筹码不足时会 all in）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
                     &RaiseStage::Call_, VoidChecker("call", "c")),
-                MakeStageCommand("弃牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &RaiseStage::Fold_,
+                MakeStageCommand(*this, "弃牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &RaiseStage::Fold_,
                     VoidChecker("fold", "f")))
         , bet_chips_(bet_chips)
         , raise_chips_(raise_chips)
@@ -214,13 +216,13 @@ class RaiseStage : public SubGameStage<>
   private:
     void FoldForUnreadyPlayers_()
     {
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            if (!IsReady(pid)) {
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            if (!Global().IsReady(pid)) {
                 Fold_(pid, false, EmptyMsgSender::Get());
-                Tell(pid) << "您超时未行动，自动按照 fold 处理";
-                Hook(pid);
+                Global().Tell(pid) << "您超时未行动，自动按照 fold 处理";
             }
         }
+        Global().HookUnreadyPlayers();
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
@@ -237,28 +239,28 @@ class RaiseStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            auto& chip_info = Main().GetPlayerChipInfo(pid);
             if (AchieveMaxBet(chip_info, bet_chips_)) {
                 // if has no remain chips or raises highest chips, need not take action
                 NoAction(chip_info);
-                SetReady(pid);
+                Global().SetReady(pid);
             }
         }
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
-        Boardcast() << "请未达到最高下注额的玩家，私信裁判行动，您的行动可以是 <call> <raise 加注部分筹码数> <fold> <allin> 中的一种";
+        Global().StartTimer(GAME_OPTION(时限));
+        Global().Boardcast() << "请未达到最高下注额的玩家，私信裁判行动，您的行动可以是 <call> <raise 加注部分筹码数> <fold> <allin> 中的一种";
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             return StageErrCode::OK;
         }
-        if (rand() % option().PlayerNum() == 0 && StageErrCode::READY == Raise_(pid, false, reply, rand() % 50 + raise_chips_)) {
+        if (rand() % Global().PlayerNum() == 0 && StageErrCode::READY == Raise_(pid, false, reply, rand() % 50 + raise_chips_)) {
             // raise successfully
             return StageErrCode::READY;
         }
-        if (rand() % option().PlayerNum() <= 1) {
+        if (rand() % Global().PlayerNum() <= 1) {
             Fold_(pid, false, reply);
         } else {
             Call_(pid, false, reply);
@@ -268,7 +270,7 @@ class RaiseStage : public SubGameStage<>
 
     AtomReqErrCode AllIn_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+        auto& chip_info = Main().GetPlayerChipInfo(pid);
         if (const int32_t total_chips = chip_info.remain_chips_ + chip_info.bet_chips_; total_chips > bet_chips_) {
             max_raise_chips_ = std::max(max_raise_chips_, total_chips - bet_chips_);
         }
@@ -278,7 +280,7 @@ class RaiseStage : public SubGameStage<>
 
     AtomReqErrCode Raise_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int32_t chips)
     {
-        auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+        auto& chip_info = Main().GetPlayerChipInfo(pid);
         assert(bet_chips_ > chip_info.bet_chips_); // if equal, the status of the player should be READY and can not execute any commands
         const int32_t offset_chips = bet_chips_ + chips - chip_info.bet_chips_;
         if (offset_chips > chip_info.remain_chips_) {
@@ -298,7 +300,7 @@ class RaiseStage : public SubGameStage<>
 
     AtomReqErrCode Call_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+        auto& chip_info = Main().GetPlayerChipInfo(pid);
         const int32_t chips = std::min(chip_info.remain_chips_, bet_chips_ - chip_info.bet_chips_);
         chip_info.action_ = PlayerChipInfo::CALL;
         ConsumeAndReply(chips, chip_info, reply);
@@ -307,7 +309,7 @@ class RaiseStage : public SubGameStage<>
 
     AtomReqErrCode Fold_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+        auto& chip_info = Main().GetPlayerChipInfo(pid);
         chip_info.last_bet_chips_ = chip_info.bet_chips_;
         chip_info.action_ = PlayerChipInfo::FOLD;
         chip_info.is_fold_ = true;
@@ -324,12 +326,12 @@ class BetStage : public SubGameStage<>
 {
   public:
     BetStage(MainStage& main_stage, const char* const state, const uint32_t base_chips)
-        : GameStage(main_stage, std::string(state) + " 下注阶段",
-                MakeStageCommand("投入所有的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
+        : StageFsm(main_stage, std::string(state) + " 下注阶段",
+                MakeStageCommand(*this, "投入所有的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
                     &BetStage::AllIn_, VoidChecker("allin", "a")),
-                MakeStageCommand("下注一定的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &BetStage::Bet_,
+                MakeStageCommand(*this, "下注一定的筹码", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &BetStage::Bet_,
                     VoidChecker("bet", "b"), ArithChecker<int32_t>(1, INT32_MAX, "筹码数")),
-                MakeStageCommand("过牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &BetStage::Check_,
+                MakeStageCommand(*this, "过牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &BetStage::Check_,
                     VoidChecker("check", "c")))
         , max_raise_chips_(0)
         , base_chips_(base_chips)
@@ -341,13 +343,13 @@ class BetStage : public SubGameStage<>
   private:
     void CheckForUnreadyPlayers_()
     {
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            if (!IsReady(pid)) {
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            if (!Global().IsReady(pid)) {
                 Check_(pid, false, EmptyMsgSender::Get());
-                Tell(pid) << "您超时未行动，自动按照 check 处理";
-                Hook(pid);
+                Global().Tell(pid) << "您超时未行动，自动按照 check 处理";
             }
         }
+        Global().HookUnreadyPlayers();
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
@@ -364,21 +366,21 @@ class BetStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            auto& chip_info = Main().GetPlayerChipInfo(pid);
             if (chip_info.remain_chips_ == 0 || chip_info.is_fold_) {
                 // if has no remain chips or raises highest chips, need not take action
                 NoAction(chip_info);
-                SetReady(pid);
+                Global().SetReady(pid);
             }
         }
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
-        Boardcast() << "请私信裁判行动，您的行动可以是 <check> <bet 筹码数> <allin> 中的一种";
+        Global().StartTimer(GAME_OPTION(时限));
+        Global().Boardcast() << "请私信裁判行动，您的行动可以是 <check> <bet 筹码数> <allin> 中的一种";
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             return StageErrCode::OK;
         }
         if (rand() % 2 || StageErrCode::READY != Bet_(pid, false, reply, base_chips_)) {
@@ -389,7 +391,7 @@ class BetStage : public SubGameStage<>
 
     AtomReqErrCode AllIn_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+        auto& chip_info = Main().GetPlayerChipInfo(pid);
         max_raise_chips_ = std::max(max_raise_chips_, chip_info.remain_chips_);
         ConsumeAndReply(chip_info.remain_chips_, chip_info, reply);
         return StageErrCode::READY;
@@ -397,7 +399,7 @@ class BetStage : public SubGameStage<>
 
     AtomReqErrCode Bet_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int32_t chips)
     {
-        auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+        auto& chip_info = Main().GetPlayerChipInfo(pid);
         if (chips > chip_info.remain_chips_) {
             reply() << "下注失败：筹码不足（当前剩余 " << chip_info.remain_chips_ << " 枚）";
             return StageErrCode::FAILED;
@@ -415,7 +417,7 @@ class BetStage : public SubGameStage<>
 
     AtomReqErrCode Check_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        auto& chip_info = main_stage().GetPlayerChipInfo(pid);
+        auto& chip_info = Main().GetPlayerChipInfo(pid);
         chip_info.last_bet_chips_ = chip_info.bet_chips_;
         chip_info.action_ = PlayerChipInfo::CHECK;
         reply() << "您选择不下注";
@@ -432,20 +434,21 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
   public:
     // round is started from 1
     RoundStage(MainStage& main_stage, const uint64_t round)
-        : GameStage(main_stage, "第 " + std::to_string(round) + " / " + std::to_string(GET_OPTION_VALUE(main_stage.option(), 局数)) + " 局",
-                MakeStageCommand("查看当前游戏进展情况", &RoundStage::Status_, VoidChecker("赛况")))
+        : StageFsm(main_stage,
+                "第 " + std::to_string(round) + " / " + std::to_string(GET_OPTION_VALUE(main_stage.Global().Options(), 局数)) + " 局",
+                MakeStageCommand(*this, "查看当前游戏进展情况", &RoundStage::Status_, VoidChecker("赛况")))
         , base_chips_([&]()
                 {
-                    const auto index = (round - 1) / GET_OPTION_VALUE(option(), 底注变化局数);
-                    const auto& base_bet_list = GET_OPTION_VALUE(option(), 底注变化);
+                    const auto index = (round - 1) / GAME_OPTION(底注变化局数);
+                    const auto& base_bet_list = GAME_OPTION(底注变化);
                     return index >= base_bet_list.size() ? base_bet_list.back() : base_bet_list[index];
                 }())
         , bet_chips_(base_chips_)
         , raise_chips_(base_chips_)
         , open_public_cards_num_(0)
     {
-        Boardcast() << name() << "开始，将私信各位玩家手牌信息";
-        const auto& seed_in_option = GET_OPTION_VALUE(option(), 种子);
+        Global().Boardcast() << Name() << "开始，将私信各位玩家手牌信息";
+        const auto& seed_in_option = GAME_OPTION(种子);
         const auto shuffled_pokers = poker::ShuffledPokers<k_type>(
                  seed_in_option.empty() ? "" : (seed_in_option + std::to_string(round)));
         auto poker_it = shuffled_pokers.begin();
@@ -454,8 +457,8 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
             card = *(poker_it++);
         }
         // fill `player_hand_infos_`
-        player_hand_infos_.reserve(option().PlayerNum());
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
+        player_hand_infos_.reserve(Global().PlayerNum());
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             std::array<poker::Card<k_type>, 2> private_cards{*(poker_it++), *(poker_it++)};
             poker::Hand<k_type> hand;
             for (const auto& card : private_cards) {
@@ -469,37 +472,38 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
             std::cout << "Player " << pid << " best deck: " << hand.BestDeck()->ToString() << std::endl;
 #endif
             if (!main_stage.GetPlayerChipInfo(pid).is_fold_) {
-                Tell(pid) << "您的手牌是 " << player_hand_infos_[pid].ToString();
+                Global().Tell(pid) << "您的手牌是 " << player_hand_infos_[pid].ToString();
             }
         }
         std::copy(poker_it, shuffled_pokers.end(), std::back_inserter(unused_cards_));
     }
 
-    virtual VariantSubStage OnStageBegin() override
+    virtual void FirstStageFsm(SubStageFsmSetter setter) override
     {
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            auto& info = main_stage().GetPlayerChipInfo(pid);
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            auto& info = Main().GetPlayerChipInfo(pid);
             Consume(info, std::min(base_chips_, info.remain_chips_)); // bet base chips
             info.action_ = info.bet_chips_ == 0    ? PlayerChipInfo::NO_ACTION :
                            info.remain_chips_ == 0 ? PlayerChipInfo::ALLIN     : PlayerChipInfo::BLIND;
         }
         html_ = Html_(nullptr, false, false);
-        Boardcast() << Markdown(html_, k_markdown_width);
-        SaveMarkdown(Html_(nullptr, true, false), k_markdown_width);
+        Global().Boardcast() << Markdown(html_, k_markdown_width);
+        Global().SaveMarkdown(Html_(nullptr, true, false), k_markdown_width);
         if (TryOpenCard_()) {
-            return {};
+            return;
         }
-        return std::make_unique<BetStage>(this->main_stage(), StateName_(), base_chips_);
+        setter.Emplace<BetStage>(this->Main(), StateName_(), base_chips_);
+        return;
     }
 
-    virtual VariantSubStage NextSubStage(RaiseStage& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(RaiseStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
-        return NextSubStage_(sub_stage.MaxRaiseChips());
+        return NextSubStage_(sub_stage.MaxRaiseChips(), setter);
     }
 
-    virtual VariantSubStage NextSubStage(BetStage& sub_stage, const CheckoutReason reason) override
+    virtual void NextStageFsm(BetStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
-        return NextSubStage_(sub_stage.MaxRaiseChips());
+        return NextSubStage_(sub_stage.MaxRaiseChips(), setter);
     }
 
   private:
@@ -537,14 +541,14 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
 
     std::string PlayerHeader_(const PlayerID pid) const
     {
-        return "<font size=\"3\">" + this->PlayerAvatar(pid, 30) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE " **" + this->PlayerName(pid) + "** </font>\n\n";
+        return "<font size=\"3\">" + this->Global().PlayerAvatar(pid, 30) + HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE " **" + this->Global().PlayerName(pid) + "** </font>\n\n";
     }
 
     // If `win_info` is not null, show winner players' deck and all public cards.
     // If `win_possibility` is not null, show players' hand and win possibilities.
     std::pair<std::string, const char*> PlayerHtml_(const PlayerID pid, const PlayerWinInfo* const win_info, const bool show_hand, const bool with_bg_color) const
     {
-        const auto& chip_info = this->main_stage().GetPlayerChipInfo(pid);
+        const auto& chip_info = this->Main().GetPlayerChipInfo(pid);
         // mark the name of players obtain the highest chips red
         std::string s = PlayerHeader_(pid);
         s += HTML_FONT_TAIL "\n\n<center>\n\n";
@@ -621,8 +625,8 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
     void RefreshWinPossibility_()
     {
         std::vector<poker::Hand<k_type>> hands;
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            if (main_stage().GetPlayerChipInfo(pid).is_fold_) {
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            if (Main().GetPlayerChipInfo(pid).is_fold_) {
                 continue;
             }
             hands.emplace_back();
@@ -639,8 +643,8 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         }
         const auto possibilities = poker::WinPossibility(hands, std::span(possible_hid_cards), k_public_card_num - open_public_cards_num_, true /*ignore_suit*/);
         auto it = possibilities.begin();
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            player_hand_infos_[pid].win_possibility_ = main_stage().GetPlayerChipInfo(pid).is_fold_ ? 0 : *(it++);
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            player_hand_infos_[pid].win_possibility_ = Main().GetPlayerChipInfo(pid).is_fold_ ? 0 : *(it++);
         }
     }
 
@@ -648,7 +652,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
     {
         static const std::string k_unknown_poker = HTML_COLOR_FONT_HEADER(grey) "�?" HTML_FONT_TAIL;
 
-        std::string s = "## " + this->name() + "：" + StateName_() + " 阶段\n\n";
+        std::string s = "## " + this->Name() + "：" + StateName_() + " 阶段\n\n";
 
         // show header -- public cards
         s += "<center>";
@@ -663,7 +667,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         s += "**\n\n</font>";
 
         // show header -- cur total bet chips
-        const auto& chip_infos = main_stage().GetPlayerChipInfos();
+        const auto& chip_infos = Main().GetPlayerChipInfos();
         s += "<font size=\"5\">\n\n当前底池：" + std::to_string(std::accumulate(chip_infos.begin(), chip_infos.end(), 0ull,
                 [](int32_t total, const auto& info) { return total + info.bet_chips_; }));
         s += "\n\n</font>";
@@ -681,8 +685,8 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         html::Table player_table(0, k_table_column);
         player_table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\" width=\"650\" style=\"table-layout:fixed\"");
         uint32_t i = 0;
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            if (main_stage().GetPlayerChipInfo(pid).bet_chips_ == 0) {
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            if (Main().GetPlayerChipInfo(pid).bet_chips_ == 0) {
                 continue;
             }
             if (i % k_table_column == 0) {
@@ -698,9 +702,9 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         s += player_table.ToString();
 
         s += "\n\n已淘汰玩家：";
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            if ((main_stage().GetPlayerChipInfo(pid).bet_chips_ == 0)) {
-                s += this->PlayerAvatar(pid, 30);
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            if ((Main().GetPlayerChipInfo(pid).bet_chips_ == 0)) {
+                s += this->Global().PlayerAvatar(pid, 30);
                 s += HTML_ESCAPE_SPACE;
             }
         }
@@ -737,32 +741,32 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
 
     bool TryOpenCard_()
     {
-        const uint32_t fold_player_num = std::ranges::count_if(main_stage().GetPlayerChipInfos(),
+        const uint32_t fold_player_num = std::ranges::count_if(Main().GetPlayerChipInfos(),
                 [&](const PlayerChipInfo& chip_info) { return chip_info.is_fold_; });
-        const uint32_t allin_player_num = std::ranges::count_if(main_stage().GetPlayerChipInfos(),
+        const uint32_t allin_player_num = std::ranges::count_if(Main().GetPlayerChipInfos(),
                 [&](const PlayerChipInfo& chip_info) { return !chip_info.is_fold_ && chip_info.remain_chips_ == 0; });
         // player raise highest cannot fold, so it is impossible that all players fold
-        assert(fold_player_num != option().PlayerNum());
+        assert(fold_player_num != Global().PlayerNum());
 
-        if (allin_player_num + fold_player_num < option().PlayerNum() - 1 && open_public_cards_num_ < k_public_card_num) {
+        if (allin_player_num + fold_player_num < Global().PlayerNum() - 1 && open_public_cards_num_ < k_public_card_num) {
             return false;
         }
 
         // record remain chips for each player
         int32_t lost_chips = 0;
         std::array<PlayerWinInfo, k_max_player> player_win_infos;
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            player_win_infos[pid].remain_chips_before_open_ = main_stage().GetPlayerChipInfo(pid).remain_chips_;
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            player_win_infos[pid].remain_chips_before_open_ = Main().GetPlayerChipInfo(pid).remain_chips_;
         }
 
-        auto sender = Boardcast();
+        auto sender = Global().Boardcast();
         std::string bet_result_html;
-        if (fold_player_num == option().PlayerNum() - 1) { // do not open card
+        if (fold_player_num == Global().PlayerNum() - 1) { // do not open card
             sender << "仅剩一人未弃牌，本局结束\n";
-            for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-                auto& info = main_stage().GetPlayerChipInfo(pid);
+            for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+                auto& info = Main().GetPlayerChipInfo(pid);
                 if (!info.is_fold_) {
-                    const auto& player_chip_infos = main_stage().GetPlayerChipInfos();
+                    const auto& player_chip_infos = Main().GetPlayerChipInfos();
                     info.remain_chips_ += std::accumulate(player_chip_infos.begin(), player_chip_infos.end(), 0,
                             [](const int32_t total, const PlayerChipInfo& chip_info) { return total + chip_info.bet_chips_; });
                 }
@@ -770,13 +774,13 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         } else {
             sender << "筹码数达成共识，现在开牌：\n";
             // update remain chips for each other
-            const auto bet_rets = CallBetPool(std::views::iota(0ull, static_cast<uint64_t>(option().PlayerNum())) |
+            const auto bet_rets = CallBetPool(std::views::iota(0ull, static_cast<uint64_t>(Global().PlayerNum())) |
                         std::views::transform([&](const uint64_t pid)
                         {
                             return CallBetPoolInfo{
                                 .id_ = pid,
-                                .coins_ = main_stage().GetPlayerChipInfo(pid).bet_chips_,
-                                .obj_ = main_stage().GetPlayerChipInfo(pid).is_fold_ ? std::nullopt
+                                .coins_ = Main().GetPlayerChipInfo(pid).bet_chips_,
+                                .obj_ = Main().GetPlayerChipInfo(pid).is_fold_ ? std::nullopt
                                     : player_hand_infos_[pid].deck_,
                             };
                         }),
@@ -784,10 +788,10 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
                     );
             for (const auto& ret : bet_rets) {
                 for (const PlayerID pid : ret.winner_ids_) {
-                    auto& info = main_stage().GetPlayerChipInfo(pid);
+                    auto& info = Main().GetPlayerChipInfo(pid);
                     info.remain_chips_ += ret.total_coins_ / ret.winner_ids_.size();
                     lost_chips += ret.total_coins_ % ret.winner_ids_.size();
-                    if (ret.participant_ids_.size() > ret.winner_ids_.size() && fold_player_num < option().PlayerNum() - 1) {
+                    if (ret.participant_ids_.size() > ret.winner_ids_.size() && fold_player_num < Global().PlayerNum() - 1) {
                         // the player has won chips from other players, and not all other players are fold, so we need open card
                         player_win_infos[pid].is_winner_ = true;
                     }
@@ -796,11 +800,11 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
             bet_result_html = "\n\n" + BetResultHtml_(bet_rets);
         }
 
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            auto& info = main_stage().GetPlayerChipInfo(pid);
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            auto& info = Main().GetPlayerChipInfo(pid);
             if (info.remain_chips_ == 0 && info.bet_chips_ > 0) { // the remain chips become 0 in this round
                 sender << "\n- " << At(pid) << "筹码归零，被淘汰";
-                Eliminate(pid);
+                Global().Eliminate(pid);
             }
             const auto& deck = player_hand_infos_[pid].deck_;
             if (player_win_infos[pid].is_winner_) {
@@ -815,17 +819,17 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
 
         // save image
         sender << Markdown(Html_(&player_win_infos, false, false) + bet_result_html, k_markdown_width); // `Html_` must be called before `Reset`
-        SaveMarkdown(Html_(&player_win_infos, true, false) + bet_result_html, k_markdown_width);
+        Global().SaveMarkdown(Html_(&player_win_infos, true, false) + bet_result_html, k_markdown_width);
 
         // reset chip info for each player
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            Reset(main_stage().GetPlayerChipInfo(pid));
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            Reset(Main().GetPlayerChipInfo(pid));
         }
 
         return true;
     }
 
-    VariantSubStage NextSubStage_(const int32_t max_raise_chips)
+    void NextSubStage_(const int32_t max_raise_chips, SubStageFsmSetter& setter)
     {
         bet_chips_ += max_raise_chips;
         raise_chips_ = std::max(raise_chips_, max_raise_chips);
@@ -833,16 +837,17 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
             RefreshWinPossibility_();
         }
         html_ = Html_(nullptr, false, true);
-        Boardcast() << Markdown(html_, k_markdown_width);
-        SaveMarkdown(Html_(nullptr, true, true), k_markdown_width);
-        if (max_raise_chips > 0 && !std::ranges::all_of(main_stage().GetPlayerChipInfos(),
+        Global().Boardcast() << Markdown(html_, k_markdown_width);
+        Global().SaveMarkdown(Html_(nullptr, true, true), k_markdown_width);
+        if (max_raise_chips > 0 && !std::ranges::all_of(Main().GetPlayerChipInfos(),
                     [&](const PlayerChipInfo& chip_info) { return AchieveMaxBet(chip_info, bet_chips_); })) {
             // players have not reach a consensus, continue raising
-            return std::make_unique<RaiseStage>(this->main_stage(), StateName_(), bet_chips_, raise_chips_);
+            setter.Emplace<RaiseStage>(this->Main(), StateName_(), bet_chips_, raise_chips_);
+            return;
         }
 
         if (TryOpenCard_()) {
-            return {};
+            return;
         }
 
         if (open_public_cards_num_ == 0) {
@@ -850,21 +855,22 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         } else {
             ++open_public_cards_num_;
         }
-        auto sender = Boardcast();
+        auto sender = Global().Boardcast();
         sender << "新一轮下注开始，当前公开的公共牌：\n";
         for (uint32_t i = 0; i < open_public_cards_num_; ++i) {
             sender << public_cards_[i].ToString() << " ";
         }
 
-        for (PlayerID pid = 0; pid < option().PlayerNum(); ++pid) {
-            NoAction(main_stage().GetPlayerChipInfo(pid));
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            NoAction(Main().GetPlayerChipInfo(pid));
         }
         RefreshWinPossibility_();
         html_ = Html_(nullptr, false, false);
         sender << Markdown(html_, k_markdown_width);
-        SaveMarkdown(Html_(nullptr, true, false), k_markdown_width);
+        Global().SaveMarkdown(Html_(nullptr, true, false), k_markdown_width);
 
-        return std::make_unique<BetStage>(this->main_stage(), StateName_(), base_chips_);
+        setter.Emplace<BetStage>(this->Main(), StateName_(), base_chips_);
+        return;
     }
 
     static constexpr const char* k_state_names_[6] = {
@@ -885,22 +891,25 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
     std::vector<poker::Card<k_type>> unused_cards_;
 };
 
-MainStage::VariantSubStage MainStage::OnStageBegin()
+void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
-    if (GET_OPTION_VALUE(option(), 卡牌) == poker::CardType::BOKAA) {
-        return std::make_unique<RoundStage<poker::CardType::BOKAA>>(*this, round_);
-    } else if (GET_OPTION_VALUE(option(), 卡牌) == poker::CardType::POKER) {
-        return std::make_unique<RoundStage<poker::CardType::POKER>>(*this, round_);
+    if (GAME_OPTION(卡牌) == poker::CardType::BOKAA) {
+        setter.Emplace<RoundStage<poker::CardType::BOKAA>>(*this, round_);
+        return;
+    } else if (GAME_OPTION(卡牌) == poker::CardType::POKER) {
+        setter.Emplace<RoundStage<poker::CardType::POKER>>(*this, round_);
+        return;
     } else {
         assert(false);
-        return {};
+        return;
     }
 }
 
-} // namespace lgtbot
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
+} // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // namespace lgtbot
 
-#include "game_framework/make_main_stage.h"

@@ -6,7 +6,8 @@
 #include <map>
 #include <memory>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "nerduel_core.h"
 
 namespace lgtbot {
@@ -16,8 +17,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "Nerduel";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
@@ -46,8 +47,8 @@ uint64_t GameOption::BestPlayerNum() const { return 2; }
 // ========== UI ==============
 
 struct MyTable {
-  MyTable(const GameOption& option)
-      : option_(option),
+  MyTable(const MyGameOption& option, const std::string_view resource_dir)
+      : resource_dir_(resource_dir),
         len(GET_OPTION_VALUE(option, 等式长度)),
         table_(1, GET_OPTION_VALUE(option, 等式长度) * 2 + 9) {
     table_.SetTableStyle(" align=\"center\" cellpadding=\"1\" cellspacing=\"1\" ");
@@ -122,11 +123,11 @@ struct MyTable {
   std::string ToHtml() { return table_.ToString(); }
 
  private:
-  std::string Image_(std::string name) const {
-    return std::string("![](file:///") + option_.ResourceDir() + "/" + std::move(name) + ".png)";
+  std::string Image_(const std::string_view name) const {
+    return std::string("![](file:///") + resource_dir_.data() + "/" + name.data() + ".png)";
   }
 
-  const GameOption& option_;
+  std::string_view resource_dir_;
   html::Table table_;
   int len;
 };
@@ -138,12 +139,12 @@ class GuessingStage;
 
 class MainStage : public MainGameStage<SettingStage, GuessingStage> {
  public:
-  MainStage(const GameOption& option, MatchBase& match);
-  virtual VariantSubStage OnStageBegin() override;
-  virtual VariantSubStage NextSubStage(SettingStage& sub_stage,
-                                       const CheckoutReason reason) override;
-  virtual VariantSubStage NextSubStage(GuessingStage& sub_stage,
-                                       const CheckoutReason reason) override;
+  MainStage(const StageUtility& utility);
+  virtual void FirstStageFsm(SubStageFsmSetter setter) override;
+  virtual void NextStageFsm(SettingStage& sub_stage,
+                                       const CheckoutReason reason, SubStageFsmSetter setter) override;
+  virtual void NextStageFsm(GuessingStage& sub_stage,
+                                       const CheckoutReason reason, SubStageFsmSetter setter) override;
   int64_t PlayerScore(const PlayerID pid) const;
 
   bool JudgeOver();
@@ -160,27 +161,27 @@ class MainStage : public MainGameStage<SettingStage, GuessingStage> {
 class SettingStage : public SubGameStage<> {
  public:
   SettingStage(MainStage& main_stage)
-      : GameStage(main_stage, "设置等式阶段",
-                  MakeStageCommand("设置等式", &SettingStage::Set_, AnyArg("等式", "1+2+3=6"))) {}
+      : StageFsm(main_stage, "设置等式阶段",
+                  MakeStageCommand(*this, "设置等式", &SettingStage::Set_, AnyArg("等式", "1+2+3=6"))) {}
 
   virtual void OnStageBegin() override {
-    Boardcast() << "请双方设置等式。";
-    main_stage().table_.SetName(PlayerName(0), PlayerName(1));
-    StartTimer(GET_OPTION_VALUE(option(), 时限) + 30);
+    Global().Boardcast() << "请双方设置等式。";
+    Main().table_.SetName(Global().PlayerName(0), Global().PlayerName(1));
+    Global().StartTimer(GAME_OPTION(时限) + 30);
   }
 
   virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
-    main_stage().ended_ = true;
-    main_stage().score_[pid] = -1;
+    Main().ended_ = true;
+    Main().score_[pid] = -1;
     return StageErrCode::CONTINUE;
   }
 
   virtual CheckoutErrCode OnStageTimeout() override {
     for (int i = 0; i < 2; i++) {
-      if (IsReady(i) == false) {
-        Boardcast() << "玩家 " << PlayerName(i) << " 超时未设置初始等式，游戏结束。";
-        main_stage().ended_ = true;
-        main_stage().score_[i] = -1;
+      if (Global().IsReady(i) == false) {
+        Global().Boardcast() << "玩家 " << Global().PlayerName(i) << " 超时未设置初始等式，游戏结束。";
+        Main().ended_ = true;
+        Main().score_[i] = -1;
         return StageErrCode::CHECKOUT;
       }
     }
@@ -194,19 +195,19 @@ class SettingStage : public SubGameStage<> {
       reply() << "请私信设置等式。";
       return StageErrCode::FAILED;
     }
-    if (str.length() != GET_OPTION_VALUE(option(), 等式长度)) {
+    if (str.length() != GAME_OPTION(等式长度)) {
       reply() << "输入长度不正确。本局游戏设定的等式长度为：" +
-                     std::to_string(GET_OPTION_VALUE(option(), 等式长度));
+                     std::to_string(GAME_OPTION(等式长度));
       return StageErrCode::FAILED;
     }
     std::string err;
-    bool valid = check_equation(str, err, GET_OPTION_VALUE(option(), 游戏模式));
+    bool valid = check_equation(str, err, GAME_OPTION(游戏模式));
     if (!valid) {
       reply() << "设置失败：" << err;
       return StageErrCode::FAILED;
     }
-    main_stage().target_[!pid] = str;
-    SetReady(pid);
+    Main().target_[!pid] = str;
+    Global().SetReady(pid);
     reply() << "设置成功。";
     return StageErrCode::OK;
   }
@@ -215,117 +216,122 @@ class SettingStage : public SubGameStage<> {
 class GuessingStage : public SubGameStage<> {
  public:
   GuessingStage(MainStage& main_stage)
-      : GameStage(
+      : StageFsm(
             main_stage, "猜测等式阶段",
-            MakeStageCommand("查看当前游戏进展情况", &GuessingStage::Status_, VoidChecker("赛况")),
-            MakeStageCommand("猜测", &GuessingStage::Guess_, AnyArg("等式", "1+2+3=6"))) {}
+            MakeStageCommand(*this, "查看当前游戏进展情况", &GuessingStage::Status_, VoidChecker("赛况")),
+            MakeStageCommand(*this, "猜测", &GuessingStage::Guess_, AnyArg("等式", "1+2+3=6"))) {}
 
   virtual void OnStageBegin() override {
-    auto limit = GET_OPTION_VALUE(option(), 时限);
+    auto limit = GAME_OPTION(时限);
     if (limit % 60 == 0) {
-      Boardcast() << "请双方做出猜测，本回合时间限制" << limit / 60 << "分钟。"
-                  << Markdown(main_stage().table_.ToHtml());
+      Global().Boardcast() << "请双方做出猜测，本回合时间限制" << limit / 60 << "分钟。"
+                  << Markdown(Main().table_.ToHtml());
     } else {
-      Boardcast() << "请双方做出猜测，本回合时间限制" << limit << "秒。"
-                  << Markdown(main_stage().table_.ToHtml());
+      Global().Boardcast() << "请双方做出猜测，本回合时间限制" << limit << "秒。"
+                  << Markdown(Main().table_.ToHtml());
     }
-    StartTimer(limit);
+    Global().StartTimer(limit);
   }
 
   virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) {
-    main_stage().ended_ = true;
-    main_stage().score_[pid] = -1;
+    Main().ended_ = true;
+    Main().score_[pid] = -1;
     return StageErrCode::CONTINUE;
   }
 
  private:
   AtomReqErrCode Guess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
                         std::string str) {
-    if (str.length() != GET_OPTION_VALUE(option(), 等式长度)) {
+    if (str.length() != GAME_OPTION(等式长度)) {
       reply() << "输入长度不正确。本局游戏设定的等式长度为：" +
-                     std::to_string(GET_OPTION_VALUE(option(), 等式长度));
+                     std::to_string(GAME_OPTION(等式长度));
       return StageErrCode::FAILED;
     }
-    if (IsReady(pid)) {
+    if (Global().IsReady(pid)) {
       reply() << "你本回合已经做出了猜测。";
       return StageErrCode::FAILED;
     }
     std::string err;
-    bool valid = check_equation(str, err, GET_OPTION_VALUE(option(), 游戏模式));
+    bool valid = check_equation(str, err, GAME_OPTION(游戏模式));
     if (!valid) {
       reply() << "猜测失败：" << err;
       return StageErrCode::FAILED;
     }
-    SetReady(pid);
-    auto [a, b] = get_a_b(str, main_stage().target_[pid]);
-    main_stage().table_.SetEquation(str, pid, a, b);
+    Global().SetReady(pid);
+    auto [a, b] = get_a_b(str, Main().target_[pid]);
+    Main().table_.SetEquation(str, pid, a, b);
     char tmp[128];
     sprintf(tmp, "%s %dA%dB\n", str.c_str(), a, b);
-    main_stage().history_[pid] += tmp;
-    if (a == GET_OPTION_VALUE(option(), 等式长度)) {
-      main_stage().ended_ = true;
-      main_stage().score_[pid] = 1;
+    Main().history_[pid] += tmp;
+    if (a == GAME_OPTION(等式长度)) {
+      Main().ended_ = true;
+      Main().score_[pid] = 1;
     }
     reply() << "设置成功。" << err;
     return StageErrCode::OK;
   }
 
   AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply) {
-    std::string response = "等式长度：" + std::to_string(GET_OPTION_VALUE(option(), 等式长度)) +
-                           "，游戏模式：" + (GET_OPTION_VALUE(option(), 游戏模式) ? "标准" : "狂野");
+    std::string response = "等式长度：" + std::to_string(GAME_OPTION(等式长度)) +
+                           "，游戏模式：" + (GAME_OPTION(游戏模式) ? "标准" : "狂野");
     for (int i = 0; i < 2; i++) {
-      response += "\n玩家 " + std::to_string(i) + ": \n" + main_stage().history_[i] + "\n";
+      response += "\n玩家 " + std::to_string(i) + ": \n" + Main().history_[i] + "\n";
     }
     reply() << response;
     return StageErrCode::OK;
   }
 };
 
-MainStage::MainStage(const GameOption& option, MatchBase& match)
-    : GameStage(option, match),
+MainStage::MainStage(const StageUtility& utility)
+    : StageFsm(utility),
       ended_(false),
-      table_(option),
+      table_(Global().Options(), Global().ResourceDir()),
       turn_(1),
       score_(2, 0),
       target_(2),
       history_(2) {}
 
-MainStage::VariantSubStage MainStage::OnStageBegin() {
-  return std::make_unique<SettingStage>(*this);
+void MainStage::FirstStageFsm(SubStageFsmSetter setter) {
+  setter.Emplace<SettingStage>(*this);
+  return;
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(SettingStage& sub_stage,
-                                                   const CheckoutReason reason) {
+void MainStage::NextStageFsm(SettingStage& sub_stage,
+                                                   const CheckoutReason reason, SubStageFsmSetter setter) {
   if (JudgeOver()) {
-    return {};
+    return;
   }
-  return std::make_unique<GuessingStage>(*this);
+  setter.Emplace<GuessingStage>(*this);
+  return;
 }
 
-MainStage::VariantSubStage MainStage::NextSubStage(GuessingStage& sub_stage,
-                                                   const CheckoutReason reason) {
+void MainStage::NextStageFsm(GuessingStage& sub_stage,
+                                                   const CheckoutReason reason, SubStageFsmSetter setter) {
   if (++turn_ > 50) {
-    Boardcast() << "回合数超过上限，游戏结束。";
+    Global().Boardcast() << "回合数超过上限，游戏结束。";
     ended_ = true;
-    return {};
+    return;
   }
   if (JudgeOver()) {
-    return {};
+    return;
   }
   table_.AddLine();
-  return std::make_unique<GuessingStage>(*this);
+  setter.Emplace<GuessingStage>(*this);
+  return;
 }
 
 int64_t MainStage::PlayerScore(const PlayerID pid) const { return score_.at(pid); }
 
 bool MainStage::JudgeOver() {
   if (ended_) {
-    Boardcast() << Markdown(table_.ToHtml());
+    Global().Boardcast() << Markdown(table_.ToHtml());
     return true;
   }
   Info_();
   return false;
 }
+
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
 
 } // namespace GAME_MODULE_NAME
 
@@ -333,4 +339,3 @@ bool MainStage::JudgeOver() {
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

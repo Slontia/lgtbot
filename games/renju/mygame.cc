@@ -8,7 +8,8 @@
 #include <memory>
 #include <vector>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 #include "utility/coding.h"
 #include "game_util/renju.h"
@@ -22,8 +23,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "决胜五子";
 const uint64_t k_max_player = 2; /* 0 means no max-player limits */
@@ -59,12 +60,12 @@ uint64_t GameOption::BestPlayerNum() const { return 2; }
 class MainStage : public MainGameStage<>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match,
-                MakeStageCommand("查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
-                MakeStageCommand("跳过本次落子", &MainStage::Pass_, VoidChecker("pass")),
-                MakeStageCommand("落子", &MainStage::Set_, RepeatableChecker<AnyArg>("坐标")))
-        , board_(option.ResourceDir(), BoardOptions{.to_expand_board_ = true, .is_overline_win_ = true})
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility,
+                MakeStageCommand(*this, "查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
+                MakeStageCommand(*this, "跳过本次落子", &MainStage::Pass_, VoidChecker("pass")),
+                MakeStageCommand(*this, "落子", &MainStage::Set_, RepeatableChecker<AnyArg>("坐标")))
+        , board_(Global().ResourceDir(), BoardOptions{.to_expand_board_ = true, .is_overline_win_ = true})
         , round_(0)
         , crash_count_(0)
         , extended_(false)
@@ -77,12 +78,12 @@ class MainStage : public MainGameStage<>
 
     virtual void OnStageBegin()
     {
-        if (GET_OPTION_VALUE(option(), pass胜利)) {
-            Boardcast() << "[注意] 本局和棋时 pass 次数较多的玩家取得胜利\n\n但是因为首回合 pass 不计 pass 次数，所以第一手还请正常落子";
+        if (GAME_OPTION(pass胜利)) {
+            Global().Boardcast() << "[注意] 本局和棋时 pass 次数较多的玩家取得胜利\n\n但是因为首回合 pass 不计 pass 次数，所以第一手还请正常落子";
         }
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
-        Boardcast() << Markdown(HtmlHead_() + board_.ToHtml());
-        Boardcast() << "请私信裁判落子位置";
+        Global().StartTimer(GAME_OPTION(时限));
+        Global().Boardcast() << Markdown(HtmlHead_() + board_.ToHtml());
+        Global().Boardcast() << "请私信裁判落子位置";
     }
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
@@ -108,7 +109,7 @@ class MainStage : public MainGameStage<>
             reply() << "跳过失败：请私信裁判决定跳过";
             return StageErrCode::FAILED;
         }
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "跳过失败：您已经完成落子，无法跳过";
             return StageErrCode::FAILED;
         }
@@ -123,7 +124,7 @@ class MainStage : public MainGameStage<>
             reply() << "落子失败：请私信裁判选择落子位置";
             return StageErrCode::FAILED;
         }
-        if (IsReady(pid)) {
+        if (Global().IsReady(pid)) {
             reply() << "落子失败：您已经完成落子，无法变更落子位置";
             return StageErrCode::FAILED;
         }
@@ -131,7 +132,7 @@ class MainStage : public MainGameStage<>
             reply() << "落子失败：请至少选择一个落子点";
             return StageErrCode::FAILED;
         }
-        if (!GET_OPTION_VALUE(option(), 多选点) && pos_strs.size() != 1) {
+        if (!GAME_OPTION(多选点) && pos_strs.size() != 1) {
             reply() << "落子失败：您只能选择一个落子点";
             return StageErrCode::FAILED;
         }
@@ -174,8 +175,8 @@ class MainStage : public MainGameStage<>
     std::string HtmlHead_() const
     {
         std::string str = "## 第 " + std::to_string(round_ + 1);
-        if (GET_OPTION_VALUE(option(), 回合上限) > 0) {
-            str += " / " + std::to_string(GET_OPTION_VALUE(option(), 回合上限));
+        if (GAME_OPTION(回合上限) > 0) {
+            str += " / " + std::to_string(GAME_OPTION(回合上限));
         }
         str +=  " 回合\n\n";
         html::Table player_table(3, 4);
@@ -183,15 +184,15 @@ class MainStage : public MainGameStage<>
         player_table.Get(0, 0).SetContent(
                 "**扩展后碰撞次数：" + std::string(last_round_crashed_ && extended_ ? HTML_COLOR_FONT_HEADER(red) : "") +
                 std::to_string(crash_count_) + std::string(last_round_crashed_ && extended_ ? HTML_FONT_TAIL : "") +
-                " / " + std::to_string(GET_OPTION_VALUE(option(), 碰撞上限)) + "**");
+                " / " + std::to_string(GAME_OPTION(碰撞上限)) + "**");
         player_table.MergeRight(0, 0, 4);
         const auto print_player = [&](const PlayerID pid)
             {
                 player_table.Get(1, 0 + pid * 2).SetContent(
-                        std::string("![](file:///") + option().ResourceDir() + (pid == 0 ? "c_b.bmp)" : "c_w.bmp)"));
+                        std::string("![](file:///") + Global().ResourceDir() + (pid == 0 ? "c_b.bmp)" : "c_w.bmp)"));
                 player_table.MergeDown(1, 0 + pid * 2, 2);
-                player_table.Get(1, 1 + pid * 2).SetContent("**" + PlayerName(pid) + "**");
-                if (!GET_OPTION_VALUE(option(), pass胜利)) {
+                player_table.Get(1, 1 + pid * 2).SetContent("**" + Global().PlayerName(pid) + "**");
+                if (!GAME_OPTION(pass胜利)) {
                     // do nothing
                 } else if (last_round_passed_[pid] && !last_last_round_both_passed_) {
                     player_table.Get(2, 1 + pid * 2).SetContent(
@@ -209,9 +210,9 @@ class MainStage : public MainGameStage<>
 
     virtual CheckoutErrCode OnStageOver()
     {
-        if (!SetToBoard_(BoardcastMsgSender())) {
-            ClearReady();
-            StartTimer(GET_OPTION_VALUE(option(), 时限));
+        if (!SetToBoard_(Global().BoardcastMsgSender())) {
+            Global().ClearReady();
+            Global().StartTimer(GAME_OPTION(时限));
             return StageErrCode::CONTINUE;
         }
         return StageErrCode::CHECKOUT;
@@ -219,10 +220,10 @@ class MainStage : public MainGameStage<>
 
     CheckoutErrCode OnStageTimeout()
     {
-        HookUnreadyPlayers();
-        if (!SetToBoard_(BoardcastMsgSender())) {
-            ClearReady();
-            StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Global().HookUnreadyPlayers();
+        if (!SetToBoard_(Global().BoardcastMsgSender())) {
+            Global().ClearReady();
+            Global().StartTimer(GAME_OPTION(时限));
             return StageErrCode::CONTINUE;
         }
         return StageErrCode::CHECKOUT;
@@ -280,17 +281,17 @@ class MainStage : public MainGameStage<>
             sender << "双方均连成五子，满足了和棋条件";
         } else if (ret == Result::TIE_FULL_BOARD) {
             sender << "棋盘上没有可落子位置了，满足了和棋条件";
-        } else if (GET_OPTION_VALUE(option(), pass上限) > 0 &&
-                pass_count_[0] + pass_count_[1] >= GET_OPTION_VALUE(option(), pass上限)) {
+        } else if (GAME_OPTION(pass上限) > 0 &&
+                pass_count_[0] + pass_count_[1] >= GAME_OPTION(pass上限)) {
             sender << "双方 pass 总次数达到上限，满足了和棋条件";
         } else {
             if (last_round_crashed_) {
                 sender << "双方行动相同，发生碰撞";
-                if (GET_OPTION_VALUE(option(), 碰撞上限) > 0 && extended_) {
-                    sender << "，目前已发生 " << crash_count_ << " 次碰撞（当发生 " << GET_OPTION_VALUE(option(), 碰撞上限)
+                if (GAME_OPTION(碰撞上限) > 0 && extended_) {
+                    sender << "，目前已发生 " << crash_count_ << " 次碰撞（当发生 " << GAME_OPTION(碰撞上限)
                            << " 次碰撞时，将满足和棋条件）";
                 }
-                if (last_round_both_passed_ && GET_OPTION_VALUE(option(), pass胜利)) {
+                if (last_round_both_passed_ && GAME_OPTION(pass胜利)) {
                     sender << "\n\n下一回合允许继续 pass，但不推荐，理由是下回合的 pass 不会记在个人的 pass 数上";
                 }
             } else if (ret == Result::CONTINUE_OK) {
@@ -301,22 +302,22 @@ class MainStage : public MainGameStage<>
             } else {
                 abort();
             }
-            if (GET_OPTION_VALUE(option(), pass上限) > 0 &&
+            if (GAME_OPTION(pass上限) > 0 &&
                     (player_pos_[0].empty() || player_pos_[1].empty())) {
                 sender << "\n\n本回合有玩家选择了 pass（当双方 pass 次数总和达到 "
-                    << GET_OPTION_VALUE(option(), pass上限) << " 次时，将满足和棋条件）";
+                    << GAME_OPTION(pass上限) << " 次时，将满足和棋条件）";
             }
             sender << "\n\n";
-            if (++round_ == GET_OPTION_VALUE(option(), 回合上限)) {
+            if (++round_ == GAME_OPTION(回合上限)) {
                 sender << "达到回合上限，满足了和棋条件";
-            } else if (crash_count_ > 0 && crash_count_ == GET_OPTION_VALUE(option(), 碰撞上限)) {
+            } else if (crash_count_ > 0 && crash_count_ == GAME_OPTION(碰撞上限)) {
                 sender << "达到碰撞上限，满足了和棋条件";
             } else {
                 sender << "游戏继续，请双方继续落子";
                 is_over = false;
             }
         }
-        if (is_over && !winner_.has_value() && GET_OPTION_VALUE(option(), pass胜利)) {
+        if (is_over && !winner_.has_value() && GAME_OPTION(pass胜利)) {
             if (pass_count_[0] > pass_count_[1]) {
                 sender << "，但由于黑方 pass 次数多于白方，故黑方取得胜利";
                 winner_ = 0;
@@ -347,10 +348,11 @@ class MainStage : public MainGameStage<>
     std::optional<PlayerID> winner_;
 };
 
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // gamespace lgtbot
 
-#include "game_framework/make_main_stage.h"

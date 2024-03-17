@@ -2,8 +2,12 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
+#ifndef GAME_MODULE_NAME
+#error GAME_MODULE_NAME is not defined
+#endif
+
 #ifndef GAME_ACHIEVEMENT_FILENAME
-#define GAME_ACHIEVEMENT_FILENAME "achievements.h"
+#error GAME_ACHIEVEMENT_FILENAME is not defined
 #endif
 
 #ifdef ENUM_BEGIN
@@ -22,6 +26,8 @@ ENUM_END(Achievement)
 
 #ifndef GAME_ACHIEVEMENTS_H
 #define GAME_ACHIEVEMENTS_H
+
+#include "game_framework/game_main.h"
 
 #include <array>
 #include <optional>

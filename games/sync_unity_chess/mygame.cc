@@ -5,7 +5,8 @@
 #include <numeric>
 #include <random>
 
-#include "game_framework/game_stage.h"
+#include "game_framework/stage.h"
+#include "game_framework/util.h"
 #include "utility/html.h"
 #include "game_util/unity_chess.h"
 #include "utility/coding.h"
@@ -17,8 +18,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 class MainStage;
-template <typename... SubStages> using SubGameStage = GameStage<MainStage, SubStages...>;
-template <typename... SubStages> using MainGameStage = GameStage<void, SubStages...>;
+template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
+template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "喷色战士"; // the game name which should be unique among all the games
 const uint64_t k_max_player = game_util::unity_chess::k_max_player; // 0 indicates no max-player limits
@@ -47,16 +48,16 @@ class RoundStage;
 class MainStage : public MainGameStage<>
 {
   public:
-    MainStage(const GameOption& option, MatchBase& match)
-        : GameStage(option, match,
-                MakeStageCommand("查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
-                MakeStageCommand("放弃一手落子", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
+    MainStage(const StageUtility& utility)
+        : StageFsm(utility,
+                MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
+                MakeStageCommand(*this, "放弃一手落子", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
                     &MainStage::Pass_, VoidChecker("pass")),
-                MakeStageCommand("落子", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
+                MakeStageCommand(*this, "落子", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY,
                     &MainStage::Set_, AnyArg("坐标")))
-        , board_(GET_OPTION_VALUE(option, 尺寸),
-                BonusCoordinates_(GET_OPTION_VALUE(option, 奖励格百分比), GET_OPTION_VALUE(option, 尺寸)),
-                option.ResourceDir())
+        , board_(GAME_OPTION(尺寸),
+                BonusCoordinates_(GAME_OPTION(奖励格百分比), GAME_OPTION(尺寸)),
+                Global().ResourceDir())
         , player_scores_{0}
         , round_(0)
         , any_player_set_chess_(false)
@@ -66,9 +67,9 @@ class MainStage : public MainGameStage<>
     virtual void OnStageBegin() override
     {
         StoreHtml_(board_.Settlement());
-        Boardcast() << Markdown(html_);
-        Boardcast() << "游戏开始，请所有玩家私信裁判坐标（如「B3」）或「pass」以行动";
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Global().Boardcast() << Markdown(html_);
+        Global().Boardcast() << "游戏开始，请所有玩家私信裁判坐标（如「B3」）或「pass」以行动";
+        Global().StartTimer(GAME_OPTION(时限));
     }
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return player_scores_[pid]; }
@@ -126,46 +127,46 @@ class MainStage : public MainGameStage<>
         const auto result = board_.Settlement();
         player_scores_ = std::move(result.color_counts_);
         StoreHtml_(result);
-        Boardcast() << Markdown(html_);
+        Global().Boardcast() << Markdown(html_);
         if (result.available_area_count_ == 0) {
-            Boardcast() << "棋盘无空余可落子位置，游戏结束";
+            Global().Boardcast() << "棋盘无空余可落子位置，游戏结束";
             return true;
         }
-        if (++round_ == GET_OPTION_VALUE(option(), 回合数)) {
-            Boardcast() << "达到最大回合数限制，游戏结束";
+        if (++round_ == GAME_OPTION(回合数)) {
+            Global().Boardcast() << "达到最大回合数限制，游戏结束";
             return true;
         }
         if (!any_player_set_chess_) {
-            Boardcast() << "所有玩家选择了 pass，游戏结束";
+            Global().Boardcast() << "所有玩家选择了 pass，游戏结束";
             return true;
         }
         any_player_set_chess_ = false;
-        Boardcast() << "游戏继续，请所有玩家私信裁判坐标（如「B3」）或「pass」以行动";
-        ClearReady();
-        StartTimer(GET_OPTION_VALUE(option(), 时限));
+        Global().Boardcast() << "游戏继续，请所有玩家私信裁判坐标（如「B3」）或「pass」以行动";
+        Global().ClearReady();
+        Global().StartTimer(GAME_OPTION(时限));
         return false;
     }
 
     void StoreHtml_(const game_util::unity_chess::SettlementResult& result) {
-        html::Table table(2, option().PlayerNum() * 2);
+        html::Table table(2, Global().PlayerNum() * 2);
         table.SetTableStyle(" align=\"center\" cellpadding=\"3\" cellspacing=\"3\" ");
-        for (auto player_id = 0; player_id < option().PlayerNum(); ++player_id) {
+        for (auto player_id = 0; player_id < Global().PlayerNum(); ++player_id) {
             table.MergeDown(0, player_id * 2, 2);
             char color_field[] = "000";
             color_field[player_id] = '1';
-            table.Get(0, player_id * 2).SetContent(std::string("![](file:///") + option().ResourceDir() + "/0_" +
+            table.Get(0, player_id * 2).SetContent(std::string("![](file:///") + Global().ResourceDir() + "/0_" +
                     color_field + "_" + color_field + ".png)");
-            table.Get(0, player_id * 2 + 1).SetContent(PlayerName(player_id));
+            table.Get(0, player_id * 2 + 1).SetContent(Global().PlayerName(player_id));
             table.Get(1, player_id * 2 + 1).SetContent("占领格数：" HTML_COLOR_FONT_HEADER(red) +
                     std::to_string(result.color_counts_[player_id] / 2) + (result.color_counts_[player_id] % 2 ? ".5" : "") + HTML_FONT_TAIL);
         }
-        html_ = "## 第 " + std::to_string(round_ + 1) + " / " + std::to_string(GET_OPTION_VALUE(option(), 回合数)) +
+        html_ = "## 第 " + std::to_string(round_ + 1) + " / " + std::to_string(GAME_OPTION(回合数)) +
             " 回合\n\n" + table.ToString() + "\n<br>\n" + result.html_;
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
     {
-        Boardcast() << "回合超时，下面公布结果";
+        Global().Boardcast() << "回合超时，下面公布结果";
         return CheckoutErrCode::Condition(Settlement_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
@@ -178,7 +179,7 @@ class MainStage : public MainGameStage<>
 
     virtual CheckoutErrCode OnStageOver() override
     {
-        Boardcast() << "全员行动完毕，下面公布结果";
+        Global().Boardcast() << "全员行动完毕，下面公布结果";
         return CheckoutErrCode::Condition(Settlement_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
@@ -189,10 +190,11 @@ class MainStage : public MainGameStage<>
     bool any_player_set_chess_;
 };
 
-} // namespace lgtbot
+auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
+
+} // namespace GAME_MODULE_NAME
 
 } // namespace game
 
 } // namespace lgtbot
 
-#include "game_framework/make_main_stage.h"

@@ -11,6 +11,7 @@
 #include "game_framework/game_options.h" // for GameOption
 #include "game_framework/game_achievements.h" // for k_achievements
 #include "game_framework/util.h"
+#include "game_framework/stage.h"
 #include "utility/msg_checker.h"
 
 #ifndef GAME_MODULE_NAME
@@ -26,7 +27,8 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 extern const char* Rule();
-extern MainStageBase* MakeMainStage(MsgSenderBase& reply, GameOption& options, MatchBase& match);
+
+internal::MainStage* MakeMainStage(MainStageFactory factory);
 
 } // namespace GAME_MODULE_NAME
 
@@ -86,7 +88,11 @@ void DeleteGameOptions(lgtbot::game::GameOptionBase* const game_options)
 
 lgtbot::game::MainStageBase* NewMainStage(MsgSenderBase& reply, lgtbot::game::GameOptionBase& options, MatchBase& match)
 {
-    return MakeMainStage(reply, static_cast<lgtbot::game::GAME_MODULE_NAME::GameOption&>(options), match);
+    if (!options.ToValid(reply)) {
+        return nullptr;
+    }
+    return MakeMainStage(lgtbot::game::GAME_MODULE_NAME::MainStageFactory{
+            static_cast<lgtbot::game::GAME_MODULE_NAME::GameOption&>(options), match});
 }
 
 void DeleteMainStage(lgtbot::game::MainStageBase* main_stage)
