@@ -532,7 +532,7 @@ class SyncMahjongGamePlayer
             s += "\n\n";
         } else if (mode == Mode::NAGASHI_MANGAN) {
             s += BIG_TEXT(blue, " **流&nbsp;&nbsp;局&nbsp;&nbsp;满&nbsp;&nbsp;贯** ");
-        } else if (IsRiichi_() && richii_round_ + 1 == round_) {
+        } else if (IsRiichi_() && river_.back().kiri_round_ == richii_round_) {
             s += BIG_TEXT(green, " **立&nbsp;&nbsp;直** ");
         } else if (big_text_) {
             s += big_text_;
@@ -783,10 +783,10 @@ class SyncMahjongGamePlayer
         if (!GetAutoOption(AutoOption::AUTO_FU)) {
             return;
         }
+        Ron();
         if (public_html_.empty()) {
             public_html_ = Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
         }
-        Ron();
     }
 
     void GetTileInternal_()
@@ -1574,19 +1574,20 @@ class SyncMajong
 
     [[nodiscard]] bool HandleFuResults_()
     {
-        bool found_fu = false;
         const uint32_t fu_players_num = std::ranges::count_if(players_, [](const auto& player) { return !player.fu_results_.empty(); });
+        if (fu_players_num == 0) {
+            return false;
+        }
         for (auto& player : players_) {
             for (const auto& fu_result : player.fu_results_) {
-                found_fu = true;
                 HandleOneFuResult_(fu_result, player);
+            }
+            if (!player.fu_results_.empty()) {
                 player.point_variation_ += richii_points_ / fu_players_num;
             }
         }
-        if (found_fu) {
-            richii_points_ = 0;
-        }
-        return found_fu;
+        richii_points_ = 0;
+        return true;
     }
 
     void UpdateDora_()
@@ -1677,18 +1678,24 @@ class SyncMajong
     static void HandleTinpaiForNyanpaiNagashi_(std::vector<SyncMahjongGamePlayer>& players)
     {
         const int32_t nyanpai_tinpai_points = 1000 * (players.size() - 1);
-        const uint32_t tinpai_player_num = std::ranges::count_if(players, [](const auto& player) { return !player.GetListenTiles_().empty(); });
+        uint32_t tinpai_player_num = 0;
+        for (auto& player : players) {
+            if (player.GetListenTiles_().empty()) {
+                player.big_text_ = BIG_TEXT(red, "**未&nbsp;&nbsp;听&nbsp;&nbsp;牌**");
+            } else {
+                ++tinpai_player_num;
+                player.big_text_ = BIG_TEXT(green, "**听&nbsp;&nbsp;牌**");
+                player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::OPEN);
+            }
+        }
         if (tinpai_player_num == 0 || tinpai_player_num == players.size()) {
             return;
         }
         for (auto& player : players) {
             if (player.GetListenTiles_().empty()) {
                 player.point_variation_ -= nyanpai_tinpai_points / (players.size() - tinpai_player_num);
-                player.big_text_ = BIG_TEXT(red, "**未&nbsp;&nbsp;听&nbsp;&nbsp;牌**");
             } else {
                 player.point_variation_ += nyanpai_tinpai_points / tinpai_player_num;
-                player.big_text_ = BIG_TEXT(green, "**听&nbsp;&nbsp;牌**");
-                player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::OPEN);
             }
         }
     }

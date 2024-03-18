@@ -1102,6 +1102,41 @@ GAME_TEST(4, ron_different_points)
     ASSERT_SCORE(25000 + 9000 + 6000, 25000 - 9000, 25000, 25000 - 6000);
 }
 
+GAME_TEST(4, ron_divides_richii_points)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "2m2m",
+                            .hand_ = "19m19p19s1123456z",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "2m2m",
+                            .hand_ = "19m19p19s1123456z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "2m7z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "2m7z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "立直 2m");
+    ASSERT_PRI_MSG(OK, 1, "立直 2m");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(OK, 0, "荣");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "荣");
+
+    ASSERT_SCORE(25000 + 48000, 25000 + 48000, 25000 - 48000, 25000 - 48000);
+}
+
 GAME_TEST(4, do_not_kiri_red_dora)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
