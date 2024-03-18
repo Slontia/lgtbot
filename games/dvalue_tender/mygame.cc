@@ -359,7 +359,6 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
     }
 
     setter.Emplace<RoundStage>(*this, ++round_);
-    return;
 }
 
 void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
@@ -372,9 +371,10 @@ void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason,
         if(
           (round_ < 10 && (player_wins_[0] < 5 && player_wins_[1] < 5) )
           ||(round_ > 10 && (player_wins_[0] < 6 && player_wins_[1] < 6) )
-                )
-        setter.Emplace<RoundStage>(*this, round_);
-        return;
+                ) {
+            setter.Emplace<RoundStage>(*this, round_);
+            return;
+        }
     }
     else if(round_ == 10){
         if(player_wins_[0] == player_wins_[1]){

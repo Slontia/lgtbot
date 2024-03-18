@@ -131,7 +131,6 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
             }
         }
         setter.Emplace<PrepareStage>(*this);
-        return;
     }
 
     virtual void NextStageFsm(PrepareStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override

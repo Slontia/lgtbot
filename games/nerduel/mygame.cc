@@ -293,7 +293,6 @@ MainStage::MainStage(const StageUtility& utility)
 
 void MainStage::FirstStageFsm(SubStageFsmSetter setter) {
   setter.Emplace<SettingStage>(*this);
-  return;
 }
 
 void MainStage::NextStageFsm(SettingStage& sub_stage,
@@ -302,7 +301,6 @@ void MainStage::NextStageFsm(SettingStage& sub_stage,
     return;
   }
   setter.Emplace<GuessingStage>(*this);
-  return;
 }
 
 void MainStage::NextStageFsm(GuessingStage& sub_stage,
@@ -317,7 +315,6 @@ void MainStage::NextStageFsm(GuessingStage& sub_stage,
   }
   table_.AddLine();
   setter.Emplace<GuessingStage>(*this);
-  return;
 }
 
 int64_t MainStage::PlayerScore(const PlayerID pid) const { return score_.at(pid); }

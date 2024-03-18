@@ -173,7 +173,6 @@ class MainStage : public MainGameStage<RoundStage<poker::CardType::POKER>, Round
             return;
         }
         setter.Emplace<RoundStage<k_type>>(*this, ++round_);
-        return;
     }
 
     int round_;
@@ -493,7 +492,6 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
             return;
         }
         setter.Emplace<BetStage>(this->Main(), StateName_(), base_chips_);
-        return;
     }
 
     virtual void NextStageFsm(RaiseStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
@@ -870,7 +868,6 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
         Global().SaveMarkdown(Html_(nullptr, true, false), k_markdown_width);
 
         setter.Emplace<BetStage>(this->Main(), StateName_(), base_chips_);
-        return;
     }
 
     static constexpr const char* k_state_names_[6] = {
@@ -895,13 +892,10 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
     if (GAME_OPTION(卡牌) == poker::CardType::BOKAA) {
         setter.Emplace<RoundStage<poker::CardType::BOKAA>>(*this, round_);
-        return;
     } else if (GAME_OPTION(卡牌) == poker::CardType::POKER) {
         setter.Emplace<RoundStage<poker::CardType::POKER>>(*this, round_);
-        return;
     } else {
         assert(false);
-        return;
     }
 }
 

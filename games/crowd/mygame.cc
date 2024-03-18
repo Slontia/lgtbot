@@ -398,7 +398,6 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
     }
 
     setter.Emplace<RoundStage>(*this, ++round_);
-    return;
 }
 
 void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)

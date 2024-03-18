@@ -584,7 +584,6 @@ class RoundStage : public SubGameStage<BetStage<k_type>>
         }
         this->Global().Boardcast() << "请各位玩家私信裁判进行第一轮下注，您可通过「帮助」命令查看命令格式";
         setter.template Emplace<BetStage<k_type>>(this->Main(), is_first_, hands_, player_round_infos_);
-        return;
     }
 
     virtual void NextStageFsm(BetStage<k_type>& sub_stage, const CheckoutReason reason, StageFsm::SubStageFsmSetter setter) override
@@ -768,10 +767,8 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
     if (GAME_OPTION(卡牌) == poker::CardType::BOKAA) {
         setter.Emplace<RoundStage<poker::CardType::BOKAA>>(*this, round_);
-        return;
     } else if (GAME_OPTION(卡牌) == poker::CardType::POKER) {
         setter.Emplace<RoundStage<poker::CardType::POKER>>(*this, round_);
-        return;
     } else {
         assert(false);
     }
@@ -792,7 +789,6 @@ void MainStage::NextSubStage_(RoundStage<k_type>& sub_stage, const CheckoutReaso
 {
     if ((++round_) < GAME_OPTION(轮数)) {
         setter.Emplace<RoundStage<k_type>>(*this, round_);
-        return;
     }
 }
 

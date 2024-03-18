@@ -36,6 +36,8 @@ class StageBaseInternal : public StageBase
     bool is_over_{false};
 };
 
+// `AtomicStage` does not have any substages, and does not holds the ownership of its FSM.
+// There is one and there is only one working `AtomicStage` at a time for each game.
 class AtomicStage : public StageBaseInternal
 {
   public:
@@ -63,6 +65,8 @@ class AtomicStage : public StageBaseInternal
     std::string upper_stage_info_;
 };
 
+// `VariantSubStage` use type erasure to hide the real type of the current stage and its substage's FSMs. It holds the
+// ownership of the substage and its FSM, and supports sub-FSM's switching.
 class VariantSubStage
 {
   public:
@@ -72,15 +76,22 @@ class VariantSubStage
     {
     }
 
+    // Load the first sub-FSM.
+    // The real type of sub-FSM depends on the user's implementation of callback `FirstStageFsm`.
+    // This function should be invoked once before `Checkout`'s invocation.
     void Init(std::string upper_stage_info) { impl_->Init(std::move(upper_stage_info)); }
 
+    // Switch to the next sub-FSM.
+    // The real type of sub-FSM depends on the user's implementation of callback `FirstStageFsm`.
+    // This function should be invoked after `Init`'s invocation.
     void Checkout(const CheckoutReason reason, std::string upper_stage_info)
     {
         impl_->Checkout(reason, std::move(upper_stage_info));
     }
 
+    // Get the substage.
+    // The returned value of NULL indicates there are no substages.
     StageBaseInternal* Get() { return impl_->Get(); }
-
     const StageBaseInternal* Get() const { return const_cast<VariantSubStage*>(this)->Get(); }
 
   private:
@@ -101,6 +112,9 @@ class VariantSubStage
     std::unique_ptr<Base> impl_;
 };
 
+// `CompoundStage` has a substage, and does not holds the ownership of its FSM.
+// If the user request does not match any commands defined in the current stage, the request will be passed to its
+// substage.
 class CompoundStage : public StageBaseInternal
 {
   public:
@@ -153,8 +167,26 @@ struct StageType<Fsm>
     using Type = CompoundStage;
 };
 
+// `MainStage` is a wrapper of `AtomicStage` or `CompoundStage`, it holds the ownership of its FSM.
 class MainStage : public MainStageBase
 {
+    template <typename Fsm>
+    struct StageType;
+
+    template <typename Fsm>
+    requires std::is_base_of_v<AtomicStageFsm, Fsm>
+    struct StageType<Fsm>
+    {
+        using Type = AtomicStage;
+    };
+
+    template <typename Fsm>
+    requires std::is_base_of_v<CompoundStageFsmBase, Fsm>
+    struct StageType<Fsm>
+    {
+        using Type = CompoundStage;
+    };
+
   public:
     template <typename Fsm>
     MainStage(std::unique_ptr<Fsm> fsm)

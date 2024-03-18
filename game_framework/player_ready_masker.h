@@ -19,6 +19,7 @@ namespace GAME_MODULE_NAME {
 
 namespace internal {
 
+// `PlayerReadyMasker` records which players have completed actions and which players are not able to act.
 class PlayerReadyMasker
 {
     enum class ActiveState

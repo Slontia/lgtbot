@@ -64,6 +64,7 @@ class StageFsmSetter
     }
 
     template <typename Sub, typename ...Args>
+        requires (std::is_same_v<Sub, Fsms> || ...)
     void Emplace(Args&& ...args)
     {
         assert(!emplaced_);
@@ -76,30 +77,56 @@ class StageFsmSetter
     VariantStageFsm<Fsms...>& variant_stage_fsm_;
 };
 
+// The finite-state machine corresponding to `AtomicStage`.
 struct AtomicStageFsm : virtual public StageFsmBase
 {
     using SubStageFsmSetter = void; // AtomicStageFsm need no setters
 
+    // This function is invoked when the atomic stage begins.
+    // We can start the timer by overriding this function.
     virtual void OnStageBegin() {}
 
+    // This function is invoked when enough players completed their actions. However, some inactive players (such as
+    // left or eliminated players) may still in unready state.
+    // We can override this function to determine whether checkout this stage or not.
+    //
+    // Return value:
+    // - CHECKOUT: Checkout this atomic stage. The stage will be over.
+    // - CONTINUE: Continue this atomic stage. This function can be invoked again after returning if no players' ready
+    //   flag are cleared.
     virtual CheckoutErrCode OnStageOver() { return StageErrCode::CHECKOUT; }
 
+    // This function is invoked when timeout.
+    // We can override this function to determine whether checkout this stage or not.
+    //
+    // Return value:
+    // - CHECKOUT: Checkout this atomic stage. The stage will be over.
+    // - CONTINUE: Continue this atomic stage. The overrided function can restart the timer before returning, and this
+    //   function can be invoked again when timeout again.
     virtual CheckoutErrCode OnStageTimeout() { return StageErrCode::CHECKOUT; }
 
+    // This function is invoked when a player leaves.
+    // We can override this function to determine whether checkout this stage or not.
+    //
+    // Return value:
+    // - CHECKOUT: Checkout this atomic stage. The stage will be over.
+    // - CONTINUE: Continue this atomic stage.
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) { return StageErrCode::CONTINUE; }
 
+    // This function is invoked when a computer attempts to take actions.
+    // We can override this function to determine whether each computer has completed their actions.
+    //
+    // The Return value can be OK / READY / FAILED / CHECKOUT:
+    // - Players controlled by users can not take actions until this funtion returns OK or READY for each players
+    //   controlled by computers.
+    // - The stage will be checked out immediately if CHECKOUT is returned.
+    // - The return value of READY indicates the corresponding player has completed his action. The stage will not be
+    //   checked out until all players completed their actions. However, this function can be invoked again during the
+    //   same stage for the same player, even if this function has returned READY in the previous invocation. To avoid
+    //   repeated action, it can be necessary to check whether the player has completed its action by `Global().IsReady(pid)`.
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::READY; }
 
     virtual const std::vector<GameCommand<AtomReqErrCode>>& Commands() const = 0;
-};
-
-template <typename CurrentSub, typename ...Subs>
-    requires (sizeof...(Subs) > 0)
-struct SubStageCheckoutFsm
-{
-    virtual ~SubStageCheckoutFsm() = default;
-
-    virtual void NextStageFsm(CurrentSub& current_sub_stage, const CheckoutReason reason, StageFsmSetter<Subs...> setter) = 0;
 };
 
 template <typename ...Subs>
@@ -108,18 +135,45 @@ struct SubStageInitFsm
 {
     virtual ~SubStageInitFsm() = default;
 
+    // This function is invoked when the current compound stage starts. The overrided function can create a substage by
+    // calling `setter.Emplace<NewStageFsm>(...)` (`NewStageFsm` is a developer-defined class). If `setter.Emplace` is
+    // not/ invoked, the current compound stage will be over.
     virtual void FirstStageFsm(StageFsmSetter<Subs...> setter) = 0;
+};
+
+template <typename CurrentSub, typename ...Subs>
+    requires (sizeof...(Subs) > 0)
+struct SubStageCheckoutFsm
+{
+    virtual ~SubStageCheckoutFsm() = default;
+
+    // This function is invoked when the substage is over. The overrided function can create a new substage by calling
+    // `setter.Emplace<NewStageFsm>(...)` (`NewStageFsm` is a developer-defined class). If `setter.Emplace` is not
+    // invoked, the current compound stage will be over.
+    // Note that once `setter.Emplace` is invoked, `current_sub_stage` will be destructed. To prevent the issue of
+    // use-after-free, we should no longer visit it.
+    virtual void NextStageFsm(CurrentSub& current_sub_stage, const CheckoutReason reason, StageFsmSetter<Subs...> setter) = 0;
 };
 
 struct CompoundStageFsmBase : virtual public StageFsmBase
 {
+    // This function is invoked when a player leaves.
+    // No matter what this function does, the `OnPlayerLeave` of its substage's FSM will always be invoked.
     virtual void OnPlayerLeave(const PlayerID pid) {}
 
+    // This function is invoked when a computer attempts to take actions.
+    // We can override this function to determine whether each computer has completed their actions.
+    //
+    // The return value can be OK / FAILED:
+    // Only when `CompoundStageFsmBase::OnComputerAct` returns OK can the stage proceed to invoke `OnComputerAct` of its
+    // sub stage's FSM. Players controlled by users can not take actions until `AtomicStageFsm::OnComputerAct` returns
+    // OK or READY for each players controlled by computers.
     virtual CompReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::OK; }
 
     virtual const std::vector<GameCommand<CompReqErrCode>>& Commands() const = 0;
 };
 
+// The finite-state machine corresponding to `CompoundStage`.
 template <typename ...Subs>
     requires (sizeof...(Subs) > 0)
 struct CompoundStageFsm

@@ -291,7 +291,6 @@ class RoundStage : public SubGameStage<NumberStage, GuessStage>
     virtual void FirstStageFsm(SubStageFsmSetter setter) override
     {
         setter.Emplace<NumberStage>(Main(), questioner_, actual_number_, lie_number_);
-        return;
     }
 
     virtual void NextStageFsm(NumberStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
@@ -303,7 +302,6 @@ class RoundStage : public SubGameStage<NumberStage, GuessStage>
                           << "\n实际数字：" << actual_number_ << "\n提问数字：" << lie_number_;
         Global().Boardcast() << At(questioner_) << "提问数字" << lie_number_;
         setter.Emplace<GuessStage>(Main(), 1 - questioner_);
-        return;
     }
 
     virtual void NextStageFsm(GuessStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
@@ -344,7 +342,6 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
     table_.SetName(Global().PlayerAvatar(0, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + Global().PlayerName(0),
             Global().PlayerAvatar(1, 30) + HTML_ESCAPE_SPACE + HTML_ESCAPE_SPACE + Global().PlayerName(1));
     setter.Emplace<RoundStage>(*this, 1, std::rand() % 2);
-    return;
 }
 
 void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
@@ -354,7 +351,6 @@ void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason,
         return;
     }
     setter.Emplace<RoundStage>(*this, ++round_, questioner_);
-    return;
 }
 
 int64_t MainStage::PlayerScore(const PlayerID pid) const

@@ -524,16 +524,13 @@ MainStage::MainStage(const StageUtility& utility)
   }
 }
 
-void MainStage::FirstStageFsm(SubStageFsmSetter setter) { setter.Emplace<RoundStage>(*this);
- return; }
+void MainStage::FirstStageFsm(SubStageFsmSetter setter) { setter.Emplace<RoundStage>(*this); }
 
-void MainStage::NextStageFsm(RoundStage& sub_stage,
-                                                   const CheckoutReason reason, SubStageFsmSetter setter) {
+void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) {
   if (JudgeOver()) {
     return;
   }
   setter.Emplace<RoundStage>(*this);
-  return;
 }
 
 int64_t MainStage::PlayerScore(const PlayerID pid) const { return score_.at(pid); }

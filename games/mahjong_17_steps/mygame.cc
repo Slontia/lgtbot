@@ -100,7 +100,6 @@ class MainStage : public MainGameStage<TableStage>
     virtual void FirstStageFsm(SubStageFsmSetter setter) override
     {
         setter.Emplace<TableStage>(*this, "东一局");
-        return;
     }
 
     virtual void NextStageFsm(TableStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
@@ -395,7 +394,6 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
     virtual void FirstStageFsm(SubStageFsmSetter setter) override
     {
         setter.Emplace<PrepareStage>(Main(), game_table_);
-        return;
     }
 
     virtual void NextStageFsm(PrepareStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
@@ -404,7 +402,6 @@ class TableStage : public SubGameStage<PrepareStage, KiriStage>
             game_table_.AddToHand(pid); // for those not finish preparing
         }
         setter.Emplace<KiriStage>(Main(), game_table_);
-        return;
     }
 
     virtual void NextStageFsm(KiriStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override

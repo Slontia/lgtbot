@@ -605,7 +605,6 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
             MakeRightChooseStage_(setter);
         } else {
             setter.Emplace<ChooseStage<true>>(Main());
-            return;
         }
     }
 
@@ -631,7 +630,6 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
         }
         Main().ShowInfo();
         setter.Emplace<AlterStage>(Main());
-        return;
     }
 
     virtual void NextStageFsm(AlterStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
@@ -656,7 +654,6 @@ class RoundStage : public SubGameStage<ChooseStage<true>, ChooseStage<false>, Al
         }
         Main().ShowInfo();
         setter.Emplace<ChooseStage<false>>(Main());
-        return;
     }
 
 };
@@ -665,7 +662,6 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 {
     Global().Boardcast() << Markdown(CardInfoStr_());
     setter.Emplace<RoundStage>(*this, 1);
-    return;
 }
 
 void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)

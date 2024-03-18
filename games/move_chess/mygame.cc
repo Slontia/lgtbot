@@ -491,7 +491,6 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 	board.sizeY = (GAME_OPTION(边长));
 	
     setter.Emplace<RoundStage>(*this, ++round_);
-    return;
 }
 
 void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
@@ -553,7 +552,6 @@ void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason,
 	// 交换玩家 
 	currentPlayer = !currentPlayer;
     setter.Emplace<RoundStage>(*this, round_);
-    return;
 }
 
 auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
