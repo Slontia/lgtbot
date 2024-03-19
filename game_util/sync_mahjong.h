@@ -20,6 +20,9 @@ namespace game_util {
 
 namespace mahjong {
 
+template <typename Enum>
+constexpr auto EnumValue(const Enum N) { return static_cast<std::underlying_type_t<Enum>>(N); }
+
 static constexpr const uint32_t k_yama_tile_num = 19;
 static constexpr const std::array<BaseTile, 13> k_one_nine_tiles{_1m, _9m, _1s, _9s, _1p, _9p, east, south, west, north, 白, 发, 中};
 static constexpr const uint32_t k_max_dora_num = 4;
@@ -37,6 +40,7 @@ struct KiriTile
 {
     Tile tile_;
     enum class Type : uint8_t { NORMAL, ADD_KAN, DARK_KAN, RIVER_BOTTOM } type_;
+    bool break_ippatsu_{false};
 };
 
 struct PlayerKiriInfo
@@ -432,7 +436,11 @@ class SyncMahjongGamePlayer
             return false;
         }
         assert(tsumo_.has_value());
-        std::optional<CounterResult> counter = GetCounter_(*tsumo_, FuType::TSUMO, yama_idx_ == k_yama_tile_num, &errstr_);
+        std::optional<CounterResult> counter = GetCounter_(*tsumo_,
+                std::bitset<EnumValue(GetCounterFlag::MAX_)>{}
+                    .set(EnumValue(GetCounterFlag::TSUMO))
+                    .set(EnumValue(GetCounterFlag::IS_LAST_TILE), yama_idx_ == k_yama_tile_num)
+                , &errstr_);
         if (counter.has_value()) {
             counter->calculate_score(true, true);
         }
@@ -816,9 +824,18 @@ class SyncMahjongGamePlayer
             return false;
         }
         river_.emplace_back(round_, is_tsumo, tile, richii);
-        const auto kiri_type = yama_idx_ == k_yama_tile_num ? KiriTile::Type::RIVER_BOTTOM : KiriTile::Type::NORMAL;
-        cur_round_my_kiri_info_.kiri_tiles_.emplace_back(KiriTile{tile, kiri_type});
+        cur_round_my_kiri_info_.kiri_tiles_.emplace_back(
+                KiriTile{
+                    .tile_ = tile,
+                    .type_ = yama_idx_ == k_yama_tile_num ? KiriTile::Type::RIVER_BOTTOM : KiriTile::Type::NORMAL,
+                    .break_ippatsu_ = HasNariThisRound_(),
+                });
         return true;
+    }
+
+    bool HasNariThisRound_() const
+    {
+        return std::ranges::any_of(furus_, [round = round_](const Furu& furu) { return furu.nari_round_ == round; });
     }
 
     bool IsFurutin_() const
@@ -948,7 +965,12 @@ class SyncMahjongGamePlayer
             furu.tiles_[1] = FuruTile{*std::next(hand_tiles.begin()), FuruTile::Type::NORMAL};
             furu.tiles_[2] = FuruTile{*std::next(hand_tiles.begin(), 2), FuruTile::Type::NORMAL};
             furu.tiles_[3] = FuruTile{kan_tile, FuruTile::Type::DARK};
-            cur_round_my_kiri_info_.kiri_tiles_.emplace_back(KiriTile{kan_tile, KiriTile::Type::DARK_KAN});
+            cur_round_my_kiri_info_.kiri_tiles_.emplace_back(
+                    KiriTile{
+                        .tile_ = kan_tile,
+                        .type_ = KiriTile::Type::DARK_KAN,
+                        .break_ippatsu_ = HasNariThisRound_(),
+                    });
             handle_tsumo();
             return true;
         }
@@ -966,7 +988,12 @@ class SyncMahjongGamePlayer
                 furu.nari_round_ = round_;
                 furu.tiles_[3].type_ = FuruTile::Type::ADD_KAN;
                 furu.tiles_[3].tile_ = kan_tile;
-                cur_round_my_kiri_info_.kiri_tiles_.emplace_back(KiriTile{kan_tile, KiriTile::Type::ADD_KAN});
+                cur_round_my_kiri_info_.kiri_tiles_.emplace_back(
+                        KiriTile{
+                            .tile_ = kan_tile,
+                            .type_ = KiriTile::Type::ADD_KAN,
+                            .break_ippatsu_ = HasNariThisRound_(),
+                        });
                 handle_tsumo();
                 found = true;
                 break;
@@ -1067,13 +1094,27 @@ class SyncMahjongGamePlayer
     bool CanTsumo_() const
     {
         assert(tsumo_.has_value());
-        return GetCounter_(*tsumo_, FuType::TSUMO, yama_idx_ == k_yama_tile_num, nullptr).has_value();
+        return GetCounter_(*tsumo_,
+                std::bitset<EnumValue(GetCounterFlag::MAX_)>{}
+                    .set(EnumValue(GetCounterFlag::TSUMO))
+                    .set(EnumValue(GetCounterFlag::IS_LAST_TILE), yama_idx_ == k_yama_tile_num)
+                ).has_value();
     }
 
-    std::optional<CounterResult> GetCounter_(const Tile& tile, const FuType fu_type, const bool is_last_tile, std::string* const errstr = nullptr) const
+    //                  IS_LAST_TILE    BREAK_IPPATSU   ROB_KAN TSUMO
+    //         TSUMO          O               X            X      -
+    //       ROB_KAN          X               O            -      -
+    // BREAK_IPPATSU          O               -            -      -
+    //  IS_LAST_TILE          -               -            -      -
+    enum class GetCounterFlag : uint8_t { TSUMO, ROB_KAN, BREAK_IPPATSU, IS_LAST_TILE, MAX_ };
+
+    std::optional<CounterResult> GetCounter_(const Tile& tile, const std::bitset<EnumValue(GetCounterFlag::MAX_)> flag, std::string* const errstr = nullptr) const
     {
         Table table;
         InitTable_(table);
+        if (flag.test(EnumValue(GetCounterFlag::BREAK_IPPATSU))) {
+            table.players[player_id_].一发 = false;
+        }
         auto basetiles = convert_tiles_to_base_tiles(table.players[player_id_].hand);
         basetiles.emplace_back(tile.tile);
         if (!is和牌(basetiles)) {
@@ -1082,14 +1123,16 @@ class SyncMahjongGamePlayer
             }
             return std::nullopt;
         }
-        if (fu_type == FuType::TSUMO) {
+        if (flag.test(EnumValue(GetCounterFlag::TSUMO))) {
             table.players[player_id_].hand.emplace_back(const_cast<Tile*>(&tile));
         }
-        if (is_last_tile) {
+        if (flag.test(EnumValue(GetCounterFlag::IS_LAST_TILE))) {
             table.牌山.resize(14);
         }
-        auto counter = yaku_counter(&table, player_id_, fu_type == FuType::TSUMO ? nullptr : const_cast<Tile*>(&tile),
-                fu_type == FuType::ROB_KAN /*枪杠*/, false /*枪暗杠*/, wind_ /*自风*/, wind_ /*场风*/);
+        // There is no difference bewteen 枪杠 and 枪暗杠 in `yaku_counter`, so we set 枪暗杠 false.
+        // We will remove 场风 yakus from counter later, so it doesn't matter what we pass as 场风.
+        auto counter = yaku_counter(&table, player_id_, flag.test(EnumValue(GetCounterFlag::TSUMO)) ? nullptr : const_cast<Tile*>(&tile),
+                flag.test(EnumValue(GetCounterFlag::ROB_KAN)) /*枪杠*/, false /*枪暗杠*/, wind_ /*自风*/, wind_ /*场风*/);
         if (counter.yakus.empty() || counter.yakus[0] == Yaku::None) {
             if (errstr) {
                 *errstr = "无役";
@@ -1115,9 +1158,12 @@ class SyncMahjongGamePlayer
             // this tile has been used, skip
             return std::nullopt;
         }
-        const FuType fu_type =
-            kiri_tile.type_ == KiriTile::Type::ADD_KAN || kiri_tile.type_ == KiriTile::Type::DARK_KAN ? FuType::ROB_KAN : FuType::RON;
-        const std::optional<CounterResult> counter = GetCounter_(kiri_tile.tile_, fu_type, kiri_tile.type_ == KiriTile::Type::RIVER_BOTTOM, nullptr);
+        const std::optional<CounterResult> counter = GetCounter_(kiri_tile.tile_,
+                std::bitset<EnumValue(GetCounterFlag::MAX_)>{}
+                    .set(EnumValue(GetCounterFlag::ROB_KAN),
+                            kiri_tile.type_ == KiriTile::Type::ADD_KAN || kiri_tile.type_ == KiriTile::Type::DARK_KAN)
+                    .set(EnumValue(GetCounterFlag::BREAK_IPPATSU), kiri_tile.break_ippatsu_)
+                    .set(EnumValue(GetCounterFlag::IS_LAST_TILE), kiri_tile.type_ == KiriTile::Type::RIVER_BOTTOM));
         if (!counter.has_value()) {
             return std::nullopt;
         }
@@ -1210,7 +1256,7 @@ class SyncMahjongGamePlayer
         table.players[player_id_].riichi = IsRiichi_();
         table.players[player_id_].double_riichi = table.players[player_id_].riichi && is_double_richii_;
         table.players[player_id_].亲家 = true;
-        table.players[player_id_].一发 = table.players[player_id_].riichi && richii_round_ + 1 == round_;
+        table.players[player_id_].一发 = table.players[player_id_].riichi && richii_round_ + 1 == round_ && (furus_.empty() || furus_.back().nari_round_ != round_);
         table.players[player_id_].门清 = true;
         for (auto& tile : hand_) {
             table.players[player_id_].hand.emplace_back(const_cast<Tile*>(&tile));

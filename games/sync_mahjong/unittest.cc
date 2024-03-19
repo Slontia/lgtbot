@@ -1137,6 +1137,75 @@ GAME_TEST(4, ron_divides_richii_points)
     ASSERT_SCORE(25000 + 48000, 25000 + 48000, 25000 - 48000, 25000 - 48000);
 }
 
+GAME_TEST(4, lingshang_cannot_be_yifa)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "1m1m8p2m",
+                            .hand_ = "13m345s34588899p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "1z1z",
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "1z1z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "1z1z",
+                        },
+                    },
+                    .doras_ = "1z1z1z1z", // doras do not hit
+                }));
+    START_GAME();
+
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CONTINUE, 0, "立直 1m");
+
+    ASSERT_PRI_MSG(OK, 0, "杠 8p");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "自摸"); // 立直 + 岭上 + 自摸, 40 fu 3 fan
+
+    ASSERT_SCORE(25000 + 7800, 25000 - 2600, 25000 - 2600, 25000 - 2600);
+}
+
+GAME_TEST(4, nari_cannot_be_yifa)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+                    .player_tiles_ = {
+                        [0] = Tiles::PlayerTiles {
+                            .yama_ = "7z7z7z2m",
+                            .hand_ = "13m345s34588899p",
+                        },
+                        [1] = Tiles::PlayerTiles {
+                            .yama_ = "1z1z2z2m",
+                            .hand_ = "12223z"
+                        },
+                        [2] = Tiles::PlayerTiles {
+                            .yama_ = "1z1z",
+                        },
+                        [3] = Tiles::PlayerTiles {
+                            .yama_ = "1z1z",
+                        },
+                    },
+                    .doras_ = "1z1z1z1z", // doras do not hit
+                }));
+    START_GAME();
+
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CONTINUE, 0, "立直 7z");
+
+    ASSERT_PRI_MSG(OK, 1, "杠 2z");
+    ASSERT_PRI_MSG(CONTINUE, 1, "2m");
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 立直, 40 fu 1 fan
+
+    ASSERT_SCORE(25000 + 2000, 25000 - 2000, 25000, 25000);
+}
+
 GAME_TEST(4, do_not_kiri_red_dora)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
