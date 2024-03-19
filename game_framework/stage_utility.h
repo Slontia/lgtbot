@@ -93,7 +93,8 @@ class PublicStageUtility
     }
 
   private:
-    bool IsInDeduction() const { return masker_.IsAllPermanentInactive(); }
+    // TODO: Stage should identify which players are computers. `match_.IsInDeduction()` condition should be removed.
+    bool IsInDeduction() const { return match_.IsInDeduction() || masker_.IsAllPermanentInactive(); }
 
     void Leave(const PlayerID pid);
 
