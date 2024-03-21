@@ -531,7 +531,7 @@ void Match::Eliminate(const PlayerID pid)
         // TODO: check all players of the user
         Tell(pid) << "很遗憾，您被淘汰了，可以通过「" META_COMMAND_SIGN "退出」以退出游戏";
         is_in_deduction_ = std::ranges::all_of(players_,
-                [](const auto& p) { return std::get_if<ComputerID>(&p.id_) || p.state_ != Player::State::ACTIVE; });
+                [](const auto& p) { return std::get_if<ComputerID>(&p.id_) || p.state_ == Player::State::ELIMINATED; });
         MatchLog(InfoLog()) << "Eliminate player pid=" << pid << " is_in_deduction=" << Bool2Str(is_in_deduction_);
     }
 }

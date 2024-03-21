@@ -27,6 +27,8 @@ PlayerReadyMasker::PlayerReadyMasker(const uint64_t match_id, const char* const 
 {
 }
 
+// TODO: Computer players can always use `SilentlySetReady` because all players be ready can trigger stage checkout.
+//       We can remove this function and check whether the player is controlled by a computer in `SetReady`.
 void PlayerReadyMasker::SilentlySetReady(const size_t index)
 {
     Log_(DebugLog()) << "Begin setting ready silently, index: " << index << ", " << ToString_();

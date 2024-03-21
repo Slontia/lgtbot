@@ -65,8 +65,8 @@ int PublicStageUtility::SaveMarkdown(const std::string& markdown, const uint32_t
 
 void PublicStageUtility::Eliminate(const PlayerID pid)
 {
-    Leave(pid);
     match_.Eliminate(pid);
+    Leave(pid);
 }
 
 void PublicStageUtility::HookUnreadyPlayers()
@@ -80,11 +80,8 @@ void PublicStageUtility::HookUnreadyPlayers()
 
 void PublicStageUtility::Hook(const PlayerID pid)
 {
-    if (!masker_.IsInactive(pid)) {
-        Tell(pid) << "您已经进入挂机状态，若其他玩家已经行动完成，裁判将不再继续等待您，执行任意游戏请求可恢复至原状态";
-    }
-    masker_.SetTemporaryInactive(pid);
     match_.Hook(pid);
+    masker_.SetTemporaryInactive(pid);
 }
 
 void PublicStageUtility::StartTimer(const uint64_t sec)
@@ -103,7 +100,6 @@ void PublicStageUtility::StopTimer()
 
 void PublicStageUtility::Leave(const PlayerID pid)
 {
-    assert(!IsInDeduction());
     masker_.SetPermanentInactive(pid);
     if (IsInDeduction()) {
         Boardcast() << "所有玩家都失去了行动能力，于是游戏将直接推演至终局";
@@ -143,9 +139,7 @@ uint8_t StageUtility::AchievementCount(const PlayerID pid, const Achievement& ac
 
 void StageUtility::Activate(const PlayerID pid)
 {
-    if (masker_.IsTemporaryInactive(pid)) {
-        Tell(pid) << "挂机状态已取消";
-    }
+    match_.Activate(pid);
     masker_.SetActive(pid);
     assert(!masker_.IsInactive(pid));
 }

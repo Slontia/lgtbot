@@ -1515,6 +1515,20 @@ TEST_F(TestBot, all_players_elimindated_or_leaved)
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏"); // match 1 is over
 }
 
+TEST_F(TestBot, elimdated_when_others_hooked_does_not_finish_game)
+{
+  AddGame("测试游戏", 2);
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备切换 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "挂机");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "淘汰");
+
+  ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, "1", "#新游戏 测试游戏"); // match 1 is NOT over
+}
+
 // Record Score
 
 TEST_F(TestBot, record_score)
