@@ -73,6 +73,10 @@ int Run(const uint64_t index)
     }
 
     MockMsgSender sender(image_dir);
+    if (!option.ToValid(sender)) {
+        std::cerr << "Invalid options!" << std::endl;
+        return -1;
+    }
     std::unique_ptr<MainStageBase> main_stage(MakeMainStage(MainStageFactory{option, match}));
     if (!main_stage) {
         std::cerr << "Start Game Failed!" << std::endl;
