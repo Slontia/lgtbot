@@ -30,8 +30,8 @@ static constexpr const uint32_t k_max_player = 4;
 struct RiverTile
 {
     uint32_t kiri_round_{0};
-    uint32_t is_tsumo_kiri_{0};
     Tile tile_;
+    bool is_tsumo_kiri_{false};
     bool richii_{false};
 };
 
@@ -64,6 +64,7 @@ struct Furu
 {
     uint32_t nari_round_{0};
     std::array<FuruTile, 4> tiles_;
+    bool is_tsumo_nari_{false};
 };
 
 enum class ActionState
@@ -429,12 +430,13 @@ class SyncMahjongGamePlayer
         return succ;
     }
 
-    void KitaInternal_(const Tile& tile)
+    void KitaInternal_(const Tile& tile, const bool is_tsumo_nari)
     {
         furus_.emplace_back();
         auto& furu = furus_.back();
         furu.nari_round_ = round_;
         furu.tiles_[0] = FuruTile{tile, FuruTile::Type::NORMAL};
+        furu.is_tsumo_nari_ = is_tsumo_nari;
         cur_round_my_kiri_info_.kiri_tiles_.emplace_back(
                 KiriTile{
                     .tile_ = tile,
@@ -454,7 +456,7 @@ class SyncMahjongGamePlayer
             assert(tiles.size() == 1);
             hand_.emplace(*tsumo_);
             tsumo_ = std::nullopt;
-            KitaInternal_(*tiles.begin());
+            KitaInternal_(*tiles.begin(), false);
             return true;
         }
         if (tsumo_->tile == BaseTile::north) {
@@ -470,7 +472,7 @@ class SyncMahjongGamePlayer
         assert(tsumo_.has_value() && tsumo_->tile == BaseTile::north);
         const Tile tile = *tsumo_;
         tsumo_ = std::nullopt;
-        KitaInternal_(tile);
+        KitaInternal_(tile, true);
     }
 
     bool Kita(const bool use_tsumo = false)
@@ -765,7 +767,12 @@ class SyncMahjongGamePlayer
         table.MergeDown(0, 1, 2);
         table.Get(0, 1).SetContent(HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE HTML_ESCAPE_SPACE);
         for (int64_t i = furus_.size() - 1; i >= 0; --i) {
-            table.Get(0, 2 + furus_.size() - 1 - i).SetContent(std::to_string(furus_[i].nari_round_));
+            if (furus_[i].is_tsumo_nari_) {
+                table.Get(0, 2 + furus_.size() - 1 - i).SetContent(
+                        HTML_COLOR_FONT_HEADER(red) + std::to_string(furus_[i].nari_round_) + HTML_FONT_TAIL);
+            } else {
+                table.Get(0, 2 + furus_.size() - 1 - i).SetContent(std::to_string(furus_[i].nari_round_));
+            }
             table.Get(1, 2 + furus_.size() - 1 - i).SetContent(FuruTilesHtml_(image_path_, furus_[i].tiles_));
         }
         return table.ToString();
@@ -797,9 +804,6 @@ class SyncMahjongGamePlayer
     {
         assert(state_ == ActionState::ROUND_OVER);
         cur_round_my_kiri_info_.kiri_tiles_.clear();
-        if (public_html_.empty()) {
-            public_html_ = Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
-        }
         if (!IsRiichi_() && !GetAutoOption(AutoOption::AUTO_GET_TILE) && (CanChi_() || CanPon_())) {
             state_ = ActionState::ROUND_BEGIN;
             return;
@@ -840,9 +844,6 @@ class SyncMahjongGamePlayer
             return;
         }
         Ron();
-        if (public_html_.empty()) {
-            public_html_ = Html_(SyncMahjongGamePlayer::HtmlMode::PUBLIC);
-        }
     }
 
     void GetTileInternal_()
@@ -871,7 +872,7 @@ class SyncMahjongGamePlayer
         if (richii && !Richii_()) {
             return false;
         }
-        river_.emplace_back(round_, is_tsumo, tile, richii);
+        river_.emplace_back(round_, tile, is_tsumo, richii);
         cur_round_my_kiri_info_.kiri_tiles_.emplace_back(
                 KiriTile{
                     .tile_ = tile,
@@ -1009,6 +1010,7 @@ class SyncMahjongGamePlayer
             furus_.emplace_back();
             auto& furu = furus_.back();
             furu.nari_round_ = round_;
+            furu.is_tsumo_nari_ = kan_tsumo;
             furu.tiles_[0] = FuruTile{*hand_tiles.begin(), FuruTile::Type::DARK};
             furu.tiles_[1] = FuruTile{*std::next(hand_tiles.begin()), FuruTile::Type::NORMAL};
             furu.tiles_[2] = FuruTile{*std::next(hand_tiles.begin(), 2), FuruTile::Type::NORMAL};
@@ -1632,9 +1634,6 @@ class SyncMajong
                 if (HandleFuResults_()) {
                     return RoundOverResult::FU;
                 }
-                for (auto& player : players_) {
-                    player.public_html_.clear();
-                }
                 ron_stage_ = false;
             }
             if (round_ == 1 && UpdatePublicHtmlFor_九种九牌(players_)) {
@@ -1841,9 +1840,16 @@ class SyncMajong
             } else {
                 ++tinpai_player_num;
                 player.big_text_ = BIG_TEXT(green, "**听&nbsp;&nbsp;牌**");
-                player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::OPEN);
             }
         }
+        const Defer defer([&]
+                {
+                    for (auto& player : players) {
+                        if (!player.GetListenTiles_().empty()) {
+                            player.public_html_ = player.Html_(SyncMahjongGamePlayer::HtmlMode::OPEN);
+                        }
+                    }
+                });
         if (tinpai_player_num == 0 || tinpai_player_num == players.size()) {
             return;
         }
