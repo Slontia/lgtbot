@@ -11,16 +11,19 @@ namespace game {
 
 namespace GAME_MODULE_NAME {
 
+struct PlayerTiles {
+    std::string yama_; // 19 / 20
+    std::string hand_{"1z2z"}; // 13
+};
+
+template <int PlayerNum>
 struct Tiles {
-    struct PlayerTiles {
-        std::string yama_; // 18
-        std::string hand_{"1z2z"}; // 13
-    };
-    PlayerTiles player_tiles_[4];
+    PlayerTiles player_tiles_[PlayerNum];
     std::string doras_;
 };
 
-std::string TilesToString(const Tiles& tiles)
+template <int PlayerNum>
+std::string TilesToString(const Tiles<PlayerNum>& tiles)
 {
     std::string s;
     const auto append_tile_str = [&](const auto& str, const size_t size)
@@ -41,14 +44,14 @@ std::string TilesToString(const Tiles& tiles)
             }
         };
     append_tile_str(tiles.doras_, 8);
-    for (const Tiles::PlayerTiles& player_tiles : tiles.player_tiles_) {
-        append_tile_str(player_tiles.yama_, 19);
+    for (const PlayerTiles& player_tiles : tiles.player_tiles_) {
+        append_tile_str(player_tiles.yama_, PlayerNum == 4 ? 19 : 20);
         append_tile_str(player_tiles.hand_, 13);
     }
     return s;
 }
 
-GAME_TEST(3, player_not_enough)
+GAME_TEST(2, player_not_enough)
 {
     ASSERT_FALSE(StartGame());
 }
@@ -56,19 +59,19 @@ GAME_TEST(3, player_not_enough)
 GAME_TEST(4, nari_multiple_times)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z4p2s",
                             .hand_ = "13m22s333p444p123z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "2m",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "2s",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "3p",
                         },
                     }
@@ -95,13 +98,13 @@ GAME_TEST(4, nari_multiple_times)
 GAME_TEST(4, nine_types_of_nine_tiles)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1s",
                             .hand_ = "19s19p19m12z34567m",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "3z",
                             .hand_ = "1s19p19m11234567z",
                         },
@@ -121,18 +124,18 @@ GAME_TEST(4, nine_types_of_nine_tiles)
 GAME_TEST(4, four_winds_consecutively_kiri)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z2m", // set 2m to prevent nagashi mangan
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "1z2m",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "1z2m",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "1z2m",
                             .hand_ = "23z",
                         },
@@ -160,19 +163,19 @@ GAME_TEST(4, four_winds_consecutively_kiri)
 GAME_TEST(4, after_kan_not_four_winds_consecutively_kiri)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1s1z",
                             .hand_ = "1s1s1s",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "1z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "1z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "1z",
                         },
                     }
@@ -189,21 +192,21 @@ GAME_TEST(4, after_kan_not_four_winds_consecutively_kiri)
 GAME_TEST(4, four_players_richii)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "2z",
                             .hand_ = "19m19s19p1345677z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "3z",
                             .hand_ = "123456789m123s1z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "4z",
                             .hand_ = "123456789m123s1z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z",
                             .hand_ = "123456789m123s1z",
                         },
@@ -239,21 +242,21 @@ GAME_TEST(4, four_players_richii)
 GAME_TEST(4, four_players_richii_on_different_round)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z2z3z4z",
                             .hand_ = "123456789m123s1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "5z2z3z4z",
                             .hand_ = "123456789m123s1z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z2z3z4z",
                             .hand_ = "123456789m123s1z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z2z3z4z",
                             .hand_ = "123456789m123s1z",
                         },
@@ -279,13 +282,13 @@ GAME_TEST(4, four_players_richii_on_different_round)
 GAME_TEST(4, tenhu)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "3z",
                             .hand_ = "19s19p19m12z34567m",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "8p",
                             .hand_ = "123s555s234m456m8p",
                         },
@@ -309,21 +312,21 @@ GAME_TEST(4, tenhu)
 GAME_TEST(4, three_players_tsumo_cause_nagashi)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z1z2m", // 2m prevent nagashi mangan
                             .hand_ = "19s19p19m1234567z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "2z2z2m",
                             .hand_ = "19s19p19m1234567z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "3z3z2m",
                             .hand_ = "19s19p19m1234567z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "4z4z2m",
                             .hand_ = "19s19p19m1234567z",
                         },
@@ -358,21 +361,21 @@ GAME_TEST(4, three_players_tsumo_cause_nagashi)
 GAME_TEST(4, three_players_ron_cause_nagashi)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5m2z",
                             .hand_ = "119s19p19m234567z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "5m3z",
                             .hand_ = "119s19p19m134567z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5m1z",
                             .hand_ = "119s19p19m124567z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5m4z",
                         },
                     }
@@ -408,21 +411,21 @@ GAME_TEST(4, three_players_ron_cause_nagashi)
 GAME_TEST(4, ron_players_obtain_last_game_riichi_points)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 2");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z2m", // 2m prevent nagashi mangan
                             .hand_ = "119s19p19m234567z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "2z2m",
                             .hand_ = "119s19p19m134567z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "2m",
                             .hand_ = "119s19p19m124567z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "2m",
                             .hand_ = "119s19p19m123567z",
                         },
@@ -461,21 +464,21 @@ GAME_TEST(4, ron_players_obtain_last_game_riichi_points)
 GAME_TEST(4, nyanpai_nagashi_tinpai)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "2m", // prevent nagashi mangan
                             .hand_ = "119s19p19m234567z", // tinpai
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "2m", // prevent nagashi mangan
                             .hand_ = "147m258s369p1234z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "2m", // prevent nagashi mangan
                             .hand_ = "147m258s369p1234z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "2m", // prevent nagashi mangan
                             .hand_ = "147m258s369p1234z",
                         },
@@ -494,21 +497,21 @@ GAME_TEST(4, nyanpai_nagashi_tinpai)
 GAME_TEST(4, three_players_nyanpai_nagashi_mangan_nagashi)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "19m19s19p2234567223456z", // nagashi mangan
                             .hand_ = "2m12z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "19m19s19p2234567223456z", // nagashi mangan
                             .hand_ = "2m12z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "19m19s19p2234567223456z", // nagashi mangan
                             .hand_ = "2m12z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "2m12z", // prevent nagashi mangan
                             .hand_ = "2m12z",
                         },
@@ -538,21 +541,21 @@ GAME_TEST(4, three_players_nyanpai_nagashi_mangan_nagashi)
 GAME_TEST(4, nyanpai_nagashi_mangan)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "19m19s19p2234567223456z", // nagashi mangan
                             .hand_ = "1z2z", // prevent tinpai
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "19m19s19p2234567223456z", // nagashi mangan
                             .hand_ = "19m19s19p2234567z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "2m", // prevent nagashi mangan
                             .hand_ = "1z2z", // prevent tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "2m", // prevent nagashi mangan
                             .hand_ = "1z2z", // prevent tinpai
                         },
@@ -585,15 +588,15 @@ GAME_TEST(4, nyanpai_nagashi_mangan)
 GAME_TEST(4, cannot_nari_after_richii)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .hand_ = "222s12m12312344p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "2s",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "3m",
                         },
                     }
@@ -613,19 +616,19 @@ GAME_TEST(4, cannot_nari_after_richii)
 GAME_TEST(4, nari_ron)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "3456677s45m345p1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "6s",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "3m",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "6m",
                         },
                     },
@@ -651,19 +654,19 @@ GAME_TEST(4, nari_ron)
 GAME_TEST(4, can_only_chi_from_specific_players)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "123456789m123s1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "5m2s",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "0m4m",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "4m4m",
                         },
                     }
@@ -684,19 +687,19 @@ GAME_TEST(4, can_only_chi_from_specific_players)
 GAME_TEST(4, chi_same_tile_multiple_times)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "1234567899m23s1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "4m",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "4m",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "1s",
                         },
                     }
@@ -714,19 +717,19 @@ GAME_TEST(4, chi_same_tile_multiple_times)
 GAME_TEST(4, chi_pon_same_tile_multiple_times)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "1234455678m23s1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "4m",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "4m",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "1s",
                         },
                     }
@@ -744,19 +747,19 @@ GAME_TEST(4, chi_pon_same_tile_multiple_times)
 GAME_TEST(4, pon_chi_same_tile_multiple_times)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "123445567m123s1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "4m",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "4m",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "1s",
                         },
                     }
@@ -774,21 +777,21 @@ GAME_TEST(4, pon_chi_same_tile_multiple_times)
 GAME_TEST(4, cannot_chi_same_tile_multiple_times_when_only_one_tile_can_chi)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "1234455678m23s1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "1m6m",
                             .hand_ = "1z2z", // prevent tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "1z6m",
                             .hand_ = "1z2z", // prevent tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "1z1z",
                             .hand_ = "1z2z", // prevent tinpai
                         },
@@ -810,19 +813,19 @@ GAME_TEST(4, cannot_chi_same_tile_multiple_times_when_only_one_tile_can_chi)
 GAME_TEST(4, can_ron_after_chi)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "3456677s45m345p1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "5s6s",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "3m1z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "6m1z",
                         },
                     }
@@ -841,9 +844,9 @@ GAME_TEST(4, can_ron_after_chi)
 GAME_TEST(4, cannot_richii_when_not_tinpai)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "2z",
                             .hand_ = "3456677s45m345p1z",
                         },
@@ -857,9 +860,9 @@ GAME_TEST(4, cannot_richii_when_not_tinpai)
 GAME_TEST(4, cannot_richii_when_not_tinpai_after_kiri)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "6s",
                             .hand_ = "3456677s45m345p1z",
                         },
@@ -875,19 +878,19 @@ GAME_TEST(4, cannot_richii_when_not_tinpai_after_kiri)
 GAME_TEST(4, richii_nomi_cannot_ron_in_the_same_round_due_to_no_yakus)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "6z6z",
                             .hand_ = "34566677s12m345p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "3m3m",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "6z6z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "6z6z",
                         },
                     },
@@ -911,19 +914,19 @@ GAME_TEST(4, richii_nomi_cannot_ron_in_the_same_round_due_to_no_yakus)
 GAME_TEST(4, cannot_nari_ron_when_self_furutin)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "6m",
                             .hand_ = "3456677s45m345p1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "6s",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "3m",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "6m",
                         },
                     }
@@ -942,19 +945,19 @@ GAME_TEST(4, cannot_nari_ron_when_self_furutin)
 GAME_TEST(4, cannot_ron_when_self_furutin)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "6m",
                             .hand_ = "34566677s45m345p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "6s",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "3m",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "6m",
                         },
                     }
@@ -970,19 +973,19 @@ GAME_TEST(4, cannot_ron_when_self_furutin)
 GAME_TEST(4, cannot_ron_when_richii_furutin)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .hand_ = "34566677s45m345p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "1z3m6m",
                             .hand_ = "1z2z", // do not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .hand_ = "1z2z", // do not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .hand_ = "1z2z", // do not tinpai
                         },
                     },
@@ -1001,19 +1004,19 @@ GAME_TEST(4, cannot_ron_when_richii_furutin)
 GAME_TEST(4, can_ron_after_jiantao_before_richii)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .hand_ = "34566677s45m345p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "1z3m6m",
                             .hand_ = "1z2z", // do not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .hand_ = "1z2z", // do not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .hand_ = "1z2z", // do not tinpai
                         },
                     },
@@ -1038,20 +1041,20 @@ GAME_TEST(4, can_ron_after_jiantao_before_richii)
 GAME_TEST(4, lingshang_with_kan_dora)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z3m",
                             .hand_ = "34566677s12m345p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "6s",
                             .hand_ = "1z2z", // do not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .hand_ = "1z2z", // do not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .hand_ = "1z2z", // do not tinpai
                         },
                     },
@@ -1075,19 +1078,19 @@ GAME_TEST(4, lingshang_with_kan_dora)
 GAME_TEST(4, ron_different_points)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "2333345s123m123p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "1s", // 平和三色dora4
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "2s", // no yakus
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "4s", // 平和dora4
                         },
                     },
@@ -1105,20 +1108,20 @@ GAME_TEST(4, ron_different_points)
 GAME_TEST(4, ron_divides_richii_points)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "2m2m",
                             .hand_ = "19m19p19s1123456z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "2m2m",
                             .hand_ = "19m19p19s1123456z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "2m7z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "2m7z",
                         },
                     },
@@ -1140,19 +1143,19 @@ GAME_TEST(4, ron_divides_richii_points)
 GAME_TEST(4, lingshang_cannot_be_yifa)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1m1m8p2m",
                             .hand_ = "13m345s34588899p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "1z1z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "1z1z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "1z1z",
                         },
                     },
@@ -1173,20 +1176,20 @@ GAME_TEST(4, lingshang_cannot_be_yifa)
 GAME_TEST(4, nari_cannot_be_yifa)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "7z7z7z2m",
                             .hand_ = "13m345s34588899p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "1z1z2z2m",
                             .hand_ = "12223z"
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "1z1z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "1z1z",
                         },
                     },
@@ -1209,19 +1212,19 @@ GAME_TEST(4, nari_cannot_be_yifa)
 GAME_TEST(4, do_not_kiri_red_dora)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "6m",
                             .hand_ = "233334m0456s678p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "6m",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "6m",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "6m",
                         },
                     },
@@ -1240,18 +1243,18 @@ GAME_TEST(4, do_not_kiri_red_dora)
 GAME_TEST(4, cannot_richii_last_round)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .hand_ = "233334m0456s678p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .hand_ = "1z2z", // not tinpai
                         },
                     },
@@ -1268,20 +1271,20 @@ GAME_TEST(4, cannot_richii_last_round)
 GAME_TEST(4, ipeiko_cannot_nari)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .hand_ = "12312m456789s7z6z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "7z",
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "3m",
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .hand_ = "1z2z", // not tinpai
                         },
                     },
@@ -1298,20 +1301,20 @@ GAME_TEST(4, ipeiko_cannot_nari)
 GAME_TEST(4, chi_red_dora)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .hand_ = "123m123s123p46m1z2z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "0m",
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .hand_ = "1z2z", // not tinpai
                         },
                     },
@@ -1332,20 +1335,20 @@ GAME_TEST(4, chi_red_dora)
 GAME_TEST(4, pon_red_dora)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .hand_ = "234567m55s2346p1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "6p",
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5s",
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "0s",
                             .hand_ = "1z2z", // not tinpai
                         },
@@ -1368,19 +1371,19 @@ GAME_TEST(4, pon_red_dora)
 GAME_TEST(4, double_riichi_tsumo)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z1z",
                             .hand_ = "123456m345p678s1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .hand_ = "1z2z", // not tinpai
                         },
                     },
@@ -1403,21 +1406,21 @@ GAME_TEST(4, double_riichi_tsumo)
 GAME_TEST(4, cannot_nari_ron_when_the_tile_has_been_used)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z1z",
                             .hand_ = "3467m345p34577s2z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "5m",
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z",
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z",
                             .hand_ = "1z2z", // not tinpai
                         },
@@ -1435,21 +1438,21 @@ GAME_TEST(4, cannot_nari_ron_when_the_tile_has_been_used)
 GAME_TEST(4, gokushi_ron_dark_kan)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z",
                             .hand_ = "19s19p19m2234567z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "111z", // not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z",
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z",
                             .hand_ = "1z2z", // not tinpai
                         },
@@ -1473,21 +1476,21 @@ GAME_TEST(4, gokushi_ron_dark_kan)
 GAME_TEST(4, normal_hand_cannot_ron_dark_kan)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z",
                             .hand_ = "45m345p345s11122z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "3m",
                             .hand_ = "333m", // not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z",
                             .hand_ = "1z2z", // not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z",
                             .hand_ = "1z2z", // not tinpai
                         },
@@ -1505,9 +1508,9 @@ GAME_TEST(4, normal_hand_cannot_ron_dark_kan)
 GAME_TEST(4, kan_after_richii)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z1z",
                             .hand_ = "45m345p345s11122z",
                         },
@@ -1524,9 +1527,9 @@ GAME_TEST(4, kan_after_richii)
 GAME_TEST(4, kan_after_richii_cannot_change_tinpai)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z3m",
                             .hand_ = "33345m12312344s",
                         },
@@ -1543,9 +1546,9 @@ GAME_TEST(4, kan_after_richii_cannot_change_tinpai)
 GAME_TEST(4, tsumo_normal_suanko)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5m",
                             .hand_ = "1112223334455m",
                         },
@@ -1566,13 +1569,13 @@ GAME_TEST(4, tsumo_normal_suanko)
 GAME_TEST(4, kan_self_wind)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "111z23456m1234s",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "4s",
                         },
                     },
@@ -1592,13 +1595,13 @@ GAME_TEST(4, kan_self_wind)
 GAME_TEST(4, BUG_cannot_richii)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "4s",
                             .hand_ = "567m5s234455678p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "3s",
                             .hand_ = "123066789s0678p",
                         },
@@ -1613,20 +1616,20 @@ GAME_TEST(4, BUG_cannot_richii)
 GAME_TEST(4, get_tile_directly_because_cannot_chi_cross_suits)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "9s1p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "8s",
                             .hand_ = "9s2p",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "2p",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "1p",
                         }
                     },
@@ -1643,13 +1646,13 @@ GAME_TEST(4, get_tile_directly_because_cannot_chi_cross_suits)
 GAME_TEST(4, prefer_kiri_non_red_dora)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5p",
                             .hand_ = "0p",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "8s",
                             .hand_ = "4p6p1z",
                         },
@@ -1667,19 +1670,19 @@ GAME_TEST(4, prefer_kiri_non_red_dora)
 GAME_TEST(4, auto_kiri_stop_when_can_nari)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                             .hand_ = "4m5m1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "5z5z5z5z6m",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
                     },
@@ -1702,19 +1705,19 @@ GAME_TEST(4, auto_kiri_stop_when_can_nari)
 GAME_TEST(4, auto_kiri_stop_when_can_dark_kan)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z5z5z5z4m5z",
                             .hand_ = "4m4m4m1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
                     },
@@ -1738,19 +1741,19 @@ GAME_TEST(4, auto_kiri_stop_when_can_dark_kan)
 GAME_TEST(4, auto_kiri_stop_when_can_add_kan)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z5z5z5z4m5z",
                             .hand_ = "4m4m1z2z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "5z5z4m5z5z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
                     },
@@ -1784,19 +1787,19 @@ GAME_TEST(4, auto_kiri_stop_when_can_add_kan)
 GAME_TEST(4, auto_kiri_stop_when_can_ron)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                             .hand_ = "19s19p19m2234567z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "5z5z5z5z1z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
                     },
@@ -1819,19 +1822,19 @@ GAME_TEST(4, auto_kiri_stop_when_can_ron)
 GAME_TEST(4, auto_kiri_stop_when_can_tsumo)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z5z5z5z1z",
                             .hand_ = "19s19p19m2234567z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z5z5z5z5z",
                         },
                     },
@@ -1854,19 +1857,19 @@ GAME_TEST(4, auto_kiri_stop_when_can_tsumo)
 GAME_TEST(4, auto_get_tile)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z",
                             .hand_ = "4m5m1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "6m",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z",
                         },
                     },
@@ -1883,19 +1886,19 @@ GAME_TEST(4, auto_get_tile)
 GAME_TEST(4, auto_ron)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z",
                             .hand_ = "19s19p19m2234567z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "1z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z",
                         },
                     },
@@ -1916,19 +1919,19 @@ GAME_TEST(4, auto_ron)
 GAME_TEST(4, auto_tsumo)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "5z1z",
                             .hand_ = "19s19p19m2234567z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "5z5z",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "5z5z",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "5z5z",
                         },
                     },
@@ -1951,19 +1954,19 @@ GAME_TEST(4, auto_tsumo)
 GAME_TEST(4, auto_nari_ron)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "1z",
                             .hand_ = "3456677s45m345p1z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "6s",
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "3m",
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "6m",
                         },
                     },
@@ -1984,21 +1987,21 @@ GAME_TEST(4, auto_nari_ron)
 GAME_TEST(4, only_auto_player_not_leave)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "2345m1z",
                             .hand_ = "19s19p19m1234567z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "2345m2z",
                             .hand_ = "333m", // not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "2345m2z",
                             .hand_ = "19s19p19m3334567z", // not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "2345m4z",
                             .hand_ = "19s19p19m3334567z", // not tinpai
                         },
@@ -2025,21 +2028,21 @@ GAME_TEST(4, only_auto_player_not_leave)
 GAME_TEST(4, all_auto)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
-    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles{
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
                     .player_tiles_ = {
-                        [0] = Tiles::PlayerTiles {
+                        [0] = PlayerTiles {
                             .yama_ = "2345m1z",
                             .hand_ = "19s19p19m1234567z",
                         },
-                        [1] = Tiles::PlayerTiles {
+                        [1] = PlayerTiles {
                             .yama_ = "2345m2z",
                             .hand_ = "19s19p19m3334567z", // not tinpai
                         },
-                        [2] = Tiles::PlayerTiles {
+                        [2] = PlayerTiles {
                             .yama_ = "2345m2z",
                             .hand_ = "19s19p19m3334567z", // not tinpai
                         },
-                        [3] = Tiles::PlayerTiles {
+                        [3] = PlayerTiles {
                             .yama_ = "2345m4z",
                             .hand_ = "19s19p19m3334567z", // not tinpai
                         },
@@ -2060,6 +2063,58 @@ GAME_TEST(4, all_auto)
     ASSERT_ACHIEVEMENTS(1);
     ASSERT_ACHIEVEMENTS(2);
     ASSERT_ACHIEVEMENTS(3);
+}
+
+GAME_TEST(3, ron_pei_not_qiangkang)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<3>{
+                    .player_tiles_ = {
+                        [0] = PlayerTiles {
+                            .yama_ = "9m",
+                            .hand_ = "123123555s123p4z",
+                        },
+                        [1] = PlayerTiles {
+                            .yama_ = "9m",
+                            .hand_ = "4z",
+                        },
+                        [2] = PlayerTiles {
+                            .yama_ = "1z2z",
+                        },
+                    },
+                    .doras_ = "1m1m", // doras do not hit
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 1, "拔北");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 一杯口 40fu 1fan
+    ASSERT_SCORE(35000 + 2000, 35000 - 2000, 35000);
+}
+
+GAME_TEST(3, pei_is_dora)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<3>{
+                    .player_tiles_ = {
+                        [0] = PlayerTiles {
+                            .yama_ = "4z4z4z4z1m",
+                            .hand_ = "123123555s123p1m",
+                        },
+                    },
+                    .doras_ = "3z2z",
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "拔北");
+    ASSERT_PRI_MSG(OK, 0, "拔北");
+    ASSERT_PRI_MSG(OK, 0, "拔北");
+    ASSERT_PRI_MSG(OK, 0, "拔北");
+    ASSERT_PRI_MSG(OK, 0, "自摸"); // 一杯口 岭上 自摸 dora8 - 三倍满
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    ASSERT_SCORE(35000 + 24000, 35000 - 12000, 35000 - 12000);
 }
 
 } // namespace GAME_MODULE_NAME

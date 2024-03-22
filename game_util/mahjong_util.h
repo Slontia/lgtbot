@@ -147,7 +147,7 @@ static void GenerateTilesFromDecodedString(const std::string_view decoded_str, s
     }
 }
 
-enum class GetTileMode { EXACT, FUZZY, PREFER_RED_DORA };
+enum class GetTileMode { EXACT, FUZZY, PREFER_RED_DORA, PREFER_TOUMEI };
 static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::string& errstr, const GetTileMode mode = GetTileMode::FUZZY)
 {
     TileSet tiles;
@@ -187,6 +187,8 @@ static TileSet GetTilesFrom(TileSet& src, const std::string_view str, std::strin
                         find_red_tile, find_toumei_red_tile, find_tile, find_toumei_tile)) ||
             (mode == GetTileMode::FUZZY && insert_if_found_multi(decoded_str[i], decoded_str[i + 1],
                         find_tile, find_toumei_tile, find_red_tile, find_toumei_red_tile)) ||
+            (mode == GetTileMode::PREFER_TOUMEI && insert_if_found_multi(decoded_str[i], decoded_str[i + 1],
+                        find_toumei_tile, find_toumei_red_tile, find_tile, find_red_tile)) ||
             (mode == GetTileMode::EXACT && insert_if_found_multi(decoded_str[i], decoded_str[i + 1],
                         find_tile))) {
             continue;

@@ -34,8 +34,8 @@ std::string GameOption::StatusInfo() const
 
 bool GameOption::ToValid(MsgSenderBase& reply)
 {
-    if (PlayerNum() < 4) {
-        reply() << "该游戏至少 4 人参加，当前玩家数为 " << PlayerNum();
+    if (PlayerNum() < 3) {
+        reply() << "该游戏至少 3 人参加，当前玩家数为 " << PlayerNum();
         return false;
     }
     return true;
@@ -46,6 +46,9 @@ uint64_t GameOption::BestPlayerNum() const { return 4; }
 // ========== GAME STAGES ==========
 
 class TableStage;
+
+static const int k_three_players_init_point = 35000;
+static const int k_four_players_init_point = 25000;
 
 class MainStage : public MainGameStage<TableStage>
 {
@@ -63,7 +66,8 @@ class MainStage : public MainGameStage<TableStage>
                         std::vector<game_util::mahjong::PlayerDesc> descs;
                         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
                             descs.emplace_back(Global().PlayerName(pid), Global().PlayerAvatar(pid, 45), Global().PlayerAvatar(pid, 30),
-                                    static_cast<Wind>(pid.Get() + 1), 25000);
+                                    static_cast<Wind>(pid.Get() + 1), Global().PlayerNum() == 4 ? k_four_players_init_point
+                                                                                                : k_three_players_init_point);
                         }
                         return descs;
                     }(),
@@ -126,7 +130,21 @@ class SingleTileChecker : public AnyArg
 
 static constexpr const char* k_chinese_number[] = {"零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"};
 
-static constexpr std::array<std::optional<Achievement>, game_util::mahjong::k_max_yaku> YakuToAchievement()
+static constexpr std::array<std::optional<Achievement>, game_util::mahjong::k_max_yaku> YakuToAchievementThreePlayers()
+{
+    std::array<std::optional<Achievement>, game_util::mahjong::k_max_yaku> result;
+
+    result[static_cast<int>(Yaku::天和)] = Achievement::天和;
+    result[static_cast<int>(Yaku::流局满贯)] = Achievement::流局满贯;
+    result[static_cast<int>(Yaku::河底捞鱼)] = Achievement::河底捞鱼;
+    result[static_cast<int>(Yaku::海底捞月)] = Achievement::海底捞月;
+    result[static_cast<int>(Yaku::岭上开花)] = Achievement::岭上开花;
+    result[static_cast<int>(Yaku::抢杠)] = Achievement::抢杠;
+
+    return result;
+}
+
+static constexpr std::array<std::optional<Achievement>, game_util::mahjong::k_max_yaku> YakuToAchievementFourPlayers()
 {
     std::array<std::optional<Achievement>, game_util::mahjong::k_max_yaku> result;
 
@@ -187,6 +205,7 @@ class TableStage : public SubGameStage<>
                 MakeStageCommand(*this, "吃牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Chi_, VoidChecker("吃"), AnyArg("手中的牌（两张）", "24m"), SingleTileChecker("要吃的牌（一张）", "3m")),
                 MakeStageCommand(*this, "碰牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Pon_, VoidChecker("碰"), AnyArg("要碰的牌（可以指明一张或两张，比如手里有055m，可以指明 05m 或 5m，只有前者会碰掉 0m）", "05m")),
                 MakeStageCommand(*this, "杠牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Kan_, VoidChecker("杠"), SingleTileChecker("要杠的牌（一张）", "4m")),
+                MakeStageCommand(*this, "拔北（仅限三麻）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Kita_, VoidChecker("拔北"), OptionalDefaultChecker<BoolChecker>(false, "优先手牌", "自摸牌")),
                 MakeStageCommand(*this, "九种九牌流局", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Nagashi_, VoidChecker("流局")),
                 MakeStageCommand(*this, "自摸和牌", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Tsumo_, VoidChecker("自摸")),
                 MakeStageCommand(*this, "荣和（副露荣和或者荣和）", CommandFlag::PRIVATE_ONLY | CommandFlag::UNREADY_ONLY, &TableStage::Ron_, VoidChecker("荣")),
@@ -363,8 +382,16 @@ class TableStage : public SubGameStage<>
             Global().Achieve(player.PlayerID(), Achievement::三家和了);
         }
         const auto update_achievement = [this, pid = player.PlayerID()](const int yaku_id) {
-            constexpr auto yaku_to_achievement = YakuToAchievement();
-            const std::optional<Achievement> achievement = yaku_to_achievement[yaku_id];
+            const std::optional<Achievement> achievement = [&]()
+                {
+                    if (Global().PlayerNum() == 4) {
+                        constexpr auto yaku_to_achievement = YakuToAchievementFourPlayers();
+                        return yaku_to_achievement[yaku_id];
+                    }
+                    assert(Global().PlayerNum() == 3);
+                    constexpr auto yaku_to_achievement = YakuToAchievementThreePlayers();
+                    return yaku_to_achievement[yaku_id];
+                }();
             if (achievement.has_value()) {
                 Global().Achieve(pid, *achievement);
             }
@@ -417,6 +444,7 @@ class TableStage : public SubGameStage<>
                "\n- 【切牌】（例如：摸切）（例如：1s）"
                "\n- 立直并切牌（例如：立直 摸切）（例如：立直 1s）"
                "\n- 杠（仅可补杠或暗杠，例如：杠 5m）"
+               "\n- 拔北（仅限三麻）"
                "\n- 自摸"
                "\n- 流局（宣告九种九牌流局，仅首回合可执行）":
                state == lgtbot::game_util::mahjong::ActionState::AFTER_KAN ?
@@ -424,11 +452,13 @@ class TableStage : public SubGameStage<>
                "\n- 【切牌】（例如：摸切）（例如：1s）"
                "\n- 立直并切牌（例如：立直 摸切）（例如：立直 1s）"
                "\n- 杠（仅可补杠或暗杠，例如：杠 5m）"
+               "\n- 拔北（仅限三麻）"
                "\n- 自摸" :
                state == lgtbot::game_util::mahjong::ActionState::AFTER_KAN_CAN_NARI ?
                "接下来您可以执行的操作有（【】中的行为是一定可以执行的）："
                "\n- 【切牌】（例如：摸切）（例如：1s）"
                "\n- 杠（仅可补杠或暗杠，例如：杠 5m）"
+               "\n- 拔北（仅限三麻）"
                "\n- 自摸" :
                state == lgtbot::game_util::mahjong::ActionState::AFTER_KIRI ?
                "接下来您可以执行的操作有（【】中的行为是一定可以执行的）："
@@ -462,6 +492,11 @@ class TableStage : public SubGameStage<>
     AtomReqErrCode Kan_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& tile_str)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Kan, tile_str);
+    }
+
+    AtomReqErrCode Kita_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool use_tsumo)
+    {
+        return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Kita, use_tsumo);
     }
 
     AtomReqErrCode Nagashi_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
