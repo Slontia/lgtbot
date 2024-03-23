@@ -16,14 +16,14 @@ using namespace lgtbot::game_util::mahjong;
 
 struct PlayerIdentity
 {
-    std::array<Tile, k_yama_tile_num> yama_;
+    std::vector<Tile> yama_;
     std::array<Tile, 13> hand_;
     std::array<std::pair<Tile, Tile>, 4> doras_;
 };
 
 struct TestSyncMahjong : public testing::Test
 {
-    std::unique_ptr<SyncMahjongGamePlayer> MakePlayer(const PlayerIdentity& identity)
+    std::unique_ptr<SyncMahjongGamePlayer> MakePlayer(PlayerIdentity&& identity)
     {
         TileSet hand;
         std::transform(identity.hand_.begin(), identity.hand_.end(), std::inserter(hand, hand.end()),
@@ -32,7 +32,7 @@ struct TestSyncMahjong : public testing::Test
             "", // image_path
             std::vector<PlayerDesc>(4), // player_descs
             0, // player_id
-            identity.yama_,
+            std::move(identity.yama_),
             hand,
             identity.doras_
         );
@@ -43,6 +43,9 @@ struct TestSyncMahjong : public testing::Test
 TEST_F(TestSyncMahjong, kiri_priority)
 {
     std::unique_ptr<SyncMahjongGamePlayer> player = MakePlayer(PlayerIdentity{
+                .yama_{
+                    Tile{.tile = _1m, .red_dora = false, .toumei = false},
+                },
                 .hand_{
                     Tile{.tile = _5s, .red_dora = true, .toumei = false},
                     Tile{.tile = _5s, .red_dora = false, .toumei = false},

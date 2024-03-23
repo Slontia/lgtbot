@@ -6,6 +6,7 @@
 
 #include <optional>
 #include <span>
+#include <ranges>
 
 #include "game_util/mahjong_util.h"
 #include "utility/defer.h"
