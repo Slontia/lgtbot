@@ -274,14 +274,17 @@ class SyncMahjongGamePlayer
             errstr_ = "只有在牌山有牌的情况下才可以立直";
             return false;
         }
-        if (richii && !std::ranges::all_of(furus_, [](const Furu& furu) { return furu.tiles_[3].type_ == FuruTile::Type::DARK; })) {
+        if (richii && !std::ranges::all_of(furus_,
+                    [](const Furu& furu) { return IsDarkKan_(furu.tiles_) || IsKita_(furu.tiles_); })) {
             errstr_ = "在有副露的情况下不允许立直";
             return false;
         }
         if (tile.empty() ? !KiriTsumo_(richii) : !KiriHand_(tile, richii)) {
             return false;
         }
-        state_ = (state_ == ActionState::AFTER_CHI_PON || state_ == ActionState::AFTER_KAN_CAN_NARI) && (CanChi_() || CanPon_() || CanRon_()) ?
+        state_ =
+            (state_ == ActionState::AFTER_CHI_PON || state_ == ActionState::AFTER_KAN_CAN_NARI) &&
+                (CanChi_() || CanPon_() || CanRon_()) ?
             ActionState::AFTER_KIRI : ActionState::ROUND_OVER;
         if (GetAutoOption(AutoOption::AUTO_FU)) {
             Ron(); // may be failed
@@ -734,7 +737,10 @@ class SyncMahjongGamePlayer
             if (!as_tsumo) {
                 texts.emplace_back(LoserHtml(player_descs[result.player_id_]));
             }
-            const auto score = as_tsumo ? result.counter_.score1 : result.counter_.score1 / 3 * fu_results.size();
+            // `result.counter_.score1` is the score that one player should pay.
+            // `result.counter_.score1 * fu_results.size()` is the score that one player should play if only ron one player (6a).
+            // We divided the score by 3 so that we can get 2a, which is same as the score that each player should pay when tsumo.
+            const auto score = as_tsumo ? result.counter_.score1 : result.counter_.score1 * fu_results.size() / 3;
             std::string score_info = std::string(
                     score == 16000 * 6  ? "六倍役满" :
                     score == 16000 * 5  ? "五倍役满" :
@@ -1177,7 +1183,7 @@ class SyncMahjongGamePlayer
             }
         };
         static const auto is_dora = [](const Tile& tile) { return tile.tile == BaseTile::west; }; // west directs to north
-        const auto north_count = std::ranges::count_if(furus_, [](const Furu& furu) { return IsNorth_(furu.tiles_); });
+        const auto north_count = std::ranges::count_if(furus_, [](const Furu& furu) { return IsKita_(furu.tiles_); });
         insert_yakus(Yaku::北宝牌, north_count);
         insert_yakus(Yaku::宝牌,
                 north_count * std::ranges::count_if(doras_manager_.Doras() | std::views::elements<0>, is_dora));
@@ -1315,7 +1321,7 @@ class SyncMahjongGamePlayer
         return fu_results;
     }
 
-    static bool IsNorth_(const std::array<FuruTile, 4>& furu_tiles) { return furu_tiles[1].type_ == FuruTile::Type::EMPTY; }
+    static bool IsKita_(const std::array<FuruTile, 4>& furu_tiles) { return furu_tiles[1].type_ == FuruTile::Type::EMPTY; }
 
     static bool IsChi_(const std::array<FuruTile, 4>& furu_tiles) { return furu_tiles[0].tile_.tile != furu_tiles[1].tile_.tile; }
 
@@ -1323,6 +1329,8 @@ class SyncMahjongGamePlayer
     {
         return furu_tiles[0].tile_.tile == basetile && furu_tiles[1].tile_.tile == basetile && furu_tiles[3].type_ == FuruTile::Type::EMPTY;
     }
+
+    static bool IsDarkKan_(const std::array<FuruTile, 4>& furu_tiles) { return furu_tiles[3].type_ == FuruTile::Type::DARK; }
 
     static Tile NariTile_(const std::array<FuruTile, 4>& furu_tiles)
     {
@@ -1350,7 +1358,7 @@ class SyncMahjongGamePlayer
             table.players[player_id_].hand.emplace_back(const_cast<Tile*>(&tile));
         }
         for (const auto& furu : furus_) {
-            if (IsNorth_(furu.tiles_)) {
+            if (IsKita_(furu.tiles_)) {
                 continue;
             }
             Fulu fulu;

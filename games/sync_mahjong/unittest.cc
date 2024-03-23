@@ -1171,6 +1171,7 @@ GAME_TEST(4, lingshang_cannot_be_yifa)
     ASSERT_PRI_MSG(CHECKOUT, 0, "自摸"); // 立直 + 岭上 + 自摸, 40 fu 3 fan
 
     ASSERT_SCORE(25000 + 7800, 25000 - 2600, 25000 - 2600, 25000 - 2600);
+    ASSERT_ACHIEVEMENTS(0, "岭上开花");
 }
 
 GAME_TEST(4, nari_cannot_be_yifa)
@@ -2115,6 +2116,7 @@ GAME_TEST(3, pei_is_dora)
     ASSERT_TIMEOUT(CHECKOUT);
 
     ASSERT_SCORE(35000 + 24000, 35000 - 12000, 35000 - 12000);
+    ASSERT_ACHIEVEMENTS(0, "岭上开花");
 }
 
 } // namespace GAME_MODULE_NAME
