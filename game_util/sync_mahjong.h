@@ -99,6 +99,8 @@ struct SyncMahjongOption
     std::vector<PlayerDesc> player_descs_;
 };
 
+template <size_t PlayerNum>
+    requires (PlayerNum == 3 || PlayerNum == 4)
 static constexpr std::array<BaseTile, k_tile_type_num> k_dora_sign_to_dora = []()
     {
         std::array<BaseTile, k_tile_type_num> result;
@@ -109,7 +111,12 @@ static constexpr std::array<BaseTile, k_tile_type_num> k_dora_sign_to_dora = [](
                     result[basetile] = static_cast<BaseTile>(basetile + 1);
                 }
             };
-        fill_result(_1m, _9m);
+        if constexpr (PlayerNum == 3) {
+            result[_1m] = _9m;
+            result[_9m] = _1m;
+        } else {
+            fill_result(_1m, _9m);
+        }
         fill_result(_1s, _9s);
         fill_result(_1p, _9p);
         fill_result(east, north);
@@ -117,9 +124,12 @@ static constexpr std::array<BaseTile, k_tile_type_num> k_dora_sign_to_dora = [](
         return result;
     }();
 
-static bool IsDora(const std::span<const std::pair<Tile, Tile>> doras, const BaseTile basetile)
+static bool IsDora(const uint32_t player_num, const std::span<const std::pair<Tile, Tile>> doras, const BaseTile basetile)
 {
-    const auto is_dora = [basetile](const auto dora_signs) { return k_dora_sign_to_dora[dora_signs.first.tile] == basetile; };
+    const auto is_dora = [player_num, basetile](const auto dora_signs)
+        {
+            return (player_num == 3 ? k_dora_sign_to_dora<3> : k_dora_sign_to_dora<4>)[dora_signs.first.tile] == basetile;
+        };
     return std::ranges::any_of(doras, is_dora);
 }
 
@@ -704,13 +714,14 @@ class SyncMahjongGamePlayer
         return table.ToString();
     }
 
-    static std::string HandHtmlWithName_(const std::string& image_path, const TileSet& hand, const TileStyle style, const DorasManager& dora_manager, const std::optional<Tile>& tsumo = std::nullopt)
+    static std::string HandHtmlWithName_(const uint32_t player_num, const std::string& image_path, const TileSet& hand,
+            const TileStyle style, const DorasManager& dora_manager, const std::optional<Tile>& tsumo = std::nullopt)
     {
         html::Table table(2, 0);
         table.SetTableStyle(" align=\"center\" cellpadding=\"0\" cellspacing=\"0\" ");
-        const auto tile_str = [&dora_manager](const Tile& tile)
+        const auto tile_str = [player_num, &dora_manager](const Tile& tile)
             {
-                return IsDora(dora_manager.Doras(), tile.tile) || tile.red_dora
+                return IsDora(player_num, dora_manager.Doras(), tile.tile) || tile.red_dora
                     ? HTML_COLOR_FONT_HEADER(blue) + tile.to_simple_string() + HTML_FONT_TAIL
                     : tile.to_simple_string();
             };
@@ -786,8 +797,9 @@ class SyncMahjongGamePlayer
     }
 
     std::string HandHtml_(const TileStyle tile_style) const {
-        std::string hand_html = tile_style == TileStyle::HAND ? HandHtmlWithName_(image_path_, hand_, tile_style, doras_manager_, tsumo_)
-                                                              : HandHtml(image_path_, hand_, tile_style, tsumo_);
+        std::string hand_html = tile_style == TileStyle::HAND
+            ? HandHtmlWithName_(player_descs_.size(), image_path_, hand_, tile_style, doras_manager_, tsumo_)
+            : HandHtml(image_path_, hand_, tile_style, tsumo_);
         return AppendFuruHtmls_(std::move(hand_html));
     }
 
@@ -1349,6 +1361,7 @@ class SyncMahjongGamePlayer
         }
         table.庄家 = player_id_;
         table.last_action = state_ == ActionState::AFTER_KAN || state_ == ActionState::AFTER_KAN_CAN_NARI ? Action::杠 : Action::pass;
+        table.is_three_players = player_descs_.size() == 3;
         table.players[player_id_].first_round = river_.empty() && furus_.empty();
         table.players[player_id_].riichi = IsRiichi_();
         table.players[player_id_].double_riichi = table.players[player_id_].riichi && is_double_richii_;

@@ -2119,6 +2119,33 @@ GAME_TEST(3, pei_is_dora)
     ASSERT_ACHIEVEMENTS(0, "岭上开花");
 }
 
+GAME_TEST(3, dora_sign_1m_point_to_9m)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<3>{
+                    .player_tiles_ = {
+                        [0] = PlayerTiles {
+                            .yama_ = "1z",
+                            .hand_ = "123123s12344p99m",
+                        },
+                        [1] = PlayerTiles {
+                            .yama_ = "9m",
+                            .hand_ = "4z",
+                        },
+                        [2] = PlayerTiles {
+                            .yama_ = "1z2z",
+                        },
+                    },
+                    .doras_ = "1m",
+                }));
+    START_GAME();
+
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣"); // 一杯口 dora3
+    ASSERT_SCORE(35000 + 12000, 35000 - 12000, 35000);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
