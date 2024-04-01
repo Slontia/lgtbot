@@ -2146,6 +2146,36 @@ GAME_TEST(3, dora_sign_1m_point_to_9m)
     ASSERT_SCORE(35000 + 12000, 35000 - 12000, 35000);
 }
 
+GAME_TEST(3, kita_after_riichi)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<3>{
+                    .player_tiles_ = {
+                        [0] = PlayerTiles {
+                            .yama_ = "2s7z2s",
+                            .hand_ = "19s19p19m1234456z",
+                        },
+                        [1] = PlayerTiles {
+                            .yama_ = "2s9m",
+                        },
+                        [2] = PlayerTiles {
+                            .yama_ = "2s2s",
+                        },
+                    },
+                    .doras_ = "1m",
+                }));
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "立直 摸切");
+    ASSERT_TIMEOUT(CONTINUE);
+
+    ASSERT_PRI_MSG(CONTINUE, 0, "拔北");
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "荣");
+
+    ASSERT_SCORE(35000 + 96000, 35000 - 96000, 35000);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game

@@ -1135,14 +1135,17 @@ class SyncMahjongGamePlayer
     bool CanNariTsumoTile_() const
     {
         assert(tsumo_.has_value());
+        if (player_descs_.size() == 3 && tsumo_->tile == north) {
+            return true;
+        }
         if (IsRiichi_()) {
             auto hand = hand_;
+            // dark kan cannot change listen tiles when riichi
             return std::erase_if(hand, [this](const Tile& tile) { return tile.tile == tsumo_->tile; }) == 3 &&
                 GetListenTiles_(hand, std::nullopt) == richii_listen_tiles_;
         }
         return std::ranges::count_if(hand_, [&](const Tile& tile) { return tile.tile == tsumo_->tile; }) >= 3 ||
-            std::ranges::any_of(furus_, [&](const Furu& furu) { return IsPon_(furu.tiles_, tsumo_->tile); }) ||
-            (player_descs_.size() == 3 && tsumo_->tile == north);
+            std::ranges::any_of(furus_, [&](const Furu& furu) { return IsPon_(furu.tiles_, tsumo_->tile); });
     }
 
     // If `CanRon_()` returns true, `Ron()` must return true.
