@@ -495,6 +495,11 @@ class SyncMahjongGamePlayer
             errstr_ = "只有三麻可以拔北";
             return false;
         }
+        if (yama_idx_ >= yama_.size()) {
+            // no more tiles
+            errstr_ = "您当前无可摸牌，无法拔北";
+            return false;
+        }
         if (state_ != ActionState::AFTER_GET_TILE && state_ != ActionState::AFTER_KAN && state_ != ActionState::AFTER_KAN_CAN_NARI) {
             errstr_ = "当前状态不允许拔北";
             return false;

@@ -2176,6 +2176,25 @@ GAME_TEST(3, kita_after_riichi)
     ASSERT_SCORE(35000 + 96000, 35000 - 96000, 35000);
 }
 
+GAME_TEST(3, cannot_kita_last_round)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
+                    .player_tiles_ = {
+                        [0] = PlayerTiles {
+                            .hand_ = "4z",
+                        },
+                    },
+                }));
+    START_GAME();
+
+    for (uint32_t i = 0; i < 19; ++i) {
+        ASSERT_TIMEOUT(CONTINUE);
+    }
+
+    ASSERT_PRI_MSG(FAILED, 0, "拔北");
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
