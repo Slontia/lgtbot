@@ -2066,6 +2066,37 @@ GAME_TEST(4, all_auto)
     ASSERT_ACHIEVEMENTS(3);
 }
 
+GAME_TEST(4, tsumo_danki_should_not_be_pinhu)
+{
+    ASSERT_PUB_MSG(OK, 0, "局数 1");
+    ASSERT_PUB_MSG(OK, 0, "配牌 " + TilesToString(Tiles<4>{
+                    .player_tiles_ = {
+                        [0] = PlayerTiles {
+                            .yama_ = "2z8m",
+                            .hand_ = "8m122334s455667p",
+                        },
+                        [1] = PlayerTiles {
+                            .yama_ = "8m",
+                        },
+                        [2] = PlayerTiles {
+                            .yama_ = "1z",
+                        },
+                        [3] = PlayerTiles {
+                            .yama_ = "1z",
+                        },
+                    },
+                    .doras_ = "1m1m", // doras do not hit
+                }));
+    START_GAME();
+
+    ASSERT_TIMEOUT(CONTINUE);
+
+    // cannot ron 8m for no yakus
+    ASSERT_PRI_MSG(CHECKOUT, 0, "自摸"); // tsumo only
+
+    ASSERT_SCORE(25000 + 1500, 25000 - 500, 25000 - 500, 25000 - 500);
+}
+
 GAME_TEST(3, ron_pei_not_qiangkang)
 {
     ASSERT_PUB_MSG(OK, 0, "局数 1");
