@@ -54,6 +54,16 @@ struct ShowCommandOption
 extern const std::vector<MetaCommandGroup> meta_cmds;
 extern const std::vector<MetaCommandGroup> admin_cmds;
 
+static uint32_t DefaultMultiple(const GameHandle& game_handle)
+{
+    return game_handle.Info().multiple_fn_(game_handle.DefaultGameOptions().Lock()->game_options_.get());
+}
+
+static uint32_t DefaultMaxPlayer(const GameHandle& game_handle)
+{
+    return game_handle.Info().max_player_num_fn_(game_handle.DefaultGameOptions().Lock()->game_options_.get());
+}
+
 static ErrCode help_internal(BotCtx& bot, MsgSenderBase& reply, const std::vector<MetaCommandGroup>& cmd_groups,
         const ShowCommandOption& option, const std::string& type_name)
 {
@@ -130,9 +140,9 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
     if (show_text) {
         auto sender = reply();
         sender << "游戏列表：";
-        for (const auto& [name, info] : bot.game_handles()) {
+        for (const auto& [name, game_handle] : bot.game_handles()) {
             sender << "\n" << (++i) << ". " << name;
-            if (info->multiple_ == 0) {
+            if (DefaultMultiple(game_handle) == 0) {
                 sender << "（试玩）";
             }
         }
@@ -141,21 +151,24 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
         table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"5\" cellspacing=\"1\" ");
         const auto game_handles_range = std::views::transform(bot.game_handles(), [](const auto& p) { return &p; });
         auto game_handles = std::vector(std::ranges::begin(game_handles_range), std::ranges::end(game_handles_range));
-        std::ranges::sort(game_handles, [](const auto& _1, const auto& _2) { return _1->second->activity_ > _2->second->activity_; });
+        std::ranges::sort(game_handles,
+                [](const auto& _1, const auto& _2) { return _1->second.Activity() > _2->second.Activity(); });
         for (const auto& p : game_handles) {
             const auto& name = p->first;
-            const auto& info = p->second;
+            const auto& game_handle = p->second;
+            const auto default_multiple = DefaultMultiple(game_handle);
+            const auto default_max_player = DefaultMaxPlayer(game_handle);
             table.AppendRow();
             table.AppendRow();
             table.MergeDown(table.Row() - 2, 0, 2);
             table.MergeRight(table.Row() - 1, 1, 3);
-            table.Get(table.Row() - 2, 0).SetContent("<font size=\"5\"> **" + name + "**</font>\n\n热度：" + std::to_string(info->activity_));
-            table.Get(table.Row() - 2, 1).SetContent("开发者：" + info->developer_);
-            table.Get(table.Row() - 2, 2).SetContent(info->max_player_ == 0 ? "无玩家数限制" :
-                    ("最多 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(info->max_player_) + "**" HTML_FONT_TAIL " 名玩家"));
-            table.Get(table.Row() - 2, 3).SetContent(info->multiple_ == 0 ? "不计分" :
-                    ("默认 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(info->multiple_) + "**" HTML_FONT_TAIL " 倍分数"));
-            table.Get(table.Row() - 1, 1).SetContent("<font size=\"3\"> " + info->description_ + "</font>");
+            table.Get(table.Row() - 2, 0).SetContent("<font size=\"5\"> **" + name + "**</font>\n\n热度：" + std::to_string(game_handle.Activity()));
+            table.Get(table.Row() - 2, 1).SetContent("开发者：" + game_handle.Info().developer_);
+            table.Get(table.Row() - 2, 2).SetContent(default_max_player == 0 ? "无玩家数限制" :
+                    ("最多 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(default_max_player) + "**" HTML_FONT_TAIL " 名玩家"));
+            table.Get(table.Row() - 2, 3).SetContent(default_multiple == 0 ? "不计分" :
+                    ("默认 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(default_multiple) + "**" HTML_FONT_TAIL " 倍分数"));
+            table.Get(table.Row() - 1, 1).SetContent("<font size=\"3\"> " + game_handle.Info().description_ + "</font>");
         }
         reply() << Markdown("## 游戏列表\n\n" + table.ToString(), 800);
     }
@@ -163,7 +176,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
 }
 
 static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
-                        const std::string& gamename, const bool is_single)
+                        const std::string& gamename, const std::vector<std::string>& args)
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
@@ -178,22 +191,21 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
             return rc;
         }
     }
-    const auto& [ret, match] = bot.match_manager().NewMatch(*it->second, uid, gid, reply);
+    const std::string binded_args = std::accumulate(args.begin(), args.end(), std::string{},
+            [](std::string&& s, const std::string& arg) { return std::move(s) + arg + " "; });
+    const auto& [ret, match] = bot.match_manager().NewMatch(it->second, binded_args, uid, gid, reply);
     if (ret != EC_OK) {
         return ret;
     }
-    if (is_single) {
-        RETURN_IF_FAILED(match->SetBenchTo(uid, EmptyMsgSender::Get(), std::nullopt));
-        RETURN_IF_FAILED(match->GameStart(uid, gid.has_value(), reply));
+    auto sender = match->Boardcast();
+    if (match->gid().has_value()) {
+        sender << "现在玩家可以在群里通过「" META_COMMAND_SIGN "加入」报名比赛，房主也可以通过「帮助」（不带"
+            META_COMMAND_SIGN "号）查看所有支持的游戏设置";
     } else {
-        auto sender = match->Boardcast();
-        if (match->gid().has_value()) {
-            sender << "现在玩家可以在群里通过「" META_COMMAND_SIGN "加入」报名比赛，房主也可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置";
-        } else {
-            sender << "现在玩家可以通过私信我「" META_COMMAND_SIGN "加入 " << match->MatchId() << "」报名比赛，您也可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置";
-        }
-        sender << "\n\n" << match->BriefInfo();
+        sender << "现在玩家可以通过私信我「" META_COMMAND_SIGN "加入 " << match->MatchId()
+               << "」报名比赛，您也可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置";
     }
+    sender << "\n\n" << match->BriefInfo();
     return EC_OK;
 }
 
@@ -220,17 +232,25 @@ static ErrCode set_bench_to(BotCtx& bot, const UserID uid, const std::optional<G
             [&](const auto& match) { return match->SetBenchTo(uid, reply, bench_to_player_num); }, "配置");
 }
 
+static ErrCode set_formal(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+        const bool is_formal)
+{
+    return handle_match_by_user(bot, uid, gid, reply,
+            [&](const auto& match) { return match->SetFormal(uid, reply, is_formal); }, "配置");
+}
+
 static ErrCode set_multiple(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
         const uint32_t multiple)
 {
-    return handle_match_by_user(bot, uid, gid, reply,
-            [&](const auto& match) { return match->SetMultiple(uid, reply, multiple); }, "配置");
+    reply() << "[错误] 配置失败：机器人已经不再支持自定义倍率，但您现在可以通过「" META_COMMAND_SIGN "计分 开启」和"
+               "「" META_COMMAND_SIGN "计分 关闭」控制该场比赛是否计分";
+    return EC_INVALID_ARGUMENT;
 }
 
 static ErrCode start_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
 {
     return handle_match_by_user(bot, uid, gid, reply,
-            [&](const auto& match) { return match->GameStart(uid, gid.has_value(), reply); }, "开始");
+            [&](const auto& match) { return match->GameStart(uid, reply); }, "开始");
 }
 
 static ErrCode leave(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
@@ -308,7 +328,7 @@ static ErrCode show_matches(BotCtx& bot, const UserID uid, const std::optional<G
                 }
                 const auto uid = match->HostUserId();
                 table.GetLastRow(2).SetContent(bot.GetUserAvatar(uid.GetCStr(), 25) + HTML_ESCAPE_SPACE + bot.GetUserName(uid.GetCStr(), nullptr));
-                table.GetLastRow(3).SetContent(match->game_handle().name_);
+                table.GetLastRow(3).SetContent(match->game_handle().Info().name_);
                 table.GetLastRow(4).SetContent(std::to_string(match->UserNum()));
                 const auto state = match->state();
                 table.GetLastRow(5).SetContent(
@@ -347,19 +367,19 @@ static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<Grou
         return EC_REQUEST_UNKNOWN_GAME;
     };
     if (!show_text) {
-        reply() << Markdown(it->second->rule_);
+        reply() << Markdown(it->second.Info().rule_);
         return EC_OK;
     }
     auto sender = reply();
     sender << "最多可参加人数：";
-    if (it->second->max_player_ == 0) {
+    if (const auto max_player = DefaultMaxPlayer(it->second); max_player == 0) {
         sender << "无限制";
     } else {
-        sender << it->second->max_player_;
+        sender << max_player;
     }
     sender << "人\n";
     sender << "详细规则：\n";
-    sender << it->second->rule_;
+    sender << it->second.Info().rule_;
     return EC_OK;
 }
 
@@ -376,7 +396,7 @@ static ErrCode show_custom_rule(BotCtx& bot, const UserID uid, const std::option
         s += arg;
         s += " ";
     }
-    const char* const result = it->second->handle_rule_command_fn_(s.c_str());
+    const char* const result = it->second.Info().handle_rule_command_fn_(s.c_str());
     if (!result) {
         reply() << "[错误] 查看失败：未知的规则指令，请通过「" META_COMMAND_SIGN "规则 " << gamename << "」查看具体规则指令";
         return EC_INVALID_ARGUMENT;
@@ -397,13 +417,13 @@ static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::option
         reply() << "[错误] 查看失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     };
-    if (it->second->achievements_.empty()) {
+    if (it->second.Info().achievements_.empty()) {
         reply() << "该游戏没有任何成就";
         return EC_OK;
     }
     html::Table table(0, 3);
     table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"5\" cellspacing=\"1\" ");
-    for (const auto& [achievement_name, description] : it->second->achievements_) {
+    for (const auto& [achievement_name, description] : it->second.Info().achievements_) {
         const auto statistic = bot.db_manager()->GetAchievementStatistic(uid, gamename, achievement_name);
         const std::string color_header = statistic.count_ > 0 ? HTML_COLOR_FONT_HEADER(green) : HTML_COLOR_FONT_HEADER(black);
         table.AppendRow();
@@ -433,7 +453,7 @@ static ErrCode show_game_options(BotCtx& bot, const UserID uid, const std::optio
         return EC_REQUEST_UNKNOWN_GAME;
     };
     const std::string outstr = std::string("### 「") + gamename + "」配置选项" +
-        it->second->game_options_.Lock().Get()->Info(true, !text_mode, (ADMIN_COMMAND_SIGN "配置 " + gamename + " ").c_str());
+        it->second.DefaultGameOptions().Lock()->game_options_->Info(true, !text_mode, (ADMIN_COMMAND_SIGN "配置 " + gamename + " ").c_str());
     if (text_mode) {
         reply() << outstr;
     } else {
@@ -637,7 +657,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
             if (const auto it = bot.game_handles().find(info.game_name_); it == bot.game_handles().end()) {
                 recent_honors_table.GetLastRow(3).SetContent("???");
             } else {
-                for (const auto& [name, description] : it->second->achievements_) {
+                for (const auto& [name, description] : it->second.Info().achievements_) {
                     if (name == info.achievement_name_) {
                         recent_honors_table.GetLastRow(3).SetContent(description);
                         break;
@@ -862,11 +882,13 @@ const std::vector<MetaCommandGroup> meta_cmds = {
         "新建游戏", { // NEW GAME: can only be executed by host
             make_command("在当前房间建立公开游戏，或私信 bot 以建立私密游戏（游戏名称可以通过「" META_COMMAND_SIGN "游戏列表」查看）",
                         new_game, VoidChecker(META_COMMAND_SIGN "新游戏"), AnyArg("游戏名称", "猜拳游戏"),
-                        OptionalDefaultChecker<BoolChecker>(false, "单机", "多人")),
+                        RepeatableChecker<AnyArg>("预设指令", "某指令")),
             make_command("房主设置参与游戏的AI数量，使得玩家不低于一定数量（属于配置变更，会使得全部玩家退出游戏）",
                         set_bench_to, VoidChecker(META_COMMAND_SIGN "替补至"), ArithChecker<uint32_t>(2, 32, "数量")),
-            make_command("房主调整分数倍率，0 代表试玩（属于配置变更，会使得全部玩家退出游戏）",
+            make_command("（已废弃）房主调整分数倍率",
                         set_multiple, VoidChecker(META_COMMAND_SIGN "倍率"), ArithChecker<uint32_t>(0, 3, "倍率")),
+            make_command("房主调整该局比赛是否计分",
+                        set_formal, VoidChecker(META_COMMAND_SIGN "计分"), BoolChecker("开启", "关闭")),
             make_command("房主开始游戏", start_game, VoidChecker(META_COMMAND_SIGN "开始")),
         }
     },
@@ -901,17 +923,17 @@ static ErrCode interrupt_game(BotCtx& bot, const UserID uid, const std::optional
     return EC_OK;
 }
 
-static ErrCode set_game_default_multiple(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const std::string& gamename, const uint32_t multiple)
+static ErrCode set_game_default_formal(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
+        MsgSenderBase& reply, const std::string& gamename, const bool is_formal)
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
         reply() << "[错误] 查看失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     };
-    it->second->multiple_ = multiple;
-    reply() << "设置成功，游戏默认倍率为 " << multiple;
-    bot.UpdateGameMultiple(gamename, multiple);
+    it->second.DefaultGameOptions().Lock()->generic_options_.is_formal_ = is_formal;
+    reply() << "设置成功，游戏默认" << (is_formal ? "开启" : "关闭") << "计分";
+    bot.UpdateGameDefaultFormal(gamename, is_formal);
     return EC_OK;
 }
 
@@ -941,8 +963,8 @@ static ErrCode set_bot_option(BotCtx& bot, const UserID uid, const std::optional
         MsgSenderBase& reply, const std::string& option_name, const std::vector<std::string>& option_args)
 {
     MsgReader reader(option_args);
-    auto locked_option = bot.option().Lock(); // lock until updated config to prevent write skew
-    if (!locked_option.Get().SetOption(option_name, reader)) {
+    auto locked_option = bot.option().Lock(); // lock until updated config to ensure atomic write
+    if (!locked_option->SetOption(option_name, reader)) {
         reply() << "[错误] 设置配置项失败，请通过「" ADMIN_COMMAND_SIGN "全局配置」确认配置项是否存在";
         return EC_INVALID_ARGUMENT;
     }
@@ -964,8 +986,8 @@ static ErrCode set_game_option(BotCtx& bot, const UserID uid, const std::optiona
     for (const auto& option_arg : option_args) {
         option_str += " " + option_arg;
     }
-    auto locked_option = game_handle_it->second->game_options_.Lock(); // lock until updated config to prevent write skew
-    if (!locked_option.Get()->SetOption(option_str.c_str())) {
+    auto locked_option = game_handle_it->second.DefaultGameOptions().Lock(); // lock until updated config to ensure atomic write
+    if (!locked_option->game_options_->SetOption(option_str.c_str())) {
         reply() << "[错误] 设置配置项失败，请通过「" META_COMMAND_SIGN "配置 " << game_name << "」确认配置项是否存在";
         return EC_INVALID_ARGUMENT;
     }
@@ -977,7 +999,7 @@ static ErrCode set_game_option(BotCtx& bot, const UserID uid, const std::optiona
 static ErrCode show_bot_options(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
         MsgSenderBase& reply, const bool text_mode)
 {
-    const std::string outstr = "### 全局配置选项" + bot.option().Lock().Get().Info(true, !text_mode, ADMIN_COMMAND_SIGN "全局配置 ");
+    const std::string outstr = "### 全局配置选项" + bot.option().Lock()->Info(true, !text_mode, ADMIN_COMMAND_SIGN "全局配置 ");
     if (text_mode) {
         reply() << outstr;
     } else {
@@ -1035,8 +1057,8 @@ const std::vector<MetaCommandGroup> admin_cmds = {
     },
     {
         "配置操作", {
-            make_command("设置游戏默认倍率", set_game_default_multiple, VoidChecker(ADMIN_COMMAND_SIGN "倍率"),
-                        AnyArg("游戏名称", "猜拳游戏"), ArithChecker<uint32_t>(0, 3, "倍率")),
+            make_command("设置游戏计分默认开启/关闭", set_game_default_formal, VoidChecker(ADMIN_COMMAND_SIGN "计分"),
+                        AnyArg("游戏名称", "猜拳游戏"), BoolChecker("开启", "关闭")),
             make_command("查看所有支持的配置项", show_bot_options, VoidChecker(ADMIN_COMMAND_SIGN "全局配置"),
                         OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")),
             make_command("设置配置项（可通过「" ADMIN_COMMAND_SIGN "配置列表」查看所有支持的配置）", set_bot_option, VoidChecker(ADMIN_COMMAND_SIGN "全局配置"),

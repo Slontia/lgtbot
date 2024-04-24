@@ -18,7 +18,7 @@
 
 #include <dirent.h>
 
-using GameHandleMap = std::map<std::string, std::unique_ptr<GameHandle>>;
+using GameHandleMap = std::map<std::string, GameHandle>;
 
 class BotCtx
 {
@@ -30,6 +30,7 @@ class BotCtx
 
     MatchManager& match_manager() { return match_manager_; }
 
+    auto& game_handles() { return game_handles_; }
     const auto& game_handles() const { return game_handles_; }
 
     bool HasAdmin(const UserID uid) const { return admins_.find(uid) != admins_.end(); }
@@ -38,7 +39,9 @@ class BotCtx
 
     const std::string& image_path() const { return image_path_; }
 
+#ifdef WITH_SQLITE
     DBManagerBase* db_manager() const { return db_manager_.get(); }
+#endif
 
     auto& option() { return mutable_bot_options_; }
 
@@ -49,7 +52,7 @@ class BotCtx
     bool UpdateGameConfig(const std::string& game_name, const std::string& option_name,
             const std::vector<std::string>& option_args);
 
-    bool UpdateGameMultiple(const std::string& game_name, const uint32_t multiple);
+    bool UpdateGameDefaultFormal(const std::string& game_name, const bool formal);
 
     // TODO: I don't know why, if I put the definition into bot_ctx.cc, the compiler will report 'undefined reference' in MSYS2.
     std::string GetUserName(const char* const user_id, const char* const group_id) const
@@ -87,14 +90,14 @@ class BotCtx
            void* const handler);
 
     // The passed `BotOption` in constructor can be destructed soon, we must store the string.
-    const std::string game_path_;
-    const std::string conf_path_;
-    const std::string image_path_;
-    const LGTBot_Callback callbacks_;
-    const GameHandleMap game_handles_;
-    const std::set<UserID> admins_;
+    std::string game_path_;
+    std::string conf_path_;
+    std::string image_path_;
+    LGTBot_Callback callbacks_;
+    GameHandleMap game_handles_;
+    std::set<UserID> admins_;
 #ifdef WITH_SQLITE
-    const std::unique_ptr<DBManagerBase> db_manager_;
+    std::unique_ptr<DBManagerBase> db_manager_;
 #endif
     LockWrapper<MutableBotOption> mutable_bot_options_;
     LockWrapper<nlohmann::json> config_json_;

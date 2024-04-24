@@ -6,21 +6,59 @@
 
 #include "utility/msg_checker.h"
 
+class MsgSenderBase;
+
 namespace lgtbot {
 
 namespace game {
 
+class MutableGenericOptions;
+class ImmutableGenericOptions;
+class GenericOptions;
+
 namespace GAME_MODULE_NAME {
+
+class MyGameOptions;
+
+// =====================================
+//      Developer-defined constance
+// =====================================
 
 // Const variable at namespace scope has internal linkage. we need use 'extern' keyword to expose them.
 extern const std::string k_game_name;
-extern const uint64_t k_max_player;
-extern const uint64_t k_multiple;
 extern const std::string k_developer;
 extern const std::string k_description;
 
-using RuleCommand = Command<const char* const()>;
+// ====================================
+//      Developer-defined commands
+// ====================================
+
+using RuleCommand = Command<const char* const()>; // command to show detail rules
 extern const std::vector<RuleCommand> k_rule_commands;
+
+enum class NewGameMode {
+    SINGLE_USER,    // start game immediately
+    MULTIPLE_USERS, // wait other users to join
+};
+using InitOptionsCommand = Command<NewGameMode(MyGameOptions& game_options, MutableGenericOptions& generic_options)>; // command to initialize options
+extern const std::vector<InitOptionsCommand> k_init_options_commands;
+
+// =====================================
+//      Developer-defined functions
+// =====================================
+
+// Validate the options and adapt them if not valid.
+// The return value of false indicates the options are not valid and fail to adapt. In this scenario, the game will fail
+// to start.
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options);
+
+// Get the maximum player numbers under the current options.
+// The return value of 0 indicates there are no player number limits.
+uint64_t MaxPlayerNum(const MyGameOptions& options);
+
+// Get the score multiple under the current options.
+// The value of 0 indicates it is a match for practice.
+uint32_t Multiple(const MyGameOptions& options);
 
 } // namespace GAME_MODULE_NAME
 

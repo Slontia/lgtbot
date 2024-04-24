@@ -28,15 +28,19 @@ class MainStageBase;
 
 class MatchBase;
 
-struct GameHandle
+class GameHandle
 {
+  public:
+    // The type of these function pointers should be corresponding to what defined in game_framework/game_main.cc.
+    // TODO: Check the type correctness in compiling time.
+    using max_player_num_handler = uint64_t(*)(const lgtbot::game::GameOptionsBase*);
+    using multiple_handler = uint32_t(*)(const lgtbot::game::GameOptionsBase*);
     using rule_command_handler = const char*(*)(const char* const s);
-    using game_options_allocator = lgtbot::game::GameOptionBase*(*)();
-    using game_options_deleter = void(*)(const lgtbot::game::GameOptionBase*);
-    using game_options_ptr = std::unique_ptr<lgtbot::game::GameOptionBase, game_options_deleter>;
-    using main_stage_allocator = lgtbot::game::MainStageBase*(*)(MsgSenderBase&, const lgtbot::game::GameOptionBase&, MatchBase& match);
+    using init_options_command_handler = lgtbot::game::InitOptionsResult(*)(const char*, lgtbot::game::GameOptionsBase*, lgtbot::game::MutableGenericOptions*);
+    using game_options_allocator = lgtbot::game::GameOptionsBase*(*)();
+    using game_options_deleter = void(*)(const lgtbot::game::GameOptionsBase*);
+    using main_stage_allocator = lgtbot::game::MainStageBase*(*)(MsgSenderBase*, lgtbot::game::GameOptionsBase*, lgtbot::game::GenericOptions*, MatchBase* match);
     using main_stage_deleter = void(*)(const lgtbot::game::MainStageBase*);
-    using main_stage_ptr = std::unique_ptr<lgtbot::game::MainStageBase, main_stage_deleter>;
 
     struct Achievement
     {
@@ -44,63 +48,81 @@ struct GameHandle
         std::string description_;
     };
 
-    GameHandle(std::string name, std::string module_name,
-               const uint64_t max_player, std::string rule,
-               std::vector<Achievement> achievements, const uint32_t multiple,
-               std::string developer, std::string description,
-               game_options_allocator game_options_allocator_fn,
-               game_options_deleter game_options_deleter_fn,
-               main_stage_allocator main_stage_allocator_fn,
-               main_stage_deleter main_stage_deleter_fn,
-               rule_command_handler handle_rule_command_fn,
-               auto mod_guard)
-        : name_(std::move(name))
-        , module_name_(std::move(module_name))
-        , max_player_(max_player)
-        , rule_(std::move(rule))
-        , achievements_(std::move(achievements))
-        , multiple_(multiple)
-        , developer_(std::move(developer))
-        , description_(std::move(description))
-        , game_options_allocator_(std::move(game_options_allocator_fn))
-        , game_options_deleter_(std::move(game_options_deleter_fn))
-        , main_stage_allocator_(std::move(main_stage_allocator_fn))
-        , main_stage_deleter_(std::move(main_stage_deleter_fn))
-        , handle_rule_command_fn_(std::move(handle_rule_command_fn))
-        , mod_guard_(std::move(mod_guard))
-        , game_options_(game_options_allocator_(), game_options_deleter_)
-        , activity_(0)
-    {}
+    // This information is defined by game.
+    struct BasicInfo
+    {
+        std::string name_;
+        std::string module_name_;
+        std::string developer_;
+        std::string description_;
+        std::string rule_;
+        std::vector<Achievement> achievements_;
 
+        max_player_num_handler max_player_num_fn_{nullptr};
+        multiple_handler multiple_fn_{nullptr};
+
+        rule_command_handler handle_rule_command_fn_{nullptr};
+        init_options_command_handler handle_init_options_command_fn_{nullptr};
+    };
+
+    struct InternalHandler
+    {
+        game_options_allocator game_options_allocator_{nullptr};
+        game_options_deleter game_options_deleter_{nullptr};
+        main_stage_allocator main_stage_allocator_{nullptr};
+        main_stage_deleter main_stage_deleter_{nullptr};
+        std::function<void()> mod_guard_;
+    };
+
+    GameHandle(const BasicInfo& info, const InternalHandler& internal_handler)
+        : info_(info), internal_handler_(internal_handler)
+    {
+    }
+
+    GameHandle(const GameHandle&) = delete;
     GameHandle(GameHandle&&) = delete;
 
-    ~GameHandle() { mod_guard_(); }
+    ~GameHandle() { internal_handler_.mod_guard_(); }
 
-    game_options_ptr make_game_options() const
+    using game_options_ptr = std::unique_ptr<lgtbot::game::GameOptionsBase, game_options_deleter>;
+
+    struct Options
     {
-        return game_options_ptr(game_options_.Lock().Get()->Copy(), game_options_deleter_);
+        game_options_ptr game_options_;
+        lgtbot::game::MutableGenericOptions generic_options_;
+    };
+
+    Options CopyDefaultGameOptions() const
+    {
+        const auto locked_options = default_options_.Lock();
+        return Options{
+            .game_options_ = game_options_ptr(locked_options->game_options_->Copy(), internal_handler_.game_options_deleter_),
+            .generic_options_ = locked_options->generic_options_,
+        };
     }
 
-    main_stage_ptr make_main_stage(MsgSenderBase& reply, const lgtbot::game::GameOptionBase& game_options, MatchBase& match) const
+    LockWrapper<Options>& DefaultGameOptions() { return default_options_; }
+    const LockWrapper<Options>& DefaultGameOptions() const { return default_options_; }
+
+    using main_stage_ptr = std::unique_ptr<lgtbot::game::MainStageBase, main_stage_deleter>;
+
+    main_stage_ptr MakeMainStage(MsgSenderBase& reply, lgtbot::game::GameOptionsBase& game_options, lgtbot::game::GenericOptions& generic_options, MatchBase& match) const
     {
-        return main_stage_ptr(main_stage_allocator_(reply, game_options, match), main_stage_deleter_);
+        return main_stage_ptr(internal_handler_.main_stage_allocator_(&reply, &game_options, &generic_options, &match), internal_handler_.main_stage_deleter_);
     }
 
-    const std::string name_;
-    const std::string module_name_;
-    const uint64_t max_player_;
-    const std::string rule_;
-    const std::vector<Achievement> achievements_;
-    uint32_t multiple_;
-    const std::string developer_;
-    const std::string description_;
-    const game_options_allocator game_options_allocator_;
-    const game_options_deleter game_options_deleter_;
-    const main_stage_allocator main_stage_allocator_;
-    const main_stage_deleter main_stage_deleter_;
-    const rule_command_handler handle_rule_command_fn_;
-    const std::function<void()> mod_guard_;
-    const LockWrapper<game_options_ptr> game_options_;
-    std::atomic<uint64_t> activity_;
+    void IncreaseActivity(const uint64_t count) { activity_ += count; }
+    uint64_t Activity() const { return activity_; }
+
+    const BasicInfo& Info() const { return info_; }
+
+  private:
+    BasicInfo info_;
+    InternalHandler internal_handler_;
+    LockWrapper<Options> default_options_ = Options{
+        game_options_ptr{internal_handler_.game_options_allocator_(), internal_handler_.game_options_deleter_},
+        lgtbot::game::GenericOptions{}
+    };
+    std::atomic<uint64_t> activity_{0}; // the sum of the number of times all users participated in this game
 };
 

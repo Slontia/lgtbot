@@ -7,22 +7,23 @@
 #include <cstdint>
 #include <string>
 #include <iostream>
+#include <limits>
 
-#define DEFINE_INTEGER_ID(idname) \
+#define DEFINE_INTEGER_ID(idname, type) \
 struct idname \
 { \
  public: \
-  constexpr idname() : id_(UINT64_MAX) {} \
-  constexpr idname(const uint64_t id) : id_(id) {} \
+  constexpr idname() : id_(std::numeric_limits<type>::max()) {} \
+  constexpr idname(const type id) : id_(id) {} \
   constexpr idname(const idname&) = default; \
-  constexpr idname& operator=(const uint64_t id) \
+  constexpr idname& operator=(const type id) \
   { \
     id_ = id; \
     return *this; \
   } \
   constexpr idname& operator=(const idname&) = default; \
-  operator uint64_t() const { return id_; } \
-  auto operator<=>(const uint64_t id) const { return id_ <=> id; } \
+  operator type() const { return id_; } \
+  auto operator<=>(const type id) const { return id_ <=> id; } \
   idname& operator++() \
   { \
     id_ += 1; \
@@ -32,16 +33,16 @@ struct idname \
   friend auto& operator<<(Outputter& outputter, const idname id) { return outputter << id.id_; } \
   template <typename Inputter> \
   friend auto& operator>>(Inputter& inputter, idname& id) { return inputter >> id.id_; } \
-  bool IsValid() const { return UINT64_MAX != id_; } \
-  const uint64_t& Get() const { return id_; } \
+  bool IsValid() const { return std::numeric_limits<type>::max() != id_; } \
+  const type& Get() const { return id_; } \
 \
  private: \
-  uint64_t id_; \
+  type id_; \
 }
 
-DEFINE_INTEGER_ID(MatchID);
-DEFINE_INTEGER_ID(ComputerID);
-DEFINE_INTEGER_ID(PlayerID);
+DEFINE_INTEGER_ID(MatchID, uint32_t);
+DEFINE_INTEGER_ID(ComputerID, uint32_t);
+DEFINE_INTEGER_ID(PlayerID, uint32_t);
 
 #define DEFINE_STRING_ID(idname) \
 struct idname \

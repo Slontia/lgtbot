@@ -22,8 +22,8 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "爆金币"; // the game name which should be unique among all the games
-const uint64_t k_max_player = 0; // 0 indicates no max-player limits
-const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } // 0 indicates no max-player limits
+uint32_t Multiple(const MyGameOptions& options) { return 0; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "铁蛋";
 const std::string k_description = "选择行动，与他人博弈抢夺金币的游戏";
 
@@ -66,18 +66,24 @@ const std::vector<RuleCommand> k_rule_commands = {
             AlterChecker<int>({{"判定", 0}, {"撤离", 1}, {"捡金币", 2}, {"夺血条", 3}, {"守金币", 4}, {"抢金币", 5}, {"爆金币", 6}})),
 };
 
-std::string GameOption::StatusInfo() const { return ""; }
-
-bool GameOption::ToValid(MsgSenderBase& reply)
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    if (PlayerNum() < 4) {
-        reply() << "该游戏至少 4 人参加，当前玩家数为 " << PlayerNum();
+    if (generic_options_readonly.PlayerNum() < 4) {
+        reply() << "该游戏至少 4 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
         return false;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 5; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 5;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -86,8 +92,8 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility, MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况"))),
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility), MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况"))),
         round_(0),
         alive_(0),
         player_scores_(Global().PlayerNum(), 0),

@@ -189,7 +189,7 @@ struct CompoundStageFsm
 class MainStageFsm : virtual public StageFsmBase
 {
   public:
-    MainStageFsm(const StageUtility& utility) : utility_{utility} {}
+    MainStageFsm(StageUtility utility) : utility_{std::move(utility)} {}
 
     virtual ~MainStageFsm() = default;
 
@@ -219,28 +219,22 @@ struct SubStageFsm : virtual public StageFsmBase
 };
 
 template <typename ...Subs>
-struct StageFsmTypeBaseType
-{
-    using Type = CompoundStageFsm<Subs...>;
-};
+struct StageFsmTypeBaseType { using Type = CompoundStageFsm<Subs...>; };
 
 template <>
-struct StageFsmTypeBaseType<>
-{
-    using Type = AtomicStageFsm;
-};
+struct StageFsmTypeBaseType<> { using Type = AtomicStageFsm; };
 
 template <typename Main>
-struct StageFsmLevelBaseType
-{
-    using Type = SubStageFsm<Main>;
-};
+struct StageFsmLevelBaseType { using Type = SubStageFsm<Main>; };
 
 template <>
-struct StageFsmLevelBaseType<void>
-{
-    using Type = MainStageFsm;
-};
+struct StageFsmLevelBaseType<void> { using Type = MainStageFsm; };
+
+template <typename Main>
+struct StageFsmConstructArgType { using Type = Main&; };
+
+template <>
+struct StageFsmConstructArgType<void> { using Type = StageUtility&&; };
 
 } // namespace internal
 
@@ -256,14 +250,18 @@ class StageFsm : public internal::StageFsmTypeBaseType<Subs...>::Type
     using LevelBase::Global;
 
     template <typename ...Commands> requires ((std::is_same_v<Command, std::decay_t<Commands>> && ...))
-    StageFsm(std::conditional_t<std::is_void_v<Main>, const StageUtility, Main>& arg, std::string name, Commands&& ...commands)
-        : LevelBase(arg), name_(name), commands_{std::forward<Commands>(commands)...}
+    StageFsm(internal::StageFsmConstructArgType<Main>::Type arg, std::string name, Commands&& ...commands)
+        : LevelBase(std::forward<typename internal::StageFsmConstructArgType<Main>::Type>(arg))
+        , name_(name)
+        , commands_{std::forward<Commands>(commands)...}
     {
     }
 
     template <typename ...Commands> requires ((std::is_same_v<Command, std::decay_t<Commands>> && ...))
-    StageFsm(std::conditional_t<std::is_void_v<Main>, const StageUtility, Main>& arg, Commands&& ...commands)
-        : LevelBase(arg), name_(std::is_void_v<Main> ? "主阶段" : "匿名子阶段"), commands_{std::forward<Commands>(commands)...}
+    StageFsm(internal::StageFsmConstructArgType<Main>::Type arg, Commands&& ...commands)
+        : LevelBase(std::forward<typename internal::StageFsmConstructArgType<Main>::Type>(arg))
+        , name_(std::is_void_v<Main> ? "主阶段" : "匿名子阶段")
+        , commands_{std::forward<Commands>(commands)...}
     {
     }
 

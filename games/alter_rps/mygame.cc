@@ -26,27 +26,30 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "二择猜拳";
-const uint64_t k_max_player = 2; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options) { return 1; }
 const std::string k_developer = "森高";
 const std::string k_description = "伸出两拳，收回一拳的猜拳游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    return "";
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply)
-{
-    if (PlayerNum() != 2) {
-        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << PlayerNum();
+    if (generic_options_readonly.PlayerNum() != 2) {
+        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
         return false;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 2; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 2;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -90,7 +93,7 @@ static std::string StarsString(const uint32_t n) {
 
 using CardMap = std::map<Card, CardState>;
 
-static CardMap GetCardMap(const MyGameOption& option)
+static CardMap GetCardMap(const MyGameOptions& option)
 {
     CardMap cards;
     const auto emplace_card = [&](const auto& card) {
@@ -286,8 +289,8 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
    public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility,
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility),
                 MakeStageCommand(*this, "查看比赛情况", &MainStage::Info_, VoidChecker("赛况")))
         , k_origin_card_map_(GetCardMap(Global().Options()))
         , players_{k_origin_card_map_, k_origin_card_map_}
@@ -455,7 +458,7 @@ class ChooseStage : public SubGameStage<>
 
     void DefaultAct()
     {
-        for (PlayerID pid = 0; pid < uint64_t(2); ++pid) {
+        for (PlayerID pid = 0; pid < 2U; ++pid) {
             if (Global().IsReady(pid)) {
                 continue;
             }
@@ -538,7 +541,7 @@ class AlterStage : public SubGameStage<>
 
     void DefaultAct()
     {
-        for (PlayerID pid = 0; pid < uint64_t(2); ++pid) {
+        for (PlayerID pid = 0; pid < 2U; ++pid) {
             if (Global().IsReady(pid)) {
                 continue;
             }
@@ -671,7 +674,7 @@ void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason,
     }
 
     // clear choose
-    for (PlayerID pid = 0; pid < uint64_t(2); ++pid) {
+    for (PlayerID pid = 0; pid < 2U; ++pid) {
         auto& player = players_[pid];
         assert(player.left_ == player.alter_ || player.right_ == player.alter_);
         assert(player.left_ != player.right_);
@@ -712,7 +715,7 @@ void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason,
     }
 
     // choose the last card
-    for (PlayerID pid = 0; pid < uint64_t(2); ++pid) {
+    for (PlayerID pid = 0; pid < 2U; ++pid) {
         auto& player = players_[pid];
         player.alter_ = player.left_->second != CardState::USED ? player.left_ : player.right_;
         player.left_ = player.alter_;

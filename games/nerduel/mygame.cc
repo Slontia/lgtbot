@@ -21,33 +21,41 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "Nerduel";
-const uint64_t k_max_player = 2; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options) { return 1; }
 const std::string k_developer = "dva";
 const std::string k_description = "猜测对方所设置的算式的游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const {
-  std::stringstream ss;
-  ss << "等式长度为" << GET_VALUE(等式长度) << "；游戏模式："
-     << (GET_VALUE(游戏模式) ? "标准" : "狂野") << "；每回合时间限制：" << GET_VALUE(时限) << "秒";
-  return ss.str();
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply) {
-  if (PlayerNum() < 2) {
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {
+  if (generic_options_readonly.PlayerNum() < 2) {
     reply() << "人数不足。";
     return false;
   }
   return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 2; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 2;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+    InitOptionsCommand("设置游戏模式",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options, const bool is_normal)
+            {
+                GET_OPTION_VALUE(game_options, 游戏模式) = is_normal;
+                return NewGameMode::MULTIPLE_USERS;
+            },
+            BoolChecker("标准", "狂野")),
+};
 
 // ========== UI ==============
 
 struct MyTable {
-  MyTable(const MyGameOption& option, const std::string_view resource_dir)
+  MyTable(const MyGameOptions& option, const std::string_view resource_dir)
       : resource_dir_(resource_dir),
         len(GET_OPTION_VALUE(option, 等式长度)),
         table_(1, GET_OPTION_VALUE(option, 等式长度) * 2 + 9) {
@@ -139,7 +147,7 @@ class GuessingStage;
 
 class MainStage : public MainGameStage<SettingStage, GuessingStage> {
  public:
-  MainStage(const StageUtility& utility);
+  MainStage(StageUtility&& utility);
   virtual void FirstStageFsm(SubStageFsmSetter setter) override;
   virtual void NextStageFsm(SettingStage& sub_stage,
                                        const CheckoutReason reason, SubStageFsmSetter setter) override;
@@ -282,8 +290,8 @@ class GuessingStage : public SubGameStage<> {
   }
 };
 
-MainStage::MainStage(const StageUtility& utility)
-    : StageFsm(utility),
+MainStage::MainStage(StageUtility&& utility)
+    : StageFsm(std::move(utility)),
       ended_(false),
       table_(Global().Options(), Global().ResourceDir()),
       turn_(1),

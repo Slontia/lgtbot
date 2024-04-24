@@ -59,10 +59,10 @@ GAME_TEST(5, bet_same_is_consensus)
 #define ALL_CHECK_FOR_ONE_GAME() \
 do { \
     for (uint32_t i = 0; i < 4; ++i) { \
-        for (uint64_t pid = 0; pid < option_.PlayerNum() - 1; ++pid) { \
+        for (uint64_t pid = 0; pid < options_.generic_options_.PlayerNum() - 1; ++pid) { \
             ASSERT_PRI_MSG(OK, pid, "check"); \
         } \
-        ASSERT_PRI_MSG(CHECKOUT, option_.PlayerNum() - 1, "check"); \
+        ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "check"); \
     } \
 } while (0)
 
@@ -174,16 +174,16 @@ GAME_TEST(5, check_when_timeout)
     ASSERT_PUB_MSG(OK, 0, "底注变化局数 2");
     START_GAME();
 
-    for (uint64_t pid = 1; pid < option_.PlayerNum(); ++pid) {
+    for (uint64_t pid = 1; pid < options_.generic_options_.PlayerNum(); ++pid) {
         ASSERT_PRI_MSG(OK, pid, "check");
     }
     ASSERT_TIMEOUT(CHECKOUT);
 
     for (uint32_t i = 0; i < 3; ++i) {
-        for (uint64_t pid = 1; pid < option_.PlayerNum() - 1; ++pid) {
+        for (uint64_t pid = 1; pid < options_.generic_options_.PlayerNum() - 1; ++pid) {
             ASSERT_PRI_MSG(OK, pid, "check");
         }
-        ASSERT_PRI_MSG(CHECKOUT, option_.PlayerNum() - 1, "check");
+        ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "check");
     }
 
     ASSERT_SCORE(120, 95, 95, 95, 95);
@@ -200,23 +200,23 @@ GAME_TEST(5, check_when_timeout_and_then_fold)
     START_GAME();
 
     // preflop
-    for (uint64_t pid = 2; pid < option_.PlayerNum(); ++pid) {
+    for (uint64_t pid = 2; pid < options_.generic_options_.PlayerNum(); ++pid) {
         ASSERT_PRI_MSG(OK, pid, "check");
     }
     ASSERT_PRI_MSG(OK, 1, "bet 5"); // 5 -> 10
     ASSERT_TIMEOUT(CHECKOUT);
 
-    for (uint64_t pid = 3; pid < option_.PlayerNum(); ++pid) {
+    for (uint64_t pid = 3; pid < options_.generic_options_.PlayerNum(); ++pid) {
         ASSERT_PRI_MSG(OK, pid, "call");
     }
     ASSERT_PRI_MSG(CHECKOUT, 2, "call");
 
     // flop, turn, river
     for (uint32_t i = 0; i < 3; ++i) {
-        for (uint64_t pid = 1; pid < option_.PlayerNum() - 1; ++pid) {
+        for (uint64_t pid = 1; pid < options_.generic_options_.PlayerNum() - 1; ++pid) {
             ASSERT_PRI_MSG(OK, pid, "check");
         }
-        ASSERT_PRI_MSG(CHECKOUT, option_.PlayerNum() - 1, "check");
+        ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "check");
     }
 
     ASSERT_SCORE(95, 90, 135, 90, 90);
@@ -233,22 +233,22 @@ GAME_TEST(5, fold_when_timeout)
     START_GAME();
 
     // preflop
-    for (uint64_t pid = 0; pid < option_.PlayerNum() - 1; ++pid) {
+    for (uint64_t pid = 0; pid < options_.generic_options_.PlayerNum() - 1; ++pid) {
         ASSERT_PRI_MSG(OK, pid, "check");
     }
-    ASSERT_PRI_MSG(CHECKOUT, option_.PlayerNum() - 1, "bet 10"); // 5 -> 15
+    ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "bet 10"); // 5 -> 15
 
-    for (uint64_t pid = 1; pid < option_.PlayerNum() - 1; ++pid) {
+    for (uint64_t pid = 1; pid < options_.generic_options_.PlayerNum() - 1; ++pid) {
         ASSERT_PRI_MSG(OK, pid, "call");
     }
     ASSERT_TIMEOUT(CHECKOUT); // player 0 timeout, fold
 
     // flop, turn, river
     for (uint32_t i = 0; i < 3; ++i) {
-        for (uint64_t pid = 1; pid < option_.PlayerNum() - 1; ++pid) {
+        for (uint64_t pid = 1; pid < options_.generic_options_.PlayerNum() - 1; ++pid) {
             ASSERT_PRI_MSG(OK, pid, "check");
         }
-        ASSERT_PRI_MSG(CHECKOUT, option_.PlayerNum() - 1, "check");
+        ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "check");
     }
 
     ASSERT_SCORE(95, 85, 150, 85, 85);
@@ -265,23 +265,23 @@ GAME_TEST(5, allin_when_cant_afford_base_chips)
     START_GAME();
 
     // preflop -- bet
-    for (uint64_t pid = 0; pid < option_.PlayerNum() - 1; ++pid) {
+    for (uint64_t pid = 0; pid < options_.generic_options_.PlayerNum() - 1; ++pid) {
         ASSERT_PRI_MSG(OK, pid, "check");
     }
-    ASSERT_PRI_MSG(CHECKOUT, option_.PlayerNum() - 1, "bet 10"); // 5 -> 15
+    ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "bet 10"); // 5 -> 15
 
     // preflop -- raise
-    for (uint64_t pid = 1; pid < option_.PlayerNum() - 1; ++pid) {
+    for (uint64_t pid = 1; pid < options_.generic_options_.PlayerNum() - 1; ++pid) {
         ASSERT_PRI_MSG(OK, pid, "call");
     }
     ASSERT_PRI_MSG(CHECKOUT, 0, "fold"); // player 0 timeout, fold
 
     // flop, turn, river
     for (uint32_t i = 0; i < 3; ++i) {
-        for (uint64_t pid = 1; pid < option_.PlayerNum() - 1; ++pid) {
+        for (uint64_t pid = 1; pid < options_.generic_options_.PlayerNum() - 1; ++pid) {
             ASSERT_PRI_MSG(OK, pid, "check");
         }
-        ASSERT_PRI_MSG(CHECKOUT, option_.PlayerNum() - 1, "check");
+        ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "check");
     }
 
     // round 1 scores: 95, 85, 150, 85, 85
@@ -299,10 +299,10 @@ GAME_TEST(5, raise_must_be_greater_than_raise_bet)
     START_GAME();
 
     // preflop -- bet
-    for (uint64_t pid = 0; pid < option_.PlayerNum() - 1; ++pid) {
+    for (uint64_t pid = 0; pid < options_.generic_options_.PlayerNum() - 1; ++pid) {
         ASSERT_PRI_MSG(OK, pid, "check");
     }
-    ASSERT_PRI_MSG(CHECKOUT, option_.PlayerNum() - 1, "bet 5"); // 5 -> 10
+    ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "bet 5"); // 5 -> 10
 
     // preflop -- raise
     ASSERT_PRI_MSG(FAILED, 0, "raise 4");
@@ -319,10 +319,10 @@ GAME_TEST(5, raise_can_be_less_than_raise_bet_when_allin)
     START_GAME();
 
     // preflop -- bet
-    for (uint64_t pid = 0; pid < option_.PlayerNum() - 1; ++pid) {
+    for (uint64_t pid = 0; pid < options_.generic_options_.PlayerNum() - 1; ++pid) {
         ASSERT_PRI_MSG(OK, pid, "check");
     }
-    ASSERT_PRI_MSG(CHECKOUT, option_.PlayerNum() - 1, "bet 5"); // 5 -> 10
+    ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "bet 5"); // 5 -> 10
 
     // preflop -- raise
     ASSERT_PRI_MSG(FAILED, 0, "raise 1");

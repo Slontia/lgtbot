@@ -22,27 +22,30 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "伊甸园"; // the game name which should be unique among all the games
-const uint64_t k_max_player = 0; // 0 indicates no max-player limits
-const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } // 0 indicates no max-player limits
+uint32_t Multiple(const MyGameOptions& options) { return GET_OPTION_VALUE(options, 回合数) / 6; }
 const std::string k_developer = "森高";
 const std::string k_description = "吃下禁果，获取分数的游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    return "共 " + std::to_string(GET_VALUE(回合数)) + " 回合，每回合超时时间 " + std::to_string(GET_VALUE(时限)) + " 秒";
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply)
-{
-    if (PlayerNum() < 3) {
-        reply() << "该游戏至少 3 人参加，当前玩家数为 " << PlayerNum();
+    if (generic_options_readonly.PlayerNum() < 3) {
+        reply() << "该游戏至少 3 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
         return false;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 10; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 10;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -95,7 +98,7 @@ static const char* AppleTypeName(const AppleType type)
 
 struct Player
 {
-    Player(const MyGameOption& option)
+    Player(const MyGameOptions& option)
         : score_(GET_OPTION_VALUE(option, 回合数), 0)
         , remain_golden_(GET_OPTION_VALUE(option, 金苹果))
         , chosen_apples_(GET_OPTION_VALUE(option, 回合数), AppleType::RED) // RED is the default apple
@@ -108,8 +111,8 @@ struct Player
 class MainStage : public MainGameStage<>
 {
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility,
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility),
                 MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
                 MakeStageCommand(*this, "选择苹果", &MainStage::Choose_, AlterChecker<AppleType>(
                         {{"红", AppleType::RED}, {"金", AppleType::GOLD}, {"银", AppleType::SILVER}})))

@@ -23,38 +23,33 @@ namespace game {
 namespace GAME_MODULE_NAME {
 
 const std::string k_game_name = "投标波卡";
-const uint64_t k_max_player = 0; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options)
+{
+    return GET_OPTION_VALUE(options, 种子).empty() ? GET_OPTION_VALUE(options, 回合数) : 0;
+}
 const std::string k_developer = "森高";
 const std::string k_description = "通过投标和拍卖提升波卡牌型的游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    std::stringstream ss;
-    ss << "每名玩家初始金币" << GET_VALUE(初始金币数) << "枚，"
-       << "共" << GET_VALUE(回合数) << "回合，"
-       << "每回合弃牌时间" << GET_VALUE(弃牌时间) << "秒，"
-       << "每件商品投标时间" << GET_VALUE(投标时间) << "秒，"
-       << GET_VALUE(投标轮数) << "轮投标后若仍有复数玩家投标额最高，则流标\n";
-    if (GET_VALUE(种子).empty()) {
-        ss << "未指定种子";
-    } else {
-        ss << "种子：" << GET_VALUE(种子);
-    }
-    return ss.str();
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply)
-{
-    if (PlayerNum() < 3) {
-        reply() << "该游戏至少 3 人参加，当前玩家数为" << PlayerNum();
+    if (generic_options_readonly.PlayerNum() < 3) {
+        reply() << "该游戏至少 3 人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
         return false;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 10; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 10;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -92,8 +87,8 @@ class MainStage : public MainGameStage<k_type, MainBidStage<k_type>, RoundStage<
     using StageFsm = MainGameStage<k_type, MainBidStage<k_type>, RoundStage<k_type>>;
 
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility,
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility),
                 MakeStageCommand(*this, "通过文字查看各玩家手牌及金币情况", &MainStage::Status_, VoidChecker("赛况"), VoidChecker("文字")))
         , round_(0)
     {
@@ -717,9 +712,9 @@ void MainStage<k_type>::NextStageFsm(RoundStage<k_type>& sub_stage, const Checko
 
 internal::MainStage* MakeMainStage(MainStageFactory factory)
 {
-    if (GET_OPTION_VALUE(factory.Options(), 卡牌) == poker::CardType::BOKAA) {
+    if (GET_OPTION_VALUE(factory.GetGameOptions(), 卡牌) == poker::CardType::BOKAA) {
         return factory.Create<MainStage<poker::CardType::BOKAA>>();
-    } else if (GET_OPTION_VALUE(factory.Options(), 卡牌) == poker::CardType::POKER) {
+    } else if (GET_OPTION_VALUE(factory.GetGameOptions(), 卡牌) == poker::CardType::POKER) {
         return factory.Create<MainStage<poker::CardType::POKER>>();
     } else {
         assert(false);

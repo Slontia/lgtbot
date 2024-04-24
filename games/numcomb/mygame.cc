@@ -28,27 +28,23 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "数字蜂巢";
-const uint64_t k_max_player = 0; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options) { return GET_OPTION_VALUE(options, 种子).empty() ? 2 : 0; }
 const std::string k_developer = "森高";
 const std::string k_description = "通过放置卡牌，让同数字连成直线获得积分，比拼分数高低的游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const
-{
-    std::string str = "每回合" + std::to_string(GET_VALUE(局时)) + "秒，共" +
-        std::to_string(GET_VALUE(回合数)) + "回合，跳过起始非癞子数量" + std::to_string(GET_VALUE(跳过非癞子)) + "，";
-    if (GET_VALUE(种子).empty()) {
-        str += "未指定种子";
-    } else {
-        str += "种子：" + GET_VALUE(种子);
-    }
-    return str;
-}
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
 
-bool GameOption::ToValid(MsgSenderBase& reply) { return true; }
-
-uint64_t GameOption::BestPlayerNum() const { return 1; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 1;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -72,8 +68,8 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility)
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility))
         , round_(0)
     {
         srand((unsigned int)time(NULL));
@@ -135,7 +131,7 @@ class MainStage : public MainGameStage<RoundStage>
     {
         html::Table table(players_.size() / 2 + 1, 2);
         table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\"");
-        for (PlayerID pid = 0; pid < players_.size(); ++pid) {
+        for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
             table.Get(pid / 2, pid % 2).SetContent("### " + Global().PlayerAvatar(pid, 40) + "&nbsp;&nbsp; " + Global().PlayerName(pid) +
                     "\n\n### " HTML_COLOR_FONT_HEADER(green) "当前积分：" + std::to_string(players_[pid].score_) + HTML_FONT_TAIL "\n\n" +
                     players_[pid].comb_->ToHtml());

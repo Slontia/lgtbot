@@ -34,8 +34,8 @@ class PublicStageUtility
     using AchievementCounts = std::array<uint8_t, Achievement::Count()>;
 
   public:
-    PublicStageUtility(const GameOption& option, MatchBase& match);
-    PublicStageUtility(const PublicStageUtility&) = default;
+    PublicStageUtility(const MyGameOptions& game_options, const lgtbot::game::GenericOptions& generic_options, MatchBase& match);
+    PublicStageUtility(PublicStageUtility&&) = default;
 
     // Message functions
 
@@ -80,9 +80,9 @@ class PublicStageUtility
 
     // Options
 
-    const MyGameOption& Options() const { return option_; }
-    uint64_t PlayerNum() const { return option_.PlayerNum(); }
-    const char* ResourceDir() const { return option_.ResourceDir(); }
+    const MyGameOptions& Options() const { return game_options_; }
+    auto PlayerNum() const { return generic_options_.PlayerNum(); }
+    const char* ResourceDir() const { return generic_options_.resource_dir_; }
 
     // Log
 
@@ -101,7 +101,8 @@ class PublicStageUtility
     static void TimerCallbackPublic_(void* const p, const uint64_t alert_sec);
     static void TimerCallbackPrivate_(void* const p, const uint64_t alert_sec);
 
-    const GameOption& option_;
+    const MyGameOptions& game_options_;
+    const GenericOptions& generic_options_;
     MatchBase& match_;
     PlayerReadyMasker masker_;
     std::vector<AchievementCounts> achievement_counts_;

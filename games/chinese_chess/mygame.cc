@@ -30,35 +30,41 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "群雄象棋";
-const uint64_t k_max_player = 6; /* 0 means no max-player limits */
-const uint64_t k_multiple = 2;
+constexpr uint64_t k_max_player = 6;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return k_max_player; }
+uint32_t Multiple(const MyGameOptions& options) { return GET_OPTION_VALUE(options, 最小回合限制) / 6; }
 const std::string k_developer = "森高";
 const std::string k_description = "多个帝国共同参与，定时重组棋盘的象棋游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    return "每回合 " + std::to_string(GET_VALUE(时限)) + " 秒超时即默认 pass，每 " +
-        std::to_string(GET_VALUE(切换回合)) + " 回合切换一次棋盘，" +
-        std::to_string(GET_VALUE(最小回合限制)) + " 回合后若连续 " +
-        std::to_string(GET_VALUE(和平回合限制)) + " 回合未发生吃子或碰撞时游戏结束";
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply)
-{
-    if (PlayerNum() == 5) {
+    if (generic_options_readonly.PlayerNum() == 5) {
         reply() << "不好意思，该游戏允许 2、3、4、6 人参加，但唯独不允许 5 人参加";
         return false;
     }
-    if (PlayerNum() * GET_VALUE(阵营) > k_max_player) {
-        GET_VALUE(阵营) = k_max_player / PlayerNum();
-        reply() << "[警告] 每名玩家控制阵营数过多，已经自动调整成 " << GET_VALUE(阵营);
-        return true;
+    const auto kingdoms_num = generic_options_readonly.PlayerNum() * GET_OPTION_VALUE(game_options, 阵营);
+    auto sender = reply();
+    if (kingdoms_num % 2) {
+        GET_OPTION_VALUE(game_options, 阵营) = 2;
+        sender << "[警告] 当前王国数无法被 2 整除，已将每名玩家控制王国数调整至 2";
+    }
+    if (kingdoms_num > k_max_player) {
+        sender << "每名玩家控制阵营数过多，请保证王国数量小于或等于 6";
+        return false;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 3; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 3;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -67,8 +73,8 @@ static std::ostream& operator<<(std::ostream& os, const Coor& coor) { return os 
 class MainStage : public MainGameStage<>
 {
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility,
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility),
                 MakeStageCommand(*this, "查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
                 MakeStageCommand(*this, "查看拼接后的棋盘", &MainStage::ShowImage_,
                     VoidChecker("棋盘"),

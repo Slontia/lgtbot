@@ -40,6 +40,7 @@ class Timer
 #ifdef TEST_BOT
                         ++remaining_thread_count_;
 #endif
+                        // TODO: we should wait all detached threads to finish before exiting
                         std::thread([handle]
                                 {
                                     handle();

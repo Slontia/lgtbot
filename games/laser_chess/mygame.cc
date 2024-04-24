@@ -30,27 +30,30 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "镭射象棋";
-const uint64_t k_max_player = 2; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options) { return std::min(3U, GET_OPTION_VALUE(options, 回合数) / 10); }
 const std::string k_developer = "森高";
 const std::string k_description = "调整镜面，发射激光消灭对方棋子的游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    return "每手棋" + std::to_string(GET_VALUE(局时)) + "秒超时即默认 pass，最多" + std::to_string(GET_VALUE(回合数)) + "回合，地图：" + GET_VALUE(地图).ToString();
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply)
-{
-    if (PlayerNum() != 2) {
-        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << PlayerNum();
+    if (generic_options_readonly.PlayerNum() != 2) {
+        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
         return false;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 2; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 2;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -65,8 +68,8 @@ std::array<Board(*)(std::string), GameMap::Count() - 1> game_map_initers =
 class MainStage : public MainGameStage<>
 {
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility,
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility),
                 MakeStageCommand(*this, "查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
                 MakeStageCommand(*this, "跳过行动", &MainStage::Pass_, VoidChecker("pass")),
                 MakeStageCommand(*this, "移动棋子", &MainStage::Set_,

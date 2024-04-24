@@ -6,6 +6,7 @@
 
 #include <gflags/gflags.h>
 
+#include "game_framework/util.h"
 #include "game_framework/game_options.h"
 #include "game_framework/game_main.h"
 #include "game_framework/mock_match.h"
@@ -47,61 +48,126 @@ namespace GAME_MODULE_NAME {
 
 internal::MainStage* MakeMainStage(MainStageFactory factory);
 
-int Run(const uint64_t index)
+struct OptionsArgs
 {
-    static const auto image_dir_base = std::filesystem::absolute(FLAGS_image_dir) /
-        std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::string resource_dir_;
+    std::string saved_image_dir_;
+};
 
-    const auto image_dir = image_dir_base / std::to_string(index);
-
-    RunGameMockMatch match(image_dir, FLAGS_player);
-
-    GameOption option;
-    option.SetPlayerNum(FLAGS_player);
-    option.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").string().c_str());
-    option.SetSavedImageDir(image_dir.string().c_str());
-
-    if (FLAGS_input_options) {
-        const auto cin_g = std::cin.tellg();
-        for (std::string line; std::getline(std::cin, line); ) {
-            if (!option.SetOption(line.c_str())) {
-                std::cerr << "Unexpected option: " << line << std::endl;
-                return -1;
-            }
+struct Options
+{
+    Options(OptionsArgs args)
+        : args_(std::move(args))
+        , generic_options_{
+            ImmutableGenericOptions{
+                .user_num_ = 0,
+                .resource_dir_ = args_.resource_dir_.c_str(),
+                .saved_image_dir_ = args_.saved_image_dir_.c_str(),
+            },
+            MutableGenericOptions{}
         }
-        std::cin.seekg(cin_g);
+    {
     }
 
-    MockMsgSender sender(image_dir);
-    if (!option.ToValid(sender)) {
-        std::cerr << "Invalid options!" << std::endl;
-        return -1;
+    // Disable copy/move constructor to ensure the correctness of `resource_dir_` and `saved_image_dir_` in `generic_options_`.
+    Options(const Options&) = delete;
+    Options(Options&&) = delete;
+
+    OptionsArgs args_;
+    GameOptions game_options_;
+    GenericOptions generic_options_;
+};
+
+void ReadGameOptionsFromStdin(GameOptions& game_options)
+{
+    const auto cin_g = std::cin.tellg();
+    for (std::string line; std::getline(std::cin, line); ) {
+        if (!game_options.SetOption(line.c_str())) {
+            throw std::runtime_error{"Unexpected option: " + line};
+        }
     }
-    std::unique_ptr<MainStageBase> main_stage(MakeMainStage(MainStageFactory{option, match}));
+    std::cin.seekg(cin_g);
+}
+
+void SetPlayerNumber(Options& options)
+{
+    if (FLAGS_player != 0) {
+        options.generic_options_.bench_computers_to_player_num_ = FLAGS_player;
+    } else if (MsgReader reader{"单机"}; std::ranges::none_of(k_init_options_commands,
+                [&](const auto& cmd) { return cmd.CallIfValid(reader, options.game_options_, options.generic_options_).has_value(); })) {
+        throw std::runtime_error{"The game does not support single-player mode"};
+    }
+}
+
+void AdaptOptions(MockMsgSender& sender, Options& options)
+{
+    if (!AdaptOptions(sender, options.game_options_, options.generic_options_, options.generic_options_)) {
+        throw std::runtime_error{"Invalid options!"};
+    }
+}
+
+void InitOptions(MockMsgSender& sender, Options& options)
+{
+    if (FLAGS_input_options) {
+        ReadGameOptionsFromStdin(options.game_options_);
+    }
+    SetPlayerNumber(options);
+    AdaptOptions(sender, options);
+}
+
+std::unique_ptr<internal::MainStage> StartMainStage(Options& options, RunGameMockMatch& match)
+{
+    std::unique_ptr<internal::MainStage> main_stage{lgtbot::game::GAME_MODULE_NAME::MakeMainStage(
+            MainStageFactory{options.game_options_, options.generic_options_, match})};
     if (!main_stage) {
-        std::cerr << "Start Game Failed!" << std::endl;
-        return -1;
+        throw std::runtime_error{"Start Game Failed!"};
     }
     main_stage->HandleStageBegin();
+    return main_stage;
+}
 
+void KeepPlayersActUntilGameOver(const Options& options, const RunGameMockMatch& match, MainStageBase& main_stage)
+{
     uint64_t ok_count = 0;
-    for (uint64_t i = 0; !main_stage->IsOver() && ok_count < FLAGS_player; i = (i + 1) % FLAGS_player) {
-        if (match.IsEliminated(i) || StageErrCode::OK == main_stage->HandleComputerAct(i, true)) {
+    for (uint64_t i = 0;
+            !main_stage.IsOver() && ok_count < options.generic_options_.bench_computers_to_player_num_;
+            i = (i + 1) % options.generic_options_.bench_computers_to_player_num_) {
+        if (match.IsEliminated(i) || StageErrCode::OK == main_stage.HandleComputerAct(i, true)) {
             ++ok_count;
         } else {
             ok_count = 0;
         }
     }
+}
 
-    assert(main_stage->IsOver());
-
-    {
-        auto sender_guard = sender();
-        sender_guard << "分数结果";
-        for (PlayerID pid = 0; pid < FLAGS_player; ++pid) {
-            sender_guard << "\n" << Name(pid) << "：" << main_stage->PlayerScore(pid);
-        }
+void ShowScores(MockMsgSender& sender, const Options& options, const MainStageBase& main_stage)
+{
+    auto sender_guard = sender();
+    sender_guard << "分数结果";
+    for (PlayerID pid = 0; pid < options.generic_options_.bench_computers_to_player_num_; ++pid) {
+        sender_guard << "\n" << Name(pid) << "：" << main_stage.PlayerScore(pid);
     }
+}
+
+int Run(const uint64_t index)
+{
+    static const auto image_dir_base = std::filesystem::absolute(FLAGS_image_dir) /
+        std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+
+    Options options{OptionsArgs{
+        .resource_dir_ = std::filesystem::absolute(FLAGS_resource_dir + "/").string(),
+        .saved_image_dir_ = (image_dir_base / std::to_string(index)).string(),
+    }};
+    MockMsgSender sender(options.generic_options_.saved_image_dir_);
+    InitOptions(sender, options);
+    RunGameMockMatch match{
+        options.generic_options_.saved_image_dir_,
+        options.generic_options_.bench_computers_to_player_num_
+    };
+    const auto main_stage = StartMainStage(options, match);
+    KeepPlayersActUntilGameOver(options, match, *main_stage);
+    assert(main_stage->IsOver());
+    ShowScores(sender, options, *main_stage);
     return 0;
 }
 
@@ -120,9 +186,6 @@ int main(int argc, char** argv)
 #endif
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-    if (FLAGS_player == 0) {
-        FLAGS_player = lgtbot::game::GAME_MODULE_NAME::GameOption().BestPlayerNum();
-    }
     enable_markdown_to_image = FLAGS_gen_image && !FLAGS_image_dir.empty();
 
     for (uint64_t i = 0; i < FLAGS_repeat; ++i) {

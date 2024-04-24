@@ -28,53 +28,45 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "幸运波卡";
-const uint64_t k_max_player = 4; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 4; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options)
+{
+    return GET_OPTION_VALUE(options, 种子).empty() ? GET_OPTION_VALUE(options, 轮数) / 3 : 0;
+}
 const std::string k_developer = "森高";
 const std::string k_description = "能够看到各个玩家部分手牌，两阶段下注的比拼大小的游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    std::string str;
-    str += "首轮下注时，平均每副手牌可分得 " + std::to_string(GET_VALUE(首轮筹码)) + " 枚筹码，弃牌可获得 " +
-        std::to_string(GET_VALUE(首轮弃牌得分)) + " 分\n";
-    str += "次轮下注时，平均每副手牌可分得 " + std::to_string(GET_VALUE(次轮筹码)) + " 枚筹码，弃牌可获得 " +
-        std::to_string(GET_VALUE(次轮弃牌得分)) + " 分\n";
-    str += "每轮下注时限 " + std::to_string(GET_VALUE(下注时间)) + " 秒\n";
-    str += GET_VALUE(模式) == 0 ? "隐藏手牌最大的一张，公开 2-3 张公共牌\n" :
-           GET_VALUE(模式) == 1 ? "公开全部手牌和 0-1 张公共牌\n" :
-                                  "隐藏手牌最大的一张，公开 0-1 张公共牌，公布被隐藏了哪些牌\n";
-    if (GET_VALUE(种子).empty()) {
-        str += "未指定种子";
-    } else {
-        str += "种子：" + GET_VALUE(种子);
-    }
-    return str;
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply)
-{
-    if (PlayerNum() < 2) {
+    if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "该游戏至少 2 人参加";
         return false;
     }
-    if (GET_VALUE(次轮筹码) > GET_VALUE(首轮筹码)) {
+    if (GET_OPTION_VALUE(game_options, 次轮筹码) > GET_OPTION_VALUE(game_options, 首轮筹码)) {
         reply() << "「次轮筹码」不得高于「首轮筹码」";
         return false;
     }
-    if (GET_VALUE(首轮弃牌得分) > GET_VALUE(首轮筹码)) {
+    if (GET_OPTION_VALUE(game_options, 首轮弃牌得分) > GET_OPTION_VALUE(game_options, 首轮筹码)) {
         reply() << "「首轮弃牌得分」不得高于「首轮筹码」";
         return false;
     }
-    if (GET_VALUE(次轮弃牌得分) > GET_VALUE(次轮筹码)) {
+    if (GET_OPTION_VALUE(game_options, 次轮弃牌得分) > GET_OPTION_VALUE(game_options, 次轮筹码)) {
         reply() << "「次轮弃牌得分」不得高于「次轮筹码」";
         return false;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 3; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 3;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -349,8 +341,8 @@ template <poker::CardType k_type> class RoundStage;
 class MainStage : public MainGameStage<RoundStage<poker::CardType::BOKAA>, RoundStage<poker::CardType::POKER>>
 {
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility)
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility))
         , player_scores_(Global().PlayerNum(), 0)
         , round_(0)
     {

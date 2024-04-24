@@ -21,33 +21,34 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "犹太人棋";
-const uint64_t k_max_player = 2; /* 0 means no max-player limits */
-const uint64_t k_multiple = 0;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options) { return 1; }
 const std::string k_developer = "dva";
 const std::string k_description = "轮流落子，率先占满棋盘的游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const {
-  std::stringstream ss;
-  ss << "棋盘大小为" << GET_VALUE(棋盘大小) << "*" << GET_VALUE(棋盘大小) << "；每回合时间限制："
-     << GET_VALUE(时限) << "秒";
-  return ss.str();
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply) {
-  if (PlayerNum() < 2) {
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {
+  if (generic_options_readonly.PlayerNum() < 2) {
     reply() << "人数不足。";
     return false;
   }
   return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 2; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 2;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== UI ==============
 
 struct MyTable {
-  MyTable(const MyGameOption& option, const std::string_view resource_dir)
+  MyTable(const MyGameOptions& option, const std::string_view resource_dir)
       : resource_dir_(resource_dir),
         len(GET_OPTION_VALUE(option, 棋盘大小)),
         table_(GET_OPTION_VALUE(option, 棋盘大小) + 4, 2 + GET_OPTION_VALUE(option, 棋盘大小)) {
@@ -106,7 +107,7 @@ class RoundStage;
 
 class MainStage : public MainGameStage<RoundStage> {
  public:
-  MainStage(const StageUtility& utility);
+  MainStage(StageUtility&& utility);
   virtual void FirstStageFsm(SubStageFsmSetter setter) override;
   virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
   int64_t PlayerScore(const PlayerID pid) const;
@@ -257,8 +258,8 @@ class RoundStage : public SubGameStage<> {
   }
 };
 
-MainStage::MainStage(const StageUtility& utility)
-    : StageFsm(utility),
+MainStage::MainStage(StageUtility&& utility)
+    : StageFsm(std::move(utility)),
       ended_(false),
       table_(utility.Options(), utility.ResourceDir()),
       turn_(0),

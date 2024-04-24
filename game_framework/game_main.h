@@ -50,6 +50,14 @@ namespace lgtbot {
 
 namespace game {
 
+extern "C" {
+
+enum InitOptionsResult {
+    INVALID_INIT_OPTIONS_COMMAND, // fail to start game
+    NEW_SINGLE_USER_MODE_GAME,    // start game immediately
+    NEW_MULTIPLE_USERS_MODE_GAME, // wait other users to join
+};
+
 struct GameAchievement
 {
     const char* name_;
@@ -61,43 +69,58 @@ struct GameInfo
     const char* game_name_;
     const char* module_name_;
     const char* rule_;
-    uint64_t max_player_;
-    uint32_t multiple_;
     const char* developer_;
     const char* description_;
-    const GameAchievement* achievements_;
+    struct {
+        const GameAchievement* data_;
+        uint32_t size_;
+    } achievements_;
 };
 
-struct GlobalGameOption
+struct ImmutableGenericOptions
 {
-    bool public_timer_alert_ = false;
+    bool public_timer_alert_ = false; // The value of true indicates that users will be alerted in group, but not by
+                                      // private messages.
+    uint32_t user_num_{0}; // The number of users.
+    const char* resource_dir_{nullptr}; // The directory that stores resources such as pictures.
+    const char* saved_image_dir_{nullptr}; // The directory to save intermediate images which do not be sent to users.
 };
 
-class GameOptionBase
+struct MutableGenericOptions
+{
+    uint32_t player_num_each_user_{1}; // [not used] The number of players controlled by each user
+    uint32_t bench_computers_to_player_num_{0}; // The minimal player number. If it is greater than the current player
+                                                // number, computers will be added to the game.
+    uint8_t is_formal_{1}; // The value of 0 indicates the result of this match will not be recorded. The other values
+                           // indicate the result will be recorded.
+};
+
+struct GenericOptions : public ImmutableGenericOptions, public MutableGenericOptions
+{
+    GenericOptions() = default;
+
+    GenericOptions(const ImmutableGenericOptions& immutable_options, const MutableGenericOptions& mutable_options)
+        : ImmutableGenericOptions(immutable_options)
+        , MutableGenericOptions(mutable_options)
+    {
+    }
+
+    uint32_t PlayerNum() const { return std::max(user_num_ * player_num_each_user_, bench_computers_to_player_num_); }
+};
+
+}
+
+class GameOptionsBase
 {
   public:
-    GameOptionBase() {}
-    virtual ~GameOptionBase() {}
+    virtual ~GameOptionsBase() = default;
 
     virtual bool SetOption(const char* msg) = 0;
-    virtual void SetPlayerNum(const uint64_t player_num) = 0;
-    virtual void SetResourceDir(const char* resource_dir) = 0;
-    virtual void SetSavedImageDir(const char* saved_image_dir) = 0;
-
-    virtual uint64_t PlayerNum() const = 0;
-    virtual const char* ResourceDir() const = 0;
-    virtual const char* SavedImageDir() const = 0;
-
-    virtual bool ToValid(MsgSenderBase& reply) = 0;
-    virtual uint64_t BestPlayerNum() const = 0;
 
     virtual const char* Info(bool with_example, bool with_html_syntax, const char* prefix = "") const = 0;
-    virtual const char* Status() const = 0;
+    virtual const char* const* ShortInfo() const = 0;
 
-    virtual GameOptionBase* Copy() const = 0;
-    virtual const char* const* Content() const = 0;
-
-    GlobalGameOption global_options_;
+    virtual GameOptionsBase* Copy() const = 0;
 };
 
 class StageBase

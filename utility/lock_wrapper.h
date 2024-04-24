@@ -9,16 +9,20 @@
 template <typename T>
 class LockWrapper : private T
 {
-    template <typename TRef>
+    template <typename TQ> // type with qualifier
     class LockGuard
     {
       public:
-        LockGuard(TRef& v, std::mutex& m) : v_(v), l_(m) {}
-        TRef& Get() { return v_; }
-        const TRef& Get() const { return v_; }
+        LockGuard(TQ& v, std::mutex& m) : v_(v), l_(m) {}
+
+        TQ& operator*() { return v_; }
+        const TQ& operator*() const { return v_; }
+
+        TQ* operator->() { return &v_; }
+        const TQ* operator->() const { return &v_; }
 
       private:
-        TRef& v_;
+        TQ& v_;
         std::lock_guard<std::mutex> l_;
     };
 
@@ -26,8 +30,8 @@ class LockWrapper : private T
     using T::T;
     LockWrapper(const T& v) : T(v) {}
     LockWrapper(T&& v) : T(std::move(v)) {}
-    LockGuard<T&> Lock() { return LockGuard<T&>(*this, m_); }
-    LockGuard<const T&> Lock() const { return LockGuard<const T&>(*this, m_); }
+    LockGuard<T> Lock() { return LockGuard<T>(*this, m_); }
+    LockGuard<const T> Lock() const { return LockGuard<const T>(*this, m_); }
 
   private:
     mutable std::mutex m_;

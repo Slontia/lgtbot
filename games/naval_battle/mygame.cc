@@ -20,35 +20,41 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "大海战"; // the game name which should be unique among all the games
-const uint64_t k_max_player = 2; // 0 indicates no max-player limits
-const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } // 0 indicates no max-player limits
+uint32_t Multiple(const MyGameOptions& options) { return 2; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "铁蛋";
 const std::string k_description = "在地图上布置飞机，并击落对手的飞机";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const { return ""; }
-
-bool GameOption::ToValid(MsgSenderBase& reply)
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    if (PlayerNum() != 2) {
-        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << PlayerNum();
+    if (generic_options_readonly.PlayerNum() != 2) {
+        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
         return false;
     }
     const int planeLimit[8] = {3, 3, 4, 5, 6, 6, 7, 8};
-    if (GET_VALUE(飞机) > planeLimit[GET_VALUE(边长) - 8] && !GET_VALUE(重叠)) {
-        GET_VALUE(飞机) = planeLimit[GET_VALUE(边长) - 8];
-        reply() << "[警告] 边长为 " + to_string(GET_VALUE(边长)) + " 的地图最多可设置 " + to_string(planeLimit[GET_VALUE(边长) - 8]) + " 架不重叠的飞机，飞机数已自动调整为 " + to_string(planeLimit[GET_VALUE(边长) - 8]) + "！";
+    if (GET_OPTION_VALUE(game_options, 飞机) > planeLimit[GET_OPTION_VALUE(game_options, 边长) - 8] && !GET_OPTION_VALUE(game_options, 重叠)) {
+        GET_OPTION_VALUE(game_options, 飞机) = planeLimit[GET_OPTION_VALUE(game_options, 边长) - 8];
+        reply() << "[警告] 边长为 " + to_string(GET_OPTION_VALUE(game_options, 边长)) + " 的地图最多可设置 " + to_string(planeLimit[GET_OPTION_VALUE(game_options, 边长) - 8]) + " 架不重叠的飞机，飞机数已自动调整为 " + to_string(planeLimit[GET_OPTION_VALUE(game_options, 边长) - 8]) + "！";
         return true;
     }
-    if (GET_VALUE(飞机) >= 5 && GET_VALUE(放置时限) == 300 && GET_VALUE(进攻时限) == 120) {
-        GET_VALUE(放置时限) = 600;
-        GET_VALUE(进攻时限) = 150;
-        reply() << "[提示] 本局飞机数为 " + to_string(GET_VALUE(飞机)) + "，已增加长考时间。";
+    if (GET_OPTION_VALUE(game_options, 飞机) >= 5 && GET_OPTION_VALUE(game_options, 放置时限) == 300 && GET_OPTION_VALUE(game_options, 进攻时限) == 120) {
+        GET_OPTION_VALUE(game_options, 放置时限) = 600;
+        GET_OPTION_VALUE(game_options, 进攻时限) = 150;
+        reply() << "[提示] 本局飞机数为 " + to_string(GET_OPTION_VALUE(game_options, 飞机)) + "，已增加长考时间。";
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 2; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 2;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -58,8 +64,8 @@ class AttackStage;
 class MainStage : public MainGameStage<PrepareStage, AttackStage>
 {
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility)
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility))
         , round_(0)
         , player_scores_(Global().PlayerNum(), 0)
     {

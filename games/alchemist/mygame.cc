@@ -26,42 +26,36 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "炼金术士";
-const uint64_t k_max_player = 0; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options)
+{
+    return GET_OPTION_VALUE(options, 种子).empty() ? std::min(2U, GET_OPTION_VALUE(options, 回合数) / 10) : 0;
+}
 const std::string k_developer = "森高";
 const std::string k_description = "通过放置卡牌，让卡牌连成直线获得积分，比拼分数高低的游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
 static int WinScoreThreshold(const bool mode) { return mode ? 200 : 10; }
 
-std::string GameOption::StatusInfo() const
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    std::string str = std::string("\n「") + (GET_VALUE(模式) ? "竞技" : "经典") + "」模式\n每回合" +
-        std::to_string(GET_VALUE(局时)) + "秒\n当有玩家达到" +
-        std::to_string(WinScoreThreshold(GET_VALUE(模式))) + "分，或游戏已经进行了" +
-        std::to_string(GET_VALUE(回合数)) + "回合时，游戏结束\n卡片包含" +
-        std::to_string(GET_VALUE(颜色)) + "种颜色和" +
-        std::to_string(GET_VALUE(点数)) + "种点数，每种相同卡片共有" +
-        (GET_VALUE(副数) == 0 ? "无数" : " " + std::to_string(GET_VALUE(副数)) + " ") + "张\n";
-    if (GET_VALUE(种子).empty()) {
-        str += "未指定种子";
-    } else {
-        str += "种子：" + GET_VALUE(种子);
-    }
-    return str;
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply)
-{
-    const auto card_num = GET_VALUE(颜色) * GET_VALUE(点数) * GET_VALUE(副数);
-    if (GET_VALUE(回合数) > card_num && GET_VALUE(副数) > 0) {
-        reply() << "回合数" << GET_VALUE(回合数) << "不能大于卡片总数量" << card_num;
+    const auto card_num = GET_OPTION_VALUE(game_options, 颜色) * GET_OPTION_VALUE(game_options, 点数) * GET_OPTION_VALUE(game_options, 副数);
+    if (GET_OPTION_VALUE(game_options, 回合数) > card_num && GET_OPTION_VALUE(game_options, 副数) > 0) {
+        reply() << "回合数" << GET_OPTION_VALUE(game_options, 回合数) << "不能大于卡片总数量" << card_num;
         return false;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 1; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 1;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -96,8 +90,8 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility)
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility))
         , round_(0)
     {
         for (uint64_t i = 0; i < Global().PlayerNum(); ++i) {
@@ -174,7 +168,7 @@ class MainStage : public MainGameStage<RoundStage>
     {
         html::Table table(players_.size() / 2 + 1, 2);
         table.SetTableStyle(" align=\"center\" cellpadding=\"20\" cellspacing=\"0\" ");
-        for (PlayerID pid = 0; pid < players_.size(); ++pid) {
+        for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
             table.Get(pid / 2, pid % 2).SetContent("\n\n### " + Global().PlayerAvatar(pid, 40) + "&nbsp;&nbsp; " + Global().PlayerName(pid) +
                     "\n\n### " HTML_COLOR_FONT_HEADER(green) "当前积分：" +
                     std::to_string(players_[pid].score_) + " / " +

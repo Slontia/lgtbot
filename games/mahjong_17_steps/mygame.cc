@@ -26,36 +26,38 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "十七步";
-const uint64_t k_max_player = 4; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 4; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options)
+{
+    return GET_OPTION_VALUE(options, 种子).empty() ? 3 : 0;
+}
 const std::string k_developer = "森高";
 const std::string k_description = "组成满贯听牌牌型，并经历 17 轮切牌的麻将游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    return "配牌时限 " + std::to_string(GET_VALUE(配牌时限)) + " 秒，切牌时限 " + std::to_string(GET_VALUE(切牌时限)) +
-        " 秒，和牌牌型最少需要 " + std::to_string(GET_VALUE(起和点)) + " 点，场上有 " + std::to_string(GET_VALUE(宝牌)) +
-        " 枚宝牌，" + (GET_VALUE(赤宝牌) ? "有" : "无") + "赤宝牌，" + (GET_VALUE(里宝牌) ? "有" : "无") + "里宝牌，" +
-        "每种牌有 " + std::to_string(GET_VALUE(透明牌)) + " 张透明牌，" +
-        (GET_VALUE(种子).empty() ? "无种子" : "种子：" + GET_VALUE(种子));
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply)
-{
-    if (PlayerNum() == 1) {
-        reply() << "该游戏至少 2 名玩家参加，当前玩家数为 " << PlayerNum();
+    if (generic_options_readonly.PlayerNum() == 1) {
+        reply() << "该游戏至少 2 名玩家参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
         return false;
     }
-    if (PlayerNum() == 4 && GET_VALUE(宝牌) > 0) {
-        GET_VALUE(宝牌) = 0;
+    if (generic_options_readonly.PlayerNum() == 4 && GET_OPTION_VALUE(game_options, 宝牌) > 0) {
+        GET_OPTION_VALUE(game_options, 宝牌) = 0;
         reply() << "[警告] 四人游戏不允许有宝牌，已经将宝牌数量自动调整为 0";
         return true;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 3; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [](MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 3;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -78,7 +80,7 @@ class MainStage : public MainGameStage<TableStage>
     };
 
   public:
-    MainStage(const StageUtility& utility) : StageFsm(utility), table_idx_(0)
+    MainStage(StageUtility&& utility) : StageFsm(std::move(utility)), table_idx_(0)
     {
         std::variant<std::random_device, std::seed_seq> rd;
         std::mt19937 g([&]

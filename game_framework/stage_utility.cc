@@ -18,11 +18,12 @@ namespace GAME_MODULE_NAME {
 
 namespace internal {
 
-PublicStageUtility::PublicStageUtility(const GameOption& option, MatchBase& match)
-    : option_(option)
+PublicStageUtility::PublicStageUtility(const MyGameOptions& game_options, const lgtbot::game::GenericOptions& generic_options, MatchBase& match)
+    : game_options_{game_options}
+    , generic_options_(generic_options)
     , match_(match)
-    , masker_(match.MatchId(), match.GameName(), option.PlayerNum())
-    , achievement_counts_(option.PlayerNum())
+    , masker_(match.MatchId(), match.GameName(), generic_options.PlayerNum())
+    , achievement_counts_(generic_options.PlayerNum())
 {
     std::ranges::for_each(achievement_counts_, [](AchievementCounts& counts) { std::ranges::fill(counts, 0); });
 }
@@ -58,7 +59,7 @@ void PublicStageUtility::BoardcastAiInfo(nlohmann::json j)
 
 int PublicStageUtility::SaveMarkdown(const std::string& markdown, const uint32_t width)
 {
-    const std::filesystem::path path = std::filesystem::path(option_.SavedImageDir()) /
+    const std::filesystem::path path = std::filesystem::path(generic_options_.saved_image_dir_) /
         ("match_saved_" + std::to_string(saved_image_no_ ++) + ".png");
     return MarkdownToImage(markdown, path.string(), width);
 }
@@ -89,7 +90,7 @@ void PublicStageUtility::StartTimer(const uint64_t sec)
     timer_finish_time_ = std::chrono::steady_clock::now() + std::chrono::seconds(sec);
     // cannot pass substage pointer because substage may has been released when alert
     match_.StartTimer(sec, this,
-            option_.global_options_.public_timer_alert_ ? TimerCallbackPublic_ : TimerCallbackPrivate_);
+            generic_options_.public_timer_alert_ ? TimerCallbackPublic_ : TimerCallbackPrivate_);
 }
 
 void PublicStageUtility::StopTimer()

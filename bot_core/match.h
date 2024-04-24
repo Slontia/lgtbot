@@ -32,7 +32,6 @@ class PrivateMatch;
 class GroupMatch;
 class DiscussMatch;
 class MatchManager;
-class GameHandle;
 
 template <typename ...Ts>
 class Overload : public Ts...
@@ -49,8 +48,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     enum State { NOT_STARTED = 'N', IS_STARTED = 'S', IS_OVER = 'O' };
     static const uint32_t kAvgScoreOffset = 10;
 
-    Match(BotCtx& bot, const MatchID id, GameHandle& game_handle, const UserID host_uid,
-          const std::optional<GroupID> gid);
+    Match(BotCtx& bot, const MatchID id, GameHandle& game_handle, GameHandle::Options options,
+            const UserID host_uid, const std::optional<GroupID> gid);
     ~Match();
 
     virtual MsgSenderBase& BoardcastMsgSender() override;
@@ -70,17 +69,16 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     virtual bool IsInDeduction() const override { return is_in_deduction_; }
     virtual uint64_t MatchId() const override { return mid_; }
-    virtual const char* GameName() const override { return game_handle_.name_.c_str(); }
+    virtual const char* GameName() const override { return game_handle_.Info().name_.c_str(); }
 
-    ErrCode SetBenchTo(const UserID uid, MsgSenderBase& reply, const std::optional<uint64_t> com_num);
-    ErrCode SetMultiple(const UserID uid, MsgSenderBase& reply, const uint32_t multiple);
+    ErrCode SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_computers_to_player_num);
+    ErrCode SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_formal);
 
     ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply);
     ErrCode GameConfigOver(MsgSenderBase& reply);
-    ErrCode GameStart(const UserID uid, const bool is_public, MsgSenderBase& reply);
+    ErrCode GameStart(const UserID uid, MsgSenderBase& reply);
     ErrCode Join(const UserID uid, MsgSenderBase& reply);
     ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force);
-    ErrCode LeaveMidway(const UserID uid, const bool is_public);
     ErrCode UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel);
 
     MsgSenderBase::MsgSenderGuard Boardcast() { return BoardcastMsgSender()(); }
@@ -128,7 +126,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         bool want_interrupt_;
     };
 
-    ErrCode CheckMultipleAllowed_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const;
+    uint32_t MaxPlayerNum_() const { return game_handle_.Info().max_player_num_fn_(options_.game_options_.get()); }
+    uint32_t Multiple_() const { return game_handle_.Info().multiple_fn_(options_.game_options_.get()); }
 
     template <typename Logger>
     Logger& MatchLog(Logger&& logger) const
@@ -143,7 +142,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         return logger;
     }
 
-    const uint64_t user_controlled_player_num() const { return users_.size() * player_num_each_user_; }
+    const uint32_t user_controlled_player_num() const { return users_.size() * options_.generic_options_.player_num_each_user_; }
     std::string BriefInfo_() const;
     void OnGameOver_();
     void Help_(MsgSenderBase& reply, const bool text_mode);
@@ -156,7 +155,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     bool AllControlledPlayerState_(const ParticipantUser& user, Fn&& fn) const;
     bool Has_(const UserID uid) const;
     std::string HostUserName_() const;
-    uint64_t ComputerNum_() const;
+    uint32_t ComputerNum_() const;
     void EmplaceUser_(const UserID uid);
 
     mutable std::mutex mutex_;
@@ -175,8 +174,22 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     std::shared_ptr<bool> timer_is_over_; // must before match because atom stage will call StopTimer
     std::unique_ptr<Timer> timer_;
 
+    // options
+    struct Options
+    {
+        struct ResourceHolder
+        {
+            std::string resource_dir_;
+            std::string saved_image_dir_;
+        };
+
+        ResourceHolder resource_holder_;
+        GameHandle::game_options_ptr game_options_;
+        lgtbot::game::GenericOptions generic_options_;
+    };
+    Options options_;
+
     // game
-    GameHandle::game_options_ptr options_;
     GameHandle::main_stage_ptr main_stage_;
 
     // user info
@@ -206,11 +219,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     MsgSenderBatch<MsgSenderBatchHandler> boardcast_ai_info_private_sender_;
     std::optional<MsgSender> group_sender_;
 
-    // other options
-    uint64_t bench_to_player_num_;
-    uint64_t player_num_each_user_;
-    uint16_t multiple_;
-
     // player info (fill when game ready to start)
     struct Player
     {
@@ -231,5 +239,4 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 #endif
 
     bool is_in_deduction_;
-    std::string saved_image_path_;
 };

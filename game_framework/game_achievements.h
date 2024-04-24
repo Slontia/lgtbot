@@ -45,11 +45,10 @@ namespace GAME_MODULE_NAME {
 #define ENUM_FILE "../game_framework/game_achievements.h"
 #include "../utility/extend_enum.h"
 
-static const std::array<const GameAchievement, Achievement::Count() + 1> k_achievements = {
+static const std::array<const GameAchievement, Achievement::Count()> k_achievements = {
 #define EXTEND_ACHIEVEMENT(name, description) GameAchievement{.name_ = #name, .description_ = description},
 #include GAME_ACHIEVEMENT_FILENAME
 #undef EXTEND_ACHIEVEMENT
-    GameAchievement{.name_ = nullptr, .description_ = nullptr}
 };
 
 } // namespace GAME_MODULE_NAME

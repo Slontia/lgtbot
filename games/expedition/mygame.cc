@@ -24,8 +24,8 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "远足";
-const uint64_t k_max_player = 0; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options) { return 2; }
 const std::string k_developer = "dva";
 const std::string k_description = "通过计算和放置数字，争取分数的游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
@@ -42,16 +42,17 @@ std::map<std::string, int> char_op = {
     {"＞", 3}, {"大", 3}, {"<", 4},  {"＜", 4}, {"小", 4},
 };
 
-std::string GameOption::StatusInfo() const {
-  std::stringstream ss;
-  ss << "每回合时间限制：" << GET_VALUE(时限) << "秒\n";
-  ss << "游戏地图：" << map_names[GET_VALUE(地图)];
-  return ss.str();
-}
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
 
-bool GameOption::ToValid(MsgSenderBase& reply) { return true; }
-
-uint64_t GameOption::BestPlayerNum() const { return 6; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 6;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GameLogic ==========
 
@@ -391,7 +392,7 @@ class RoundStage;
 
 class MainStage : public MainGameStage<RoundStage> {
  public:
-  MainStage(const StageUtility& utility);
+  MainStage(StageUtility&& utility);
   virtual void FirstStageFsm(SubStageFsmSetter setter) override;
   virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
   int64_t PlayerScore(const PlayerID pid) const;
@@ -497,8 +498,8 @@ class RoundStage : public SubGameStage<> {
   int number[7];
 };
 
-MainStage::MainStage(const StageUtility& utility)
-    : StageFsm(utility), ui_(Global().PlayerNum()), turn_(0), num_player_(Global().PlayerNum()) {
+MainStage::MainStage(StageUtility&& utility)
+    : StageFsm(std::move(utility)), ui_(Global().PlayerNum()), turn_(0), num_player_(Global().PlayerNum()) {
   auto map_file = map_files[GAME_OPTION(地图)];
   map_name = map_names[GAME_OPTION(地图)];
   if (map_file == "random") {

@@ -18,30 +18,42 @@ class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
-const std::string k_game_name = "同步麻将"; // the game name which should be unique among all the games
-const uint64_t k_max_player = 4; // 0 indicates no max-player limits
-const uint64_t k_multiple = 1; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+const std::string k_game_name = "同步麻将";
 const std::string k_developer = "森高";
 const std::string k_description = "所有玩家同时摸牌和切牌的麻将游戏";
+
 const std::vector<RuleCommand> k_rule_commands = {};
 
-static constexpr uint32_t const k_image_width = 700;
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [](MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 4;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
-std::string GameOption::StatusInfo() const
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    return "";
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply)
-{
-    if (PlayerNum() < 3) {
-        reply() << "该游戏至少 3 人参加，当前玩家数为 " << PlayerNum();
+    if (const auto player_num = generic_options_readonly.PlayerNum(); player_num < 3) {
+        reply() << "该游戏至少 3 人参加，当前玩家数为 " << player_num;
         return false;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 4; }
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 4; }
+
+uint32_t Multiple(const MyGameOptions& options)
+{
+    if (!GET_OPTION_VALUE(options, 种子).empty()) {
+        return 0;
+    }
+    return GET_OPTION_VALUE(options, 局数);
+}
+
+static constexpr uint32_t const k_image_width = 700;
 
 // ========== GAME STAGES ==========
 
@@ -53,8 +65,8 @@ static const int k_four_players_init_point = 25000;
 class MainStage : public MainGameStage<TableStage>
 {
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility)
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility))
         , sync_mahjong_option_{
             .tiles_option_ = game_util::mahjong::TilesOption{
                 .with_red_dora_ = GAME_OPTION(赤宝牌),

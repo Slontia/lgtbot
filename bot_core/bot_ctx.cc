@@ -5,6 +5,8 @@
 #include <regex>
 #include <fstream>
 #include <cstring>
+#include <ranges>
+#include <span>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -27,6 +29,7 @@ static_assert(false, "Not support OS");
 #include "game_framework/game_main.h"
 #include "nlohmann/json.hpp"
 
+// TODO: use std::ranges::views::split
 static std::set<UserID> SplitIdsByComma(const std::string_view& str)
 {
     if (str.empty()) {
@@ -52,6 +55,16 @@ static std::set<UserID> SplitIdsByComma(const std::string_view& str)
     return ids;
 }
 
+static auto FillAchievements(const std::span<const lgtbot::game::GameAchievement> achievements)
+{
+    std::vector<GameHandle::Achievement> result;
+    std::ranges::transform(achievements, std::back_inserter(result), [](const lgtbot::game::GameAchievement& achievement)
+            {
+                return GameHandle::Achievement{.name_ = achievement.name_, .description_ = achievement.description_};
+            });
+    return result;
+}
+
 static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
 {
     if (!mod) {
@@ -62,51 +75,43 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
 #endif
         return;
     }
-
-    typedef bool(*GetGameInfo)(lgtbot::game::GameInfo* game_info);
-
     const auto load_proc = [&mod](const char* const name)
     {
         const auto proc = GetProcAddress(mod, name);
         if (!proc) {
-            ErrorLog() << "Load proc " << name << " from module failed";
 #ifdef __linux__
             std::cerr << dlerror() << std::endl;
 #endif
+            throw std::runtime_error(std::string("load proc ") + name + " from module failed");
         }
         return proc;
     };
-
-    const auto game_info_fn = (GetGameInfo)load_proc("GetGameInfo");
-    const auto game_options_allocator_fn = (GameHandle::game_options_allocator)load_proc("NewGameOptions");
-    const auto game_options_deleter_fn = (GameHandle::game_options_deleter)load_proc("DeleteGameOptions");
-    const auto main_stage_allocator_fn = (GameHandle::main_stage_allocator)load_proc("NewMainStage");
-    const auto main_stage_deleter_fn = (GameHandle::main_stage_deleter)load_proc("DeleteMainStage");
-    const auto handle_rule_command_fn = (GameHandle::rule_command_handler)load_proc("HandleRuleCommand");
-
-    if (!game_info_fn || !handle_rule_command_fn || !game_options_allocator_fn || !game_options_deleter_fn ||
-            !main_stage_allocator_fn || !main_stage_deleter_fn) {
+    try {
+        const lgtbot::game::GameInfo game_info = reinterpret_cast<lgtbot::game::GameInfo(*)()>(load_proc("GetGameInfo"))();
+        game_handles.emplace(std::piecewise_construct, std::forward_as_tuple(game_info.game_name_), std::forward_as_tuple(
+                    GameHandle::BasicInfo{
+                        .name_ = game_info.game_name_,
+                        .module_name_ = game_info.module_name_,
+                        .developer_ = game_info.developer_,
+                        .description_ = game_info.description_,
+                        .rule_ = game_info.rule_,
+                        .achievements_ = FillAchievements(std::span(game_info.achievements_.data_, game_info.achievements_.size_)),
+                        .max_player_num_fn_ = reinterpret_cast<GameHandle::max_player_num_handler>(load_proc("MaxPlayerNum")),
+                        .multiple_fn_ = reinterpret_cast<GameHandle::multiple_handler>(load_proc("Multiple")),
+                        .handle_rule_command_fn_ = reinterpret_cast<GameHandle::rule_command_handler>(load_proc("HandleRuleCommand")),
+                        .handle_init_options_command_fn_ = reinterpret_cast<GameHandle::init_options_command_handler>(load_proc("HandleInitOptionsCommand")),
+                    },
+                    GameHandle::InternalHandler{
+                        .game_options_allocator_ = reinterpret_cast<GameHandle::game_options_allocator>(load_proc("NewGameOptions")),
+                        .game_options_deleter_ = reinterpret_cast<GameHandle::game_options_deleter>(load_proc("DeleteGameOptions")),
+                        .main_stage_allocator_ = reinterpret_cast<GameHandle::main_stage_allocator>(load_proc("NewMainStage")),
+                        .main_stage_deleter_ = reinterpret_cast<GameHandle::main_stage_deleter>(load_proc("DeleteMainStage")),
+                        .mod_guard_ = [mod] { FreeLibrary(mod); },
+                    }));
+    } catch (const std::exception& e) {
+        ErrorLog() << "Load mod failed: " << e.what();
         return;
     }
-
-    const char* rule = nullptr;
-    const char* module_name = nullptr;
-    uint64_t max_player = 0;
-    lgtbot::game::GameInfo game_info;
-    if (!game_info_fn(&game_info)) {
-        ErrorLog() << "Load failed: Cannot get game game";
-        return;
-    }
-    std::vector<GameHandle::Achievement> achievements;
-    for (const lgtbot::game::GameAchievement* achievement = game_info.achievements_; achievement->name_; ++achievement) {
-        achievements.emplace_back(achievement->name_, achievement->description_);
-    }
-    game_handles.emplace(
-            game_info.game_name_,
-            std::make_unique<GameHandle>(game_info.game_name_, game_info.module_name_, game_info.max_player_,
-                game_info.rule_, std::move(achievements), game_info.multiple_, game_info.developer_, game_info.description_,
-                game_options_allocator_fn, game_options_deleter_fn, main_stage_allocator_fn, main_stage_deleter_fn,
-                handle_rule_command_fn, [mod] { FreeLibrary(mod); }));
     InfoLog() << "Loaded successfully!";
 }
 
@@ -199,14 +204,10 @@ static std::variant<nlohmann::json, const char*> LoadConfig(const char* const co
             ErrorLog() << "LoadConfig game '" << game_name << "' not found";
             continue;
         }
-        if (const auto json_it = game_json.find("multiple"); json_it != game_json.end()) {
-            it->second->multiple_ = json_it->get<uint32_t>();
-            InfoLog() << "LoadConfig set game '" << game_name << "' multiple successfully: " << it->second->multiple_;
-        }
-        auto locked_option = it->second->game_options_.Lock();
+        auto locked_option = it->second.DefaultGameOptions().Lock();
         for (const auto& [option_name, value] : game_json["options"].items()) {
             std::string option_str = option_name + " " + value.get<std::string>();
-            if (locked_option.Get()->SetOption(option_str.c_str())) {
+            if (locked_option->game_options_->SetOption(option_str.c_str())) {
                 InfoLog() << "LoadConfig set game '" << game_name << "' option successfully: " << option_str;
             } else {
                 ErrorLog() << "LoadConfig set game '" << game_name << "' option failed: " << option_str;
@@ -250,10 +251,12 @@ std::variant<BotCtx*, const char*> BotCtx::Create(const LGTBot_Option& options)
     if (const char* const* const errmsg = std::get_if<const char*>(&game_handles)) {
         return *errmsg;
     }
+#ifdef WITH_SQLITE
     std::unique_ptr<DBManagerBase> db_manager;
     if (options.db_path_ && !(db_manager = SQLiteDBManager::UseDB(options.db_path_))) {
         return "use database failed";
     }
+#endif
     MutableBotOption bot_options;
     auto config_json = LoadConfig(options.conf_path_, std::get<GameHandleMap>(game_handles),
             bot_options);
@@ -316,8 +319,8 @@ bool BotCtx::UpdateBotConfig(const std::string& option_name, const std::vector<s
 {
     try {
         auto locked_config_json = config_json_.Lock();
-        UpdateConfig_(locked_config_json.Get()["bot"]["options"], option_name, option_args);
-        return SaveConfig_(locked_config_json.Get(), conf_path_);
+        UpdateConfig_((*locked_config_json)["bot"]["options"], option_name, option_args);
+        return SaveConfig_((*locked_config_json), conf_path_);
     } catch (const std::exception& e) {
         ErrorLog() << "UpdateBotConfig failed: " << e.what();
         return false;
@@ -329,22 +332,22 @@ bool BotCtx::UpdateGameConfig(const std::string& game_name, const std::string& o
 {
     try {
         auto locked_config_json = config_json_.Lock();
-        UpdateConfig_(locked_config_json.Get()["games"][game_name]["options"], option_name, option_args);
-        return SaveConfig_(locked_config_json.Get(), conf_path_);
+        UpdateConfig_((*locked_config_json)["games"][game_name]["options"], option_name, option_args);
+        return SaveConfig_((*locked_config_json), conf_path_);
     } catch (const std::exception& e) {
         ErrorLog() << "UpdateGameConfig failed: " << e.what();
         return false;
     }
 }
 
-bool BotCtx::UpdateGameMultiple(const std::string& game_name, const uint32_t multiple)
+bool BotCtx::UpdateGameDefaultFormal(const std::string& game_name, const bool is_formal)
 {
     try {
         auto locked_config_json = config_json_.Lock();
-        locked_config_json.Get()["games"][game_name]["multiple"] = multiple;
-        return SaveConfig_(locked_config_json.Get(), conf_path_);
+        (*locked_config_json)["games"][game_name]["is_formal"] = is_formal;
+        return SaveConfig_((*locked_config_json), conf_path_);
     } catch (const std::exception& e) {
-        ErrorLog() << "UpdateGameMultiple failed: " << e.what();
+        ErrorLog() << "UpdateGameFormal failed: " << e.what();
         return false;
     }
 }

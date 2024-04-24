@@ -19,27 +19,30 @@ template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages.
 
 const std::string k_game_name =
     "面包危机";                   // the game name which should be unique among all the games
-const uint64_t k_max_player = 0;  // 0 indicates no max-player limits
-const uint64_t k_multiple = 1;    // the default score multiple for the game, 0 for a testing game,
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; }  // 0 indicates no max-player limits
+uint32_t Multiple(const MyGameOptions& options) { return 2; }
 // 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "dva";
 const std::string k_description = "保存体力，尽可能活到最后的游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const {
-  return "最多 " + std::to_string(GET_VALUE(回合数)) + " 回合，每回合超时时间 " +
-         std::to_string(GET_VALUE(时限)) + " 秒";
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply) {
-  if (PlayerNum() < 3) {
-    reply() << "该游戏至少 3 人参加，当前玩家数为 " << PlayerNum();
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {
+  if (generic_options_readonly.PlayerNum() < 3) {
+    reply() << "该游戏至少 3 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
     return false;
   }
   return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 6; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 6;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -47,9 +50,9 @@ class RoundStage;
 
 class MainStage : public MainGameStage<RoundStage> {
  public:
-  MainStage(const StageUtility& utility)
+  MainStage(StageUtility&& utility)
       : StageFsm(
-            utility,
+            std::move(utility),
             MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况"))),
         round_(0),
         alive_(0),

@@ -20,29 +20,30 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "LIE";
-const uint64_t k_max_player = 2; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options) { return 1; }
 const std::string k_developer = "森高";
 const std::string k_description = "双方猜测数字的简单游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    std::stringstream ss;
-    ss << "集齐全部" << GET_VALUE(数字种类) << "种数字，或持有单个数字数量达到" << GET_VALUE(失败数量) << "时玩家失败";
-    return ss.str();
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply)
-{
-    if (PlayerNum() != 2) {
-        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << PlayerNum();
+    if (generic_options_readonly.PlayerNum() != 2) {
+        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
         return false;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 2; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 2;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -57,7 +58,7 @@ class MyTable
         bool is_lie_;
     };
 
-    MyTable(const MyGameOption& option, const std::string_view resource_dir)
+    MyTable(const MyGameOptions& option, const std::string_view resource_dir)
         : option_(option)
         , resource_dir_{resource_dir}
         , table_(GET_OPTION_VALUE(option, 失败数量) * 2 + 3, GET_OPTION_VALUE(option, 数字种类))
@@ -148,7 +149,7 @@ class MyTable
         }
     }
 
-    const MyGameOption& option_;
+    const MyGameOptions& option_;
     std::string_view resource_dir_;
     html::Table table_;
     std::array<std::vector<int>, 2> player_nums_;
@@ -160,7 +161,7 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
    public:
-    MainStage(const StageUtility& utility);
+    MainStage(StageUtility&& utility);
     virtual void FirstStageFsm(SubStageFsmSetter setter) override;
     virtual void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
     int64_t PlayerScore(const PlayerID pid) const;
@@ -329,8 +330,8 @@ class RoundStage : public SubGameStage<NumberStage, GuessStage>
     PlayerID loser_;
 };
 
-MainStage::MainStage(const StageUtility& utility)
-        : StageFsm(utility)
+MainStage::MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility))
         , table_(utility.Options(), utility.ResourceDir())
         , questioner_(0)
         , round_(1)

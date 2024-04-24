@@ -10,6 +10,7 @@
 #include <glog/logging.h>
 #endif
 
+#include "game_framework/util.h"
 #include "game_framework/stage.h"
 #include "game_framework/game_options.h"
 #include "game_framework/game_main.h"
@@ -52,9 +53,6 @@ class TestGame : public MockMatch, public testing::Test
         google::InitGoogleLogging(::testing::UnitTest::GetInstance()->current_test_info()->name());
 #endif
         enable_markdown_to_image = FLAGS_gen_image && !FLAGS_image_dir.empty();
-        option_.SetPlayerNum(k_player_num);
-        option_.SetResourceDir(std::filesystem::absolute(FLAGS_resource_dir + "/").string().c_str());
-        option_.SetSavedImageDir(std::filesystem::absolute(image_dir()).string().c_str());
     }
 
     virtual void TearDown() override
@@ -69,10 +67,15 @@ class TestGame : public MockMatch, public testing::Test
     bool StartGame()
     {
         MockMsgSender sender(image_dir());
-        if (!option_.ToValid(sender)) {
+        options_.resource_holder_.resource_dir_ = std::filesystem::absolute(FLAGS_resource_dir + "/").string();
+        options_.resource_holder_.saved_image_dir_ = std::filesystem::absolute(image_dir()).string();
+        options_.generic_options_.resource_dir_ = options_.resource_holder_.resource_dir_.c_str();
+        options_.generic_options_.saved_image_dir_ = options_.resource_holder_.saved_image_dir_.c_str();
+        options_.generic_options_.user_num_ = k_player_num;
+        if (!AdaptOptions(sender, options_.game_options_, options_.generic_options_, options_.generic_options_)) {
             return false;
         }
-        main_stage_.reset(MakeMainStage(MainStageFactory{static_cast<GameOption&>(option_), *this}));
+        main_stage_.reset(MakeMainStage(MainStageFactory{options_.game_options_, options_.generic_options_, *this}));
         if (main_stage_) {
             main_stage_->HandleStageBegin();
         }
@@ -127,7 +130,20 @@ class TestGame : public MockMatch, public testing::Test
         return rc;
     }
 
-    GameOption option_;
+    struct Options
+    {
+        struct ResourceHolder
+        {
+            std::string resource_dir_;
+            std::string saved_image_dir_;
+        };
+
+        ResourceHolder resource_holder_;
+        GameOptions game_options_;
+        lgtbot::game::GenericOptions generic_options_;
+    };
+
+    Options options_;
     std::unique_ptr<MainStageBase> main_stage_;
     std::optional<ScoreArray> actual_scores_;
     std::optional<AchievementsArray> actual_achievements_;
@@ -156,7 +172,7 @@ class TestGame : public MockMatch, public testing::Test
         assert(!main_stage_ || !main_stage_->IsOver());
         const auto rc =
             main_stage_  ? main_stage_->HandleRequest(msg.c_str(), pid, is_public, sender)
-                         : StageErrCode::Condition(option_.SetOption(msg.c_str()), StageErrCode::OK , StageErrCode::FAILED); // for easy test
+                         : StageErrCode::Condition(options_.game_options_.SetOption(msg.c_str()), StageErrCode::OK , StageErrCode::FAILED); // for easy test
         HandleGameOver_();
         return rc;
     }

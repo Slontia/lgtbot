@@ -9,8 +9,11 @@
 #include "bot_core/msg_sender.h"
 #include "bot_core/match.h"
 
-std::pair<ErrCode, std::shared_ptr<Match>> MatchManager::NewMatch(GameHandle& game_handle, const UserID& uid, const std::optional<GroupID> gid,
-                               MsgSenderBase& reply)
+std::pair<ErrCode, std::shared_ptr<Match>> MatchManager::NewMatch(GameHandle& game_handle,
+                                                                  const std::string_view init_options_args,
+                                                                  const UserID& uid,
+                                                                  const std::optional<GroupID> gid,
+                                                                  MsgSenderBase& reply)
 {
     std::lock_guard<std::mutex> l(mutex_);
     if (GetMatch_(uid)) {
@@ -24,11 +27,29 @@ std::pair<ErrCode, std::shared_ptr<Match>> MatchManager::NewMatch(GameHandle& ga
         return {EC_MATCH_ALREADY_BEGIN, nullptr};
     }
     const MatchID mid = NewMatchID_();
-    const auto new_match = std::make_shared<Match>(bot_, mid, game_handle, uid, gid);
+    auto options = game_handle.CopyDefaultGameOptions();
+    const lgtbot::game::InitOptionsResult start_mode =
+        init_options_args.empty() ? lgtbot::game::InitOptionsResult::NEW_MULTIPLE_USERS_MODE_GAME
+                                  : game_handle.Info().handle_init_options_command_fn_(
+                                          init_options_args.data(), options.game_options_.get(), &options.generic_options_);
+    if (start_mode == lgtbot::game::InitOptionsResult::INVALID_INIT_OPTIONS_COMMAND) {
+        // TODO: show all valid preset commands
+        reply() << "[错误] 建立失败：非法的预设指令，您可以通过「" META_COMMAND_SIGN "规则 "
+                << game_handle.Info().name_ << "」查看所有的预设指令";
+        return {EC_INVALID_ARGUMENT, nullptr};
+    }
+    const auto new_match = std::make_shared<Match>(bot_, mid, game_handle, std::move(options), uid, gid);
     BindMatch_(mid, new_match);
     BindMatch_(uid, new_match);
     if (gid.has_value()) {
         BindMatch_(*gid, new_match);
+    }
+    if (start_mode == lgtbot::game::InitOptionsResult::NEW_SINGLE_USER_MODE_GAME) {
+        // Start game directly for single-player mode.
+        const auto ret = new_match->GameStart(uid, reply);
+        if (ret != EC_OK) {
+            return {ret, nullptr};
+        }
     }
     return {EC_OK, new_match};
 }

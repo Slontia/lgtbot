@@ -27,32 +27,30 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 const std::string k_game_name = "决胜五子";
-const uint64_t k_max_player = 2; /* 0 means no max-player limits */
-const uint64_t k_multiple = 1;
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } /* 0 means no max-player limits */
+uint32_t Multiple(const MyGameOptions& options) { return 2; }
 const std::string k_developer = "森高";
 const std::string k_description = "双方一起落子的五子棋游戏";
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    return "每步时限 " + std::to_string(GET_VALUE(时限)) + " 秒，" +
-        (GET_VALUE(碰撞上限) == 0 ? "碰撞不会造成和棋" : std::to_string(GET_VALUE(碰撞上限)) + " 次碰撞发生时和棋") + "，" +
-        (GET_VALUE(回合上限) == 0 ? "没有回合限制" : std::to_string(GET_VALUE(回合上限)) + " 回合结束时和棋") + "，" +
-        (GET_VALUE(pass上限) == 0 ? "pass 不会造成和棋" : "双方共 pass " + std::to_string(GET_VALUE(pass上限)) + " 次时和棋") + "，" +
-        (GET_VALUE(pass胜利) ? "和棋时 pass 数量较多的玩家获胜" : "pass 数量不会影响胜负") + "，" +
-        (GET_VALUE(多选点) ? "每回合可以选择多个备选落子位置" : "每回合只能选择一个落子位置");
-}
-
-bool GameOption::ToValid(MsgSenderBase& reply)
-{
-    if (PlayerNum() != 2) {
-        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << PlayerNum();
+    if (generic_options_readonly.PlayerNum() != 2) {
+        reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
         return false;
     }
     return true;
 }
 
-uint64_t GameOption::BestPlayerNum() const { return 2; }
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 2;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
 // ========== GAME STAGES ==========
 
@@ -60,8 +58,8 @@ uint64_t GameOption::BestPlayerNum() const { return 2; }
 class MainStage : public MainGameStage<>
 {
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility,
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility),
                 MakeStageCommand(*this, "查看盘面情况，可用于图片重发", &MainStage::Info_, VoidChecker("赛况")),
                 MakeStageCommand(*this, "跳过本次落子", &MainStage::Pass_, VoidChecker("pass")),
                 MakeStageCommand(*this, "落子", &MainStage::Set_, RepeatableChecker<AnyArg>("坐标")))

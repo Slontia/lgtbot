@@ -283,18 +283,22 @@ private:
 class MainStageFactory
 {
   public:
-    MainStageFactory(GameOption& options, MatchBase& match) : options_(options), match_(match) {}
+    MainStageFactory(const MyGameOptions& game_options, const GenericOptions& generic_options, MatchBase& match)
+        : game_options_(std::move(game_options)), generic_options_(generic_options), match_(match) {}
 
+    // This function can only be invoked once.
     template <typename Fsm>
     internal::MainStage* Create()
     {
-        return new internal::MainStage(std::make_unique<Fsm>(StageUtility{options_, match_}));
+        return new internal::MainStage(std::make_unique<Fsm>(StageUtility{game_options_, generic_options_, match_}));
     }
 
-    const MyGameOption& Options() const { return options_; }
+    const MyGameOptions& GetGameOptions() const { return game_options_; }
+    const GenericOptions& GetGenericOptions() const { return generic_options_; }
 
   private:
-    GameOption& options_;
+    const MyGameOptions& game_options_;
+    const GenericOptions& generic_options_;
     MatchBase& match_;
 };
 

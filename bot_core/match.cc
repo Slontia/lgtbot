@@ -22,23 +22,26 @@
 #include "bot_core/options.h"
 #include "nlohmann/json.hpp"
 
-Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, const UserID host_uid,
-             const std::optional<GroupID> gid)
+Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, GameHandle::Options options,
+        const UserID host_uid, const std::optional<GroupID> gid)
         : bot_(bot)
         , mid_(mid)
         , game_handle_(game_handle)
         , host_uid_(host_uid)
         , gid_(gid)
         , state_(State::NOT_STARTED)
-        , options_(game_handle.make_game_options())
+        , options_{
+            .game_options_ = std::move(options.game_options_),
+            .generic_options_{
+                lgtbot::game::ImmutableGenericOptions{},
+                lgtbot::game::MutableGenericOptions{std::move(options.generic_options_)}
+            },
+          }
         , main_stage_(nullptr, [](const lgtbot::game::MainStageBase*) {}) // make when game starts
-        , player_num_each_user_(1)
         , users_()
         , boardcast_private_sender_(MsgSenderBatchHandler(*this, false))
         , boardcast_ai_info_private_sender_(MsgSenderBatchHandler(*this, true))
         , group_sender_(gid.has_value() ? std::optional<MsgSender>(bot.MakeMsgSender(*gid_, this)) : std::nullopt)
-        , bench_to_player_num_(0)
-        , multiple_(game_handle.multiple_)
         , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")))
 #ifdef TEST_BOT
         , before_handle_timeout_(false)
@@ -57,15 +60,19 @@ std::string Match::HostUserName_() const
     return bot_.GetUserName(host_uid_.GetCStr(), gid_.has_value() ? gid_->GetCStr() : nullptr);
 }
 
-uint64_t Match::ComputerNum_() const
+uint32_t Match::ComputerNum_() const
 {
-    return std::max(int64_t(0), static_cast<int64_t>(bench_to_player_num_ - user_controlled_player_num()));
+    const auto bench_computers_to_player_num = options_.generic_options_.bench_computers_to_player_num_;
+    const auto current_player_num = user_controlled_player_num();
+    if (bench_computers_to_player_num <= current_player_num) {
+        return 0;
+    }
+    return bench_computers_to_player_num - current_player_num;
 }
 
 void Match::EmplaceUser_(const UserID uid)
 {
-    const auto locked_option = bot_.option().Lock();
-    const auto& ai_list = GET_OPTION_VALUE(locked_option.Get(), AI列表);
+    const auto& ai_list = GET_OPTION_VALUE(*bot_.option().Lock(), AI列表);
     users_.emplace(uid, ParticipantUser(*this, uid, std::ranges::find(ai_list, uid.GetStr()) != std::end(ai_list)));
 }
 
@@ -77,75 +84,46 @@ Match::VariantID Match::ConvertPid(const PlayerID pid) const
     return players_[pid].id_;
 }
 
-ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, std::optional<uint64_t> bench_to_player_num)
+ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_computers_to_player_num)
 {
-    if (!bench_to_player_num.has_value()) {
-        bench_to_player_num.emplace(options_->BestPlayerNum());
-    }
     std::lock_guard<std::mutex> l(mutex_);
     if (uid != host_uid_) {
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
     }
     auto sender = reply();
-    if (*bench_to_player_num <= user_controlled_player_num()) {
+    if (bench_computers_to_player_num <= user_controlled_player_num()) {
         sender << "[警告] 当前玩家数 " << user_controlled_player_num() << " 已满足条件";
         return EC_OK;
-    } else if (game_handle_.max_player_ != 0 && *bench_to_player_num > game_handle_.max_player_) {
-        sender << "[错误] 设置失败：比赛人数将超过上限" << game_handle_.max_player_ << "人";
+    }
+    if (const auto max_player = MaxPlayerNum_(); max_player != 0 && bench_computers_to_player_num > max_player) {
+        sender << "[错误] 设置失败：比赛人数将超过上限" << max_player << "人";
         return EC_MATCH_ACHIEVE_MAX_PLAYER;
     }
-    bench_to_player_num_ = *bench_to_player_num;
+    options_.generic_options_.bench_computers_to_player_num_ = bench_computers_to_player_num;
     KickForConfigChange_();
     sender << "设置成功！\n\n" << BriefInfo_();
     return EC_OK;
 }
 
-ErrCode Match::CheckMultipleAllowed_(const UserID uid, MsgSenderBase& reply, const uint32_t multiple) const
-{
-    if (!bot_.db_manager()) {
-        return EC_OK; // always allow when database is not connected
-    }
-    const auto required_zero_sum_score = k_zero_sum_score_multi * multiple * 2;
-    const auto required_top_score = k_top_score_multi * multiple * 2;
-    const auto profit = bot_.db_manager()->GetUserProfile(uid, "", ""); // get history total score
-    if (multiple <= game_handle_.multiple_ || multiple == 1) {
-        return EC_OK;
-    } else if (required_zero_sum_score > profit.total_zero_sum_score_ || required_top_score > profit.total_top_score_) {
-        reply() << "[错误] 您的分数未达到要求，零和总分至少需要达到 "
-                << required_zero_sum_score << "（当前 " << profit.total_zero_sum_score_ << "），"
-                << "头名总分至少需要达到 "
-                << required_top_score << "（当前 " << profit.total_top_score_ << "）";
-        return EC_MATCH_SCORE_NOT_ENOUGH;
-    } else if (profit.recent_matches_.size() < multiple ||
-            std::any_of(profit.recent_matches_.begin(), profit.recent_matches_.begin() + multiple,
-                [](const auto& match) { return match.multiple_ != 1; })) {
-        reply() << "[错误] 您近期需连续完成 " << multiple << " 场单倍率的比赛";
-        return EC_MATCH_SINGLE_MULTT_MATCH_NOT_ENOUGH;
-    }
-    return EC_OK;
-}
-
-ErrCode Match::SetMultiple(const UserID uid, MsgSenderBase& reply, const uint32_t multiple)
+ErrCode Match::SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_formal)
 {
     std::lock_guard<std::mutex> l(mutex_);
     if (uid != host_uid_) {
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
     }
-    if (multiple == multiple_) {
-        reply() << "[警告] 赔率 " << multiple << " 和目前配置相同";
-        return EC_OK;
-    }
-    if (const auto ret = CheckMultipleAllowed_(uid, reply, multiple); ret != EC_OK) {
-        return ret;
-    }
-    multiple_ = multiple;
-    KickForConfigChange_();
+    const auto multiple = Multiple_();
     if (multiple == 0) {
+        reply() << "[错误] 当前配置下倍率为 0，固定为非正式游戏";
+        return EC_MATCH_INVALID_CONFIG_VALUE;
+    }
+    options_.generic_options_.is_formal_ = is_formal;
+    KickForConfigChange_();
+    if (is_formal) {
         reply() << "设置成功！当前游戏为试玩游戏";
     } else {
-        reply() << "设置成功！当前倍率为 " << multiple;
+        reply() << "设置成功！当前游戏为正式游戏，倍率为 " << multiple;
     }
     return EC_OK;
 }
@@ -200,7 +178,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
     }
-    if (!options_->SetOption(msg.c_str())) {
+    if (!options_.game_options_->SetOption(msg.c_str())) {
         reply() << "[错误] 未预料的游戏设置，您可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置\n"
                     "若您想执行元指令，请尝试在请求前加「" META_COMMAND_SIGN "」，或通过「" META_COMMAND_SIGN "帮助」查看所有支持的元指令";
         return EC_GAME_REQUEST_NOT_FOUND;
@@ -210,7 +188,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
     return EC_GAME_REQUEST_OK;
 }
 
-ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& reply)
+ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
 {
     std::lock_guard<std::mutex> l(mutex_);
     if (state_ != State::NOT_STARTED) {
@@ -218,13 +196,13 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
         return EC_MATCH_ALREADY_BEGIN;
     }
     if (uid != host_uid_) {
-        reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
+        reply() << "[错误] 开始失败：您并非房主，没有开始游戏的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
     }
     nlohmann::json players_json_array;
     players_.clear();
     for (auto& [uid, user_info] : users_) {
-        for (int i = 0; i < player_num_each_user_; ++i) {
+        for (int i = 0; i < options_.generic_options_.player_num_each_user_; ++i) {
             user_info.pids_.emplace_back(players_.size());
             players_.emplace_back(uid);
             players_json_array.push_back(nlohmann::json{
@@ -239,18 +217,17 @@ ErrCode Match::GameStart(const UserID uid, const bool is_public, MsgSenderBase& 
                     { "computer_id", static_cast<uint64_t>(cid) }
                 });
     }
-    const uint64_t player_num = std::max(user_controlled_player_num(), bench_to_player_num_);
-    const std::string resource_dir = (std::filesystem::absolute(bot_.game_path()) / game_handle_.module_name_ / "").string();
-    const std::string saved_image_dir =
+    options_.resource_holder_.resource_dir_ =
+        (std::filesystem::absolute(bot_.game_path()) / game_handle_.Info().module_name_ / "").string();
+    options_.resource_holder_.saved_image_dir_ =
         (std::filesystem::absolute(bot_.image_path()) / "matches" /
-         (std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + "_" + game_handle_.module_name_)).string();
+         (std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + "_" + game_handle_.Info().module_name_)).string();
+    options_.generic_options_.resource_dir_ = options_.resource_holder_.resource_dir_.c_str();
+    options_.generic_options_.saved_image_dir_ = options_.resource_holder_.saved_image_dir_.c_str();
+    options_.generic_options_.public_timer_alert_ = GET_OPTION_VALUE(*bot_.option().Lock(), 计时公开提示);
+    options_.generic_options_.user_num_ = static_cast<uint32_t>(users_.size());
     assert(main_stage_ == nullptr);
-    assert(game_handle_.max_player_ == 0 || player_num <= game_handle_.max_player_);
-    options_->SetPlayerNum(player_num);
-    options_->SetResourceDir(resource_dir.c_str());
-    options_->SetSavedImageDir(saved_image_dir.c_str());
-    options_->global_options_.public_timer_alert_ = GET_OPTION_VALUE(bot_.option().Lock().Get(), 计时公开提示);
-    if (!(main_stage_ = game_handle_.make_main_stage(reply, *options_, *this))) {
+    if (!(main_stage_ = game_handle_.MakeMainStage(reply, *options_.game_options_, options_.generic_options_, *this))) {
         reply() << "[错误] 开始失败：不符合游戏参数的预期";
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
@@ -273,16 +250,13 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         reply() << "[错误] 加入失败：游戏已经开始";
         return EC_MATCH_ALREADY_BEGIN;
     }
-    if (users_.size() == game_handle_.max_player_) {
+    if (users_.size() >= MaxPlayerNum_()) {
         reply() << "[错误] 加入失败：比赛人数已达到游戏上限";
         return EC_MATCH_ACHIEVE_MAX_PLAYER;
     }
     if (Has_(uid)) {
         reply() << "[错误] 加入失败：您已加入该游戏";
         return EC_MATCH_USER_ALREADY_IN_MATCH;
-    }
-    if (const auto ret = CheckMultipleAllowed_(uid, reply, multiple_); ret != EC_OK) {
-        return ret;
     }
     if (!match_manager().BindMatch(uid, shared_from_this())) {
         reply() << "[错误] 加入失败：您已加入其他游戏，您可通过私信裁判「" META_COMMAND_SIGN "游戏信息」查看该游戏信息";
@@ -561,7 +535,7 @@ void Match::ShowInfo(MsgSenderBase& reply) const
     reply.SetMatch(this);
     std::lock_guard<std::mutex> l(mutex_);
     auto sender = reply();
-    sender << "游戏名称：" << game_handle().name_ << "\n";
+    sender << "游戏名称：" << game_handle().Info().name_ << "\n";
     sender << "配置信息：" << OptionInfo_() << "\n";
     sender << "电脑数量：" << ComputerNum_() << "\n";
     sender << "游戏状态："
@@ -574,16 +548,16 @@ void Match::ShowInfo(MsgSenderBase& reply) const
         sender << "私密游戏" << "\n";
     }
     sender << "最多可参加人数：";
-    if (game_handle().max_player_ == 0) {
+    if (const auto max_player = MaxPlayerNum_(); max_player == 0) {
         sender << "无限制";
     } else {
-        sender << game_handle().max_player_;
+        sender << max_player;
     }
     sender << "人\n房主：" << Name(host_uid_);
     if (state() == Match::State::IS_STARTED) {
         const auto num = players_.size();
         sender << "\n玩家列表：" << num << "人";
-        for (uint64_t pid = 0; pid < num; ++pid) {
+        for (uint32_t pid = 0; pid < num; ++pid) {
             sender << "\n" << pid << "号：" << Name(PlayerID{pid});
         }
     } else {
@@ -602,16 +576,16 @@ std::string Match::BriefInfo() const
 
 std::string Match::BriefInfo_() const
 {
-    return "游戏名称：" + game_handle().name_ +
-        "\n- 倍率：" + std::to_string(multiple_) +
-        "\n- 当前用户数：" + std::to_string(user_controlled_player_num()) +
+    return "游戏名称：" + game_handle().Info().name_ +
+        "\n- 倍率：" + (options_.generic_options_.is_formal_ ? std::to_string(Multiple_()) : "0（非正式游戏）") +
+        "\n- 当前用户数：" + std::to_string(users_.size()) +
         "\n- 当前电脑数：" + std::to_string(ComputerNum_());
 }
 
 std::string Match::OptionInfo_() const
 {
-    std::string result = options_->Status();
-    const char* const* option_content = options_->Content();
+    std::string result;
+    const char* const* option_content = options_.game_options_->ShortInfo();
     while (*option_content) {
         result += "\n- ";
         result += *option_content;
@@ -631,7 +605,7 @@ void Match::OnGameOver_()
     {
         auto sender = Boardcast();
         sender << "游戏结束，公布分数：\n";
-        for (PlayerID pid = 0; pid < players_.size(); ++pid) {
+        for (PlayerID pid = 0; pid < static_cast<uint32_t>(players_.size()); ++pid) {
             const auto score = main_stage_->PlayerScore(pid);
             sender << At(pid) << " " << score << "\n";
             const auto id = ConvertPid(pid);
@@ -656,13 +630,18 @@ void Match::OnGameOver_()
             };
         if (user_game_scores.size() <= 1) {
             sender << "\n\n游戏结果不记录：因为玩家数小于 2";
+#ifndef WITH_SQLITE
+        } else {
+            sender << "\n\n游戏结果不记录：因为未连接数据库";
+        }
+#else
         } else if (!bot_.db_manager()) {
             sender << "\n\n游戏结果不记录：因为未连接数据库";
-        } else if (multiple_ == 0) {
-            sender << "\n\n游戏结果不记录：因为该游戏为试玩游戏";
+        } else if (const auto multiple = Multiple_(); !options_.generic_options_.is_formal_ || multiple == 0) {
+            sender << "\n\n游戏结果不记录：因为该游戏为非正式游戏";
         } else if (const auto score_info =
-                    bot_.db_manager()->RecordMatch(game_handle_.name_, gid_, host_uid_, multiple_, user_game_scores,
-                        user_achievements);
+                    bot_.db_manager()->RecordMatch(game_handle_.Info().name_, gid_, host_uid_,
+                        multiple, user_game_scores, user_achievements);
                 score_info.empty()) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
             MatchLog(ErrorLog()) << "Save database failed";
@@ -675,17 +654,17 @@ void Match::OnGameOver_()
                                                         << show_score("等级", info.level_score_);
 
             }
+            if (!user_achievements.empty()) {
+                sender << "\n\n有用户获得新成就：";
+                for (const auto& [user_id, achievement_name] : user_achievements) {
+                    sender << "\n" << At(user_id) << "：" << achievement_name;
+                }
+            }
         }
-    }
-    if (!user_achievements.empty()) {
-        auto sender = Boardcast();
-        sender << "有用户获得新成就：";
-        for (const auto& [user_id, achievement_name] : user_achievements) {
-            sender << "\n" << At(user_id) << "：" << achievement_name;
-        }
+#endif
     }
     state_ = State::IS_OVER; // is necessary because other thread may own a match reference
-    game_handle_.activity_ += users_.size();
+    game_handle_.IncreaseActivity(users_.size());
     MatchLog(InfoLog()) << "Match is over normally";
     Terminate_();
 }
@@ -705,7 +684,7 @@ void Match::Help_(MsgSenderBase& reply, const bool text_mode)
         outstr += main_stage_->CommandInfoC(text_mode);
     } else {
         outstr += "\n\n ### 配置选项";
-        outstr += options_->Info(true, !text_mode);
+        outstr += options_.game_options_->Info(true, !text_mode);
     }
     if (text_mode) {
         reply() << outstr;
@@ -720,7 +699,7 @@ void Match::Routine_()
         OnGameOver_();
         return;
     }
-    const uint64_t user_controlled_num = users_.size() * player_num_each_user_;
+    const uint64_t user_controlled_num = users_.size() * options_.generic_options_.player_num_each_user_;
     const uint64_t computer_num = players_.size() - user_controlled_num;
     uint64_t ok_count = 0;
     for (uint64_t i = 0; !main_stage_->IsOver() && ok_count < computer_num; i = (i + 1) % computer_num) {
