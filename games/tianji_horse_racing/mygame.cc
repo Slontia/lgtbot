@@ -87,11 +87,11 @@ class MainStage : public MainGameStage<RoundStage>
     string Board = "";   // 赛况
 
     // 颜色样式
-    string score_color = "FDD12E";   // 分数底色
-    string X_color = "DCDCDC";   // X栏底色
-    string win_color = "BAFFA8";   // 加分颜色
-    string lose_color = "FFB090";   // 减分颜色
-    string collision_color = "C0DFFF";   // 相撞标记颜色
+    const string score_color = "FDD12E";   // 分数底色
+    const string X_color = "DCDCDC";   // X栏底色
+    const string win_color = "BAFFA8";   // 加分颜色
+    const string lose_color = "FFB090";   // 减分颜色
+    const string collision_color = "C0DFFF";   // 相撞标记颜色
 
     string GetName(std::string x);
     string GetScoreBoard();
@@ -192,12 +192,12 @@ class RoundStage : public SubGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (!Global().IsReady(pid)) {
-            int rd = rand() % Main().player_leftnum_[pid].size();
-            PlayerSelectNum(pid, Main().player_leftnum_[pid][rd]);
-            return StageErrCode::READY;
+        if (Global().IsReady(pid)) {
+            return StageErrCode::OK;
         }
-        return StageErrCode::OK;
+        int rd = rand() % Main().player_leftnum_[pid].size();
+        PlayerSelectNum(pid, Main().player_leftnum_[pid][rd]);
+        return StageErrCode::READY;
     }
 
     virtual CheckoutErrCode OnStageOver() override
@@ -323,17 +323,14 @@ string MainStage::GetName(std::string x) {
 
 string MainStage::GetScoreBoard() {
     string score_Board = "";
-    score_Board += "</tr><tr><th bgcolor=\""+ X_color +"\">X</th>";
+    score_Board += "<tr><th bgcolor=\""+ X_color +"\">X</th>";
     for (int i = 0; i < Global().PlayerNum(); i++) {
         score_Board += "<td bgcolor=\""+ score_color +"\">";
         score_Board += to_string(player_last_scores_[i]);
         if (player_scores_[i] > player_last_scores_[i]) {
-            score_Board += "<font color=\"#00AC30\">+" + to_string(X[round_ - 1]);
+            score_Board += "<font color=\"#00AC30\">+" + to_string(X[round_ - 1]) + "</font>";
         } else if (player_scores_[i] < player_last_scores_[i]) {
-            score_Board += "<font color=\"#FF0000\">-" + to_string(X[round_ - 1]);
-        }
-        if (player_scores_[i] != player_last_scores_[i]) {
-            score_Board += "</font>";
+            score_Board += "<font color=\"#FF0000\">-" + to_string(X[round_ - 1]) + "</font>";
         }
         score_Board += "</td>";
     }
