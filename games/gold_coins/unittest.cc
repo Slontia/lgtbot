@@ -135,10 +135,10 @@ GAME_TEST(7, guard_withstand_takehp_test)   // 守护抵消夺血条伤害 & 自
     ASSERT_PRI_MSG(CHECKOUT, 6, "守 5 1");
 
     // 0: 10-4 -1 = 5           [hp 10+4 = 14]
-    // 1: 10-3+3*2 -1 = 12      [hp 10-4+3 +3 = 12]
+    // 1: 10-3+3*2 -1 = 12      [hp 10-(4-3)[1] +3 = 12]
     // 2: 10-2 -1 = 7           [hp 10+2 = 12]
-    // 3: 10-4+2*2 -1 = 9       [hp 10-2+(4)[2] +2 = 12]
-    // 4: 10+0 -1 = 9           [hp 10-4+1 = 7]
+    // 3: 10-4+2*2 -1 = 9       [hp 10-(2-4)[0] +2 = 12]
+    // 4: 10+0 -1 = 9           [hp 10-(4-1)[3] = 7]
     // 5: 10-4 -1 = 5           [hp 10+4 = 14]
     // 6: 10-1 -1 = 8
     ASSERT_SCORE(5, 12, 7, 9, 9, 5, 8);
@@ -150,23 +150,40 @@ GAME_TEST(8, simultaneously_selfguard_takehp_test)   // 同时自守被守+多�
     START_GAME();
 
     ASSERT_PRI_MSG(OK, 0, "守 2 2");
-    ASSERT_PRI_MSG(OK, 1, "守 2 3");
+    ASSERT_PRI_MSG(OK, 1, "守 2 2");
     ASSERT_PRI_MSG(OK, 2, "夺 2 4");
-    ASSERT_PRI_MSG(OK, 3, "夺 2 2");
+    ASSERT_PRI_MSG(OK, 3, "夺 2 1");
     ASSERT_PRI_MSG(OK, 4, "守 6 3");
     ASSERT_PRI_MSG(OK, 5, "守 6 5");
     ASSERT_PRI_MSG(OK, 6, "夺 6 1");
     ASSERT_PRI_MSG(CHECKOUT, 7, "夺 6 5");
 
     // 0: 10-2 -1 = 7
-    // 1: 10-3+3*2 -1 = 12      [hp 10-4-2+3+2 +3 = 12]
-    // 2: 10-4 -1 = 5           [hp 10+4 = 14]
-    // 3: 10-2 -1 = 7           [hp 10+2 = 12]
+    // 1: 10-2+(2+1)*2 -1 = 13      [hp 10-(4-2)[2]-(1-2)[0] +2 = 10]
+    // 2: 10-4 -1 = 5               [hp 10+4 = 14]
+    // 3: 10-1 -1 = 8               [hp 10+2 = 12]
     // 4: 10-3 -1 = 6
-    // 5: 10-5+5*2[8] -1 = 12   [hp 10-1-5+(3+5)[6] +5[3] = 13]
-    // 6: 10-1 -1 = 8           [hp 10+1 = 11]
-    // 7: 10-5 -1 = 4           [hp 10+4 = 14]
-    ASSERT_SCORE(7, 12, 5, 7, 6, 12, 8, 4);
+    // 5: 10-5+5*2[8] -1 = 12       [hp 10-(1-5)[0]-(5-5)[0] +5[3] = 13]
+    // 6: 10-1 -1 = 8               [hp 10+1 = 11]
+    // 7: 10-5 -1 = 4               [hp 10+4 = 14]
+    ASSERT_SCORE(7, 13, 5, 8, 6, 12, 8, 4);
+}
+
+GAME_TEST(4, selfguard_snatchSuccess_test)   // 自守成功被抢判定成功测试
+{
+    ASSERT_PUB_MSG(OK, 0, "回合数 1");
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "夺 3 5");
+    ASSERT_PRI_MSG(OK, 1, "撤离");
+    ASSERT_PRI_MSG(OK, 2, "守 3 1");
+    ASSERT_PRI_MSG(CHECKOUT, 3, "抢 3 5");
+
+    // 0: 10-5 -1 = 4           [hp 10+5 = 15]
+    // 1: 10 -1 = 9
+    // 2: 10-1+2-5 -1 = 5       [hp 10-(5-1)[4]+1 = 7]
+    // 3: 10+5 -1 = 14
+    ASSERT_SCORE(4, 9, 5, 14);
 }
 
 GAME_TEST(4, takehp_leave_returnhalfcoins_test)   // 被夺血条撤离返还一半金币
@@ -190,11 +207,11 @@ GAME_TEST(4, takehp_leave_returnhalfcoins_test)   // 被夺血条撤离返还一
     ASSERT_PRI_MSG(OK, 2, "抢 2 5");
     ASSERT_PRI_MSG(CHECKOUT, 3, "捡 2");
 
-    // 0: 6+2 +(4/2)[2] -2 = 8
-    // 1: 12 -2 = 10
-    // 2: 5 +(5/2)[2.5≈2] -2 = 5
-    // 3: 12+2 -2 = 12
-    ASSERT_SCORE(8, 10, 5, 12);
+    // 0: 6+2 +(4/2)[2] -1 = 9
+    // 1: 12 -1 = 11
+    // 2: 5 +(5/2)[2.5≈2] -1 = 6
+    // 3: 12+2 -1 = 13
+    ASSERT_SCORE(9, 11, 6, 13);
 }
 
 GAME_TEST(4, snatchSuccess_Eliminate_pickcoins_test)   // 爆金币时，抢[捡金币]成功判定测试
@@ -248,21 +265,22 @@ GAME_TEST(4, snatchSuccess_takehp_Eliminate_test)   // 爆金币时，抢[夺血
     ASSERT_SCORE(-1, 11, 15, 13);
 }
 
-GAME_TEST(4, snatchFailed_takehp_Eliminate_test)   // 爆金币时，被爆玩家抢[抢金币]失败判定测试 & 抢[夺血条]失败判定测试
+GAME_TEST(4, snatchFailed_takehp_Eliminate_test)   // 爆金币时，抢[夺血条]失败判定测试
 {
     ASSERT_PUB_MSG(OK, 0, "回合数 1");
+    ASSERT_PUB_MSG(OK, 0, "金币 5");
     START_GAME();
 
-    ASSERT_PRI_MSG(OK, 0, "抢 4 5");
+    ASSERT_PRI_MSG(OK, 0, "捡 0");
     ASSERT_PRI_MSG(OK, 1, "夺 1 5");
     ASSERT_PRI_MSG(OK, 2, "夺 1 5");
     ASSERT_PRI_MSG(CHECKOUT, 3, "抢 2 4");
 
-    // 0: 10-5 [5] → 0 -1 = -1                  [hp 10-5-5 = 0]
-    // 1: 10-5+(5*5*15%)[3.75≈3]+4 -1 = 11      [hp 10+5 = 15]
-    // 2: 10-5+(5*5*15%)[3.75≈3] -1 = 7         [hp 10+5 = 15]
-    // 3: 10-4+5 -1 = 5
-    ASSERT_SCORE(-1, 11, 7, 10);
+    // 0: 5 [5] → 0 -1 = -1                     [hp 10-5-5 = 0]
+    // 1: 5-5+(5*5*15%)[3.75≈3]+4 -1 = 6        [hp 10+5 = 15]
+    // 2: 5-5+(5*5*15%)[3.75≈3] -1 = 2          [hp 10+5 = 15]
+    // 3: 5-4 -1 = 0
+    ASSERT_SCORE(-1, 6, 2, 0);
 }
 
 GAME_TEST(4, Eliminate_snatchSuccess_takehp_test)   // 爆金币时，被爆玩家抢[夺血条]成功判定测试
@@ -284,28 +302,28 @@ GAME_TEST(4, Eliminate_snatchSuccess_takehp_test)   // 爆金币时，被爆玩�
     ASSERT_PRI_MSG(CHECKOUT, 3, "夺 2 5");
 
     // 0: 10 -1 = 9
-    // 1: 13+3 [16] → 0 -2 = -2             [hp 5-5 = 0]
-    // 2: 5+2+(16*5*15%)[12] -2 = 17        [hp 10+5 = 15]
-    // 3: 10-5+(16*5*15%)[12]-3 -2 = 12
-    ASSERT_SCORE(9, -2, 17, 12);
+    // 1: 13+3 [16] → 0 -1 = -1             [hp 5-5 = 0]
+    // 2: 5+2+(16*5*15%)[12] -1 = 18        [hp 10+5 = 15]
+    // 3: 10-5+(16*5*15%)[12]-3 -1 = 13
+    ASSERT_SCORE(9, -1, 18, 13);
 }
 
 GAME_TEST(4, Eliminate_snatchFailed_takehp_test)   // 爆金币时，被爆玩家抢[夺血条]失败判定测试
 {
     ASSERT_PUB_MSG(OK, 0, "回合数 1");
-    ASSERT_PUB_MSG(OK, 0, "金币 5");
+    ASSERT_PUB_MSG(OK, 0, "金币 3");
     START_GAME();
 
     ASSERT_PRI_MSG(OK, 0, "捡 0");
-    ASSERT_PRI_MSG(OK, 1, "抢 4 3");
+    ASSERT_PRI_MSG(OK, 1, "抢 4 2");
     ASSERT_PRI_MSG(OK, 2, "夺 2 5");
     ASSERT_PRI_MSG(CHECKOUT, 3, "夺 2 5");
 
-    // 0: 5+0 -1 = 4
-    // 1: 5-3 [2] → 0 -1 = -1               [hp 10-5-5 = 0]
-    // 2: 5-5+(2*5*15%)[1.5≈1] -1 = 0       [hp 10+5 = 15]
-    // 3: 5-5+(2*5*15%)[1.5≈1]+3 -1 = 3     [hp 10+5 = 15]
-    ASSERT_SCORE(4, -1, 0, 3);
+    // 0: 3+0 -1 = 2
+    // 1: 3-2 [1] → 0 -1 = -1               [hp 10-5-5 = 0]
+    // 2: 3-5+(1*5*15%)[0.75≈0] -1 = -3     [hp 10+5 = 15]
+    // 3: 3-5+(1*5*15%)[0.75≈0]+2 -1 = -1    [hp 10+5 = 15]
+    ASSERT_SCORE(2, -1, -3, -1);
 }
 
 } // namespace GAME_MODULE_NAME
