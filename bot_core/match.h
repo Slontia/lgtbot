@@ -50,7 +50,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     Match(BotCtx& bot, const MatchID id, GameHandle& game_handle, GameHandle::Options options,
             const UserID host_uid, const std::optional<GroupID> gid);
-    ~Match();
+    ~Match() = default;
 
     virtual MsgSenderBase& BoardcastMsgSender() override;
     virtual MsgSenderBase& BoardcastAiInfoMsgSender() override;

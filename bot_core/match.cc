@@ -51,8 +51,6 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, GameHandle
     EmplaceUser_(host_uid);
 }
 
-Match::~Match() {}
-
 bool Match::Has_(const UserID uid) const { return users_.find(uid) != users_.end(); }
 
 std::string Match::HostUserName_() const
@@ -121,9 +119,9 @@ ErrCode Match::SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_f
     options_.generic_options_.is_formal_ = is_formal;
     KickForConfigChange_();
     if (is_formal) {
-        reply() << "设置成功！当前游戏为试玩游戏";
-    } else {
         reply() << "设置成功！当前游戏为正式游戏，倍率为 " << multiple;
+    } else {
+        reply() << "设置成功！当前游戏为试玩游戏";
     }
     return EC_OK;
 }
@@ -250,7 +248,7 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         reply() << "[错误] 加入失败：游戏已经开始";
         return EC_MATCH_ALREADY_BEGIN;
     }
-    if (users_.size() >= MaxPlayerNum_()) {
+    if (const auto max_player = MaxPlayerNum_(); max_player != 0 && users_.size() >= max_player) {
         reply() << "[错误] 加入失败：比赛人数已达到游戏上限";
         return EC_MATCH_ACHIEVE_MAX_PLAYER;
     }

@@ -601,6 +601,15 @@ do\
   ASSERT_EQ((ret), LGTBot_HandlePrivateRequest(bot_.get(), (uid), (msg)));\
 } while (0)
 
+// Normally Start Game
+
+TEST_F(TestBot, join_game_without_player_limit)
+{
+  AddGame<0>("测试游戏");
+  ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
+}
+
 // Join Not Existing Game
 
 TEST_F(TestBot, pub_join_game_failed)
