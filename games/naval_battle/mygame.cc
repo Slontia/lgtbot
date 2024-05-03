@@ -5,9 +5,11 @@
 #include "game_framework/stage.h"
 #include "game_framework/util.h"
 #include "utility/html.h"
-#include "board.h"
 
 using namespace std;
+
+#include "board.h"
+#include "boss.h"
 
 namespace lgtbot {
 
@@ -32,6 +34,14 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
         return false;
     }
+
+    if (GET_OPTION_VALUE(game_options, BOSS挑战).empty()) GET_OPTION_VALUE(game_options, BOSS挑战) = {0};
+    if (GET_OPTION_VALUE(game_options, BOSS挑战)[0] == 0 || GET_OPTION_VALUE(game_options, BOSS挑战)[0] > 2) GET_OPTION_VALUE(game_options, BOSS挑战)[0] = rand() % 2 + 1;
+    if (GET_OPTION_VALUE(game_options, BOSS挑战).size() >= 2) GET_OPTION_VALUE(game_options, 重叠) = GET_OPTION_VALUE(game_options, BOSS挑战)[1] ? true : false;
+    if (GET_OPTION_VALUE(game_options, BOSS挑战).size() >= 3) GET_OPTION_VALUE(game_options, 要害) = GET_OPTION_VALUE(game_options, BOSS挑战)[2] < 2 ? GET_OPTION_VALUE(game_options, BOSS挑战)[2] : 2;
+    if (GET_OPTION_VALUE(game_options, BOSS挑战).size() >= 4) GET_OPTION_VALUE(game_options, 连发) = GET_OPTION_VALUE(game_options, BOSS挑战)[3] >= 1 && GET_OPTION_VALUE(game_options, BOSS挑战)[3] <= 10 ? GET_OPTION_VALUE(game_options, BOSS挑战)[3] : GET_OPTION_VALUE(game_options, 连发);
+    if (GET_OPTION_VALUE(game_options, BOSS挑战).size() >= 5) GET_OPTION_VALUE(game_options, 侦察) = GET_OPTION_VALUE(game_options, BOSS挑战)[4] <= 30 ? GET_OPTION_VALUE(game_options, BOSS挑战)[4] : GET_OPTION_VALUE(game_options, 侦察);
+
     const int planeLimit[8] = {3, 3, 4, 5, 6, 6, 7, 8};
     if (GET_OPTION_VALUE(game_options, 飞机) > planeLimit[GET_OPTION_VALUE(game_options, 边长) - 8] && !GET_OPTION_VALUE(game_options, 重叠)) {
         GET_OPTION_VALUE(game_options, 飞机) = planeLimit[GET_OPTION_VALUE(game_options, 边长) - 8];
@@ -54,6 +64,14 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
                 return NewGameMode::SINGLE_USER;
             },
             VoidChecker("单机")),
+    InitOptionsCommand("BOSS挑战配置：具体参数配置方法请通过指令「#配置 大海战」查看",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options, const vector<int32_t>& boss_options)
+            {
+                generic_options.bench_computers_to_player_num_ = 2;
+                GET_OPTION_VALUE(game_options, BOSS挑战) = boss_options;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("BOSS挑战"), RepeatableChecker<ArithChecker<int32_t>>(0, 100, "配置")),
 };
 
 // ========== GAME STAGES ==========
@@ -83,8 +101,10 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
     int attack_count[2];
     // 判定是否是超时淘汰
     int timeout[2];
+    // BOSS挑战
+    Boss boss;
 
-	string GetAllMap(int show_0, int show_1, int crucial_mode)
+	string GetAllMap(const int show_0, const int show_1, const int crucial_mode)
 	{
 		string allmap = "<table style=\"text-align:center;margin:auto;\"><tr>";
 		allmap += "<td>" + board[0].Getmap(show_0, crucial_mode) + "</td>";
@@ -103,6 +123,7 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
             if (board[pid].MapName[0] == '<') {
                 board[pid].MapName = board[pid].MapName.substr(1, board[pid].MapName.size() - 2);
             }
+            board[pid].MapName += "的地图";
             board[pid].alive = 0;
             board[pid].prepare = 1;
             board[pid].firstX = board[pid].firstY = -1;
@@ -110,12 +131,35 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
         }
         // 初始化BOSS战配置
         if (Global().PlayerName(1) == "机器人0号") {
-            board[0].MapName = "<div>挑战者</div>" + board[0].MapName;
-            if (GAME_OPTION(BOSS挑战) == 1) {
+            boss.BossType = GAME_OPTION(BOSS挑战)[0];
+            boss.overlap = GAME_OPTION(重叠);
+            boss.is_boss = true;
+            board[0].MapName = "<div><b>挑战者</b></div>" + board[0].MapName;
+            board[1].MapName = boss.BossDesc();
+
+            auto sender = Global().Boardcast();
+
+            if (GAME_OPTION(BOSS挑战).size() >= 2) {
+                sender << "[本局挑战配置详情]" <<
+                        "\n- 重叠 " << (GAME_OPTION(重叠) ? "允许" : "不允许") <<
+                        "\n- 要害 " << (GAME_OPTION(要害) == 0 ? "有" : (GAME_OPTION(要害) == 1 ? "无" : "首次")) <<
+                        "\n- 连发 " << to_string(GAME_OPTION(连发)) <<
+                        "\n- 侦察 " << to_string(GAME_OPTION(侦察)) << "\n\n";
+            }
+            if (GAME_OPTION(BOSS挑战)[0] > 0 && GAME_OPTION(连发) == 3 && GAME_OPTION(侦察) == 100) {
+                sender << "[提示] 初始化预设BOSS配置成功！";
+            } else {
+                sender << "[警告] 当前游戏未使用默认连发或侦察配置";
+            }
+            if (GAME_OPTION(BOSS挑战)[0] == 1) {
                 board[0].sizeX = board[0].sizeY = board[1].sizeX = board[1].sizeY = 14;
                 board[0].planeNum = 3;
                 board[1].planeNum = 6;
-                Global().Boardcast() << "[提示] 初始化预设BOSS配置成功";
+            }
+            if (GAME_OPTION(BOSS挑战)[0] == 2) {
+                board[0].sizeX = board[0].sizeY = board[1].sizeX = board[1].sizeY = 14;
+                board[0].planeNum = 3;
+                board[1].planeNum = 5;
             }
         }
         board[0].InitializeMap();
@@ -126,7 +170,7 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
         int count = 0, X, Y;
         int investigate = GAME_OPTION(侦察);
         if (investigate == 100) {
-            investigate = rand() % 5 + (GAME_OPTION(边长) - 7);
+            investigate = rand() % 5 + (board[0].sizeX - 7);
         }
         while (count < investigate) {
             X = rand() % board[0].sizeX + 1;
@@ -200,7 +244,7 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
 
         if (round_ == 1 && GAME_OPTION(飞机) >= 3) {
             for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
-                if (player_scores_[pid] == 1 && player_scores_[!pid] == 0) {
+                if (player_scores_[pid] == 1 && player_scores_[!pid] != 1) {
                     if (attack_count[pid] == GAME_OPTION(飞机)) {
                         Global().Achieve(pid, Achievement::超级一回杀);
                     } else {
@@ -220,7 +264,7 @@ class PrepareStage : public SubGameStage<>
             : StageFsm(main_stage, "放置阶段",
                     MakeStageCommand(*this, "查看当前飞机布置情况", &PrepareStage::Info_, VoidChecker("赛况")),
                     MakeStageCommand(*this, "放置飞机（飞机头坐标+方向）", &PrepareStage::Add_,
-                        AnyArg("飞机头坐标", "C5"), AlterChecker<int>({{"上", 1}, {"下", 2}, {"左", 3}, {"右", 4}})),
+                        AnyArg("飞机头坐标", "C5"), AlterChecker<int>(position_map)),
                     MakeStageCommand(*this, "移除飞机（移除+飞机头坐标）", &PrepareStage::Remove_,
                         VoidChecker("移除"), AnyArg("飞机头坐标", "C5")),
 					MakeStageCommand(*this, "清空地图", &PrepareStage::RemoveALL_, VoidChecker("清空")),
@@ -245,7 +289,7 @@ class PrepareStage : public SubGameStage<>
 
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             Global().Tell(pid) << Markdown(Main().board[pid].Getmap(1, GAME_OPTION(要害)));
-            Global().Tell(pid) << "请放置飞机，指令为「坐标 方向」，如：C5 上\n可通过「帮助」命令查看全部命令格式";
+            Global().Tell(pid) << "请放置飞机，指令为「坐标 方向」，如：C5 上\n可通过「帮助」查看全部命令格式";
         }
         Global().StartTimer(GAME_OPTION(放置时限));
     }
@@ -369,28 +413,14 @@ class PrepareStage : public SubGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (!Global().IsReady(pid)) {
-            int X, Y;
-            string str;
-            int direction, try_count = 0;
-            while (Main().board[pid].alive < Main().board[pid].planeNum) {
-                X = rand() % Main().board[pid].sizeX;
-                Y = rand() % Main().board[pid].sizeY + 1;
-                str = string(1, 'A' + X) + to_string(Y);
-                direction = rand() % 4 + 1;
-                string result = Main().board[pid].AddPlane(str, direction, GAME_OPTION(重叠));
-                if (result == "OK") {
-                    try_count = 0;
-                }
-                if (try_count++ > 1000) {
-                    Main().board[pid].RemoveAllPlanes();
-                }
-            }
-            Global().Boardcast() << "BOSS已抵达战场，请根据BOSS技能选择合适的部署和战术！";
-            Global().Boardcast() << Markdown(BossIntro());
-            return StageErrCode::READY;
+        if (Global().IsReady(pid)) {
+            return StageErrCode::OK;
         }
-	    return StageErrCode::OK;
+
+        Main().boss.BossPrepare(Main().board);
+
+        Global().Boardcast() << "BOSS已抵达战场，请根据BOSS技能选择合适的部署和战术！\n" << Markdown(Main().boss.BossIntro());
+        return StageErrCode::READY;
     }
 
 };
@@ -401,10 +431,12 @@ class AttackStage : public SubGameStage<>
     AttackStage(MainStage& main_stage, const uint64_t round)
         : StageFsm(main_stage, "第 " + std::to_string(round) + " 回合",
 				MakeStageCommand(*this, "查看当前游戏进展情况", &AttackStage::Info_, VoidChecker("赛况")),
-                MakeStageCommand(*this, "标记飞机（飞机头坐标+方向）", &AttackStage::AddMark_,
-                        AnyArg("飞机头坐标", "C5"), AlterChecker<int>({{"上", 1}, {"下", 2}, {"左", 3}, {"右", 4}})),
+                MakeStageCommand(*this, "添加飞机标记（飞机头坐标+方向）", &AttackStage::AddMark_,
+                        AnyArg("飞机头坐标", "C5"), AlterChecker<int>(position_map)),
+                MakeStageCommand(*this, "移除飞机标记（移除+飞机头坐标+方向）", &AttackStage::RemoveMark_,
+                        VoidChecker("移除"), AnyArg("飞机头坐标", "C5"), AlterChecker<int>(position_map)),
 				MakeStageCommand(*this, "清空地图上的所有标记", &AttackStage::RemoveALLMark_, VoidChecker("清空")),
-                MakeStageCommand(*this, "攻击坐标", &AttackStage::Attack_, AnyArg("坐标", "A1")))
+                MakeStageCommand(*this, "发射导弹进行攻击！", &AttackStage::Attack_, AnyArg("攻击坐标", "A1")))
     {
     }
 
@@ -415,7 +447,7 @@ class AttackStage : public SubGameStage<>
     {
         if (Main().round_ == 1) {
             Global().Boardcast() << "请选择坐标发射导弹，每次行动时限 " << GAME_OPTION(进攻时限) << " 秒";
-		    Global().Boardcast() << "可通过私信裁判行动或「赛况」命令来查看己方地图部署。\n可使用指令「坐标 方向」来标记飞机，如：C5 上\n用「清空」来清除全部标记";
+		    Global().Boardcast() << "可通过私信裁判行动或「赛况」命令来查看己方地图部署。\n可使用指令「坐标 方向」来标记飞机，如：C5 上\n或使用「帮助」查看全部命令格式";
         } else {
             Global().Boardcast() << "请继续行动，每次行动时限 " << GAME_OPTION(进攻时限) << " 秒";
         }
@@ -446,8 +478,18 @@ class AttackStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
 
-        string result = Main().board[!pid].Attack(str);
-        if (result != "0" && result != "1" && result != "2" ) {
+        // BOSS被动技能
+        pair<string, string> pair_paf = Main().boss.BOSS_PassiveSkills(Main().board, str);
+        string result = pair_paf.first;
+        if (pair_paf.second != "Empty") {
+            reply() << pair_paf.second;
+        }
+        // 正常攻击
+        if (result == "Failed") {
+            result = Main().board[!pid].Attack(str);
+        }
+
+        if (result != "0" && result != "1" && result != "2" && result != "3") {
             reply() << result;
             return StageErrCode::FAILED;
         }
@@ -464,17 +506,18 @@ class AttackStage : public SubGameStage<>
             }
             first_crucial = true;
         }
-
-        reply() << Markdown(Main().GetAllMap(!pid && !is_public, pid && !is_public, GAME_OPTION(要害)));
+        
         Main().attack_count[pid]++;
+        auto sender = reply();
+        sender << Markdown(Main().GetAllMap(!pid && !is_public, pid && !is_public, GAME_OPTION(要害))) << "\n";
         if (result == "0")
         {
             repeated[pid]--;
             if (repeated[pid] == 0) {
-                reply() << "导弹未击中任何飞机。\n您已经没有导弹了，本回合结束。";
+                sender << "导弹未击中任何飞机。\n您已经没有导弹了，本回合结束。";
                 return StageErrCode::READY;
             } else {
-                reply() << "导弹未击中任何飞机。\n您还有 " + to_string(repeated[pid]) + " 发导弹。";
+                sender << "导弹未击中任何飞机。\n您还有 " + to_string(repeated[pid]) + " 发导弹。";
                 Global().StartTimer(GAME_OPTION(进攻时限));
                 return StageErrCode::OK;
             }
@@ -484,29 +527,35 @@ class AttackStage : public SubGameStage<>
                 (result == "2" && GAME_OPTION(要害) == 2 && !first_crucial))
         {
             if (Main().board[!pid].alive == 0 && GAME_OPTION(要害) > 0) {
-                reply() << "导弹命中了飞机！\n对方的所有飞机都已被击落！";
+                sender << "导弹命中了飞机！\n对方的所有飞机都已被击落！";
                 return StageErrCode::READY;
             }
-            reply() << "导弹命中了飞机！\n本回合结束。";
+            sender << "导弹命中了飞机！\n本回合结束。";
             return StageErrCode::READY;
         }
         else if (result == "2")
         {
             if (Main().board[!pid].alive == 0) {
-                reply() << "导弹直击飞机要害！！\n对方的所有飞机都已被击落！";
+                sender << "导弹直击飞机要害！！\n对方的所有飞机都已被击落！";
                 return StageErrCode::READY;
             } else {
                 if (GAME_OPTION(要害) == 2) {
-                    reply() << "导弹直击飞机要害！！\n获得额外一回合行动机会，再次命中要害时将不会进行提示。";
+                    sender << "导弹直击飞机要害！！\n获得额外一回合行动机会，再次命中要害时将不会进行提示。";
                 } else {
-                    reply() << "导弹直击飞机要害！！\n获得额外一回合行动机会，导弹已重新填充。";
+                    sender << "导弹直击飞机要害！！\n获得额外一回合行动机会，导弹已重新填充。";
                 }
                 repeated[pid] = GAME_OPTION(连发);
                 Global().StartTimer(GAME_OPTION(进攻时限));
                 return StageErrCode::OK;
             }
         }
-        Global().Boardcast() << "[错误] Empty Return";
+        else if (result == "3")
+        {
+            // BOSS特殊飞机
+            sender << Main().boss.BOSS_SpecialPlanes(Main().board, str);
+            return StageErrCode::READY;
+        }
+        Global().Boardcast() << "[错误] 发生了不可预料的错误，请联系管理员：Empty return value";
         return StageErrCode::FAILED;
     }
 
@@ -517,14 +566,25 @@ class AttackStage : public SubGameStage<>
             reply() << result;
             return StageErrCode::FAILED;
         }
-        reply() << Markdown(Main().GetAllMap(!pid && !is_public, pid && !is_public, GAME_OPTION(要害))) << "标记成功！";
+        reply() << Markdown(Main().GetAllMap(!pid && !is_public, pid && !is_public, GAME_OPTION(要害))) << "\n标记成功！";
+        return StageErrCode::OK;
+    }
+
+    AtomReqErrCode RemoveMark_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str, const int64_t direction)
+    {
+        string result = Main().board[!pid].RemoveMark(str, direction);
+        if (result != "OK") {
+            reply() << result;
+            return StageErrCode::FAILED;
+        }
+        reply() << Markdown(Main().GetAllMap(!pid && !is_public, pid && !is_public, GAME_OPTION(要害))) << "\n移除标记成功！";
         return StageErrCode::OK;
     }
 
 	AtomReqErrCode RemoveALLMark_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         Main().board[!pid].RemoveAllMark();
-        reply() << Markdown(Main().GetAllMap(!pid && !is_public, pid && !is_public, GAME_OPTION(要害))) << "清空标记成功！";
+        reply() << Markdown(Main().GetAllMap(!pid && !is_public, pid && !is_public, GAME_OPTION(要害))) << "\n清空标记成功！";
         return StageErrCode::OK;
     }
 
@@ -557,22 +617,18 @@ class AttackStage : public SubGameStage<>
 
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
-        if (!Global().IsReady(pid)) {
-            if (Main().round_ == 18) {
-                Global().Boardcast() << "【BOSS】普通打击已升级，每回合最多发射 8 枚导弹";
-            }
-            Global().Boardcast() << BossNormalAttack(Main().board, Main().round_, Main().attack_count);
-            string skillinfo = BossSkillAttack(Main().board, GAME_OPTION(重叠), Main().timeout);
-            if (skillinfo != "") {
-                Global().Boardcast() << skillinfo;
-            }
-            if (Main().timeout[1] == 1) {
-                Global().SetReady(0);
-            }
-            Global().Boardcast() << Markdown(Main().GetAllMap(0, 0, GAME_OPTION(要害)));
-            return StageErrCode::READY;
+        if (Global().IsReady(pid)) {
+            return StageErrCode::OK;
         }
-	    return StageErrCode::OK;
+
+        string roundinfo = "";
+        roundinfo += Main().boss.BossNormalAttack(Main().board, Main().round_, Main().attack_count);
+        roundinfo += Main().boss.BossSkillAttack(Main().board, Main().round_, Main().timeout, repeated);
+        Global().Boardcast() << roundinfo << "\n" << Markdown(Main().GetAllMap(0, 0, GAME_OPTION(要害)));
+
+        if (Main().timeout[1] == 1) Global().SetReady(0);
+
+        return StageErrCode::READY;
     }
 
 };
