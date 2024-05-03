@@ -2,7 +2,7 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
-#include <bits/stdc++.h>
+#include <vector>
 
 #include "game_framework/stage.h"
 #include "game_framework/util.h"
@@ -83,13 +83,15 @@ class MainStage : public MainGameStage<RoundStage>
     int on_last = 0;   // 判断决胜规则
 
     // 颜色样式
-    string HP_color = "9CCAF0";   // 生命值底色
-    string win_color = "BAFFA8";   // 命中颜色
-    string X_color = "DCDCDC";   // X栏底色
-    string crash_color = "FFA07A";   // 撞车颜色
-    string red_color = "35FF00";   // 红心颜色
+    const string HP_color = "9CCAF0";   // 生命值底色
+    const string win_color = "BAFFA8";   // 命中颜色
+    const string X_color = "DCDCDC";   // X栏底色
+    const string crash_color = "FFA07A";   // 撞车颜色
+    const string red_color = "35FF00";   // 红心颜色
 
-    string Specialrules(int win_size, int red_size, bool onred, bool is_status);
+    const int image_width = Global().PlayerNum() < 7 ? 500 : Global().PlayerNum() < 11 ? Global().PlayerNum() * 60 + 110 : (Global().PlayerNum() < 17 ? Global().PlayerNum() * 55 + 90 : Global().PlayerNum() * 40 + 70);
+
+    string Specialrules(const int win_size, const int red_size, const bool onred, const bool is_status);
     string GetName(std::string x);
 
   private:
@@ -111,7 +113,7 @@ class MainStage : public MainGameStage<RoundStage>
         string specialrule = "<table><tr><th style=\"width:500px;\">已开启的特殊规则：</th></tr>";
         specialrule += Specialrules(0, 0, false, true);
 
-        reply() << Markdown(T_Board + HP_Board + Board + "</table>");
+        reply() << Markdown(T_Board + HP_Board + Board + "</table>", image_width);
         reply() << Markdown(specialrule + "</table>");
         return StageErrCode::OK;
     }
@@ -159,8 +161,8 @@ class RoundStage : public SubGameStage<>
     virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         int num, x0;
-        int max = GAME_OPTION(最大数字);
-        double x = Main().x * 0.8;
+        const int max = GAME_OPTION(最大数字);
+        const double x = Main().x * 0.8;
 
         if (max >= 100) {
 
@@ -176,8 +178,14 @@ class RoundStage : public SubGameStage<>
 
                 if (Main().x < (max * 0.07) && rand() % 10 < 5) {
                     num = rand() % (int)(max * 0.10) + (int)(max * 0.15);
-                } else if (Main().x > (max * 0.23)) {
-                    num = rand() % (int)(max * 0.09) + (int)(max * 0.07);
+                } else if (Main().x > (max * 0.23) && (Main().on_crash == 0 || rand() % 10 < 3)) {
+                    num = rand() % (int)(max * 0.11) + (int)(max * 0.07);
+                } else if (Main().on_crash == 1 && Main().alive_ >= 8 && max <= 200) {
+                    if (rand() % 10 < 2) {
+                        num = rand() % (int)(max * 0.51) + (int)(max * 0.35);
+                    } else {
+                        num = rand() % (int)(max * 0.16) + (int)(max * 0.15);
+                    }
                 } else {
                     if (Main().round_ == 2 || rand() % 10 < 7) {
                         num = rand() % (int)(max * 0.13) + (int)x - (int)(max * 0.06);
@@ -250,9 +258,8 @@ class RoundStage : public SubGameStage<>
     }
 
     void calc() {
-        int sum;
+        int sum = 0;
         double avg;
-        sum = 0;
 
         Main().x1 = Main().x;   // x1
 
@@ -282,11 +289,11 @@ class RoundStage : public SubGameStage<>
             for (int i = 0; i < Global().PlayerNum(); i++) {
                 if (Main().player_select_[i] >= 0) {
                     for (int j = i + 1; j < Global().PlayerNum(); j++) {
-                        if (crash[j] == 0) {
-                            if (Main().player_select_[i] == Main().player_select_[j]) {
-                                crash[i] = crash[j] = 1;
-                                is_crash = 1;
-                            }
+                        if (Main().player_select_[j] >= 0 && (crash[j] == 0 || GAME_OPTION(撞车范围) > 0) &&
+                           ((fabs(Main().player_select_[i] - Main().player_select_[j]) <= GAME_OPTION(撞车范围) && Main().alive_ > 2) || Main().player_select_[i] == Main().player_select_[j])
+                        ) {
+                            crash[i] = crash[j] = 1;
+                            is_crash = 1;
                         }
                     }
                 }
@@ -327,7 +334,7 @@ class RoundStage : public SubGameStage<>
             }
         }
         if (flag0.size() && flag100.size()) {
-            // Global().Eliminate 0
+            // Eliminate 0
             if (GAME_OPTION(淘汰规则)) {
                 for (int i = 0; i < flag0.size(); i++) {
                     Main().player_hp_[flag0[i]] = 0;
@@ -424,7 +431,7 @@ class RoundStage : public SubGameStage<>
         b += "<td bgcolor=\""+ Main().X_color +"\">" + x + "</td></tr>";
         Main().Board += b;
 
-        Global().Boardcast() << Markdown(Main().T_Board + HP_Board + Main().Board + "</table>");
+        Global().Boardcast() << Markdown(Main().T_Board + HP_Board + Main().Board + "</table>", Main().image_width);
 
         if (is_crash == 1) {
             Global().Boardcast() << "有玩家撞车，" << (GAME_OPTION(撞车伤害) ? "生命值额外 -1，且" : "") << "不计入本回合获胜玩家";
@@ -491,7 +498,7 @@ class RoundStage : public SubGameStage<>
     }
 };
 
-string MainStage::Specialrules(int win_size, int red_size, bool onred, bool is_status)
+string MainStage::Specialrules(const int win_size, const int red_size, const bool onred, const bool is_status)
 {
     string specialrule = "";
     int n = 0;
@@ -503,7 +510,11 @@ string MainStage::Specialrules(int win_size, int red_size, bool onred, bool is_s
         } else {
             specialrule += "新特殊规则——";
         }
-        specialrule += "撞车：如果有玩家提交了相同的数字，";
+        if (GAME_OPTION(撞车范围) == 0) {
+            specialrule += "撞车：如果有玩家提交了相同的数字，";
+        } else {
+            specialrule += "特殊撞车：如果有玩家间提交的数字相距小于等于 [" + to_string(GAME_OPTION(撞车范围)) + "]（剩余2人时范围为0），";
+        }
         if (GAME_OPTION(撞车伤害)) {
             specialrule += "这些玩家生命值额外 -1，且";
         } else {
@@ -624,7 +635,7 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
     }
 
     Global().Boardcast() << PreBoard;
-    Global().Boardcast() << Markdown(T_Board + HP_Board + "</table>");
+    Global().Boardcast() << Markdown(T_Board + HP_Board + "</table>", image_width);
 
     string specialrule = Specialrules(0, 0, false, false);
     if (specialrule != "") {
@@ -632,6 +643,7 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
     }
 
     setter.Emplace<RoundStage>(*this, ++round_);
+    return;
 }
 
 void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)

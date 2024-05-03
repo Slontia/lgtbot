@@ -123,6 +123,23 @@ GAME_TEST(3, zero_test2)
 
     ASSERT_SCORE(1, 1, 2);
 }
+GAME_TEST(4, crash_range_test)
+{
+    ASSERT_PUB_MSG(OK, 0, "血量 2");
+    ASSERT_PUB_MSG(OK, 0, "撞车 1");
+    ASSERT_PUB_MSG(OK, 0, "撞车范围 3");
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "100");
+    ASSERT_PRI_MSG(OK, 1, "97");
+    ASSERT_PRI_MSG(OK, 2, "0");
+    ASSERT_PRI_MSG(CHECKOUT, 3, "4");
+
+    ASSERT_PRI_MSG(OK, 2, "4");
+    ASSERT_PRI_MSG(CHECKOUT, 3, "0");
+
+    ASSERT_SCORE(0, 0, 1, 7);
+}
 
 } // namespace GAME_MODULE_NAME
 
