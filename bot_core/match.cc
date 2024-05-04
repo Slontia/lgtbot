@@ -574,8 +574,11 @@ std::string Match::BriefInfo() const
 
 std::string Match::BriefInfo_() const
 {
+    const auto multiple = Multiple_();
     return "游戏名称：" + game_handle().Info().name_ +
-        "\n- 倍率：" + (options_.generic_options_.is_formal_ ? std::to_string(Multiple_()) : "0（非正式游戏）") +
+        "\n- 倍率：" +
+        (options_.generic_options_.is_formal_ || multiple == 0 ? std::to_string(multiple) :
+                                                                 "0（开启计分后为 " + std::to_string(multiple) + "）") +
         "\n- 当前用户数：" + std::to_string(users_.size()) +
         "\n- 当前电脑数：" + std::to_string(ComputerNum_());
 }

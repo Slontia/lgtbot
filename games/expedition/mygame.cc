@@ -28,6 +28,7 @@ uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } /* 0 means no 
 uint32_t Multiple(const MyGameOptions& options) { return 2; }
 const std::string k_developer = "dva";
 const std::string k_description = "通过计算和放置数字，争取分数的游戏";
+const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 const std::array<const char*, 5> map_files = {"random", "wang_guo_bian_jing.txt",
                                               "feng_chao_zhi_xue.txt", "crystal_cave.txt",

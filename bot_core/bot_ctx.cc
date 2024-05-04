@@ -107,7 +107,9 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
                         .main_stage_allocator_ = reinterpret_cast<GameHandle::main_stage_allocator>(load_proc("NewMainStage")),
                         .main_stage_deleter_ = reinterpret_cast<GameHandle::main_stage_deleter>(load_proc("DeleteMainStage")),
                         .mod_guard_ = [mod] { FreeLibrary(mod); },
-                    }));
+                    },
+                    game_info.default_generic_options_
+                    ));
     } catch (const std::exception& e) {
         ErrorLog() << "Load mod failed: " << e.what();
         return;

@@ -37,6 +37,7 @@ uint32_t Multiple(const MyGameOptions& options) { return 1; } // the default sco
 //1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "睦月";
 const std::string k_description = "选择恰当选项，尽可能获取分数的游戏";
+const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
 bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)

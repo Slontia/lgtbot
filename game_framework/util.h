@@ -28,6 +28,7 @@ class MyGameOptions;
 extern const std::string k_game_name;
 extern const std::string k_developer;
 extern const std::string k_description;
+extern const MutableGenericOptions k_default_generic_options;
 
 // ====================================
 //      Developer-defined commands

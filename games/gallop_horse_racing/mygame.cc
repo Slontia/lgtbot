@@ -28,6 +28,7 @@ uint64_t MaxPlayerNum(const MyGameOptions& options) { return 10; } // 0 indicate
 uint32_t Multiple(const MyGameOptions& options) { return 1; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "铁蛋";
 const std::string k_description = "扮演骑马手，完成目标距离并尽可能获得更高的名次";
+const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
 bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)

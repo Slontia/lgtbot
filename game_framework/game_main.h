@@ -64,19 +64,6 @@ struct GameAchievement
     const char* description_;
 };
 
-struct GameInfo
-{
-    const char* game_name_;
-    const char* module_name_;
-    const char* rule_;
-    const char* developer_;
-    const char* description_;
-    struct {
-        const GameAchievement* data_;
-        uint32_t size_;
-    } achievements_;
-};
-
 struct ImmutableGenericOptions
 {
     bool public_timer_alert_ = false; // The value of true indicates that users will be alerted in group, but not by
@@ -106,6 +93,20 @@ struct GenericOptions : public ImmutableGenericOptions, public MutableGenericOpt
     }
 
     uint32_t PlayerNum() const { return std::max(user_num_ * player_num_each_user_, bench_computers_to_player_num_); }
+};
+
+struct GameInfo
+{
+    const char* game_name_;
+    const char* module_name_;
+    const char* rule_;
+    const char* developer_;
+    const char* description_;
+    struct {
+        const GameAchievement* data_;
+        uint32_t size_;
+    } achievements_;
+    MutableGenericOptions default_generic_options_;
 };
 
 }

@@ -24,6 +24,7 @@ uint32_t Multiple(const MyGameOptions& options) { return 2; }
 // 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "dva";
 const std::string k_description = "保存体力，尽可能活到最后的游戏";
+const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
 bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {

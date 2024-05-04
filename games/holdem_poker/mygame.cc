@@ -31,6 +31,7 @@ uint32_t Multiple(const MyGameOptions& options)
 }
 const std::string k_developer = "森高";
 const std::string k_description = "同时下注或加注的德州波卡游戏";
+const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
 bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)

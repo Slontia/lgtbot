@@ -156,8 +156,11 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
         for (const auto& p : game_handles) {
             const auto& name = p->first;
             const auto& game_handle = p->second;
-            const auto default_multiple = DefaultMultiple(game_handle);
-            const auto default_max_player = DefaultMaxPlayer(game_handle);
+            const auto locked_options = game_handle.DefaultGameOptions().Lock();
+            const auto default_multiple =
+                locked_options->generic_options_.is_formal_ ? game_handle.Info().multiple_fn_(locked_options->game_options_.get())
+                                                            : 0;
+            const auto default_max_player = game_handle.Info().max_player_num_fn_(locked_options->game_options_.get());
             table.AppendRow();
             table.AppendRow();
             table.MergeDown(table.Row() - 2, 0, 2);
@@ -166,7 +169,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
             table.Get(table.Row() - 2, 1).SetContent("开发者：" + game_handle.Info().developer_);
             table.Get(table.Row() - 2, 2).SetContent(default_max_player == 0 ? "无玩家数限制" :
                     ("最多 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(default_max_player) + "**" HTML_FONT_TAIL " 名玩家"));
-            table.Get(table.Row() - 2, 3).SetContent(default_multiple == 0 ? "不计分" :
+            table.Get(table.Row() - 2, 3).SetContent(default_multiple == 0 ? "默认不计分" :
                     ("默认 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(default_multiple) + "**" HTML_FONT_TAIL " 倍分数"));
             table.Get(table.Row() - 1, 1).SetContent("<font size=\"3\"> " + game_handle.Info().description_ + "</font>");
         }

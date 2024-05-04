@@ -33,6 +33,7 @@ uint32_t Multiple(const MyGameOptions& options)
 }
 const std::string k_developer = "森高";
 const std::string k_description = "通过放置卡牌，让卡牌连成直线获得积分，比拼分数高低的游戏";
+const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
 static int WinScoreThreshold(const bool mode) { return mode ? 200 : 10; }

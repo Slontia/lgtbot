@@ -469,39 +469,6 @@ class TestBot : public testing::Test
     MockDBManager& db_manager() { return *static_cast<MockDBManager*>(bot_->db_manager()); }
 
   protected:
-    /*
-    template <uint64_t k_max_player, class MyMainStage = lgtbot::game::GAME_MODULE_NAME::MainStage>
-    void AddGame(const char* const name, const GameHandle::game_options_allocator new_option)
-    {
-        using namespace lgtbot::game::GAME_MODULE_NAME;
-        bot_->game_handles().emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(
-                    GameHandle::BasicInfo{
-                        .name_ = name,
-                        .module_name_ = name,
-                        .developer_ = "测试开发者",
-                        .description_ = "用来测试的游戏",
-                        .rule_ = "没有规则",
-                        .achievements_{},
-                        .max_player_num_fn_ = []() -> uint64_t { return k_max_player; },
-                        .multiple_fn_ = []() -> uint32_t { return 1; },
-                        .handle_rule_command_fn_ = [](const char*) -> const char* { return nullptr; },
-                        .handle_init_options_command_fn_ = [](const char*, lgtbot::game::GameOptionsBase*) { return false; },
-                    },
-                    GameHandle::InternalHandler{
-                        .game_options_allocator_ = new_option,
-                        .game_options_deleter_ = [](const lgtbot::game::GameOptionsBase* const options) {},
-                        .main_stage_allocator_ =
-                            [](MsgSenderBase*, const lgtbot::game::GameOptionsBase* const game_options,
-                                    const lgtbot::game::GenericOptions* const generic_options, MatchBase* const match)
-                                -> lgtbot::game::MainStageBase*
-                            {
-                                return new internal::MainStage(std::make_unique<MyMainStage>(StageUtility{game_options, generic_options, match}));
-                            },
-                        .main_stage_deleter_ = [](const lgtbot::game::MainStageBase* const main_stage) { delete main_stage; },
-                    }));
-    }
-    */
-
     template <uint64_t k_max_player, class MyMainStage = lgtbot::game::GAME_MODULE_NAME::MainStage>
     void AddGame(const char* const name)
     {
@@ -544,7 +511,9 @@ class TestBot : public testing::Test
                             },
                         .main_stage_deleter_ = [](const lgtbot::game::MainStageBase* const main_stage) { delete main_stage; },
                         .mod_guard_ = [] {},
-                    }));
+                    },
+                    lgtbot::game::MutableGenericOptions{}
+                    ));
     }
 
     static void SkipTimer()

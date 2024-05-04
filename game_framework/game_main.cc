@@ -57,6 +57,7 @@ lgtbot::game::GameInfo GetGameInfo()
     game_info.description_ = this_module::k_description.c_str();
     game_info.achievements_.data_ = this_module::k_achievements.data();
     game_info.achievements_.size_ = this_module::k_achievements.size();
+    game_info.default_generic_options_ = this_module::k_default_generic_options;
 
     static const auto commands_str = [](const auto& commands, const std::string& command_prefix, std::string hint)
         {

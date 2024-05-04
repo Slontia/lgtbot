@@ -28,9 +28,12 @@ template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages.
 
 const string k_game_name = "wordle"; // the game name which should be unique among all the games
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } // 0 indicates no max-player limits
-uint32_t Multiple(const MyGameOptions& options) { return 0; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+uint32_t Multiple(const MyGameOptions& options) { return 1; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "睦月";
 const std::string k_description = "猜测英文单词的游戏";
+const MutableGenericOptions k_default_generic_options{
+    .is_formal_{false},
+};
 const std::vector<RuleCommand> k_rule_commands = {};
 
 // Give it 2 strings, returns how many letters are the same.

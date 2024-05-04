@@ -74,8 +74,14 @@ class GameHandle
         std::function<void()> mod_guard_;
     };
 
-    GameHandle(const BasicInfo& info, const InternalHandler& internal_handler)
-        : info_(info), internal_handler_(internal_handler)
+    GameHandle(const BasicInfo& info, const InternalHandler& internal_handler,
+            const lgtbot::game::MutableGenericOptions& default_generic_options)
+        : info_(info)
+        , internal_handler_(internal_handler)
+        , default_options_{Options{
+             game_options_ptr{internal_handler_.game_options_allocator_(), internal_handler_.game_options_deleter_},
+             lgtbot::game::GenericOptions{lgtbot::game::ImmutableGenericOptions{}, default_generic_options}
+          }}
     {
     }
 
@@ -121,7 +127,7 @@ class GameHandle
     InternalHandler internal_handler_;
     LockWrapper<Options> default_options_ = Options{
         game_options_ptr{internal_handler_.game_options_allocator_(), internal_handler_.game_options_deleter_},
-        lgtbot::game::GenericOptions{}
+        lgtbot::game::MutableGenericOptions{}
     };
     std::atomic<uint64_t> activity_{0}; // the sum of the number of times all users participated in this game
 };

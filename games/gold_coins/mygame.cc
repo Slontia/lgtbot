@@ -26,6 +26,7 @@ uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } // 0 indicates
 uint32_t Multiple(const MyGameOptions& options) { return 0; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "铁蛋";
 const std::string k_description = "选择行动，与他人博弈抢夺金币的游戏";
+const MutableGenericOptions k_default_generic_options;
 
 const char* const settlement_details[7] = {
     R"EOF(· 完整判定顺序为：

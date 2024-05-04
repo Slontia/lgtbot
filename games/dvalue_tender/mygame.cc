@@ -26,6 +26,7 @@ uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } // 0 indicates
 uint32_t Multiple(const MyGameOptions& options) { return 1; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "睦月";
 const std::string k_description = "简单的拼点游戏";
+const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
 // a function to give one-digit number two space in its left, in order to align correctly in text broadcast.

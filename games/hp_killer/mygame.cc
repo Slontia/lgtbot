@@ -27,9 +27,12 @@ template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages.
 
 const std::string k_game_name = "HP杀"; // the game name which should be unique among all the games
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 9; } // 0 indicates no max-player limits
-uint32_t Multiple(const MyGameOptions& options) { return 0; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+uint32_t Multiple(const MyGameOptions& options) { return 3; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "森高";
 const std::string k_description = "通过对其他玩家造成伤害，杀掉隐藏在玩家中的杀手的游戏";
+const MutableGenericOptions k_default_generic_options{
+    .is_formal_{false},
+};
 
 const char* const k_role_rules[Occupation::Count()] = {
     // killer team

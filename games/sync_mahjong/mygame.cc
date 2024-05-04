@@ -21,6 +21,7 @@ template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages.
 const std::string k_game_name = "同步麻将";
 const std::string k_developer = "森高";
 const std::string k_description = "所有玩家同时摸牌和切牌的麻将游戏";
+const MutableGenericOptions k_default_generic_options;
 
 const std::vector<RuleCommand> k_rule_commands = {};
 

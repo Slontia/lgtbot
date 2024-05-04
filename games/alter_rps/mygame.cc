@@ -30,6 +30,7 @@ uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } /* 0 means no 
 uint32_t Multiple(const MyGameOptions& options) { return 1; }
 const std::string k_developer = "森高";
 const std::string k_description = "伸出两拳，收回一拳的猜拳游戏";
+const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
 bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)

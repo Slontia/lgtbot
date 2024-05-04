@@ -35,6 +35,7 @@ uint32_t Multiple(const MyGameOptions& options)
 }
 const std::string k_developer = "森高";
 const std::string k_description = "能够看到各个玩家部分手牌，两阶段下注的比拼大小的游戏";
+const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
 bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
