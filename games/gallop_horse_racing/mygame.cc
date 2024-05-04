@@ -195,24 +195,24 @@ class RoundStage : public SubGameStage<>
         // 最大上限，高速度前进
         else if (Main().player_maxspeed_[pid] == max_speed && Main().player_maxspeed_[pid] >= 3)
         {
-            Main().player_select_[pid] = rand() % 3 + Main().player_maxspeed_[pid] - 2;
+            Main().player_select_[pid] = rand() % 2 + Main().player_maxspeed_[pid] - 1;
         }
         // 赛程过半，速度快就赶距离
         else if (Main().player_position_[pid] > GAME_OPTION(目标) * 0.6 && Main().player_maxspeed_[pid] >= 8)
         {
-            Main().player_select_[pid] = rand() % 2 + Main().player_maxspeed_[pid] - 1;
+            Main().player_select_[pid] = rand() % 3 + Main().player_maxspeed_[pid] - 2;
         }
         // 比赛初期，加速
-        else if (Main().player_position_[pid] <= GAME_OPTION(目标) * 0.6)
+        else if (Main().player_position_[pid] <= GAME_OPTION(目标) * 0.6 || Main().player_maxspeed_[pid] <= 6)
         {
-            if (min_speed >= 5) {
-                if (rand() % 10 < 7) {
+            if (min_speed >= 4) {
+                if (rand() % 10 < 9) {
                     Main().player_select_[pid] = min_speed;
                 } else {
-                    Main().player_select_[pid] = rand() % 2 + min_speed - 2;
+                    Main().player_select_[pid] = min_speed - 1;
                 }
             } else {
-                Main().player_select_[pid] = rand() % 5 + 1;
+                Main().player_select_[pid] = rand() % 4 + 1;
             }
         }
         else
