@@ -193,20 +193,7 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
     }
     const std::string binded_args = std::accumulate(args.begin(), args.end(), std::string{},
             [](std::string&& s, const std::string& arg) { return std::move(s) + arg + " "; });
-    const auto& [ret, match] = bot.match_manager().NewMatch(it->second, binded_args, uid, gid, reply);
-    if (ret != EC_OK) {
-        return ret;
-    }
-    auto sender = match->Boardcast();
-    if (match->gid().has_value()) {
-        sender << "现在玩家可以在群里通过「" META_COMMAND_SIGN "加入」报名比赛，房主也可以通过「帮助」（不带"
-            META_COMMAND_SIGN "号）查看所有支持的游戏设置";
-    } else {
-        sender << "现在玩家可以通过私信我「" META_COMMAND_SIGN "加入 " << match->MatchId()
-               << "」报名比赛，您也可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置";
-    }
-    sender << "\n\n" << match->BriefInfo();
-    return EC_OK;
+    return bot.match_manager().NewMatch(it->second, binded_args, uid, gid, reply);
 }
 
 template <typename Fn>

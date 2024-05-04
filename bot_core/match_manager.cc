@@ -9,22 +9,19 @@
 #include "bot_core/msg_sender.h"
 #include "bot_core/match.h"
 
-std::pair<ErrCode, std::shared_ptr<Match>> MatchManager::NewMatch(GameHandle& game_handle,
-                                                                  const std::string_view init_options_args,
-                                                                  const UserID& uid,
-                                                                  const std::optional<GroupID> gid,
-                                                                  MsgSenderBase& reply)
+ErrCode MatchManager::NewMatch(GameHandle& game_handle, const std::string_view init_options_args, const UserID& uid,
+        const std::optional<GroupID> gid, MsgSenderBase& reply)
 {
     std::lock_guard<std::mutex> l(mutex_);
     if (GetMatch_(uid)) {
         reply() << "[错误] 建立失败：您已加入游戏";
-        return {EC_MATCH_USER_ALREADY_IN_MATCH, nullptr};
+        return EC_MATCH_USER_ALREADY_IN_MATCH;
     }
     if (gid.has_value() && GetMatch_(*gid)) {
         // We has tried terminating the game outside this funciton.
         // This case may happen when another user creates a new match after terminating.
         reply() << "[错误] 建立失败：该房间已经开始游戏";
-        return {EC_MATCH_ALREADY_BEGIN, nullptr};
+        return EC_MATCH_ALREADY_BEGIN;
     }
     const MatchID mid = NewMatchID_();
     auto options = game_handle.CopyDefaultGameOptions();
@@ -36,7 +33,7 @@ std::pair<ErrCode, std::shared_ptr<Match>> MatchManager::NewMatch(GameHandle& ga
         // TODO: show all valid preset commands
         reply() << "[错误] 建立失败：非法的预设指令，您可以通过「" META_COMMAND_SIGN "规则 "
                 << game_handle.Info().name_ << "」查看所有的预设指令";
-        return {EC_INVALID_ARGUMENT, nullptr};
+        return EC_INVALID_ARGUMENT;
     }
     const auto new_match = std::make_shared<Match>(bot_, mid, game_handle, std::move(options), uid, gid);
     BindMatch_(mid, new_match);
@@ -48,10 +45,20 @@ std::pair<ErrCode, std::shared_ptr<Match>> MatchManager::NewMatch(GameHandle& ga
         // Start game directly for single-player mode.
         const auto ret = new_match->GameStart(uid, reply);
         if (ret != EC_OK) {
-            return {ret, nullptr};
+            return ret;
         }
+    } else {
+        auto sender = new_match->Boardcast();
+        if (new_match->gid().has_value()) {
+            sender << "现在玩家可以在群里通过「" META_COMMAND_SIGN "加入」报名比赛，房主也可以通过「帮助」（不带"
+                META_COMMAND_SIGN "号）查看所有支持的游戏设置";
+        } else {
+            sender << "现在玩家可以通过私信我「" META_COMMAND_SIGN "加入 " << new_match->MatchId()
+                << "」报名比赛，您也可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置";
+        }
+        sender << "\n\n" << new_match->BriefInfo();
     }
-    return {EC_OK, new_match};
+    return EC_OK;
 }
 
 std::vector<std::shared_ptr<Match>> MatchManager::Matches() const

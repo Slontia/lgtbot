@@ -26,11 +26,8 @@ class MatchManager
    public:
     MatchManager(BotCtx& bot) : bot_(bot), next_mid_(0) {}
 
-    std::pair<ErrCode, std::shared_ptr<Match>> NewMatch(GameHandle& game_handle,
-                                                        const std::string_view init_options_args,
-                                                        const UserID& uid,
-                                                        const std::optional<GroupID> gid,
-                                                        MsgSenderBase& reply);
+    ErrCode NewMatch(GameHandle& game_handle, const std::string_view init_options_args, const UserID& uid,
+            const std::optional<GroupID> gid, MsgSenderBase& reply);
 
     template <typename IdType>
     std::shared_ptr<Match> GetMatch(const IdType id)
