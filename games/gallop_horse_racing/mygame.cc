@@ -152,7 +152,6 @@ class RoundStage : public SubGameStage<>
         for (int pid = 0; pid < Global().PlayerNum(); pid++) {
             if (!Global().IsReady(pid)) {
                 Main().player_select_[pid] = Main().player_maxspeed_[pid];
-                Main().player_position_[pid] += Main().player_maxspeed_[pid];
                 Global().SetReady(pid);
             }
         }
