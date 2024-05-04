@@ -10,10 +10,6 @@
 #define GET_OPTION_VALUE(option, name) (option).template Option2Value<std::decay_t<decltype(option)>::OPTION_##name>()
 #endif
 
-#ifndef GET_VALUE
-#define GET_VALUE(name) GET_OPTION_VALUE(*this, name)
-#endif
-
 #define OPTION_(name) OPTION_##name
 #define CHECKER_(name) (std::get<OPTION_(name) * 2 + 1>(options_))
 #define VALUE_(name) (std::get<OPTION_(name) * 2>(options_))
