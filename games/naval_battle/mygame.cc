@@ -57,21 +57,14 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
 }
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
-    InitOptionsCommand("独自一人开始游戏",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
-            {
-                generic_options.bench_computers_to_player_num_ = 2;
-                return NewGameMode::SINGLE_USER;
-            },
-            VoidChecker("单机")),
-    InitOptionsCommand("BOSS挑战配置：具体参数配置方法请通过指令「#配置 大海战」查看",
+    InitOptionsCommand("单机BOSS挑战配置：具体参数配置方法请通过指令「#配置 大海战」查看",
             [] (MyGameOptions& game_options, MutableGenericOptions& generic_options, const vector<int32_t>& boss_options)
             {
                 generic_options.bench_computers_to_player_num_ = 2;
                 GET_OPTION_VALUE(game_options, BOSS挑战) = boss_options;
                 return NewGameMode::SINGLE_USER;
             },
-            VoidChecker("BOSS挑战"), RepeatableChecker<ArithChecker<int32_t>>(0, 100, "配置")),
+            VoidChecker("单机"), RepeatableChecker<ArithChecker<int32_t>>(0, 100, "配置")),
 };
 
 // ========== GAME STAGES ==========
