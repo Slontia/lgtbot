@@ -123,7 +123,7 @@ endif()
       target_include_directories(run_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
       target_link_libraries(run_game_${GAME} glog gflags ${GAME_THIRD_PARTIES})
       target_compile_definitions(run_game_${GAME} PUBLIC TEST_BOT)
-      add_test(NAME run_game_${GAME} COMMAND run_game_${GAME} --resource_dir "${LIBRARY_OUTPUT_PATH}/${GAME}" --repeat=10)
+      add_test(NAME run_game_${GAME} COMMAND run_game_${GAME} --resource_dir "${LIBRARY_OUTPUT_PATH}/${GAME}" --repeat=100)
 
       if (CMAKE_SYSTEM_NAME MATCHES "Linux")
         add_dependencies(test_game_${GAME} ${GAME}_rule_binary)

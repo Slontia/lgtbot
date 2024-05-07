@@ -204,6 +204,8 @@ class SyncMahjongGamePlayer
                     }
                     if (IsRiichi_()) {
                         KiriInternal_(true /*is_tsumo*/, false /*richii*/, *tsumo_);
+                        tsumo_ = std::nullopt;
+                        state_ = ActionState::ROUND_OVER;
                         break;
                     }
                     KiriAI_();
