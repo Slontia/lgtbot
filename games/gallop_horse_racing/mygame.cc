@@ -25,7 +25,10 @@ template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages.
 
 const std::string k_game_name = "狂奔马场"; // the game name which should be unique among all the games
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 10; } // 0 indicates no max-player limits
-uint32_t Multiple(const MyGameOptions& options) { return 1; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+uint32_t Multiple(const MyGameOptions& options)
+{
+    return ceil(GET_OPTION_VALUE(options, 目标) / 10.0 / GET_OPTION_VALUE(options, 上限));
+}
 const std::string k_developer = "铁蛋";
 const std::string k_description = "扮演骑马手，完成目标距离并尽可能获得更高的名次";
 const MutableGenericOptions k_default_generic_options;
@@ -143,7 +146,7 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
         Main().player_select_[pid] = distance;
-        reply() << "本回合前进：" + to_string(distance) + "\n当前位置为：" + to_string(Main().player_position_[pid] + distance)
+        reply() << "本回合前进：" + to_string(distance) + "\n当前位置为：" + to_string(Main().player_position_[pid] + distance) + " / " + to_string(GAME_OPTION(目标))
                 << (Main().player_position_[pid] + distance >= GAME_OPTION(目标) ? "\n恭喜您抵达了终点！" : "");
         return StageErrCode::READY;
     }
@@ -177,48 +180,113 @@ class RoundStage : public SubGameStage<>
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
         }
-        int max_speed = 0, min_speed = 100;
+        int total_max_speed = 0, total_max_count = 0;
+        int total_min_speed = 100, total_min_count = 0;
         for (int i = 0; i < Global().PlayerNum(); i++) {
-            if (Main().player_maxspeed_[i] > max_speed && Main().player_select_[i] > 0) {
-                max_speed = Main().player_maxspeed_[i];
-            }
-            if (Main().player_maxspeed_[i] < min_speed && Main().player_select_[i] > 0) {
-                min_speed = Main().player_maxspeed_[i];
+            if (Main().player_select_[i] > 0) {
+                if (Main().player_maxspeed_[i] > total_max_speed) {
+                    total_max_speed = Main().player_maxspeed_[i];
+                    total_max_count = 0;
+                } else if (Main().player_maxspeed_[i] == total_max_speed) {
+                    total_max_count++;
+                }
+                if (Main().player_maxspeed_[i] < total_min_speed) {
+                    total_min_speed = Main().player_maxspeed_[i];
+                } else if (Main().player_maxspeed_[i] == total_min_speed) {
+                    total_min_count++;
+                }
             }
         }
 
-        // 可以达到目标，自动冲线
-        if (Main().player_position_[pid] + Main().player_maxspeed_[pid] >= GAME_OPTION(目标))
-        {
-            Main().player_select_[pid] = Main().player_maxspeed_[pid];
-        }
-        // 最大上限，高速度前进
-        else if (Main().player_maxspeed_[pid] == max_speed && Main().player_maxspeed_[pid] >= 3)
-        {
-            Main().player_select_[pid] = rand() % 2 + Main().player_maxspeed_[pid] - 1;
-        }
-        // 赛程过半，速度快就赶距离
-        else if (Main().player_position_[pid] > GAME_OPTION(目标) * 0.6 && Main().player_maxspeed_[pid] >= 8)
-        {
-            Main().player_select_[pid] = rand() % 3 + Main().player_maxspeed_[pid] - 2;
-        }
-        // 比赛初期，加速
-        else if (Main().player_position_[pid] <= GAME_OPTION(目标) * 0.6 || Main().player_maxspeed_[pid] <= 6)
-        {
-            if (min_speed >= 4) {
-                if (rand() % 10 < 9) {
-                    Main().player_select_[pid] = min_speed;
+        int num;
+        int current_max_speed = Main().player_maxspeed_[pid];
+        int last_max_speed = Main().player_last_maxspeed_[pid];
+        int position = Main().player_position_[pid];
+        
+        if (position + current_max_speed >= GAME_OPTION(目标)) {
+            // 可以达到目标，自动冲线
+            num = current_max_speed;
+        } else if (Main().round_ == 1) {
+            // R1 8:9:10 - 1:4:1
+            int rd = rand() % 6;
+            if (rd == 0) num = current_max_speed;
+            else if (rd == 1) num = current_max_speed - 2;
+            else num = current_max_speed - 1;
+        } else if (Main().round_ == 2) {
+            // R2
+            if (position == 8) {
+                // P=8 速度未降低 8-10 已降低 最大/低概率1
+                if (current_max_speed == last_max_speed) {
+                    num = rand() % 3 + current_max_speed - 2;
                 } else {
-                    Main().player_select_[pid] = min_speed - 1;
+                    num = current_max_speed;
+                    if (rand() % 10 == 0) num = 1;
+                }
+            } else if (position == 9) {
+                // P=9 9-10
+                num = rand() % 2 + current_max_speed - 1;
+            } else {
+                // P=10 最大
+                num = current_max_speed;
+            }
+        } else if (Main().round_ >= 3 && Main().round_ <= 6 && GAME_OPTION(目标) >= 100) {
+            // R3-R6 游戏前半进程
+            if (current_max_speed == total_max_speed) {
+                if (total_max_count == 1) {
+                    // 唯一最高 最大/极小概率1
+                    num = current_max_speed;
+                    if (rand() % 20 == 0) num = 1;
+                } else {
+                    // 最高非唯一 最大/最大-1
+                    num = rand() % 2 + current_max_speed - 1;
+                }
+            } else if (current_max_speed == total_min_speed) {
+                if (total_min_count == 1) {
+                    // 唯一最低 最大
+                    num = current_max_speed;
+                } else {
+                    // 最低非唯一 最大/小概率最大-1
+                    num = current_max_speed;
+                    if (rand() % 10 == 0) num = current_max_speed - 1;
                 }
             } else {
-                Main().player_select_[pid] = rand() % 4 + 1;
+                // 非最高非最低
+                if (total_max_count * 3 < Global().PlayerNum()) {
+                    // 若最高人数小于总人数的1/3，出场上速度最低
+                    num = total_min_speed;
+                } else {
+                    // 否则根据与最小速度的差值决定当前速度
+                    if (current_max_speed - total_min_speed <= 2) {
+                        num = total_min_speed;
+                    } else if (rand() % 10 < 8) {
+                        num = current_max_speed;
+                    } else {
+                        num = total_min_speed - 1;
+                    }
+                }
+            }
+        } else {
+            // 比赛后续进程
+            if (current_max_speed == total_max_speed) {
+                if (total_max_count == 1) {
+                    // 唯一最高 最大
+                    num = current_max_speed;
+                } else {
+                    // 最高非唯一 最大/最大-1
+                    if (rand() % 3 == 0) num = current_max_speed;
+                    else num = current_max_speed - 1;
+                }
+            } else if (current_max_speed >= GAME_OPTION(上限) * 0.8 || rand() % 10 < 6) {
+                // 速度快或大概率最大速度赶距离
+                num = current_max_speed;
+            } else {
+                // 其他情况加速
+                num = total_min_speed;
             }
         }
-        else
-        {
-            Main().player_select_[pid] = rand() % Main().player_maxspeed_[pid] + 1;
-        }
+
+        Main().player_select_[pid] = num;
+
         return StageErrCode::READY;
     }
 
