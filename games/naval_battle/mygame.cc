@@ -23,7 +23,10 @@ template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages.
 
 const std::string k_game_name = "大海战"; // the game name which should be unique among all the games
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } // 0 indicates no max-player limits
-uint32_t Multiple(const MyGameOptions& options) { return 2; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+uint32_t Multiple(const MyGameOptions& options)
+{
+    return GET_OPTION_VALUE(options, 飞机) >= 3 ? std::min(3U, GET_OPTION_VALUE(options, 飞机) - 2) : 1;
+}
 const std::string k_developer = "铁蛋";
 const std::string k_description = "在地图上布置飞机，并击落对手的飞机";
 const MutableGenericOptions k_default_generic_options;
@@ -36,36 +39,47 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
         return false;
     }
 
-    if (GET_OPTION_VALUE(game_options, BOSS挑战).empty()) GET_OPTION_VALUE(game_options, BOSS挑战) = {0};
-    if (GET_OPTION_VALUE(game_options, BOSS挑战)[0] == 0 || GET_OPTION_VALUE(game_options, BOSS挑战)[0] > 2) GET_OPTION_VALUE(game_options, BOSS挑战)[0] = rand() % 2 + 1;
-    if (GET_OPTION_VALUE(game_options, BOSS挑战).size() >= 2) GET_OPTION_VALUE(game_options, 重叠) = GET_OPTION_VALUE(game_options, BOSS挑战)[1] ? true : false;
-    if (GET_OPTION_VALUE(game_options, BOSS挑战).size() >= 3) GET_OPTION_VALUE(game_options, 要害) = GET_OPTION_VALUE(game_options, BOSS挑战)[2] < 2 ? GET_OPTION_VALUE(game_options, BOSS挑战)[2] : 2;
-    if (GET_OPTION_VALUE(game_options, BOSS挑战).size() >= 4) GET_OPTION_VALUE(game_options, 连发) = GET_OPTION_VALUE(game_options, BOSS挑战)[3] >= 1 && GET_OPTION_VALUE(game_options, BOSS挑战)[3] <= 10 ? GET_OPTION_VALUE(game_options, BOSS挑战)[3] : GET_OPTION_VALUE(game_options, 连发);
-    if (GET_OPTION_VALUE(game_options, BOSS挑战).size() >= 5) GET_OPTION_VALUE(game_options, 侦察) = GET_OPTION_VALUE(game_options, BOSS挑战)[4] <= 30 ? GET_OPTION_VALUE(game_options, BOSS挑战)[4] : GET_OPTION_VALUE(game_options, 侦察);
-
     const int planeLimit[8] = {3, 3, 4, 5, 6, 6, 7, 8};
     if (GET_OPTION_VALUE(game_options, 飞机) > planeLimit[GET_OPTION_VALUE(game_options, 边长) - 8] && !GET_OPTION_VALUE(game_options, 重叠)) {
         GET_OPTION_VALUE(game_options, 飞机) = planeLimit[GET_OPTION_VALUE(game_options, 边长) - 8];
         reply() << "[警告] 边长为 " + to_string(GET_OPTION_VALUE(game_options, 边长)) + " 的地图最多可设置 " + to_string(planeLimit[GET_OPTION_VALUE(game_options, 边长) - 8]) + " 架不重叠的飞机，飞机数已自动调整为 " + to_string(planeLimit[GET_OPTION_VALUE(game_options, 边长) - 8]) + "！";
-        return true;
     }
     if (GET_OPTION_VALUE(game_options, 飞机) >= 5 && GET_OPTION_VALUE(game_options, 放置时限) == 300 && GET_OPTION_VALUE(game_options, 进攻时限) == 120) {
         GET_OPTION_VALUE(game_options, 放置时限) = 600;
         GET_OPTION_VALUE(game_options, 进攻时限) = 150;
         reply() << "[提示] 本局飞机数为 " + to_string(GET_OPTION_VALUE(game_options, 飞机)) + "，已增加长考时间。";
     }
+
+    if (GET_OPTION_VALUE(game_options, BOSS挑战) == 100) {
+        GET_OPTION_VALUE(game_options, BOSS挑战) = rand() % 3 + 1;
+        if (rand() % 100 == 0) GET_OPTION_VALUE(game_options, BOSS挑战) = 0;
+    }
     return true;
 }
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
-    InitOptionsCommand("单机BOSS挑战配置：具体参数配置方法请通过指令「#配置 大海战」查看",
+    InitOptionsCommand("【单机BOSS挑战快捷配置】</br>"
+                       "设置时须按照下方的顺序，不能跳过其中的某一项，未设置则为默认</br>"
+                       "[第1项] 挑战的BOSS类型：仅支持 [0-3]，输入其他为随机</br>"
+                       "[第2项] 重叠：[0] 为不允许，[大于0] 均为允许</br>"
+                       "[第3项] 要害：[0] 为有要害，[1] 为无要害，[大于1] 均为首要害</br>"
+                       "[第4项] 连发次数：范围 [1-10]，其他输入均为默认</br>"
+                       "[第5项] 侦察区域大小：范围 [0-30]，其他输入均为默认</br>"
+                       "[第6项] 进攻时限：范围 [30-3600]，其他输入均为默认",
             [] (MyGameOptions& game_options, MutableGenericOptions& generic_options, const vector<int32_t>& boss_options)
             {
                 generic_options.bench_computers_to_player_num_ = 2;
-                GET_OPTION_VALUE(game_options, BOSS挑战) = boss_options;
+
+                if (boss_options.size() >= 1) GET_OPTION_VALUE(game_options, BOSS挑战) = boss_options[0] >= 0 && boss_options[0] <= 3 ? boss_options[0] : 100;
+                if (boss_options.size() >= 2) GET_OPTION_VALUE(game_options, 重叠) = boss_options[1] == 0 ? false : true;
+                if (boss_options.size() >= 3) GET_OPTION_VALUE(game_options, 要害) = boss_options[2] >= 0 && boss_options[2] <= 2 ? boss_options[2] : 2;
+                if (boss_options.size() >= 4) GET_OPTION_VALUE(game_options, 连发) = boss_options[3] >= 1 && boss_options[3] <= 10 ? boss_options[3] : GET_OPTION_VALUE(game_options, 连发);
+                if (boss_options.size() >= 5) GET_OPTION_VALUE(game_options, 侦察) = boss_options[4] >= 0 && boss_options[4] <= 30 ? boss_options[4] : GET_OPTION_VALUE(game_options, 侦察);
+                if (boss_options.size() >= 6) GET_OPTION_VALUE(game_options, 进攻时限) = boss_options[5] >= 30 && boss_options[5] <= 3600 ? boss_options[5] : GET_OPTION_VALUE(game_options, 进攻时限);
+
                 return NewGameMode::SINGLE_USER;
             },
-            VoidChecker("单机"), RepeatableChecker<ArithChecker<int32_t>>(0, 100, "配置")),
+            VoidChecker("单机"), RepeatableChecker<BasicChecker<int32_t>>("配置", "1 1 0 3 10 120")),
 };
 
 // ========== GAME STAGES ==========
@@ -123,9 +137,11 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
             board[pid].firstX = board[pid].firstY = -1;
             attack_count[pid] = timeout[pid] = 0;
         }
+
         // 初始化BOSS战配置
         if (Global().PlayerName(1) == "机器人0号") {
-            boss.BossType = GAME_OPTION(BOSS挑战)[0];
+            boss.BossType = GAME_OPTION(BOSS挑战);
+            boss.tempBossType = 0;
             boss.overlap = GAME_OPTION(重叠);
             boss.is_boss = true;
             board[0].MapName = "<div><b>挑战者</b></div>" + board[0].MapName;
@@ -133,27 +149,35 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
 
             auto sender = Global().Boardcast();
 
-            if (GAME_OPTION(BOSS挑战).size() >= 2) {
-                sender << "[本局挑战配置详情]" <<
-                        "\n- 重叠 " << (GAME_OPTION(重叠) ? "允许" : "不允许") <<
-                        "\n- 要害 " << (GAME_OPTION(要害) == 0 ? "有" : (GAME_OPTION(要害) == 1 ? "无" : "首次")) <<
-                        "\n- 连发 " << to_string(GAME_OPTION(连发)) <<
-                        "\n- 侦察 " << to_string(GAME_OPTION(侦察)) << "\n\n";
-            }
-            if (GAME_OPTION(BOSS挑战)[0] > 0 && GAME_OPTION(连发) == 3 && GAME_OPTION(侦察) == 100) {
-                sender << "[提示] 初始化预设BOSS配置成功！";
+            if (GAME_OPTION(BOSS挑战) >= 0 && GAME_OPTION(连发) == 3 && GAME_OPTION(侦察) == 100) {
+                sender << "[提示] 初始化预设BOSS配置成功！\n\n";
             } else {
-                sender << "[警告] 当前游戏未使用默认连发或侦察配置";
+                sender << "[警告] 当前游戏未使用默认连发或侦察配置。\n\n";
             }
-            if (GAME_OPTION(BOSS挑战)[0] == 1) {
+            sender << "[本局挑战配置详情]" <<
+                      "\n- 重叠 " << (GAME_OPTION(重叠) ? "允许" : "不允许") <<
+                      "\n- 要害 " << (GAME_OPTION(要害) == 0 ? "有" : (GAME_OPTION(要害) == 1 ? "无" : "首次")) <<
+                      "\n- 连发 " << to_string(GAME_OPTION(连发)) <<
+                      "\n- 侦察 " << (GAME_OPTION(侦察) == 100 ? "随机" : to_string(GAME_OPTION(侦察)));
+            if (GAME_OPTION(BOSS挑战) == 0) {
+                board[0].sizeX = board[0].sizeY = board[1].sizeX = board[1].sizeY = 14;
+                board[0].planeNum = 3;
+                board[1].planeNum = 5;
+            }
+            if (GAME_OPTION(BOSS挑战) == 1) {
                 board[0].sizeX = board[0].sizeY = board[1].sizeX = board[1].sizeY = 14;
                 board[0].planeNum = 3;
                 board[1].planeNum = 6;
             }
-            if (GAME_OPTION(BOSS挑战)[0] == 2) {
+            if (GAME_OPTION(BOSS挑战) == 2) {
                 board[0].sizeX = board[0].sizeY = board[1].sizeX = board[1].sizeY = 14;
                 board[0].planeNum = 3;
                 board[1].planeNum = 5;
+            }
+            if (GAME_OPTION(BOSS挑战) == 3) {
+                board[0].sizeX = board[0].sizeY = board[1].sizeX = board[1].sizeY = 14;
+                board[0].planeNum = 3;
+                board[1].planeNum = 6;
             }
         }
         board[0].InitializeMap();
@@ -304,7 +328,7 @@ class PrepareStage : public SubGameStage<>
 			return StageErrCode::FAILED;
 		}
 
-        string result = Main().board[pid].AddPlane(str, direction, GAME_OPTION(重叠));
+        string result = Main().board[pid].PlayerAddPlane(str, direction, GAME_OPTION(重叠));
         if (result != "OK") {
             reply() << result;
             return StageErrCode::FAILED;
@@ -330,7 +354,7 @@ class PrepareStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
 
-        string result = Main().board[pid].RemovePlane(str);
+        string result = Main().board[pid].PlayerRemovePlane(str);
         if (result != "OK") {
             reply() << result;
             return StageErrCode::FAILED;
@@ -413,7 +437,7 @@ class PrepareStage : public SubGameStage<>
 
         Main().boss.BossPrepare(Main().board);
 
-        Global().Boardcast() << "BOSS已抵达战场，请根据BOSS技能选择合适的部署和战术！\n" << Markdown(Main().boss.BossIntro());
+        Global().Boardcast() << "BOSS已抵达战场，请根据BOSS技能选择合适的部署和战术！\n" << Markdown(Main().boss.BossIntro(), 680);
         return StageErrCode::READY;
     }
 
@@ -431,8 +455,7 @@ class AttackStage : public SubGameStage<>
                         VoidChecker("移除"), AnyArg("飞机头坐标", "C5"), AlterChecker<int>(position_map)),
 				MakeStageCommand(*this, "清空地图上的所有标记", &AttackStage::RemoveALLMark_, VoidChecker("清空")),
                 MakeStageCommand(*this, "发射导弹进行攻击！", &AttackStage::Attack_, AnyArg("攻击坐标", "A1")))
-    {
-    }
+    {}
 
     // 剩余连发次数
     int repeated[2];
@@ -452,6 +475,7 @@ class AttackStage : public SubGameStage<>
     virtual CheckoutErrCode OnStageOver() override
     {
         Global().Boardcast() << Markdown(Main().GetAllMap(0, 0, GAME_OPTION(要害)));
+        Global().SaveMarkdown(Main().GetAllMap(1, 1, 0));
         // 重置上回合打击位置
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             for(int i = 1; i <= Main().board[pid].sizeX; i++) {
@@ -480,7 +504,7 @@ class AttackStage : public SubGameStage<>
         }
         // 正常攻击
         if (result == "Failed") {
-            result = Main().board[!pid].Attack(str);
+            result = Main().board[!pid].PlayerAttack(str);
         }
 
         if (result != "0" && result != "1" && result != "2" && result != "3") {
@@ -549,7 +573,7 @@ class AttackStage : public SubGameStage<>
             sender << Main().boss.BOSS_SpecialPlanes(Main().board, str);
             return StageErrCode::READY;
         }
-        Global().Boardcast() << "[错误] 发生了不可预料的错误，请联系管理员：Empty return value";
+        Global().Boardcast() << "[错误] 发生了不可预料的错误，请联系管理员：Error return value";
         return StageErrCode::FAILED;
     }
 
@@ -615,10 +639,8 @@ class AttackStage : public SubGameStage<>
             return StageErrCode::OK;
         }
 
-        string roundinfo = "";
-        roundinfo += Main().boss.BossNormalAttack(Main().board, Main().round_, Main().attack_count);
-        roundinfo += Main().boss.BossSkillAttack(Main().board, Main().round_, Main().timeout, repeated);
-        Global().Boardcast() << roundinfo << "\n" << Markdown(Main().GetAllMap(0, 0, GAME_OPTION(要害)));
+        string roundInfo = Main().boss.BossAttack(Main().board, Main().round_, Main().attack_count, Main().timeout, repeated);
+        Global().Boardcast() << roundInfo << Markdown(Main().GetAllMap(0, 0, GAME_OPTION(要害)));
 
         if (Main().timeout[1] == 1) Global().SetReady(0);
 

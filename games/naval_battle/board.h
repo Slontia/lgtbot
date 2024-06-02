@@ -1,9 +1,9 @@
 
 const map<string, int> position_map = {
-    {"上", 1}, {"shang", 1}, {"s", 1},
-    {"下", 2}, {"xia", 2}, {"x", 2},
-    {"左", 3}, {"zuo", 3}, {"z", 3},
-    {"右", 4}, {"you", 4}, {"y", 4},
+    {"上", 1}, {"U", 1}, {"s", 1},
+    {"下", 2}, {"D", 2}, {"x", 2},
+    {"左", 3}, {"L", 3}, {"z", 3},
+    {"右", 4}, {"R", 4}, {"y", 4},
 };
 
 class Board
@@ -163,7 +163,10 @@ public:
 			 	if(map[i][j][0] == 2 && map[i][j][1] == 0) {
 					m = "<font size=7>-</font>";
 				} else {
-					if (show_planes || map[i][j][0] > 0) {
+					if ((show_planes || map[i][j][0] > 0) &&
+						!(((crucial_mode == 1 || (!(firstX == i && firstY == j) && crucial_mode == 2))) && mark[i][j] == 200 &&
+						map[i][j][0] != 2 && !(map[i][j][0] == 1 && map[i][j][1] >= 3)))
+					{
                         if (map[i][j][1] == 2 && !show_planes && (crucial_mode == 1 || (!(firstX == i && firstY == j) && crucial_mode == 2))) {
                             m = icon[this_turn[i][j]][1];
                         } else {
@@ -171,12 +174,12 @@ public:
                         }
 					} else {
                         // 空地标记
-                        if (mark[i][j] == 1) {
-                            m = "<font size=5 color=\"#505050\">—</font>";
-                        } else if (mark[i][j] == 2) {
+                        if (mark[i][j] == 200) {
                             m = "<font size=7 color=\"#505050\">☆</font>";
-                        } else if (mark[i][j] == 3) {
+                        } else if (mark[i][j] == 300) {
                             m = "<font size=7 color=\"#505050\">+</font>";
+                        } else if (mark[i][j] > 0) {
+                            m = "<font size=5 color=\"#505050\">—</font>";
                         } else {
                             m = fill;
                         }
@@ -258,6 +261,20 @@ public:
 		return "OK";
     }
 
+	// 将字符串转为一个位置pair。必须确保字符串是合法的再执行这个操作。 
+	static pair<int, int> TranString(string s)
+	{
+		int nowX = s[0] - 'A' + 1, nowY = s[1] - '0'; 
+		if (s.length() == 3)
+		{
+			nowY = (s[1] - '0') * 10 + s[2] - '0';
+		}
+		pair<int, int> ret;
+		ret.first = nowX;
+		ret.second = nowY;
+		return ret;
+	}
+
 	// 检查地图边界
 	bool CheckMapBoundary(const int X, const int Y, const int direction) const
 	{
@@ -268,17 +285,19 @@ public:
 		return true;
 	}
 	
-	// 添加一架飞机
-	string AddPlane(string s, const int direction, const bool overlap)
+	// 玩家执行指令添加一架飞机
+	string PlayerAddPlane(string s, const int direction, const bool overlap)
 	{
         string result = CheckCoordinate(s);
         if (result != "OK") return result;
-		// 转化
-		int X = s[0] - 'A' + 1, Y = s[1] - '0'; 
-		if (s.length() == 3)
-		{
-			Y = (s[1] - '0') * 10 + s[2] - '0';
-		}
+
+		auto pos = TranString(s);
+		return AddPlane(pos.first, pos.second, direction, overlap);
+	}
+
+	// 根据坐标添加飞机
+	string AddPlane(int X, int Y, const int direction, const bool overlap)
+	{
 		// 检查地图边界
 		if (!CheckMapBoundary(X, Y, direction)) {
 			return "[错误] 放置的飞机超出了地图范围，请检查坐标和方向是否正确";
@@ -313,17 +332,19 @@ public:
 		return "OK";
 	}
 
-    // 移除一架飞机
-    string RemovePlane(string s)
+	// 玩家执行指令移除一架飞机
+	string PlayerRemovePlane(string s)
 	{
         string result = CheckCoordinate(s);
         if (result != "OK") return result;
-		// 转化
-		int X = s[0] - 'A' + 1, Y = s[1] - '0'; 
-		if (s.length() == 3)
-		{
-			Y = (s[1] - '0') * 10 + s[2] - '0';
-		}
+
+		auto pos = TranString(s);
+		return RemovePlane(pos.first, pos.second);
+	}
+
+	// 根据坐标移除飞机
+	string RemovePlane(int X, int Y)
+	{
         if (map[X][Y][1] != 2) {
             return "[错误] 移除失败：此处不存在飞机头，请输入飞机头坐标";
         }
@@ -352,17 +373,19 @@ public:
         alive = 0;
 	}
 
-    // 地图被进攻（对方操作）
-    string Attack(string s)
-    {
+	// 玩家执行指令使地图被进攻（对方操作）
+	string PlayerAttack(string s)
+	{
         string result = CheckCoordinate(s);
         if (result != "OK") return result;
-		// 转化
-		int X = s[0] - 'A' + 1, Y = s[1] - '0'; 
-		if (s.length() == 3)
-		{
-			Y = (s[1] - '0') * 10 + s[2] - '0';
-		}
+
+		auto pos = TranString(s);
+		return Attack(pos.first, pos.second);
+	}
+
+	// 根据坐标执行进攻操作
+	string Attack(int X, int Y)
+	{
         // 检查地图边界
 		if (X < 1 || X > sizeX || Y < 1 || Y > sizeY) {
 			return "[错误] 攻击的坐标超出了地图的范围";
@@ -394,21 +417,17 @@ public:
 	{
         string result = CheckCoordinate(s);
         if (result != "OK") return result;
-		// 转化
-		int X = s[0] - 'A' + 1, Y = s[1] - '0'; 
-		if (s.length() == 3)
-		{
-			Y = (s[1] - '0') * 10 + s[2] - '0';
-		}
+		auto pos = TranString(s);
+		int X = pos.first, Y = pos.second;
 		// 检查地图边界
 		if (!CheckMapBoundary(X, Y, direction)) {
 			return "[错误] 标记的飞机位置超出了地图范围，请检查坐标和方向是否正确";
 		}
         // 设置标记
-		if (mark[X][Y] != 3) mark[X][Y] = 2;
+		if (mark[X][Y] != 300) mark[X][Y] = 200;
 		for (int i = 0; i < 9; i++) {
-			if (mark[X + position[direction][i][0]][Y + position[direction][i][1]] != 3) {
-            	mark[X + position[direction][i][0]][Y + position[direction][i][1]] = 1;
+			if (mark[X + position[direction][i][0]][Y + position[direction][i][1]] < 200) {
+            	mark[X + position[direction][i][0]][Y + position[direction][i][1]] += 1;
 			}
         }
 		return "OK";
@@ -419,20 +438,16 @@ public:
 	{
         string result = CheckCoordinate(s);
         if (result != "OK") return result;
-		// 转化
-		int X = s[0] - 'A' + 1, Y = s[1] - '0'; 
-		if (s.length() == 3)
-		{
-			Y = (s[1] - '0') * 10 + s[2] - '0';
-		}
+		auto pos = TranString(s);
+		int X = pos.first, Y = pos.second;
 		// 检查地图边界
 		if (!CheckMapBoundary(X, Y, direction)) {
 			return "[错误] 移除指定的坐标位置超出了地图范围，请检查坐标和方向是否正确";
 		}
-        if (mark[X][Y] != 3) mark[X][Y] = 0;
+        if (mark[X][Y] != 300) mark[X][Y] = 0;
         for (int i = 0; i < 9; i++) {
-            if (mark[X + position[direction][i][0]][Y + position[direction][i][1]] != 3) {
-                mark[X + position[direction][i][0]][Y + position[direction][i][1]] = 0;
+            if (mark[X + position[direction][i][0]][Y + position[direction][i][1]] < 200 && mark[X + position[direction][i][0]][Y + position[direction][i][1]] > 0) {
+                mark[X + position[direction][i][0]][Y + position[direction][i][1]] -= 1;
             }
         }
 		return "OK";
@@ -443,7 +458,7 @@ public:
 	{
 		for(int i = 1; i <= sizeX; i++) {
 			for(int j = 1; j <= sizeY; j++) {
-				if (mark[i][j] != 3) {
+				if (mark[i][j] != 300) {
                 	mark[i][j] = 0;
 				}
             }
