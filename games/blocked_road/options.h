@@ -1,0 +1,5 @@
+EXTEND_OPTION("每回合时间限制", 时限, (ArithChecker<uint32_t>(30, 3600, "超时时间（秒）")), 120)
+EXTEND_OPTION("最大回合数", 回合数, (ArithChecker<uint32_t>(6, 50, "回合数")), 20)
+EXTEND_OPTION("棋盘边长", 边长, (ArithChecker<uint32_t>(4, 6, "大小")), 4)
+EXTEND_OPTION("棋子数", 棋子, (ArithChecker<uint32_t>(3, 6, "数量")), 3)
+EXTEND_OPTION("获胜需要的目标分", 目标, (ArithChecker<uint32_t>(1, 10, "分数")), 3)
