@@ -16,8 +16,7 @@ jobs:
     steps:
     - run:   |
              sudo apt update
-             sudo apt install gcc-13 g++-13
-#      shell: bash
+             sudo apt install gcc-12 g++-12
     
     - name: Install dependences
       run: sudo apt-get remove libunwind-14 -y; sudo apt-get install -y libgoogle-glog-dev libgflags-dev libgtest-dev libsqlite3-dev libqt5webkit5-dev python3-pybind11
@@ -31,15 +30,15 @@ jobs:
       run: cmake -B build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DWITH_GCOV=OFF -DWITH_ASAN=OFF -DWITH_GLOG=OFF -DWITH_SQLITE=ON -DWITH_TEST=ON -DWITH_SIMULATOR=ON -DWITH_GAMES=ON
       shell: bash
       env:
-       CC:   gcc-13
-       CXX:  g++-13
+       CC:   gcc-12
+       CXX:  g++-12
 
     - name: Build
       run: cmake --build build --config ${{env.BUILD_TYPE}} -j15
       shell: bash
       env:
-       CC:   gcc-13
-       CXX:  g++-13
+       CC:   gcc-12
+       CXX:  g++-12
 
     - name: Test
       working-directory: build
