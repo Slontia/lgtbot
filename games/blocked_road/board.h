@@ -23,7 +23,7 @@ public:
 	int score[2], targetScore;
 
     // 初始化棋盘
-    void InitializeMap()
+    void Initialize()
     {
         lastX1 = lastX2 = lastY1 = lastY2 = -1;
         for(int j = 0; j <= size; j++)

@@ -71,8 +71,6 @@ class MainStage : public MainGameStage<StartStage, RoundStage>
     Board board;
     // 回合数 
 	int round_;
-    // 判定是否是超时淘汰
-    int timeout[2];
 
   private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
@@ -96,9 +94,8 @@ class MainStage : public MainGameStage<StartStage, RoundStage>
                 board.name[pid] = board.name[pid].substr(1, board.name[pid].size() - 2);
             }
             board.score[pid] = 0;
-            timeout[pid] = 0;
         }
-        board.InitializeMap();
+        board.Initialize();
 
         setter.Emplace<StartStage>(*this, ++round_);
     }
@@ -106,9 +103,7 @@ class MainStage : public MainGameStage<StartStage, RoundStage>
     void NextStageFsm(StartStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
     {
         // 超时直接结束游戏
-        if (timeout[0] || timeout[1]) {
-            if (timeout[0]) player_scores_[0] = -1;
-            if (timeout[1]) player_scores_[1] = -1;
+        if (reason == CheckoutReason::BY_TIMEOUT || reason == CheckoutReason::BY_LEAVE) {
             Global().Boardcast() << Markdown(board.GetUI(false));
             return;
         }
@@ -124,17 +119,13 @@ class MainStage : public MainGameStage<StartStage, RoundStage>
     void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
     {
         currentPlayer = 1- currentPlayer;
-        if ((++round_) <= GAME_OPTION(回合数) && !timeout[0] && !timeout[1] && !player_scores_[0] && !player_scores_[1]) {
+        if ((++round_) <= GAME_OPTION(回合数) && player_scores_[0] == 0 && player_scores_[1] == 0) {
             setter.Emplace<RoundStage>(*this, round_);
             return;
         }
         if (round_ > GAME_OPTION(回合数)) {
             Global().Boardcast() << "回合数已达上限，游戏平局！";
         }
-
-        if (timeout[0]) player_scores_[0] = -1;
-        if (timeout[1]) player_scores_[1] = -1;
-        
         Global().Boardcast() << Markdown(board.GetUI(false));
     }
 };
@@ -180,14 +171,14 @@ class StartStage : public SubGameStage<>
     virtual CheckoutErrCode OnStageTimeout() override
     {
         Global().Boardcast() << color_ch[Main().currentPlayer] << "方" << At(Main().currentPlayer) << " 超时判负。";
-        Main().timeout[Main().currentPlayer] = 1;
+        Main().player_scores_[Main().currentPlayer] = -1;
         return StageErrCode::CHECKOUT;
     }
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
         Global().Boardcast() << color_ch[pid] << "方" << At(PlayerID(pid)) << " 强退认输。";
-        Main().timeout[pid] = 1;
+        Main().player_scores_[pid] = -1;
         return StageErrCode::CHECKOUT;
     }
 
@@ -265,11 +256,14 @@ class RoundStage : public SubGameStage<>
 
     virtual CheckoutErrCode OnStageTimeout() override
     {
-        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
-            if (!Global().IsReady(pid)) {
-                Global().Boardcast() << color_ch[pid] << "方" << At(pid) << " 超时判负。";
-                Main().timeout[pid] = 1;
-            }
+        if (!Global().IsReady(0) && !Global().IsReady(1)) {
+            Global().Boardcast() << "双方均超时，游戏平局";
+        } else if (!Global().IsReady(0)) {
+            Main().player_scores_[0] = -1;
+            Global().Boardcast() << "玩家 " << At(PlayerID(0)) << " 超时判负";
+        } else {
+            Main().player_scores_[1] = -1;
+            Global().Boardcast() << "玩家 " << At(PlayerID(1)) << " 超时判负";
         }
         return StageErrCode::CHECKOUT;
     }
@@ -277,7 +271,7 @@ class RoundStage : public SubGameStage<>
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
         Global().Boardcast() << color_ch[pid] << "方" << At(PlayerID(pid)) << " 强退认输。";
-        Main().timeout[pid] = 1;
+        Main().player_scores_[pid] = -1;
         return StageErrCode::CHECKOUT;
     }
 
