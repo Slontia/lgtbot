@@ -58,28 +58,43 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
 }
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
-    InitOptionsCommand("【单机BOSS挑战快捷配置】</br>"
-                       "设置时须按照下方的顺序，不能跳过其中的某一项，未设置则为默认</br>"
+    InitOptionsCommand("设置时须按照给定的顺序，不能跳过其中的某一项，未设置则为默认</br>"
+                       "【单机BOSS挑战快捷配置】</br>"
                        "[第1项] 挑战的BOSS类型：仅支持 [0-3]，输入其他为随机</br>"
                        "[第2项] 重叠：[0] 为不允许，[大于0] 均为允许</br>"
                        "[第3项] 要害：[0] 为有要害，[1] 为无要害，[大于1] 均为首要害</br>"
-                       "[第4项] 连发次数：范围 [1-10]，其他输入均为默认</br>"
-                       "[第5项] 侦察区域大小：范围 [0-30]，其他输入均为默认</br>"
-                       "[第6项] 进攻时限：范围 [30-3600]，其他输入均为默认",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options, const vector<int32_t>& boss_options)
+                       "[第4项] 连发次数：范围 [1-10]，其他输入均为默认3</br>"
+                       "[第5项] 侦察区域大小：范围 [0-30]，其他输入均为默认随机</br>"
+                       "[第6项] 进攻时限：范围 [30-3600]，其他输入均为默认120</br>"
+                       "【多人游戏快捷配置】</br>"
+                       "[第1项] 地图边长：仅支持 [8-15]，其他输入均为默认10</br>"
+                       "[第2项] 飞机数：仅支持 [1-8]，其他输入均为默认3</br>"
+                       "[第3项] 重叠：[0] 为不允许，[大于0] 均为允许</br>"
+                       "[第4项] 要害：[0] 为有要害，[1] 为无要害，[大于1] 均为首要害</br>"
+                       "[第5项] 连发次数：范围 [1-10]，其他输入均为默认3</br>"
+                       "[第6项] 侦察区域大小：范围 [0-30]，其他输入均为默认随机</br>",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options, const bool& is_single, const vector<int32_t>& options)
             {
-                generic_options.bench_computers_to_player_num_ = 2;
-
-                if (boss_options.size() >= 1) GET_OPTION_VALUE(game_options, BOSS挑战) = boss_options[0] >= 0 && boss_options[0] <= 3 ? boss_options[0] : 100;
-                if (boss_options.size() >= 2) GET_OPTION_VALUE(game_options, 重叠) = boss_options[1] == 0 ? false : true;
-                if (boss_options.size() >= 3) GET_OPTION_VALUE(game_options, 要害) = boss_options[2] >= 0 && boss_options[2] <= 2 ? boss_options[2] : 2;
-                if (boss_options.size() >= 4) GET_OPTION_VALUE(game_options, 连发) = boss_options[3] >= 1 && boss_options[3] <= 10 ? boss_options[3] : GET_OPTION_VALUE(game_options, 连发);
-                if (boss_options.size() >= 5) GET_OPTION_VALUE(game_options, 侦察) = boss_options[4] >= 0 && boss_options[4] <= 30 ? boss_options[4] : GET_OPTION_VALUE(game_options, 侦察);
-                if (boss_options.size() >= 6) GET_OPTION_VALUE(game_options, 进攻时限) = boss_options[5] >= 30 && boss_options[5] <= 3600 ? boss_options[5] : GET_OPTION_VALUE(game_options, 进攻时限);
-
-                return NewGameMode::SINGLE_USER;
+                if (is_single) {
+                    if (options.size() >= 1) GET_OPTION_VALUE(game_options, BOSS挑战) = options[0] >= 0 && options[0] <= 3 ? options[0] : 100;
+                    if (options.size() >= 2) GET_OPTION_VALUE(game_options, 重叠) = options[1] == 0 ? false : true;
+                    if (options.size() >= 3) GET_OPTION_VALUE(game_options, 要害) = options[2] >= 0 && options[2] <= 2 ? options[2] : 2;
+                    if (options.size() >= 4) GET_OPTION_VALUE(game_options, 连发) = options[3] >= 1 && options[3] <= 10 ? options[3] : GET_OPTION_VALUE(game_options, 连发);
+                    if (options.size() >= 5) GET_OPTION_VALUE(game_options, 侦察) = options[4] >= 0 && options[4] <= 30 ? options[4] : GET_OPTION_VALUE(game_options, 侦察);
+                    if (options.size() >= 6) GET_OPTION_VALUE(game_options, 进攻时限) = options[5] >= 30 && options[5] <= 3600 ? options[5] : GET_OPTION_VALUE(game_options, 进攻时限);
+                    generic_options.bench_computers_to_player_num_ = 2;
+                    return NewGameMode::SINGLE_USER;
+                } else {
+                    if (options.size() >= 1) GET_OPTION_VALUE(game_options, 边长) = options[0] >= 8 && options[0] <= 15 ? options[0] : 10;
+                    if (options.size() >= 2) GET_OPTION_VALUE(game_options, 飞机) = options[1] >= 1 && options[1] <= 8 ? options[1] : 3;
+                    if (options.size() >= 3) GET_OPTION_VALUE(game_options, 重叠) = options[2] == 0 ? false : true;
+                    if (options.size() >= 4) GET_OPTION_VALUE(game_options, 要害) = options[3] >= 0 && options[3] <= 2 ? options[3] : 2;
+                    if (options.size() >= 5) GET_OPTION_VALUE(game_options, 连发) = options[4] >= 1 && options[4] <= 10 ? options[4] : GET_OPTION_VALUE(game_options, 连发);
+                    if (options.size() >= 6) GET_OPTION_VALUE(game_options, 侦察) = options[5] >= 0 && options[5] <= 30 ? options[5] : GET_OPTION_VALUE(game_options, 侦察);
+                    return NewGameMode::MULTIPLE_USERS;
+                }
             },
-            VoidChecker("单机"), RepeatableChecker<BasicChecker<int32_t>>("配置", "1 1 0 3 10 120")),
+            BoolChecker("单机", "多人"), RepeatableChecker<BasicChecker<int32_t>>("配置", "1 1 0 3 10 120")),
 };
 
 // ========== GAME STAGES ==========
@@ -475,7 +490,6 @@ class AttackStage : public SubGameStage<>
     virtual CheckoutErrCode OnStageOver() override
     {
         Global().Boardcast() << Markdown(Main().GetAllMap(0, 0, GAME_OPTION(要害)));
-        Global().SaveMarkdown(Main().GetAllMap(1, 1, 0));
         // 重置上回合打击位置
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             for(int i = 1; i <= Main().board[pid].sizeX; i++) {
