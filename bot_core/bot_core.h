@@ -164,13 +164,13 @@ typedef struct
     // The path to the sqlite database file, be NULL if we do not want to record match results.
     const char* db_path_;
 
-    // The path to the configuration file, be NULL if we use no configuration files.
+    // The path to the configuration file, be NULL if we use default configurations.
     const char* conf_path_;
 
-    // The path to the images, be NULL if we save image in default path.
+    // The path to store the generated images, be NULL if we save image in a default path.
     const char* image_path_;
 
-    // The list for administor user ID, split by ',', be NULL if no administors.
+    // The list for administor user ID, split by ',', be NULL if there are no administors.
     const char* admins_;
 
     // The user defined handler which will be passed to callbacks.
@@ -188,9 +188,11 @@ LGTBot_Option LGTBot_InitOptions();
 // Create a new bot with the options.
 // Inputs:
 //   - `options`: The pointer to options for bot, should not be NULL.
-//   - `p`: The address of the pointer which will point to the error message if the bot is created failed, should not be NULL.
+//   - `p`: The address of the pointer which will point to the error message if the bot is created failed. Callers can pass a
+//          NULL value if they do not care the reasons for failure. Callers need not to free the error message.
 // Outputs:
-//   If the bot is created successfully, return the created bot. Otherwise, return NULL, and the `p`//   will point to the error message.
+//   If the bot is created successfully, return the created bot. Otherwise, return NULL, and `p` will point to the error message
+//   if `p` is not NULL.
 DLLEXPORT(void*) LGTBot_Create(const LGTBot_Option* options, const char** p);
 
 // Release the bot.
