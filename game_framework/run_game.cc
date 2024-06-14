@@ -1,6 +1,11 @@
 // Copyright (c) 2018-present, Chang Liu <github.com/slontia>. All rights reserved.
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
+//
+// This code generates a `run_game_xxx` executable binary for each game. It is used to test the correctness for computer
+// behaviour. The number of computers can be specified by `--player` parameter. If `--player` is not specified, the
+// number of computers will depend on the result of `单机` init_options_command. If the game does not support a `单机`
+// command or `bench_computers_to_player_num_` is not set by this command, the test will do nothing.
 
 #include <chrono>
 
@@ -12,7 +17,7 @@
 #include "game_framework/mock_match.h"
 #include "game_framework/stage.h"
 
-DEFINE_uint64(player, 0, "Player number: if set to 0, best player num will be set");
+DEFINE_uint64(player, 0, "Player number: if set to 0, the number of players will depend on the result of `单机` command");
 DEFINE_uint64(repeat, 1, "Repeat times: if set to 0, will run unlimitedly");
 DEFINE_string(resource_dir, "./resource_dir/", "The path of game image resources");
 DEFINE_bool(gen_image, false, "Whether generate image or not");
@@ -38,6 +43,16 @@ class RunGameMockMatch : public MockMatch
             std::to_string(size) + "px; border-radius:50%; vertical-align: middle;\"/>";
         return str.c_str();
     }
+};
+
+struct SkipTestException : public std::runtime_error
+{
+    using runtime_error::runtime_error;
+};
+
+struct FailTestException : public std::runtime_error
+{
+    using runtime_error::runtime_error;
 };
 
 namespace lgtbot {
@@ -83,7 +98,7 @@ void ReadGameOptionsFromStdin(GameOptions& game_options)
     const auto cin_g = std::cin.tellg();
     for (std::string line; std::getline(std::cin, line); ) {
         if (!game_options.SetOption(line.c_str())) {
-            throw std::runtime_error{"Unexpected option: " + line};
+            throw FailTestException{"Unexpected option: " + line};
         }
     }
     std::cin.seekg(cin_g);
@@ -91,18 +106,22 @@ void ReadGameOptionsFromStdin(GameOptions& game_options)
 
 void SetPlayerNumber(Options& options)
 {
-    if (FLAGS_player != 0) {
+    if (const auto max_player = MaxPlayerNum(options.game_options_); FLAGS_player > max_player) {
+        throw FailTestException("Test player number exceeds the limit " + std::to_string(max_player));
+    } else if (FLAGS_player != 0) {
         options.generic_options_.bench_computers_to_player_num_ = FLAGS_player;
     } else if (MsgReader reader{"单机"}; std::ranges::none_of(k_init_options_commands,
                 [&](const auto& cmd) { return cmd.CallIfValid(reader, options.game_options_, options.generic_options_).has_value(); })) {
-        throw std::runtime_error{"The game does not support single-player mode"};
+        throw SkipTestException{"The game does not support single-player mode"};
+    } else if (options.generic_options_.bench_computers_to_player_num_ == 0) {
+        throw SkipTestException{"The single-player mode does not set bench_computers_to_player_num_"};
     }
 }
 
 void AdaptOptions(MockMsgSender& sender, Options& options)
 {
     if (!AdaptOptions(sender, options.game_options_, options.generic_options_, options.generic_options_)) {
-        throw std::runtime_error{"Invalid options!"};
+        throw FailTestException{"Invalid options!"};
     }
 }
 
@@ -120,7 +139,7 @@ std::unique_ptr<internal::MainStage> StartMainStage(Options& options, RunGameMoc
     std::unique_ptr<internal::MainStage> main_stage{lgtbot::game::GAME_MODULE_NAME::MakeMainStage(
             MainStageFactory{options.game_options_, options.generic_options_, match})};
     if (!main_stage) {
-        throw std::runtime_error{"Start Game Failed!"};
+        throw FailTestException{"Start Game Failed!"};
     }
     main_stage->HandleStageBegin();
     return main_stage;
@@ -188,8 +207,15 @@ int main(int argc, char** argv)
 
     enable_markdown_to_image = FLAGS_gen_image && !FLAGS_image_dir.empty();
 
-    for (uint64_t i = 0; i < FLAGS_repeat; ++i) {
-        lgtbot::game::GAME_MODULE_NAME::Run(i);
+    try {
+        for (uint64_t i = 0; i < FLAGS_repeat; ++i) {
+            lgtbot::game::GAME_MODULE_NAME::Run(i);
+        }
+    } catch (const FailTestException& fail_exception) {
+        std::cerr << "Test failure: " << fail_exception.what() << std::endl;
+        return 1;
+    } catch (const SkipTestException& skip_exception) {
+        std::cout << "Test does not run: " << skip_exception.what() << std::endl;
     }
 
     return 0;
