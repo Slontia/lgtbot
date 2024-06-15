@@ -11,14 +11,9 @@ endif()
 
 set(CMAKE_CXX_STANDARD 20)
 
-set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/plugins)
 file(GLOB GAME_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/*)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
-
-add_custom_target(make_output_dir ALL
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBRARY_OUTPUT_PATH})
 
 if (WITH_GLOG)
   find_package(glog REQUIRED)
@@ -35,10 +30,17 @@ foreach (GAME_DIR ${GAME_DIRS})
 
     message("Found game ${GAME} in ${GAME_DIR}")
 
+    set(GAME_OUTPUT_PATH ${CMAKE_BINARY_DIR}/plugins/${GAME})
+    set(GAME_RESOURCE_PATH ${GAME_OUTPUT_PATH}/resource)
+
+    add_custom_target(make_output_dir_${GAME} ALL
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${GAME_OUTPUT_PATH})
+
     add_custom_target(resource_dir_${GAME} ALL
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMAND ${CMAKE_COMMAND} -E make_directory ${GAME_DIR}/resource
-      COMMAND ${CMAKE_COMMAND} -E copy_directory ${GAME_DIR}/resource ${LIBRARY_OUTPUT_PATH}/${GAME})
+      COMMAND ${CMAKE_COMMAND} -E copy_directory ${GAME_DIR}/resource ${GAME_RESOURCE_PATH})
 
     set(SOURCE_FILES
       ${GAME_DIR}/mygame.cc
@@ -73,6 +75,7 @@ foreach (GAME_DIR ${GAME_DIRS})
       endif()
     endif()
 
+    # Make game library
     add_library(${GAME} SHARED ${SOURCE_FILES})
     target_compile_definitions(${GAME} PUBLIC
       GAME_ACHIEVEMENT_FILENAME="achievements.h"
@@ -80,19 +83,15 @@ foreach (GAME_DIR ${GAME_DIRS})
       GAME_MODULE_NAME=${GAME})
     target_include_directories(${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
     target_link_libraries(${GAME} ${GAME_THIRD_PARTIES})
-if (CMAKE_SYSTEM_NAME MATCHES "Windows")
-    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource.rc.in" "${CMAKE_CURRENT_BINARY_DIR}/resource_${GAME}.rc")
-    target_sources(${GAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/resource_${GAME}.rc")
-endif()
+    set_target_properties(${GAME} PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY ${GAME_OUTPUT_PATH}
+      OUTPUT_NAME "libgame"
+      PREFIX "")
 
-    add_library(${GAME}_for_test_lib OBJECT ${SOURCE_FILES})
-    target_compile_definitions(${GAME}_for_test_lib PUBLIC
-      GAME_ACHIEVEMENT_FILENAME="achievements.h"
-      GAME_OPTION_FILENAME="options.h"
-      GAME_MODULE_NAME=${GAME}
-      TEST_BOT)
-    target_include_directories(${GAME}_for_test_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
-    target_link_libraries(${GAME}_for_test_lib ${GAME_THIRD_PARTIES})
+    if (CMAKE_SYSTEM_NAME MATCHES "Windows")
+      configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource.rc.in" "${CMAKE_CURRENT_BINARY_DIR}/resource_${GAME}.rc")
+      target_sources(${GAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/resource_${GAME}.rc")
+    endif()
 
     if (CMAKE_SYSTEM_NAME MATCHES "Linux")
       add_dependencies(${GAME} ${GAME}_rule_binary)
@@ -103,6 +102,17 @@ endif()
       enable_testing()
       find_package(GTest REQUIRED)
 
+      # Make library for tests
+      add_library(${GAME}_for_test_lib OBJECT ${SOURCE_FILES})
+      target_compile_definitions(${GAME}_for_test_lib PUBLIC
+        GAME_ACHIEVEMENT_FILENAME="achievements.h"
+        GAME_OPTION_FILENAME="options.h"
+        GAME_MODULE_NAME=${GAME}
+        TEST_BOT)
+      target_include_directories(${GAME}_for_test_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
+      target_link_libraries(${GAME}_for_test_lib ${GAME_THIRD_PARTIES})
+
+      # Make unit test
       add_executable(test_game_${GAME} ${GAME_DIR}/unittest.cc $<TARGET_OBJECTS:${GAME}_for_test_lib>)
       target_compile_definitions(test_game_${GAME} PUBLIC
         GAME_ACHIEVEMENT_FILENAME="achievements.h"
@@ -112,8 +122,9 @@ endif()
       target_include_directories(test_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
       target_link_libraries(test_game_${GAME} glog gflags GTest::GTest GTest::Main ${GAME_THIRD_PARTIES})
       target_compile_definitions(test_game_${GAME} PUBLIC TEST_BOT)
-      add_test(NAME test_game_${GAME} COMMAND test_game_${GAME} --resource_dir "${LIBRARY_OUTPUT_PATH}/${GAME}")
+      add_test(NAME test_game_${GAME} COMMAND test_game_${GAME} --resource_dir "${GAME_RESOURCE_PATH}")
 
+      # Make run-game test
       add_executable(run_game_${GAME} ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/run_game.cc $<TARGET_OBJECTS:${GAME}_for_test_lib>)
       target_compile_definitions(run_game_${GAME} PUBLIC
         GAME_ACHIEVEMENT_FILENAME="achievements.h"
@@ -123,7 +134,7 @@ endif()
       target_include_directories(run_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
       target_link_libraries(run_game_${GAME} glog gflags ${GAME_THIRD_PARTIES})
       target_compile_definitions(run_game_${GAME} PUBLIC TEST_BOT)
-      add_test(NAME run_game_${GAME} COMMAND run_game_${GAME} --resource_dir "${LIBRARY_OUTPUT_PATH}/${GAME}" --repeat=100)
+      add_test(NAME run_game_${GAME} COMMAND run_game_${GAME} --resource_dir "${GAME_RESOURCE_PATH}" --repeat=100)
 
       if (CMAKE_SYSTEM_NAME MATCHES "Linux")
         add_dependencies(test_game_${GAME} ${GAME}_rule_binary)

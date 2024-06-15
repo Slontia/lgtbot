@@ -216,7 +216,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
                 });
     }
     options_.resource_holder_.resource_dir_ =
-        (std::filesystem::absolute(bot_.game_path()) / game_handle_.Info().module_name_ / "").string();
+        (std::filesystem::absolute(bot_.game_path()) / game_handle_.Info().module_name_ / "resource").string();
     options_.resource_holder_.saved_image_dir_ =
         (std::filesystem::absolute(bot_.image_path()) / "matches" /
          (std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + "_" + game_handle_.Info().module_name_)).string();

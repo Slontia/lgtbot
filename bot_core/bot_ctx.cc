@@ -141,17 +141,18 @@ static std::variant<GameHandleMap, const char*> LoadGameModules(const char* cons
     if (!d) {
         return "LoadGameModules: open directory failed";
     }
-    const std::regex base_regex(".*so");
-    std::smatch base_match;
-    struct stat st;
-    for (dirent* dp = nullptr; (dp = readdir(d)) != NULL;) {
-        std::string name(dp->d_name);
-        if (std::regex_match(name, base_match, base_regex); base_match.empty()) {
-            DebugLog() << "Find irrelevant file " << name << ", skip";
+    // iterate each directory in the game_path
+    for (dirent* dp = nullptr; (dp = readdir(d)) != NULL; ) {
+        if (dp->d_type != DT_DIR || strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) {
+            WarnLog() << "Not the game directory, skip: " << dp->d_name;
             continue;
         }
-        InfoLog() << "Loading library " << name;
-        LoadGame(dlopen((std::string(games_path) + "/" + name).c_str(), RTLD_LAZY), game_handles);
+        const auto lib_name = std::string(games_path) + "/" + dp->d_name + "/libgame.so";
+        if (access(lib_name.c_str(), F_OK) != 0) {
+            WarnLog() << "Cannot find libgame.so, skip: " << dp->d_name;
+        } else {
+            LoadGame(dlopen(lib_name.c_str(), RTLD_LAZY), game_handles);
+        }
     }
     InfoLog() << "Loading finished.";
     closedir(d);
