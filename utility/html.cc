@@ -73,4 +73,10 @@ void Table::MergeRight(const uint32_t row, const uint32_t column, const uint32_t
     }
 }
 
+void Table::ResizeRow(const uint32_t row)
+{
+    boxes_.resize(row, RowDesc(column_));
+    row_ = row;
+}
+
 }

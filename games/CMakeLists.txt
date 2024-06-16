@@ -40,7 +40,8 @@ foreach (GAME_DIR ${GAME_DIRS})
     add_custom_target(resource_dir_${GAME} ALL
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMAND ${CMAKE_COMMAND} -E make_directory ${GAME_DIR}/resource
-      COMMAND ${CMAKE_COMMAND} -E copy_directory ${GAME_DIR}/resource ${GAME_RESOURCE_PATH})
+      COMMAND ${CMAKE_COMMAND} -E copy_directory ${GAME_DIR}/resource ${GAME_RESOURCE_PATH}
+      COMMAND ${CMAKE_COMMAND} -E copy ${GAME_DIR}/icon.png ${GAME_OUTPUT_PATH}/icon.png)
 
     set(SOURCE_FILES
       ${GAME_DIR}/mygame.cc

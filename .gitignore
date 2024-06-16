@@ -212,3 +212,6 @@ cscope.*
 # doxygen
 latex/
 html/
+
+# Mac
+.DS_Store

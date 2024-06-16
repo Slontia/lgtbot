@@ -111,6 +111,8 @@ class Table
     void SetRowStyle(std::string style) { row_style_ = std::move(style); }
     void SetRowStyle(const uint32_t row, std::string style) { boxes_[row].style_ = std::move(style); }
 
+    void ResizeRow(const uint32_t row);
+
   private:
     struct RowDesc : public std::vector<Box> {
         using std::vector<Box>::vector;

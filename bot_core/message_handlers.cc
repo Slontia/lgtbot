@@ -147,13 +147,26 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
             }
         }
     } else {
-        html::Table table(0, 4);
+        html::Table table(0, 5);
         table.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"5\" cellspacing=\"1\" ");
         const auto game_handles_range = std::views::transform(bot.game_handles(), [](const auto& p) { return &p; });
         auto game_handles = std::vector(std::ranges::begin(game_handles_range), std::ranges::end(game_handles_range));
         std::ranges::sort(game_handles,
                 [](const auto& _1, const auto& _2) { return _1->second.Activity() > _2->second.Activity(); });
+        constexpr uint32_t k_max_game_in_one_image = 20;
+        uint32_t i = 0;
+        auto send_image =
+            [&, img_i = 0, img_num = (game_handles.size() + k_max_game_in_one_image - 1) / k_max_game_in_one_image]() mutable
+            {
+                reply() << Markdown("## 游戏列表\n\n" + table.ToString() + "<br>第 " + std::to_string(++img_i) + " 张 / 共 " +
+                        std::to_string(img_num) + " 张", 800);
+            };
         for (const auto& p : game_handles) {
+            if (i++ == k_max_game_in_one_image) {
+                send_image();
+                table.ResizeRow(0);
+                i = 1;
+            }
             const auto& name = p->first;
             const auto& game_handle = p->second;
             const auto locked_options = game_handle.DefaultGameOptions().Lock();
@@ -164,6 +177,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
             table.AppendRow();
             table.AppendRow();
             table.MergeDown(table.Row() - 2, 0, 2);
+            table.MergeDown(table.Row() - 2, 4, 2);
             table.MergeRight(table.Row() - 1, 1, 3);
             table.Get(table.Row() - 2, 0).SetContent("<font size=\"5\"> **" + name + "**</font>\n\n热度：" + std::to_string(game_handle.Activity()));
             table.Get(table.Row() - 2, 1).SetContent("开发者：" + game_handle.Info().developer_);
@@ -171,9 +185,12 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
                     ("最多 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(default_max_player) + "**" HTML_FONT_TAIL " 名玩家"));
             table.Get(table.Row() - 2, 3).SetContent(default_multiple == 0 ? "默认不计分" :
                     ("默认 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(default_multiple) + "**" HTML_FONT_TAIL " 倍分数"));
+            table.Get(table.Row() - 2, 4).SetContent("<img src=\"file:///" +
+                    (std::filesystem::absolute(bot.game_path()) / game_handle.Info().module_name_ / "icon.png").string() +
+                    "\" style=\"width:70px; height:70px; vertical-align: middle;\">");
             table.Get(table.Row() - 1, 1).SetContent("<font size=\"3\"> " + game_handle.Info().description_ + "</font>");
         }
-        reply() << Markdown("## 游戏列表\n\n" + table.ToString(), 800);
+        send_image();
     }
     return EC_OK;
 }
