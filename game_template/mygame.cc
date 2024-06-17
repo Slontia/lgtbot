@@ -16,28 +16,48 @@ class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
-const std::string k_game_name = "测试游戏"; // the game name which should be unique among all the games
-const uint64_t k_max_player = 0; // 0 indicates no max-player limits
-const uint64_t k_multiple = 0; // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+// 0 indicates no max-player limits
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; }
+
+// The default score multiple for the game. The value of 0 denotes a testing game.
+// We recommend to increase the multiple by one for every 7~8 minutes the game lasts.
+uint32_t Multiple(const MyGameOptions& options) { return 0; }
+
+// The game name which should be unique among all the games.
+const std::string k_game_name = "测试游戏";
+
+// The game developer which can be shown in the game list image.
 const std::string k_developer = "佚名";
+
+// The game description which can be shown in the game list image.
 const std::string k_description = "暂无游戏描述";
+
+// The commands for showing more rules information. Users can get the information by "#规则 <game name> <rule command>...".
 const std::vector<RuleCommand> k_rule_commands = {};
 
-std::string GameOption::StatusInfo() const
-{
-    return "";
-}
+// The commands for initialize the options when starting a game by "#新游戏 <game name> <init options command>..."
+const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("独自一人开始游戏",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                // Set the target player numbers when an user start the game with the "单机" argument.
+                // It is ok to make `k_init_options_commands` empty.
+                generic_options.bench_computers_to_player_num_ = 10;
+                return NewGameMode::SINGLE_USER;
+            },
+            VoidChecker("单机")),
+};
 
-bool GameOption::ToValid(MsgSenderBase& reply)
+// The function is invoked before a game starts. You can make final adaption for the options.
+// The return value of false denotes failure to start a game.
+bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
-    if (PlayerNum() < 3) {
-        reply() << "该游戏至少 3 人参加，当前玩家数为 " << PlayerNum();
+    if (generic_options_readonly.PlayerNum() < 3) {
+        reply() << "该游戏至少 3 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
         return false;
     }
     return true;
 }
-
-uint64_t GameOption::BestPlayerNum() const { return 10; }
 
 // ========== GAME STAGES ==========
 
@@ -46,8 +66,8 @@ class RoundStage;
 class MainStage : public MainGameStage<RoundStage>
 {
   public:
-    MainStage(const StageUtility& utility)
-        : StageFsm(utility, MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
+    MainStage(StageUtility&& utility)
+        : StageFsm(std::move(utility), MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
         , round_(0)
         , player_scores_(Global().PlayerNum(), 0)
     {
@@ -64,7 +84,7 @@ class MainStage : public MainGameStage<RoundStage>
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         reply() << "这里输出当前游戏情况";
-        // Returning |OK| means the game stage
+        // Returning `OK` means the game stage
         return StageErrCode::OK;
     }
 
@@ -90,14 +110,14 @@ class RoundStage : public SubGameStage<>
     virtual CheckoutErrCode OnStageTimeout() override
     {
         Global().Boardcast() << Name() << "超时结束";
-        // Returning |CHECKOUT| means the current stage will be over.
+        // Returning `CHECKOUT` means the current stage will be over.
         return StageErrCode::CHECKOUT;
     }
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
     {
         Global().Boardcast() << Global().PlayerName(pid) << "退出游戏";
-        // Returning |CONTINUE| means the current stage will be continued.
+        // Returning `CONTINUE` means the current stage will be continued.
         return StageErrCode::CONTINUE;
     }
 
@@ -109,8 +129,8 @@ class RoundStage : public SubGameStage<>
     virtual CheckoutErrCode OnStageOver() override
     {
         Global().Boardcast() << "所有玩家准备完成";
-        // Returning |CONTINUE| means the current stage will be continued.
-        // If |CONTINUE| is returned but all players keep ready, this function will be invoked again.
+        // Returning `CONTINUE` means the current stage will be continued.
+        // If `CONTINUE` is returned but all players keep ready, this function will be invoked again.
         return StageErrCode::CONTINUE;
     }
 
@@ -133,7 +153,7 @@ class RoundStage : public SubGameStage<>
         auto& player_score = Main().player_scores_[pid];
         player_score += score;
         reply() << "获取成功，您获得了 " << score << " 分，当前共 " << player_score << " 分";
-        // Returning |READY| means the player is ready. The current stage will be over when all surviving players are ready.
+        // Returning `READY` means the player is ready. The current stage will be over when all surviving players are ready.
         return StageErrCode::READY;
     }
 };
