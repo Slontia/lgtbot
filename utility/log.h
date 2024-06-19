@@ -21,11 +21,12 @@ inline const char* Bool2Str(const bool ret) { return ret ? "true" : "false"; }
 
 #else
 
-class EmptyLogger
+#include <sstream>
+
+class EmptyLogger : public std::stringstream
 {
   public:
-    template <typename Arg>
-    EmptyLogger& operator <<(Arg&& arg) { return *this; } 
+    EmptyLogger() { setstate(std::ios_base::badbit); }
 };
 
 #define DebugLog EmptyLogger

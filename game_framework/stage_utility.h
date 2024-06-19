@@ -87,7 +87,7 @@ class PublicStageUtility
     // Log
 
     template <typename Logger>
-    Logger& StageLog(Logger&& logger, const std::string_view stage_name) const
+    auto& StageLog(Logger&& logger, const std::string_view stage_name) const
     {
         return logger << "[mid=" << match_.MatchId() << "] [game=" << match_.GameName() << "] [stage=" << stage_name << "] ";
     }

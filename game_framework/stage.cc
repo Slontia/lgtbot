@@ -95,12 +95,6 @@ StageErrCode AtomicStage::HandleComputerAct(const uint64_t pid, const bool ready
     return Handle_(pid, ready_as_user, fsm_.OnComputerAct(pid, fsm_.Global().TellMsgSender(pid)));
 }
 
-template <typename Logger>
-Logger& AtomicStage::StageLog_(Logger&& logger) const
-{
-    return fsm_.Global().StageLog(logger, fsm_.Name()) << "[atomic_stage] ";
-}
-
 StageErrCode AtomicStage::Handle_(StageErrCode rc)
 {
     StageLog_(InfoLog()) << "Handle errcode rc=" << rc << " is_ok_to_checkout=" << Bool2Str(fsm_.Global().IsOkToCheckout());
@@ -233,9 +227,6 @@ void CompoundStage::SwitchSubStage_(StageBaseInternal* const sub_stage, const ch
         StageLog_(InfoLog()) << tag << " substage to \"" << sub_stage->StageName() << "\"";
     }
 }
-
-template <typename Logger>
-Logger& CompoundStage::StageLog_(Logger&& logger) const { return fsm_.Global().StageLog(logger, fsm_.Name()) << "[complex_stage] "; }
 
 template <typename Task>
 StageErrCode CompoundStage::PassToSubStage_(const Task& internal_task, const CheckoutReason reason)

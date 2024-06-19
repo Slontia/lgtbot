@@ -70,7 +70,7 @@ class PlayerReadyMasker
     std::string ToString_();
 
     template <typename Logger>
-    Logger& Log_(Logger&& logger) { return logger << log_header_; }
+    auto& Log_(Logger&& logger) { return logger << log_header_; }
 
     std::vector<State> states_;
     bool any_ready_{false};                  // be true if any user complete action

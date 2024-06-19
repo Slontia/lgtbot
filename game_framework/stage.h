@@ -56,7 +56,10 @@ class AtomicStage : public StageBaseInternal
 
   private:
     template <typename Logger>
-    Logger& StageLog_(Logger&& logger) const;
+    auto& StageLog_(Logger&& logger) const
+    {
+        return fsm_.Global().StageLog(logger, fsm_.Name()) << "[complex_stage] ";
+    }
 
     StageErrCode Handle_(StageErrCode rc);
     StageErrCode Handle_(const PlayerID pid, const bool is_user, StageErrCode rc);
@@ -140,7 +143,10 @@ class CompoundStage : public StageBaseInternal
     void SwitchSubStage_(StageBaseInternal* const sub_stage, const char* const tag);
 
     template <typename Logger>
-    Logger& StageLog_(Logger&& logger) const;
+    auto& StageLog_(Logger&& logger) const
+    {
+        return fsm_.Global().StageLog(logger, fsm_.Name()) << "[atomic_stage] ";
+    }
 
     template <typename Task>
     StageErrCode PassToSubStage_(const Task& internal_task, const CheckoutReason reason);
