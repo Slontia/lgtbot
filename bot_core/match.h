@@ -113,17 +113,14 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
             : uid_(uid)
             , is_ai_(is_ai)
             , sender_(match.bot_.MakeMsgSender(uid, &match))
-            , state_(State::ACTIVE)
-            , leave_when_config_changed_(true)
-            , want_interrupt_(false)
         {}
-        UserID uid_;
-        bool is_ai_;
-        std::vector<PlayerID> pids_;
+        UserID uid_{""};
+        bool is_ai_{false};
+        PlayerID pid_{UINT32_MAX};
         MsgSender sender_;
-        State state_;
-        bool leave_when_config_changed_;
-        bool want_interrupt_;
+        State state_{State::ACTIVE};
+        bool leave_when_config_changed_{true};
+        bool want_interrupt_{false};
     };
 
     uint32_t MaxPlayerNum_() const { return game_handle_.Info().max_player_num_fn_(options_.game_options_.get()); }
@@ -142,7 +139,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         return logger;
     }
 
-    const uint32_t user_controlled_player_num() const { return users_.size() * options_.generic_options_.player_num_each_user_; }
     std::string BriefInfo_() const;
     void OnGameOver_();
     void Help_(MsgSenderBase& reply, const bool text_mode);
@@ -151,8 +147,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     void KickForConfigChange_();
     void Unbind_();
     void Terminate_();
-    template <typename Fn>
-    bool AllControlledPlayerState_(const ParticipantUser& user, Fn&& fn) const;
     bool Has_(const UserID uid) const;
     std::string HostUserName_() const;
     uint32_t ComputerNum_() const;

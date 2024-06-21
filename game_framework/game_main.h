@@ -75,7 +75,6 @@ struct ImmutableGenericOptions
 
 struct MutableGenericOptions
 {
-    uint32_t player_num_each_user_{1}; // [not used] The number of players controlled by each user
     uint32_t bench_computers_to_player_num_{0}; // The minimal player number. If it is greater than the current player
                                                 // number, computers will be added to the game.
     uint8_t is_formal_{1}; // The value of 0 indicates the result of this match will not be recorded. The other values
@@ -92,7 +91,7 @@ struct GenericOptions : public ImmutableGenericOptions, public MutableGenericOpt
     {
     }
 
-    uint32_t PlayerNum() const { return std::max(user_num_ * player_num_each_user_, bench_computers_to_player_num_); }
+    uint32_t PlayerNum() const { return std::max(user_num_, bench_computers_to_player_num_); }
 };
 
 struct GameInfo

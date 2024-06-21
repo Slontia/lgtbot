@@ -162,6 +162,8 @@ static void BlockStage()
     substage_blocked_ = false;
 }
 
+static bool g_fail_to_create_game = false;
+
 namespace lgtbot {
 
 namespace game {
@@ -445,6 +447,7 @@ class TestBot : public testing::Test
   public:
     virtual void SetUp() override
     {
+        g_fail_to_create_game = false;
         Timer::skip_timer_ = false;
         bot_.reset(new BotCtx(
                     "./", // game_path
@@ -506,6 +509,9 @@ class TestBot : public testing::Test
                                     lgtbot::game::GenericOptions* const generic_options, MatchBase* const match)
                                 -> lgtbot::game::MainStageBase*
                             {
+                                if (g_fail_to_create_game) {
+                                    return nullptr;
+                                }
                                 auto* const my_game_options = static_cast<lgtbot::game::GAME_MODULE_NAME::GameOptions*>(game_options);
                                 return new internal::MainStage(std::make_unique<MyMainStage>(StageUtility{*my_game_options, *generic_options, *match}));
                             },
@@ -577,6 +583,20 @@ TEST_F(TestBot, join_game_without_player_limit)
   AddGame<0>("测试游戏");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
+}
+
+TEST_F(TestBot, start_game_after_start_failure)
+{
+  // It reproduce the bug where different users share the same player ID.
+  AddGame<0>("测试游戏");
+  ASSERT_PUB_MSG(EC_OK, "1", "2", "#新游戏 测试游戏");
+  g_fail_to_create_game = true;
+  ASSERT_PUB_MSG(EC_MATCH_UNEXPECTED_CONFIG, "1", "2", "#开始");
+  g_fail_to_create_game = false;
+  ASSERT_PUB_MSG(EC_OK, "1", "1", "#加入");
+  ASSERT_PUB_MSG(EC_OK, "1", "2", "#开始");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "准备");
 }
 
 // Join Not Existing Game

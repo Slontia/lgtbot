@@ -61,11 +61,10 @@ std::string Match::HostUserName_() const
 uint32_t Match::ComputerNum_() const
 {
     const auto bench_computers_to_player_num = options_.generic_options_.bench_computers_to_player_num_;
-    const auto current_player_num = user_controlled_player_num();
-    if (bench_computers_to_player_num <= current_player_num) {
+    if (bench_computers_to_player_num <= users_.size()) {
         return 0;
     }
-    return bench_computers_to_player_num - current_player_num;
+    return bench_computers_to_player_num - users_.size();
 }
 
 void Match::EmplaceUser_(const UserID uid)
@@ -90,8 +89,8 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t
         return EC_MATCH_NOT_HOST;
     }
     auto sender = reply();
-    if (bench_computers_to_player_num <= user_controlled_player_num()) {
-        sender << "[警告] 当前玩家数 " << user_controlled_player_num() << " 已满足条件";
+    if (bench_computers_to_player_num <= users_.size()) {
+        sender << "[警告] 当前玩家数 " << users_.size() << " 已满足条件";
         return EC_OK;
     }
     if (const auto max_player = MaxPlayerNum_(); max_player != 0 && bench_computers_to_player_num > max_player) {
@@ -157,8 +156,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         return EC_GAME_REQUEST_OK;
     }
     if (main_stage_) {
-        // TODO: check player_num_each_user_
-        const auto pid = it->second.pids_[0];
+        const auto pid = it->second.pid_;
         assert(state_ == State::IS_STARTED);
         if (players_[pid].state_ == Player::State::ELIMINATED) {
             reply() << "[错误] 您已经被淘汰，无法执行游戏请求";
@@ -200,13 +198,11 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
     nlohmann::json players_json_array;
     players_.clear();
     for (auto& [uid, user_info] : users_) {
-        for (int i = 0; i < options_.generic_options_.player_num_each_user_; ++i) {
-            user_info.pids_.emplace_back(players_.size());
-            players_.emplace_back(uid);
-            players_json_array.push_back(nlohmann::json{
-                        { "user_id", uid.GetStr() }
-                    });
-        }
+        user_info.pid_ = players_.size();
+        players_.emplace_back(uid);
+        players_json_array.push_back(nlohmann::json{
+                    { "user_id", uid.GetStr() }
+                });
         user_info.sender_.SetMatch(this);
     }
     for (ComputerID cid = 0; cid < ComputerNum_(); ++cid) {
@@ -265,12 +261,6 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
     return EC_OK;
 }
 
-template <typename Fn>
-bool Match::AllControlledPlayerState_(const ParticipantUser& user, Fn&& fn) const
-{
-    return std::ranges::all_of(user.pids_, [this, &fn](const auto pid) { return fn(players_[pid].state_); });
-}
-
 ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
 {
     ErrCode rc = EC_OK;
@@ -295,7 +285,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
             host_uid_ = users_.begin()->first;
             Boardcast() << At(host_uid_) << "被选为新房主";
         }
-    } else if (force || AllControlledPlayerState_(it->second, [](const auto s) { return s == Player::State::ELIMINATED; })) {
+    } else if (force || players_[it->second.pid_].state_ == Player::State::ELIMINATED) {
         match_manager().UnbindMatch(uid);
         reply() << "退出成功";
         Boardcast() << "玩家 " << At(uid) << " 中途退出了游戏，他将不再参与后续的游戏进程";
@@ -307,10 +297,8 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
             MatchLog(InfoLog()) << "All users left the game";
             Terminate_();
         } else {
-            for (const auto pid : it->second.pids_) {
-                main_stage_->HandleLeave(pid);
-                Routine_();
-            }
+            main_stage_->HandleLeave(it->second.pid_);
+            Routine_();
         }
     } else {
         reply() << "[错误] 退出失败：游戏已经开始，若仍要退出游戏，请使用「" META_COMMAND_SIGN "退出 强制」命令";
@@ -700,11 +688,10 @@ void Match::Routine_()
         OnGameOver_();
         return;
     }
-    const uint64_t user_controlled_num = users_.size() * options_.generic_options_.player_num_each_user_;
-    const uint64_t computer_num = players_.size() - user_controlled_num;
+    const uint64_t computer_num = players_.size() - users_.size();
     uint64_t ok_count = 0;
     for (uint64_t i = 0; !main_stage_->IsOver() && ok_count < computer_num; i = (i + 1) % computer_num) {
-        const auto pid = user_controlled_num + i;
+        const auto pid = users_.size() + i;
         if (players_[pid].state_ == Player::State::ELIMINATED || StageErrCode::OK == main_stage_->HandleComputerAct(pid, false)) {
             ++ok_count;
         } else {
@@ -730,7 +717,7 @@ ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool 
                 const auto& user = pair.second;
                 return !(user.want_interrupt_ ||
                          user.state_ == ParticipantUser::State::LEFT ||
-                         AllControlledPlayerState_(user, [](const auto s) { return s != Player::State::ACTIVE; }));
+                         players_[user.pid_].state_ != Player::State::ACTIVE);
 
             });
     reply() << "中断成功";
