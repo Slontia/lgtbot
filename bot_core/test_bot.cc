@@ -1684,25 +1684,19 @@ TEST_F(TestBot, user_interrupt_game_not_consider_left_users)
 
 TEST_F(TestBot, user_interrupt_when_someone_eliminates)
 {
+  // Users should wait the elimindated users to determine whether to interrupt the game. It is because the elimindated users may
+  // have gotten the highest score.
   AddGame<2>("测试游戏");
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
   ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
   ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "2", "淘汰");
   ASSERT_PRI_MSG(EC_OK, "1", "#中断");
   ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, "1", "#新游戏 测试游戏");
-  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "2", "淘汰");
-  ASSERT_PRI_MSG(EC_OK, "1", "#中断"); // must interrupt again to finish match
-  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
-}
 
-TEST_F(TestBot, user_interrupt_when_someone_has_eliminated)
-{
-  AddGame<2>("测试游戏");
-  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
-  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
-  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
-  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "淘汰");
-  ASSERT_PRI_MSG(EC_OK, "2", "#中断");
+  ASSERT_PRI_MSG(EC_OK, "2", "#退出 强制");
+  ASSERT_PRI_MSG(EC_OK, "1", "#中断");
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
 }
 

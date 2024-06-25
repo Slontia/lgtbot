@@ -726,7 +726,7 @@ ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool 
                 const auto& user = pair.second;
                 return !(user.want_interrupt_ ||
                          user.state_ == ParticipantUser::State::LEFT ||
-                         players_[user.pid_].state_ != Player::State::ACTIVE);
+                         players_[user.pid_].state_ == Player::State::HOOKED);
 
             });
     reply() << operation_str << "成功";
