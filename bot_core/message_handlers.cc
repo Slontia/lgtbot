@@ -906,7 +906,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
                         BasicChecker<MatchID>("私密比赛编号", "1")),
             make_command("退出游戏（若附带了「强制」参数，则可以在游戏进行中退出游戏，需注意退出后无法继续参与原游戏）",
                         leave, VoidChecker(META_COMMAND_SIGN "退出"),  OptionalDefaultChecker<BoolChecker>(false, "强制", "常规")),
-            make_command("发起中断比赛", user_interrupt_game, VoidChecker(META_COMMAND_SIGN "中断"), OptionalDefaultChecker<BoolChecker>(false, "取消", "确定")),
+            make_command("在游戏中发起中断比赛", user_interrupt_game, VoidChecker(META_COMMAND_SIGN "中断"), OptionalDefaultChecker<BoolChecker>(false, "取消", "确定")),
         }
     }
 };

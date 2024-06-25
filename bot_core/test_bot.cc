@@ -1730,6 +1730,17 @@ TEST_F(TestBot, user_interrupt_when_someone_has_hooked)
   ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
 }
 
+TEST_F(TestBot, user_interrupt_before_game_starts)
+{
+  AddGame<2>("测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_MATCH_NOT_BEGIN, "1", "#中断");
+  ASSERT_PRI_MSG(EC_MATCH_NOT_BEGIN, "2", "#中断");
+  ASSERT_PRI_MSG(EC_MATCH_NOT_BEGIN, "1", "#中断 取消");
+  ASSERT_PRI_MSG(EC_MATCH_NOT_BEGIN, "2", "#中断 取消");
+}
+
 // Achievement
 
 TEST_F(TestBot, get_achievement)

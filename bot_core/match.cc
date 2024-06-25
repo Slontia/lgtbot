@@ -707,9 +707,18 @@ ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool 
 {
     const std::lock_guard<std::mutex> l(mutex_);
     const auto it = users_.find(uid);
+    const char* const operation_str = cancel ? "取消中断" : "确定中断";
     if (it == users_.end() && it->second.state_ == ParticipantUser::State::LEFT) {
-        reply() << "[错误] 中断失败：您未处于游戏中或已经离开";
+        reply() << "[错误] " << operation_str << "失败：您未处于游戏中或已经离开";
         return EC_MATCH_USER_NOT_IN_MATCH;
+    }
+    if (state_ == State::NOT_STARTED) {
+        reply() << "[错误] " << operation_str << "失败：比赛尚未开始";
+        return EC_MATCH_NOT_BEGIN;
+    }
+    if (state_ == State::IS_OVER) {
+        reply() << "[错误] " << operation_str << "失败：比赛已经结束";
+        return EC_MATCH_ALREADY_OVER;
     }
     it->second.want_interrupt_ = !cancel;
     const auto remain = std::count_if(users_.begin(), users_.end(), [this](const auto& pair)
@@ -720,13 +729,13 @@ ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool 
                          players_[user.pid_].state_ != Player::State::ACTIVE);
 
             });
-    reply() << "中断成功";
+    reply() << operation_str << "成功";
     if (remain == 0) {
         BoardcastAtAll() << "全员支持中断游戏，游戏已中断，谢谢大家参与";
         MatchLog(InfoLog()) << "Match is interrupted by users";
         Terminate_();
     } else {
-        Boardcast() << "有玩家" << (cancel ? "取消" : "确定") << "中断游戏，目前 " << remain << " 人尚未确定中止，所有玩家可通过「" META_COMMAND_SIGN "中断」命令确定中断游戏，或「" META_COMMAND_SIGN "中断 取消」命令取消中断游戏";
+        Boardcast() << "有玩家" << operation_str << "比赛，目前 " << remain << " 人尚未确定中断，所有玩家可通过「" META_COMMAND_SIGN "中断」命令确定中断比赛，或「" META_COMMAND_SIGN "中断 取消」命令取消中断比赛";
     }
 
     return EC_OK;
