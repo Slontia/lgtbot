@@ -328,9 +328,9 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::OK;
         }
         if ((Main().player_coins_[pid] >= 25 && rand() % 3 < 2) || (Main().player_hp_[pid] <= 5 && rand() % 10 == 0)) {
-            Selected_(pid, reply, 'L', pid, 0);
+            Selected_(pid, reply, 'L', pid + 1, 0);
         } else if (Main().alive_ == 1) {
-            Selected_(pid, reply, 'P', pid, Main().round_coin);
+            Selected_(pid, reply, 'P', pid + 1, Main().round_coin);
         } else {
             int rd = rand() % 100;
             int target;
