@@ -14,6 +14,7 @@
 
 #include "utility/msg_checker.h"
 #include "utility/log.h"
+#include "utility/empty_func.h"
 #include "game_framework/game_main.h"
 #include "bot_core/db_manager.h"
 #include "bot_core/match.h"
@@ -29,7 +30,6 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, GameHandle
         , game_handle_(game_handle)
         , host_uid_(host_uid)
         , gid_(gid)
-        , state_(State::NOT_STARTED)
         , options_{
             .game_options_ = std::move(options.game_options_),
             .generic_options_{
@@ -37,16 +37,7 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, GameHandle
                 lgtbot::game::MutableGenericOptions{std::move(options.generic_options_)}
             },
           }
-        , main_stage_(nullptr, [](const lgtbot::game::MainStageBase*) {}) // make when game starts
-        , users_()
-        , boardcast_private_sender_(MsgSenderBatchHandler(*this, false))
-        , boardcast_ai_info_private_sender_(MsgSenderBatchHandler(*this, true))
         , group_sender_(gid.has_value() ? std::optional<MsgSender>(bot.MakeMsgSender(*gid_, this)) : std::nullopt)
-        , help_cmd_(Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片")))
-#ifdef TEST_BOT
-        , before_handle_timeout_(false)
-#endif
-        , is_in_deduction_(false)
 {
     EmplaceUser_(host_uid);
 }
@@ -147,7 +138,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         return EC_MATCH_USER_NOT_IN_MATCH;
     }
     if (state_ == State::IS_OVER) {
-        MatchLog(WarnLog()) << "Match is over but receive request uid=" << uid << " msg=" << msg;
+        MatchLog_(WarnLog()) << "Match is over but receive request uid=" << uid << " msg=" << msg;
         reply() << "[错误] 游戏已经结束";
         return EC_MATCH_ALREADY_OVER;
     }
@@ -294,7 +285,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
         it->second.state_ = ParticipantUser::State::LEFT;
         if (std::ranges::all_of(users_, [](const auto& user) { return user.second.state_ == ParticipantUser::State::LEFT; })) {
             Boardcast() << "所有玩家都强制退出了游戏，那还玩啥玩，游戏解散，结果不会被记录";
-            MatchLog(InfoLog()) << "All users left the game";
+            MatchLog_(InfoLog()) << "All users left the game";
             Terminate_();
         } else {
             main_stage_->HandleLeave(it->second.pid_);
@@ -387,33 +378,34 @@ MsgSenderBase::MsgSenderGuard Match::BoardcastAtAll()
 bool Match::SwitchHost()
 {
     if (users_.empty()) {
-        MatchLog(InfoLog()) << "SwitchHost but no users left";
+        MatchLog_(InfoLog()) << "SwitchHost but no users left";
         return false;
     }
     if (state_ == NOT_STARTED) {
         host_uid_ = users_.begin()->first;
         Boardcast() << At(host_uid_) << "被选为新房主";
-        MatchLog(InfoLog()) << "SwitchHost succeed";
+        MatchLog_(InfoLog()) << "SwitchHost succeed";
     }
     return true;
 }
 
 // REQUIRE: should be protected by mutex_
-void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
+void Match::TimerController::Start(Match& match, const uint64_t sec, void* alert_arg,
+        void(*alert_cb)(void*, uint64_t))
 {
     static const uint64_t kMinAlertSec = 10;
     if (sec == 0) {
         return;
     }
-    StopTimer();
+    Stop(match);
     timer_is_over_ = std::make_shared<bool>(false);
+
     // We must store a timer_is_over because it may be reset to true when new timer begins.
-    const auto timeout_handler = [this, timer_is_over = timer_is_over_, match_wk = weak_from_this()]()
+    const auto timeout_handler = [this, timer_is_over = timer_is_over_, match_wk = match.weak_from_this()](const uint64_t /*sec*/)
         {
             // Handle a reference because match may be removed from match_manager if timeout cause game over.
             auto match = match_wk.lock();
             if (!match) {
-                MatchLog(WarnLog()) << "Timer timeout but match has been already released";
                 return; // match is released
             }
 #ifdef TEST_BOT
@@ -437,62 +429,76 @@ void Match::StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t))
             // If stage has been finished by other request, timeout event should not be triggered again, so we check stage_is_over_ here.
             // Should NOT use this->timer_is_over_ here which may be belong to a new timer.
             if (!*timer_is_over) {
-                MatchLog(DebugLog()) << "Timer timeout";
+                match->MatchLog_(DebugLog()) << "Timer timeout";
                 match->main_stage_->HandleTimeout();
                 match->Routine_();
             } else {
-                MatchLog(WarnLog()) << "Timer timeout but timer has been already over";
+                match->MatchLog_(WarnLog()) << "Timer timeout but timer has been already over";
             }
         };
-    Timer::TaskSet tasks;
+
+    const auto alert_handler =
+        [alert_cb, alert_arg, timer_is_over = timer_is_over_, match_wk = match.weak_from_this()](const uint64_t alert_sec)
+        {
+            auto match = match_wk.lock();
+            if (!match) {
+                match->MatchLog_(WarnLog()) << "Timer alert but match is released sec=" << alert_sec;
+                return; // match is released
+            }
+            std::lock_guard<std::mutex> l(match->mutex_);
+            if (!*timer_is_over) {
+                match->MatchLog_(DebugLog()) << "Timer alert sec=" << alert_sec;
+                alert_cb(alert_arg, alert_sec);
+            } else {
+                match->MatchLog_(WarnLog()) << "Timer alert but timer has been already over sec=" << alert_sec;
+            }
+        };
+
+    Timer::TaskSet timeup_tasks;
     if (kMinAlertSec > sec / 2) {
-        tasks.emplace_front(sec, timeout_handler);
+        // time is short, we need not alert
+        timeup_tasks.emplace_front(sec, timeout_handler);
     } else {
-        tasks.emplace_front(kMinAlertSec, timeout_handler);
+        timeup_tasks.emplace_front(kMinAlertSec, timeout_handler);
         uint64_t sum_alert_sec = kMinAlertSec;
         for (uint64_t alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2) {
-            tasks.emplace_front(alert_sec, [cb, p, alert_sec, timer_is_over = timer_is_over_, match_wk = weak_from_this()]()
-                    {
-                        auto match = match_wk.lock();
-                        if (!match) {
-                            match->MatchLog(WarnLog()) << "Timer alert but match is released sec=" << alert_sec;
-                            return; // match is released
-                        }
-                        std::lock_guard<std::mutex> l(match->mutex_);
-                        if (!*timer_is_over) {
-                            match->MatchLog(DebugLog()) << "Timer alert sec=" << alert_sec;
-                            cb(p, alert_sec);
-                        } else {
-                            match->MatchLog(WarnLog()) << "Timer alert but timer has been already over sec=" << alert_sec;
-                        }
-                    });
+            timeup_tasks.emplace_front(alert_sec, alert_handler);
         }
-        tasks.emplace_front(sec - sum_alert_sec, [] {});
+        timeup_tasks.emplace_front(sec - sum_alert_sec, g_empty_func);
     }
-    timer_ = std::make_unique<Timer>(std::move(tasks)); // start timer
+    timer_ = std::make_unique<Timer>(std::move(timeup_tasks)); // start timer
 }
 
 // This function can be invoked event if timer is not started.
 // REQUIRE: should be protected by mutex_
-void Match::StopTimer()
+// RETURN: the remain milliseconds. The valud of zero indicates that the timer has already been over.
+void Match::TimerController::Stop(const Match& match)
 {
-    if (timer_is_over_ != nullptr) {
-        MatchLog(DebugLog()) << "Timer stop";
-        *timer_is_over_ = true;
-    } else {
-        MatchLog(WarnLog()) << "Timer stop but timer has been already over";
+    assert(!((timer_is_over_ == nullptr) ^ (timer_ == nullptr)));
+    if (timer_is_over_ == nullptr) {
+        match.MatchLog_(WarnLog()) << "Timer stop but timer has been already over";
+        return;
     }
-    timer_ = nullptr; // stop timer
+    *timer_is_over_ = true;
+    timer_is_over_ = nullptr;
+    timer_ = nullptr;
+    match.MatchLog_(DebugLog()) << "Timer stop";
 }
+
+void Match::StartTimer(const uint64_t sec, void* alert_arg, void(*alert_cb)(void*, uint64_t))
+{
+    return timer_cntl_.Start(*this, sec, alert_arg, alert_cb);
+}
+
+void Match::StopTimer() { return timer_cntl_.Stop(*this); }
 
 void Match::Eliminate(const PlayerID pid)
 {
     if (std::exchange(players_[pid].state_, Player::State::ELIMINATED) != Player::State::ELIMINATED) {
-        // TODO: check all players of the user
         Tell(pid) << "很遗憾，您被淘汰了，可以通过「" META_COMMAND_SIGN "退出」以退出游戏";
         is_in_deduction_ = std::ranges::all_of(players_,
                 [](const auto& p) { return std::get_if<ComputerID>(&p.id_) || p.state_ == Player::State::ELIMINATED; });
-        MatchLog(InfoLog()) << "Eliminate player pid=" << pid << " is_in_deduction=" << Bool2Str(is_in_deduction_);
+        MatchLog_(InfoLog()) << "Eliminate player pid=" << pid << " is_in_deduction=" << Bool2Str(is_in_deduction_);
     }
 }
 
@@ -500,7 +506,6 @@ void Match::Hook(const PlayerID pid)
 {
     auto& player = players_[pid];
     if (player.state_ == Player::State::ACTIVE) {
-        // TODO: check all players of the user
         Tell(pid) << "您已经进入挂机状态，若其他玩家已经行动完成，裁判将不再继续等待您，执行任意游戏请求可恢复至原状态";
         player.state_ = Player::State::HOOKED;
     }
@@ -586,7 +591,7 @@ std::string Match::OptionInfo_() const
 void Match::OnGameOver_()
 {
     if (state_ == State::IS_OVER) {
-        MatchLog(WarnLog()) << "OnGameOver_ but has already been over";
+        MatchLog_(WarnLog()) << "OnGameOver_ but has already been over";
         return;
     }
     std::vector<std::pair<UserID, int64_t>> user_game_scores;
@@ -603,7 +608,7 @@ void Match::OnGameOver_()
                 const char* const* const achievements = main_stage_->VerdictateAchievements(pid);
                 for (const char* const* achievement_name_p = achievements; *achievement_name_p; ++achievement_name_p) {
                     user_achievements.emplace_back(*pval, *achievement_name_p);
-                    MatchLog(InfoLog()) << "User get achievement uid=" << *pval << " achievement=" << *achievement_name_p;
+                    MatchLog_(InfoLog()) << "User get achievement uid=" << *pval << " achievement=" << *achievement_name_p;
                 }
             }
         }
@@ -633,7 +638,7 @@ void Match::OnGameOver_()
                         multiple, user_game_scores, user_achievements);
                 score_info.empty()) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
-            MatchLog(ErrorLog()) << "Save database failed";
+            MatchLog_(ErrorLog()) << "Save database failed";
         } else {
             assert(score_info.size() == users_.size());
             sender << "\n\n游戏结果写入数据库成功：";
@@ -654,7 +659,7 @@ void Match::OnGameOver_()
     }
     state_ = State::IS_OVER; // is necessary because other thread may own a match reference
     game_handle_.IncreaseActivity(users_.size());
-    MatchLog(InfoLog()) << "Match is over normally";
+    MatchLog_(InfoLog()) << "Match is over normally";
     Terminate_();
 }
 
@@ -732,7 +737,7 @@ ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool 
     reply() << operation_str << "成功";
     if (remain == 0) {
         BoardcastAtAll() << "全员支持中断游戏，游戏已中断，谢谢大家参与";
-        MatchLog(InfoLog()) << "Match is interrupted by users";
+        MatchLog_(InfoLog()) << "Match is interrupted by users";
         Terminate_();
     } else {
         Boardcast() << "有玩家" << operation_str << "比赛，目前 " << remain << " 人尚未确定中断，所有玩家可通过「" META_COMMAND_SIGN "中断」命令确定中断比赛，或「" META_COMMAND_SIGN "中断 取消」命令取消中断比赛";
@@ -746,7 +751,7 @@ ErrCode Match::Terminate(const bool is_force)
     const std::lock_guard<std::mutex> l(mutex_);
     if (is_force || state_ == State::NOT_STARTED) {
         BoardcastAtAll() << "游戏已解散，谢谢大家参与";
-        MatchLog(InfoLog()) << "Match is terminated outside";
+        MatchLog_(InfoLog()) << "Match is terminated outside";
         Terminate_();
         return EC_OK;
     } else {

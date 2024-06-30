@@ -538,8 +538,8 @@ class TestBot : public testing::Test
     void WaitBeforeHandleTimeout(UserID uid)
     {
         auto& match = *bot_->match_manager().GetMatch(uid);
-        std::unique_lock<std::mutex> l(match.before_handle_timeout_mutex_);
-        match.before_handle_timeout_cv_.wait(l, [&match] { return match.before_handle_timeout_; });
+        std::unique_lock<std::mutex> l(match.timer_cntl_.before_handle_timeout_mutex_);
+        match.timer_cntl_.before_handle_timeout_cv_.wait(l, [&match] { return match.timer_cntl_.before_handle_timeout_; });
     }
 
     static void BlockTimer()

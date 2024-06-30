@@ -60,7 +60,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     virtual const char* PlayerName(const PlayerID& pid) override;
     virtual const char* PlayerAvatar(const PlayerID& pid, const int32_t size) override;
 
-    virtual void StartTimer(const uint64_t sec, void* p, void(*cb)(void*, uint64_t)) override;
+    virtual void StartTimer(const uint64_t sec, void* alert_arg, void(*alert_cb)(void*, uint64_t)) override;
     virtual void StopTimer() override;
 
     virtual void Eliminate(const PlayerID pid) override;
@@ -127,7 +127,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     uint32_t Multiple_() const { return game_handle_.Info().multiple_fn_(options_.game_options_.get()); }
 
     template <typename Logger>
-    Logger& MatchLog(Logger&& logger) const
+    Logger& MatchLog_(Logger&& logger) const
     {
         logger << "[mid=" << MatchId() << "] ";
         if (gid_.has_value()) {
@@ -162,11 +162,36 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     GameHandle& game_handle_;
     UserID host_uid_;
     const std::optional<GroupID> gid_;
-    std::atomic<State> state_;
+    std::atomic<State> state_{State::NOT_STARTED};
 
-    // time info
-    std::shared_ptr<bool> timer_is_over_; // must before match because atom stage will call StopTimer
-    std::unique_ptr<Timer> timer_;
+    struct TimerController
+    {
+      public:
+        void Start(Match& match, uint64_t sec, void* alert_arg, void(*alert_cb)(void*, uint64_t));
+
+        void Stop(const Match& match);
+
+      private:
+        std::shared_ptr<bool> timer_is_over_; // must before match because atom stage will call StopTimer
+        std::unique_ptr<Timer> timer_;
+
+#ifdef TEST_BOT
+      public:
+        std::mutex before_handle_timeout_mutex_;
+        std::condition_variable before_handle_timeout_cv_;
+        bool before_handle_timeout_{false};
+#endif
+    };
+
+#ifdef TEST_BOT
+  public:
+#endif
+
+    TimerController timer_cntl_;
+
+#ifdef TEST_BOT
+  private:
+#endif
 
     // options
     struct Options
@@ -184,7 +209,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     Options options_;
 
     // game
-    GameHandle::main_stage_ptr main_stage_;
+    GameHandle::main_stage_ptr main_stage_{nullptr, [](const lgtbot::game::MainStageBase*) {}};
 
     // user info
     std::map<UserID, ParticipantUser> users_;
@@ -209,8 +234,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         Match& match_;
         bool ai_only_;
     };
-    MsgSenderBatch<MsgSenderBatchHandler> boardcast_private_sender_;
-    MsgSenderBatch<MsgSenderBatchHandler> boardcast_ai_info_private_sender_;
+    MsgSenderBatch<MsgSenderBatchHandler> boardcast_private_sender_{MsgSenderBatchHandler(*this, false)};
+    MsgSenderBatch<MsgSenderBatchHandler> boardcast_ai_info_private_sender_{MsgSenderBatchHandler(*this, true)};
     std::optional<MsgSender> group_sender_;
 
     // player info (fill when game ready to start)
@@ -223,14 +248,10 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     };
     std::vector<Player> players_; // all players, include computers
 
-    const Command<void(MsgSenderBase&)> help_cmd_;
+    const Command<void(MsgSenderBase&)> help_cmd_{
+        Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"),
+                OptionalDefaultChecker<BoolChecker>(false, "文字", "图片"))
+    };
 
-#ifdef TEST_BOT
-  public:
-    std::mutex before_handle_timeout_mutex_;
-    std::condition_variable before_handle_timeout_cv_;
-    bool before_handle_timeout_;
-#endif
-
-    bool is_in_deduction_;
+    bool is_in_deduction_{false};
 };

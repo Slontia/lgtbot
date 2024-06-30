@@ -14,7 +14,7 @@
 class Timer
 {
    public:
-    using TaskSet = std::list<std::pair<uint64_t, std::function<void()>>>;
+    using TaskSet = std::list<std::pair<uint64_t, std::function<void(uint64_t)>>>;
     Timer(TaskSet&& tasks) : is_over_(false)
     {
 #ifdef TEST_BOT
@@ -41,9 +41,9 @@ class Timer
                         ++remaining_thread_count_;
 #endif
                         // TODO: we should wait all detached threads to finish before exiting
-                        std::thread([handle]
+                        std::thread([sec, handle]
                                 {
-                                    handle();
+                                    handle(sec);
 #ifdef TEST_BOT
                                     std::lock_guard<std::mutex> l(Timer::mutex_);
                                     if (0 == --remaining_thread_count_) {
