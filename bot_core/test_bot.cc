@@ -9,6 +9,7 @@ EXTEND_ACHIEVEMENT(普通成就, "一个专门用来测试的成就")
 #elif defined EXTEND_OPTION
 
 EXTEND_OPTION("时间限制", 时限, (ArithChecker<int>(0, 10)), 1)
+EXTEND_OPTION("直接结束游戏", 直接结束, (OptionalDefaultChecker<BoolChecker>(true, "开启", "关闭")), false)
 
 #else
 
@@ -212,6 +213,12 @@ class SubStage : public SubGameStage<>
     {
         Global().Boardcast() << "子阶段开始";
         Global().StartTimer(GAME_OPTION(时限));
+        if (GAME_OPTION(直接结束)) {
+            Global().Boardcast() << "游戏直接结束";
+            for (PlayerID player_id = 0; player_id < Global().PlayerNum(); ++player_id) {
+                Global().SetReady(player_id);
+            }
+        }
     }
 
     virtual CheckoutErrCode OnStageTimeout() override
@@ -415,6 +422,12 @@ class AtomMainStage : public MainGameStage<>
     {
         Global().Boardcast() << "原子主阶段开始";
         Global().StartTimer(GAME_OPTION(时限));
+        if (GAME_OPTION(直接结束)) {
+            Global().Boardcast() << "游戏直接结束";
+            for (PlayerID player_id = 0; player_id < Global().PlayerNum(); ++player_id) {
+                Global().SetReady(player_id);
+            }
+        }
     }
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return 0; };
@@ -597,6 +610,14 @@ TEST_F(TestBot, start_game_after_start_failure)
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#开始");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "准备");
   ASSERT_PRI_MSG(EC_GAME_REQUEST_CHECKOUT, "2", "准备");
+}
+
+TEST_F(TestBot, start_game_immediately_finish)
+{
+  AddGame<0>("测试游戏");
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%配置 测试游戏 直接结束");
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏 单机"); // game starts then finishes immediately
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
 }
 
 // Join Not Existing Game
