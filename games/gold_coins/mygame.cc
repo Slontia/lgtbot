@@ -23,10 +23,12 @@ template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages.
 
 const std::string k_game_name = "爆金币"; // the game name which should be unique among all the games
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } // 0 indicates no max-player limits
-uint32_t Multiple(const MyGameOptions& options) { return 0; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+uint32_t Multiple(const MyGameOptions& options) { return 1; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "铁蛋";
 const std::string k_description = "选择行动，与他人博弈抢夺金币的游戏";
-const MutableGenericOptions k_default_generic_options;
+const MutableGenericOptions k_default_generic_options{
+    .is_formal_{false},
+};
 
 const char* const settlement_details[7] = {
     R"EOF(· 完整判定顺序为：
@@ -146,7 +148,7 @@ class MainStage : public MainGameStage<RoundStage>
     const string takehp_success_color = "FFD4F3";   // 夺血条成功颜色
     const string leave_color = "E5E5E5";   // 撤离颜色
 
-    const int image_width = Global().PlayerNum() < 8 ? Global().PlayerNum() * 80 + 90 : (Global().PlayerNum() < 16 ? Global().PlayerNum() * 60 + 70 : Global().PlayerNum() * 40 + 50);
+    const int image_width = Global().PlayerNum() < 8 ? Global().PlayerNum() * 80 + 90 : (Global().PlayerNum() < 16 ? Global().PlayerNum() * 70 + 70 : Global().PlayerNum() * 40 + 50);
 
     string GetName(std::string x);
     string GetStatusBoard();
