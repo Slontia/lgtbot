@@ -126,15 +126,19 @@ class MainStage : public MainGameStage<TargetStage, RoundStage>
         if (reason == CheckoutReason::BY_TIMEOUT || reason == CheckoutReason::BY_LEAVE) {
             return;
         }
+        auto &point = table.playerPoint;
+        auto &target = table.targetScore;
+        auto &att = table.attacker;
+        auto &def = table.defender;
         // 游戏结束判定
-        int game_end = (GAME_OPTION(模式) == 0 && round_ % 2 == 0 && (table.playerPoint[0] >= GAME_OPTION(目标) || table.playerPoint[1] >= GAME_OPTION(目标))) ||               // [经典]偶数回合提前达到目标分
-                       (GAME_OPTION(模式) == 0 && round_ % 2 == 1 && table.playerPoint[0] >= GAME_OPTION(目标) && table.playerPoint[0] > table.playerPoint[1] + 1) ||           // [经典]奇数回合提前达到目标分0
-                       (GAME_OPTION(模式) == 0 && round_ % 2 == 1 && table.playerPoint[1] >= GAME_OPTION(目标) && table.playerPoint[1] > table.playerPoint[0] + 1) ||           // [经典]奇数回合提前达到目标分1
-                       (GAME_OPTION(模式) == 1 && round_ < 10 && table.playerPoint[0] > table.playerPoint[1] + table.GetPlayerLeftRound(1)) ||                                  // [点球]提前获胜0
-                       (GAME_OPTION(模式) == 1 && round_ < 10 && table.playerPoint[1] > table.playerPoint[0] + table.GetPlayerLeftRound(0)) ||                                  // [点球]提前获胜1
-                       (GAME_OPTION(模式) == 1 && round_ >= 10 && round_ % 2 == 0 && table.playerPoint[0] != table.playerPoint[1]) ||                                           // [点球]10回合后加赛
-                       (GAME_OPTION(模式) == 2 && table.playerPoint[table.attacker] <= 0) ||                                                                                    // [人生]进攻方血量归零
-                       (GAME_OPTION(模式) == 2 && table.playerPoint[table.defender] >= table.targetScore[table.attacker] && table.playerPoint[table.attacker] > 12 - round_);   // [人生]进攻方达到目标且血量充足
+        bool game_end = (GAME_OPTION(模式) == 0 && round_ % 2 == 0 && (point[0] >= GAME_OPTION(目标) || point[1] >= GAME_OPTION(目标))) ||              // [经典]偶数回合提前达到目标分
+                        (GAME_OPTION(模式) == 0 && round_ % 2 == 1 && point[0] >= GAME_OPTION(目标) && point[0] > point[1] + 1) ||                      // [经典]奇数回合提前达到目标分0
+                        (GAME_OPTION(模式) == 0 && round_ % 2 == 1 && point[1] >= GAME_OPTION(目标) && point[1] > point[0] + 1) ||                      // [经典]奇数回合提前达到目标分1
+                        (GAME_OPTION(模式) == 1 && round_ < 10 && point[0] > point[1] + table.GetPlayerLeftRound(1)) ||                                 // [点球]提前获胜0
+                        (GAME_OPTION(模式) == 1 && round_ < 10 && point[1] > point[0] + table.GetPlayerLeftRound(0)) ||                                 // [点球]提前获胜1
+                        (GAME_OPTION(模式) == 1 && round_ >= 10 && round_ % 2 == 0 && point[0] != point[1]) ||                                          // [点球]10回合后加赛
+                        (GAME_OPTION(模式) == 2 && point[att] <= 0) ||                                                                                  // [人生]进攻方血量归零
+                        (GAME_OPTION(模式) == 2 && point[def] >= target[att] && point[att] > 12 - round_ && Global().PlayerName(1) != "机器人0号");     // [人生]进攻方达到目标且血量充足
         if ((++round_) <= GAME_OPTION(回合数) && !game_end) {
             setter.Emplace<RoundStage>(*this, round_);
             return;
@@ -142,11 +146,11 @@ class MainStage : public MainGameStage<TargetStage, RoundStage>
 
         // [经典模式]胜负判定
         if (GAME_OPTION(模式) == 0) {
-            player_scores_[0] = table.playerPoint[0];
-            player_scores_[1] = table.playerPoint[1];
+            player_scores_[0] = point[0];
+            player_scores_[1] = point[1];
             if (round_ > GAME_OPTION(回合数)) {
                 Global().Boardcast() << "回合数到达上限，游戏结束\n"
-                                     << "最终比分：　" << table.playerPoint[0] << " : " << table.playerPoint[1];
+                                     << "最终比分：　" << point[0] << " : " << point[1];
             } else {
                 if (player_scores_[0] >= GAME_OPTION(目标)) {
                     Global().Boardcast() << At(PlayerID(0)) << " 奴隶胜利次数达到目标，获得胜利！";
@@ -160,8 +164,8 @@ class MainStage : public MainGameStage<TargetStage, RoundStage>
         // [点球模式]胜负判定
         if (GAME_OPTION(模式) == 1) {
             Global().Boardcast() << Markdown(table.GetShootoutModeTable(round_ < 10 ? round_ : round_ - 1));
-            player_scores_[0] = table.playerPoint[0];
-            player_scores_[1] = table.playerPoint[1];
+            player_scores_[0] = point[0];
+            player_scores_[1] = point[1];
             if (player_scores_[0] == player_scores_[1]) {
                 Global().Boardcast() << "回合数到达上限，双方平局！";
             } else {
@@ -175,20 +179,20 @@ class MainStage : public MainGameStage<TargetStage, RoundStage>
         // [人生模式]胜负判定
         if (GAME_OPTION(模式) == 2) {
             Global().Boardcast() << Markdown(table.GetLiveModeTable());
-            if (table.playerPoint[table.attacker] <= 0) {
-                player_scores_[table.defender] = 1;
-                Global().Boardcast() << "游戏结束，防守方 " << At(table.defender) << " 获胜！";
+            if (point[att] <= 0) {
+                player_scores_[def] = 1;
+                Global().Boardcast() << "游戏结束，防守方 " << At(def) << " 获胜！";
             } else {
-                if (table.playerPoint[table.defender] >= table.targetScore[table.attacker]) {
-                    player_scores_[table.attacker] = 1;
+                if (point[def] >= target[att]) {
+                    player_scores_[att] = 1;
                     if (round_ <= 12) {
-                        Global().Boardcast() << "进攻方 " << At(table.attacker) << " 达到了目标分且生命大于剩余回合数，提前获得胜利！";
+                        Global().Boardcast() << "进攻方 " << At(att) << " 达到了目标分且生命大于剩余回合数，提前获得胜利！";
                     } else {
-                        Global().Boardcast() << "游戏结束，进攻方 " << At(table.attacker) << " 达到了目标分，获得胜利！";
+                        Global().Boardcast() << "游戏结束，进攻方 " << At(att) << " 达到了目标分，获得胜利！";
                     }
                 } else {
-                    player_scores_[table.defender] = 1;
-                    Global().Boardcast() << "游戏结束，进攻方未达到目标分，防守方 " << At(table.defender) << " 获胜！";
+                    player_scores_[def] = 1;
+                    Global().Boardcast() << "游戏结束，进攻方未达到目标分，防守方 " << At(def) << " 获胜！";
                 }
             }
         }

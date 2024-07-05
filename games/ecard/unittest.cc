@@ -98,7 +98,7 @@ GAME_TEST(2, LiveMode_TargetStageTimeout_test)
     ASSERT_PRI_MSG(OK, 0, "500");
     ASSERT_TIMEOUT(CHECKOUT);
     
-    ASSERT_SCORE(0,-1);
+    ASSERT_SCORE(0, -1);
 }
 
 GAME_TEST(2, LiveMode_BidStageTimeout_test)
@@ -112,7 +112,7 @@ GAME_TEST(2, LiveMode_BidStageTimeout_test)
 
     ASSERT_TIMEOUT(CHECKOUT);
     
-    ASSERT_SCORE(0,-1);
+    ASSERT_SCORE(0, -1);
 }
 
 GAME_TEST(2, LiveMode_GameStageLeave_test)
