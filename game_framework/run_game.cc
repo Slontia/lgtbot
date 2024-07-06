@@ -106,7 +106,7 @@ void ReadGameOptionsFromStdin(GameOptions& game_options)
 
 void SetPlayerNumber(Options& options)
 {
-    if (const auto max_player = MaxPlayerNum(options.game_options_); FLAGS_player > max_player) {
+    if (const auto max_player = MaxPlayerNum(options.game_options_); max_player != 0 && FLAGS_player > max_player) {
         throw FailTestException("Test player number exceeds the limit " + std::to_string(max_player));
     } else if (FLAGS_player != 0) {
         options.generic_options_.bench_computers_to_player_num_ = FLAGS_player;

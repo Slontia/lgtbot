@@ -548,7 +548,7 @@ class DiscardStage : public SubGameStage<k_type>
         }
         const auto best_deck = this->Main().players()[pid].hand_.BestDeck();
         std::vector<std::string> discard_poker_strs;
-        std::vector<poker::Card<k_type>> shuffled_pokers = poker::ShuffledPokers<k_type>();
+        const auto shuffled_pokers = poker::ShuffledPokers<k_type>();
         for (const auto& poker : shuffled_pokers) {
             // should not break the best deck
             if (this->Main().players()[pid].hand_.Has(poker) &&

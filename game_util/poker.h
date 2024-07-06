@@ -98,6 +98,23 @@ namespace poker {
 #define ENUM_FILE "../game_util/poker.h"
 #include "../utility/extend_enum.h"
 
+constexpr inline const char* GetPatternTypeName(const PatternType type)
+{
+    constexpr const char* k_pattern_type_names[] = {
+        [PatternType{PatternType::HIGH_CARD}.ToUInt()] = "高牌",
+        [PatternType{PatternType::ONE_PAIR}.ToUInt()] = "一对",
+        [PatternType{PatternType::TWO_PAIRS}.ToUInt()] = "两对",
+        [PatternType{PatternType::THREE_OF_A_KIND}.ToUInt()] = "三条",
+        [PatternType{PatternType::STRAIGHT}.ToUInt()] = "顺子",
+        [PatternType{PatternType::FLUSH}.ToUInt()] = "同花",
+        [PatternType{PatternType::FULL_HOUSE}.ToUInt()] = "满堂红",
+        [PatternType{PatternType::FOUR_OF_A_KIND}.ToUInt()] = "四条",
+        [PatternType{PatternType::STRAIGHT_FLUSH}.ToUInt()] = "同花顺",
+    };
+    static_assert(sizeof(k_pattern_type_names) / sizeof(k_pattern_type_names[0]) == PatternType::Count());
+    return k_pattern_type_names[type.ToUInt()];
+}
+
 enum class CardType { POKER, BOKAA };
 
 template <CardType k_type> struct Types;
@@ -175,6 +192,9 @@ struct Types<CardType::POKER>
 };
 
 template <CardType k_type>
+constexpr uint32_t k_card_num = Types<k_type>::NumberType::Count() * Types<k_type>::SuitType::Count();
+
+template <CardType k_type>
 struct Card
 {
     auto operator<=>(const Card&) const = default;
@@ -192,14 +212,22 @@ void swap(Card<k_type>& _1, Card<k_type>& _2)
 }
 
 template <CardType k_type>
-std::vector<Card<k_type>> ShuffledPokers(const std::string_view& sv = "")
+std::array<Card<k_type>, k_card_num<k_type>> UnshuffledPokers()
 {
-    std::vector<Card<k_type>> cards;
+    std::array<Card<k_type>, k_card_num<k_type>> cards;
+    auto it = cards.begin();
     for (const auto& number : Types<k_type>::NumberType::Members()) {
         for (const auto& suit : Types<k_type>::SuitType::Members()) {
-            cards.emplace_back(number, suit);
+            *(it++) = Card<k_type>{number, suit};
         }
     }
+    return cards;
+}
+
+template <CardType k_type>
+std::array<Card<k_type>, k_card_num<k_type>> ShuffledPokers(const std::string_view& sv = "")
+{
+    auto cards = UnshuffledPokers<k_type>();
     if (sv.empty()) {
         std::random_device rd;
         std::mt19937 g(rd());
@@ -391,25 +419,18 @@ struct OptionalDeck : public std::optional<Deck<k_type>>
 };
 
 template <CardType k_type>
+bool IsRoralStraightFlush(const Deck<k_type>& deck)
+{
+    return deck.type_ == PatternType::STRAIGHT_FLUSH && deck.pokers_.front().number_ == Types<k_type>::k_max_number_;
+}
+
+template <CardType k_type>
 const char* Deck<k_type>::TypeName() const
 {
-    switch (type_) {
-        case PatternType::HIGH_CARD: return "高牌";
-        case PatternType::ONE_PAIR: return "一对";
-        case PatternType::TWO_PAIRS: return "两对";
-        case PatternType::THREE_OF_A_KIND: return "三条";
-        case PatternType::STRAIGHT: return "顺子";
-        case PatternType::FLUSH: return "同花";
-        case PatternType::FULL_HOUSE: return "满堂红";
-        case PatternType::FOUR_OF_A_KIND: return "四条";
-        case PatternType::STRAIGHT_FLUSH:
-            if (pokers_.front().number_ == Types<k_type>::k_max_number_) {
-                return "皇家同花顺";
-            } else {
-                return "同花顺";
-            }
+    if (IsRoralStraightFlush(*this)) {
+        return "皇家同花顺";
     }
-    return "【错误：未知的牌型】";
+    return GetPatternTypeName(type_);
 }
 
 template <typename Sender, CardType k_type>

@@ -32,6 +32,9 @@ const std::string k_developer = "佚名";
 // The game description which can be shown in the game list image.
 const std::string k_description = "暂无游戏描述";
 
+// The default generic options.
+const MutableGenericOptions k_default_generic_options;
+
 // The commands for showing more rules information. Users can get the information by "#规则 <game name> <rule command>...".
 const std::vector<RuleCommand> k_rule_commands = {};
 

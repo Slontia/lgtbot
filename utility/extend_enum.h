@@ -136,10 +136,10 @@ public: \
     constexpr static name::SubSet<MEMBERS...> Condition(const bool cond, const name::SubSet<MEMBERS...> _1, const name::SubSet<MEMBERS...> _2) { return cond ? _1 : _2; } \
 }; \
 \
-class name::BitSet : protected std::bitset<name::Count()> \
+class name::BitSet : public std::bitset<name::Count()> \
 { \
   public: \
-    using std::bitset<name::Count()>::bitset; \
+    using bitset::bitset; \
 \
     bool operator==(const BitSet& rhs) const = default; \
 \
