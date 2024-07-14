@@ -66,6 +66,12 @@ string specialRule(vector<Player>& players, int type, string time)
 	        ret += "\n\n";
 	        ret += "游戏结束时，如果某玩家分数为 0  ，他 +100。";
 		}
+		if(type == 9)
+	    {
+			ret += "    [ 左右横跳 ]";
+	        ret += "\n\n";
+	        ret += "玩家不允许在相邻的两回合选择同一个的选项。";
+		}
 		
 		return ret; 
     }
@@ -162,7 +168,10 @@ string specialRule(vector<Player>& players, int type, string time)
 			}
 		}
 	}
-
+	if(type == 9)
+    {
+		
+	}
 
 
     return ret;
