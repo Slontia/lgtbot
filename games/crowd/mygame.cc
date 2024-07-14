@@ -33,12 +33,183 @@ template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages.
 
 const string k_game_name = "乌合之众"; // the game name which should be unique among all the games
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } // 0 indicates no max-player limits
-uint32_t Multiple(const MyGameOptions& options) { return 1; } // the default score multiple for the game, 0 for a testing game,
-//1 for a formal game, 2 or 3 for a long formal game
+uint32_t Multiple(const MyGameOptions& options) {
+    return GET_OPTION_VALUE(options, 测试模式) || GET_OPTION_VALUE(options, 测试) ? 0 : 1;
+} // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const std::string k_developer = "睦月";
 const std::string k_description = "选择恰当选项，尽可能获取分数的游戏";
 const MutableGenericOptions k_default_generic_options;
-const std::vector<RuleCommand> k_rule_commands = {};
+
+
+// formal questions
+constexpr static uint32_t k_question_num = 68;
+// with test questions
+constexpr static uint32_t all_question_num = 108;
+
+
+static const std::array<Question*(*)(), all_question_num> create_question{
+    []() -> Question* { return new Q1(); },
+    []() -> Question* { return new Q2(); },
+    []() -> Question* { return new Q3(); },
+    []() -> Question* { return new Q4(); },
+    []() -> Question* { return new Q5(); },
+    []() -> Question* { return new Q6(); },
+    []() -> Question* { return new Q7(); },
+    []() -> Question* { return new Q8(); },
+    []() -> Question* { return new Q9(); },
+    []() -> Question* { return new Q10(); },
+    []() -> Question* { return new Q11(); },
+    []() -> Question* { return new Q12(); },
+    []() -> Question* { return new Q13(); },
+    []() -> Question* { return new Q14(); },
+    []() -> Question* { return new Q15(); },
+    []() -> Question* { return new Q16(); },
+    []() -> Question* { return new Q17(); },
+    []() -> Question* { return new Q18(); },
+    []() -> Question* { return new Q19(); },
+    []() -> Question* { return new Q20(); },
+    []() -> Question* { return new Q21(); },
+    []() -> Question* { return new Q22(); },
+    []() -> Question* { return new Q23(); },
+    []() -> Question* { return new Q24(); },
+    []() -> Question* { return new Q25(); },
+    []() -> Question* { return new Q26(); },
+    []() -> Question* { return new Q27(); },
+    []() -> Question* { return new Q28(); },
+    []() -> Question* { return new Q29(); },
+    []() -> Question* { return new Q30(); },
+    []() -> Question* { return new Q31(); },
+    []() -> Question* { return new Q32(); },
+    []() -> Question* { return new Q33(); },
+    []() -> Question* { return new Q34(); },
+    []() -> Question* { return new Q35(); },
+    []() -> Question* { return new Q36(); },
+    []() -> Question* { return new Q37(); },
+    []() -> Question* { return new Q38(); },
+    []() -> Question* { return new Q39(); },
+    []() -> Question* { return new Q40(); },
+    []() -> Question* { return new Q41(); },
+    []() -> Question* { return new Q42(); },
+    []() -> Question* { return new Q43(); },
+    []() -> Question* { return new Q44(); },
+    []() -> Question* { return new Q45(); },
+    []() -> Question* { return new Q46(); },
+    []() -> Question* { return new Q47(); },
+    []() -> Question* { return new Q48(); },
+    []() -> Question* { return new Q49(); },
+    []() -> Question* { return new Q50(); },
+    []() -> Question* { return new Q51(); },
+    []() -> Question* { return new Q52(); },
+    []() -> Question* { return new Q53(); },
+    []() -> Question* { return new Q54(); },
+    []() -> Question* { return new Q55(); },
+    []() -> Question* { return new Q56(); },
+    []() -> Question* { return new Q57(); },
+    []() -> Question* { return new Q58(); },
+    []() -> Question* { return new Q59(); },
+    []() -> Question* { return new Q60(); },
+    []() -> Question* { return new Q61(); },
+    []() -> Question* { return new Q62(); },
+    []() -> Question* { return new Q63(); },
+    []() -> Question* { return new Q64(); },
+    []() -> Question* { return new Q65(); },
+    []() -> Question* { return new Q66(); },
+    []() -> Question* { return new Q67(); },
+    []() -> Question* { return new Q68(); },
+    // test questions
+    []() -> Question* { return new Q69(); },
+    []() -> Question* { return new Q70(); },
+    []() -> Question* { return new Q71(); },
+    []() -> Question* { return new Q72(); },
+    []() -> Question* { return new Q73(); },
+    []() -> Question* { return new Q74(); },
+    []() -> Question* { return new Q75(); },
+    []() -> Question* { return new Q76(); },
+    []() -> Question* { return new Q77(); },
+    []() -> Question* { return new Q78(); },
+    []() -> Question* { return new Q79(); },
+    []() -> Question* { return new Q80(); },
+    []() -> Question* { return new Q81(); },
+    []() -> Question* { return new Q82(); },
+    []() -> Question* { return new Q83(); },
+    []() -> Question* { return new Q84(); },
+    []() -> Question* { return new Q85(); },
+    []() -> Question* { return new Q86(); },
+    []() -> Question* { return new Q87(); },
+    []() -> Question* { return new Q88(); },
+    []() -> Question* { return new Q89(); },
+    []() -> Question* { return new Q90(); },
+    []() -> Question* { return new Q91(); },
+    []() -> Question* { return new Q92(); },
+    []() -> Question* { return new Q93(); },
+    []() -> Question* { return new Q94(); },
+    []() -> Question* { return new Q95(); },
+    []() -> Question* { return new Q96(); },
+    []() -> Question* { return new Q97(); },
+    []() -> Question* { return new Q98(); },
+    []() -> Question* { return new Q99(); },
+    []() -> Question* { return new Q100(); },
+    []() -> Question* { return new Q101(); },
+    []() -> Question* { return new Q102(); },
+    []() -> Question* { return new Q103(); },
+    []() -> Question* { return new Q104(); },
+    []() -> Question* { return new Q105(); },
+    []() -> Question* { return new Q106(); },
+    []() -> Question* { return new Q107(); },
+    []() -> Question* { return new Q108(); },
+};
+
+
+string init_question(int id)
+{
+    vector<Player> players;
+    Player tempP;
+    for (int i = 0; i < 10; i++) {
+        players.push_back(tempP);
+    }
+    Question* question = create_question[id - 1]();
+    question -> init(players);
+    question -> initTexts(players);
+    question -> initOptions();
+    thread_local static string str;
+    str = "";
+    str += "题号：#" + to_string(question -> id) + "\n";
+    str += "出题者：" + (question -> author) + "\n";
+    if (id > k_question_num) {
+        str += "[测试] ";
+    }
+    str += "题目：" + (question -> title) + "\n\n";
+    str += question -> String();
+    delete question;
+    return str;
+}
+
+char* find_question(const string& keywords)
+{
+    thread_local static string find_str;
+    thread_local static string notfind_str;
+    notfind_str = "[错误] 未找到包含“" + keywords + "”的题目";
+    bool flag = false;
+    for (int i = 1; i <= all_question_num; i++) {
+        find_str = init_question(i);
+        string::size_type position = find_str.find(keywords);
+        if (position != std::string::npos) {
+            flag = true;
+            break;
+        }
+    }
+    if (flag) {
+        return (char*)find_str.c_str();
+    } else {
+        return (char*)notfind_str.c_str();
+    }
+}
+
+const std::vector<RuleCommand> k_rule_commands = {
+    RuleCommand("根据 关键字或题号 查找题目",
+        [](const string& keywords) { return find_question(keywords); },
+        AnyArg("关键字 / #题号", "#30")),
+};
 
 bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
@@ -127,67 +298,29 @@ class RoundStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
-        constexpr static uint32_t k_question_num = 41;
-
         Question *& q = Main().question;
-
 
         int r = -1;
         int count = 0;
         while(r == -1 || Main().used.find(r) != Main().used.end())
         {
             r = rand() % k_question_num;
-            if(count++ > 1000) break;
+            if (GAME_OPTION(测试模式)) {
+                r = rand() % (all_question_num - k_question_num) + k_question_num;
+            }
+            if(count++ > 1000) {
+                Main().used.clear();
+                break;
+            }
         }
         Main().used.insert(r);
 
-
         if(GAME_OPTION(测试) != 0)
             r = GAME_OPTION(测试) - 1;
-
-        static const std::array<Question*(*)(), k_question_num> create_question{
-            []() -> Question* { return new Q1(); },
-            []() -> Question* { return new Q2(); },
-            []() -> Question* { return new Q3(); },
-            []() -> Question* { return new Q4(); },
-            []() -> Question* { return new Q5(); },
-            []() -> Question* { return new Q6(); },
-            []() -> Question* { return new Q7(); },
-            []() -> Question* { return new Q8(); },
-            []() -> Question* { return new Q9(); },
-            []() -> Question* { return new Q10(); },
-            []() -> Question* { return new Q11(); },
-            []() -> Question* { return new Q12(); },
-            []() -> Question* { return new Q13(); },
-            []() -> Question* { return new Q14(); },
-            []() -> Question* { return new Q15(); },
-            []() -> Question* { return new Q16(); },
-            []() -> Question* { return new Q17(); },
-            []() -> Question* { return new Q18(); },
-            []() -> Question* { return new Q19(); },
-            []() -> Question* { return new Q20(); },
-            []() -> Question* { return new Q21(); },
-            []() -> Question* { return new Q22(); },
-            []() -> Question* { return new Q23(); },
-            []() -> Question* { return new Q24(); },
-            []() -> Question* { return new Q25(); },
-            []() -> Question* { return new Q26(); },
-            []() -> Question* { return new Q27(); },
-            []() -> Question* { return new Q28(); },
-            []() -> Question* { return new Q29(); },
-            []() -> Question* { return new Q30(); },
-            []() -> Question* { return new Q31(); },
-            []() -> Question* { return new Q32(); },
-            []() -> Question* { return new Q33(); },
-            []() -> Question* { return new Q34(); },
-            []() -> Question* { return new Q35(); },
-            []() -> Question* { return new Q36(); },
-            []() -> Question* { return new Q37(); },
-            []() -> Question* { return new Q38(); },
-            []() -> Question* { return new Q39(); },
-            []() -> Question* { return new Q40(); },
-            []() -> Question* { return new Q41(); },
-        };
+        if(r >= all_question_num){
+            Global().Boardcast() << "question not found! RoundStage -> OnStageBegin where r == " + to_string(r);
+            r = 0;
+        }
 
         q = create_question[r]();
 
@@ -200,7 +333,7 @@ class RoundStage : public SubGameStage<>
         }
 
         q -> init(Main().players);
-        q -> initTexts();
+        q -> initTexts(Main().players);
         q -> initOptions();
         q -> initExpects();
 
@@ -212,14 +345,18 @@ class RoundStage : public SubGameStage<>
     virtual CheckoutErrCode OnStageTimeout() override
     {
         // Returning |CHECKOUT| means the current stage will be over.
-
+        
         for(int i=0;i<Global().PlayerNum();i++)
         {
-             if(Global().IsReady(i) == false)
-             {
-                 Main().players[i].select = 0;
-             }
+            if(Global().IsReady(i) == false)
+            {
+                Main().players[i].select = 0;
+                if (GAME_OPTION(特殊规则) == 9 && Main().players[i].lastSelect == 0) {
+                    Main().players[i].select = 1;
+                }
+            }
         }
+        Global().HookUnreadyPlayers();
 
         calc();
 
@@ -250,7 +387,19 @@ class RoundStage : public SubGameStage<>
 
     virtual CheckoutErrCode OnStageOver() override
     {
+        for(int i=0;i<Global().PlayerNum();i++)
+        {
+            if(Global().IsReady(i) == false)
+            {
+                Main().players[i].select = 0;
+                if (GAME_OPTION(特殊规则) == 9 && Main().players[i].lastSelect == 0) {
+                    Main().players[i].select = 1;
+                }
+            }
+        }
+
         calc();
+        
         return StageErrCode::CHECKOUT;
     }
 
@@ -260,10 +409,12 @@ class RoundStage : public SubGameStage<>
         vector<Player> & p = Main().players;
 
         for(int i = 0; i < Global().PlayerNum(); i++)
+            p[i].lastSelect = p[i].select;
+
+        for(int i = 0; i < Global().PlayerNum(); i++)
             p[i].realLastScore = p[i].lastScore;
         for(int i = 0; i < Global().PlayerNum(); i++)
             p[i].lastScore = p[i].score;
-
 
         q -> initCalc(p);
         q -> calc(p);
@@ -366,6 +517,11 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
 
+        if(GAME_OPTION(特殊规则) == 9 && Main().players[pid].lastSelect == submission[0] - 'A') {
+            reply() << "[错误] 特殊规则限制：本回合您不能选择此选项。";
+            return StageErrCode::FAILED;
+        }
+
         return SubmitInternal_(pid, reply, submission);
     }
 
@@ -392,10 +548,19 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
         finalBoard[i] += (string)"<tr>" + "<td bgcolor=\"#D2F4F4\"><font size=7>" + strName(Global().PlayerName(i)) + "</font></td>";
     }
 
+    for(int i = 0; i < Global().PlayerNum(); i++)
+    {
+        players[i].lastSelect = -1;
+    }
+
     int specialRule_ = GAME_OPTION(特殊规则);
     if(specialRule_ != 0)
     {
         Global().Boardcast() << specialRule(players, specialRule_, "gameStart");
+    }
+
+    if(GAME_OPTION(测试模式)) {
+        Global().Boardcast() << "[警告] 正在进行新题测试！如出现异常，请联系管理员中断游戏。";
     }
 
     setter.Emplace<RoundStage>(*this, ++round_);
