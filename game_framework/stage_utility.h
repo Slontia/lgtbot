@@ -55,6 +55,7 @@ class PublicStageUtility
 
     std::string PlayerName(const PlayerID pid) const { return match_.PlayerName(pid); }
     std::string PlayerAvatar(const PlayerID pid, const int32_t size) const { return match_.PlayerAvatar(pid, size); }
+    //std::string PlayerAvatarPath(const PlayerID pid) const { return match_.PlayerAvatarPath(pid); }
 
     void Achieve(const PlayerID pid, const Achievement& achievement) { ++achievement_counts_[pid][achievement.ToUInt()]; }
 

@@ -58,7 +58,7 @@ class AtomicStage : public StageBaseInternal
     template <typename Logger>
     auto& StageLog_(Logger&& logger) const
     {
-        return fsm_.Global().StageLog(logger, fsm_.Name()) << "[complex_stage] ";
+        return fsm_.Global().StageLog(logger, fsm_.Name()) << "[atomic_stage] ";
     }
 
     StageErrCode Handle_(StageErrCode rc);
@@ -145,7 +145,7 @@ class CompoundStage : public StageBaseInternal
     template <typename Logger>
     auto& StageLog_(Logger&& logger) const
     {
-        return fsm_.Global().StageLog(logger, fsm_.Name()) << "[atomic_stage] ";
+        return fsm_.Global().StageLog(logger, fsm_.Name()) << "[complex_stage] ";
     }
 
     template <typename Task>
