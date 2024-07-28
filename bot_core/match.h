@@ -149,6 +149,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     void Terminate_();
     bool Has_(const UserID uid) const;
     std::string HostUserName_() const;
+    uint32_t PlayerNum_() const;
     uint32_t ComputerNum_() const;
     void EmplaceUser_(const UserID uid);
 

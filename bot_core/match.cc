@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <utility> // g++12 has a bug which will cause 'exchange' is not a member of 'std'
 #include <ranges>
+#include <random>
 
 #include "utility/msg_checker.h"
 #include "utility/log.h"
@@ -61,9 +62,14 @@ std::string Match::HostUserName_() const
     return bot_.GetUserName(host_uid_.GetCStr(), gid_.has_value() ? gid_->GetCStr() : nullptr);
 }
 
+uint32_t Match::PlayerNum_() const
+{
+    return std::max(static_cast<size_t>(options_.generic_options_.bench_computers_to_player_num_), users_.size());
+}
+
 uint32_t Match::ComputerNum_() const
 {
-    return std::max(static_cast<size_t>(options_.generic_options_.bench_computers_to_player_num_), users_.size()) - users_.size();
+    return PlayerNum_() - users_.size();
 }
 
 void Match::EmplaceUser_(const UserID uid)
@@ -199,7 +205,6 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
     nlohmann::json players_json_array;
     players_.clear();
     for (auto& [uid, user_info] : users_) {
-        user_info.pid_ = players_.size();
         players_.emplace_back(uid);
         players_json_array.push_back(nlohmann::json{
                     { "user_id", uid.GetStr() }
@@ -211,6 +216,20 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         players_json_array.push_back(nlohmann::json{
                     { "computer_id", static_cast<uint64_t>(cid) }
                 });
+    }
+    if (users_.size() >= 2 && PlayerNum_() >= 3) {
+        std::random_device rd;
+        std::mt19937 g(rd());
+        std::shuffle(players_.begin(), players_.end(), g);
+    }
+    for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
+        const auto user_id = std::get_if<UserID>(&players_[pid].id_);
+        if (!user_id) {
+            continue;
+        }
+        const auto it = users_.find(*user_id);
+        assert(it != users_.end());
+        it->second.pid_ = pid;
     }
     options_.generic_options_.user_num_ = static_cast<uint32_t>(users_.size());
 
@@ -702,8 +721,10 @@ void Match::Routine_()
     }
     const uint64_t computer_num = players_.size() - users_.size();
     uint64_t ok_count = 0;
-    for (uint64_t i = 0; !main_stage_->IsOver() && ok_count < computer_num; i = (i + 1) % computer_num) {
-        const auto pid = users_.size() + i;
+    for (uint64_t pid = 0; !main_stage_->IsOver() && ok_count < computer_num; pid = (pid + 1) % players_.size()) {
+        if (!std::get_if<ComputerID>(&players_[pid].id_)) {
+            continue;
+        }
         if (players_[pid].state_ == Player::State::ELIMINATED || StageErrCode::OK == main_stage_->HandleComputerAct(pid, false)) {
             ++ok_count;
         } else {
