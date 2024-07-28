@@ -246,7 +246,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         VariantID id_;
         State state_;
     };
-    std::vector<Player> players_; // all players, include computers
+    std::vector<Player> players_; // is filled when game starts
 
     const Command<void(MsgSenderBase&)> help_cmd_{
         Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"),

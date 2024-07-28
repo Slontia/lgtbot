@@ -31,14 +31,26 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, GameHandle
         , host_uid_(host_uid)
         , gid_(gid)
         , options_{
+            .resource_holder_{
+                .resource_dir_ =
+                    (std::filesystem::absolute(bot_.game_path()) / game_handle_.Info().module_name_ / "resource" / "").string(),
+                .saved_image_dir_ =
+                    (std::filesystem::absolute(bot_.image_path()) / "matches" /
+                     (std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + "_" + game_handle_.Info().module_name_)).string(),
+            },
             .game_options_ = std::move(options.game_options_),
             .generic_options_{
-                lgtbot::game::ImmutableGenericOptions{},
+                lgtbot::game::ImmutableGenericOptions{
+                    .public_timer_alert_ = GET_OPTION_VALUE(*bot_.option().Lock(), 计时公开提示),
+                    .resource_dir_ = options_.resource_holder_.resource_dir_.c_str(),
+                    .saved_image_dir_ = options_.resource_holder_.saved_image_dir_.c_str(),
+                },
                 lgtbot::game::MutableGenericOptions{std::move(options.generic_options_)}
             },
           }
         , group_sender_(gid.has_value() ? std::optional<MsgSender>(bot.MakeMsgSender(*gid_, this)) : std::nullopt)
 {
+
     EmplaceUser_(host_uid);
 }
 
@@ -51,11 +63,7 @@ std::string Match::HostUserName_() const
 
 uint32_t Match::ComputerNum_() const
 {
-    const auto bench_computers_to_player_num = options_.generic_options_.bench_computers_to_player_num_;
-    if (bench_computers_to_player_num <= users_.size()) {
-        return 0;
-    }
-    return bench_computers_to_player_num - users_.size();
+    return std::max(static_cast<size_t>(options_.generic_options_.bench_computers_to_player_num_), users_.size()) - users_.size();
 }
 
 void Match::EmplaceUser_(const UserID uid)
@@ -186,6 +194,8 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         reply() << "[错误] 开始失败：您并非房主，没有开始游戏的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
     }
+
+    // fill players
     nlohmann::json players_json_array;
     players_.clear();
     for (auto& [uid, user_info] : users_) {
@@ -202,20 +212,16 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
                     { "computer_id", static_cast<uint64_t>(cid) }
                 });
     }
-    options_.resource_holder_.resource_dir_ =
-        (std::filesystem::absolute(bot_.game_path()) / game_handle_.Info().module_name_ / "resource" / "").string();
-    options_.resource_holder_.saved_image_dir_ =
-        (std::filesystem::absolute(bot_.image_path()) / "matches" /
-         (std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + "_" + game_handle_.Info().module_name_)).string();
-    options_.generic_options_.resource_dir_ = options_.resource_holder_.resource_dir_.c_str();
-    options_.generic_options_.saved_image_dir_ = options_.resource_holder_.saved_image_dir_.c_str();
-    options_.generic_options_.public_timer_alert_ = GET_OPTION_VALUE(*bot_.option().Lock(), 计时公开提示);
     options_.generic_options_.user_num_ = static_cast<uint32_t>(users_.size());
+
+    // make main stage
     assert(main_stage_ == nullptr);
     if (!(main_stage_ = game_handle_.MakeMainStage(reply, *options_.game_options_, options_.generic_options_, *this))) {
         reply() << "[错误] 开始失败：不符合游戏参数的预期";
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
+
+    // start main stage
     state_ = State::IS_STARTED;
     BoardcastAtAll() << "游戏开始，您可以使用「帮助」命令（不带" META_COMMAND_SIGN "号），查看可执行命令";
     BoardcastAiInfo() << nlohmann::json{
@@ -225,6 +231,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         }.dump();
     main_stage_->HandleStageBegin();
     Routine_(); // computer act first
+
     return EC_OK;
 }
 
