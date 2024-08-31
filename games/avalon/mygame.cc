@@ -71,6 +71,14 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
                 return NewGameMode::SINGLE_USER;
             },
             VoidChecker("单机")),
+    InitOptionsCommand("不启用任何扩展包",
+            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            {
+                GET_OPTION_VALUE(game_options, 兰斯洛特模式) = LancelotMode::disable;
+                GET_OPTION_VALUE(game_options, 王者之剑) = false;
+                return NewGameMode::MULTIPLE_USERS;
+            },
+            VoidChecker("经典")),
 };
 
 // The function is invoked before a game starts. You can make final adaption for the options.
