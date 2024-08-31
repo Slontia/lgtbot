@@ -31,7 +31,6 @@ ENUM_END(StageErrCode)
 #include <map>
 #include <bitset>
 
-
 #include "bot_core/msg_sender.h"
 
 #ifdef _WIN32
@@ -41,6 +40,7 @@ ENUM_END(StageErrCode)
 #endif
 
 #define ENUM_FILE "game_framework/game_main.h"
+#include "game_framework/game_properties.h"
 #include "utility/extend_enum.h"
 
 class MsgSenderForGame;
@@ -96,14 +96,12 @@ struct GenericOptions : public ImmutableGenericOptions, public MutableGenericOpt
 
 struct GameInfo
 {
-    const char* game_name_;
-    const char* module_name_;
-    const char* rule_;
-    const char* developer_;
-    const char* description_;
+    const GameProperties* properties_{nullptr};
+    const char* module_name_{nullptr};
+    const char* rule_{nullptr};
     struct {
-        const GameAchievement* data_;
-        uint32_t size_;
+        const GameAchievement* data_{nullptr};
+        uint32_t size_{0};
     } achievements_;
     MutableGenericOptions default_generic_options_;
 };

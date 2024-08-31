@@ -489,31 +489,32 @@ class TestBot : public testing::Test
     void AddGame(const char* const name)
     {
         using namespace lgtbot::game::GAME_MODULE_NAME;
+
+        GameHandle::BasicInfo basic_info;
+        basic_info.name_ = name;
+        basic_info.developer_ = "测试开发者";
+        basic_info.description_ = "用来测试的游戏";
+        basic_info.module_name_ = name;
+        basic_info.rule_ = "没有规则";
+        basic_info.max_player_num_fn_ = [](const lgtbot::game::GameOptionsBase*) -> uint64_t { return k_max_player; };
+        basic_info.multiple_fn_ = [](const lgtbot::game::GameOptionsBase*) -> uint32_t { return 1; };
+        basic_info.handle_rule_command_fn_ = [](const char*) -> const char* { return nullptr; };
+        basic_info.handle_init_options_command_fn_ =
+            [](const char* const cmd, lgtbot::game::GameOptionsBase*, lgtbot::game::MutableGenericOptions*)
+                -> lgtbot::game::InitOptionsResult
+            {
+                const std::string_view cmd_sv{cmd};
+                if (cmd_sv.find("单机") != std::string_view::npos) {
+                    return lgtbot::game::InitOptionsResult::NEW_SINGLE_USER_MODE_GAME;
+                }
+                if (cmd_sv.find("多人") != std::string_view::npos) {
+                    return lgtbot::game::InitOptionsResult::NEW_MULTIPLE_USERS_MODE_GAME;
+                }
+                return lgtbot::game::InitOptionsResult::INVALID_INIT_OPTIONS_COMMAND;
+            };
+
         bot_->game_handles().emplace(std::piecewise_construct, std::forward_as_tuple(name), std::forward_as_tuple(
-                    GameHandle::BasicInfo{
-                        .name_ = name,
-                        .module_name_ = name,
-                        .developer_ = "测试开发者",
-                        .description_ = "用来测试的游戏",
-                        .rule_ = "没有规则",
-                        .achievements_{},
-                        .max_player_num_fn_ = [](const lgtbot::game::GameOptionsBase*) -> uint64_t { return k_max_player; },
-                        .multiple_fn_ = [](const lgtbot::game::GameOptionsBase*) -> uint32_t { return 1; },
-                        .handle_rule_command_fn_ = [](const char*) -> const char* { return nullptr; },
-                        .handle_init_options_command_fn_ =
-                            [](const char* const cmd, lgtbot::game::GameOptionsBase*, lgtbot::game::MutableGenericOptions*)
-                                -> lgtbot::game::InitOptionsResult
-                            {
-                                const std::string_view cmd_sv{cmd};
-                                if (cmd_sv.find("单机") != std::string_view::npos) {
-                                    return lgtbot::game::InitOptionsResult::NEW_SINGLE_USER_MODE_GAME;
-                                }
-                                if (cmd_sv.find("多人") != std::string_view::npos) {
-                                    return lgtbot::game::InitOptionsResult::NEW_MULTIPLE_USERS_MODE_GAME;
-                                }
-                                return lgtbot::game::InitOptionsResult::INVALID_INIT_OPTIONS_COMMAND;
-                            },
-                    },
+                    std::move(basic_info),
                     GameHandle::InternalHandler{
                         .game_options_allocator_ = []() -> lgtbot::game::GameOptionsBase* { return new lgtbot::game::GAME_MODULE_NAME::GameOptions(); },
                         .game_options_deleter_ = [](const lgtbot::game::GameOptionsBase* const options) { delete options; },

@@ -19,12 +19,13 @@ namespace GAME_MODULE_NAME {
 class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
-
-const std::string k_game_name = "此路不通"; // the game name which should be unique among all the games
+const GameProperties k_properties { 
+    .name_ = "此路不通", // the game name which should be unique among all the games
+    .developer_ = "铁蛋",
+    .description_ = "猜测并阻止对手移动棋子，使棋子达成3连的游戏",
+};
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } // 0 indicates no max-player limits
 uint32_t Multiple(const MyGameOptions& options) { return 1; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
-const std::string k_developer = "铁蛋";
-const std::string k_description = "猜测并阻止对手移动棋子，使棋子达成3连的游戏";
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 

@@ -49,12 +49,13 @@ class GameHandle
     };
 
     // This information is defined by game.
-    struct BasicInfo
+    struct BasicInfo : public lgtbot::game::GameProperties
     {
-        std::string name_;
+        BasicInfo() = default;
+        BasicInfo(const lgtbot::game::GameProperties& properties) : GameProperties(properties) {}
+
+        //GameProperties properties_;
         std::string module_name_;
-        std::string developer_;
-        std::string description_;
         std::string rule_;
         std::vector<Achievement> achievements_;
 

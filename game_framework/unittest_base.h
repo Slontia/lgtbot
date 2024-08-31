@@ -28,8 +28,6 @@ DEFINE_string(image_dir, "./.lgtbot_image/", "The path of directory to store gen
 
 internal::MainStage* MakeMainStage(MainStageFactory factory);
 
-extern const std::string k_game_name;
-
 static inline const std::string g_begin_timestamp =
     std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
 
@@ -62,7 +60,7 @@ class TestGame : public MockMatch, public testing::Test
 #endif
     }
 
-    virtual const char* GameName() const override { return k_game_name.c_str(); }
+    virtual const char* GameName() const override { return k_properties.name_; }
 
     bool StartGame()
     {

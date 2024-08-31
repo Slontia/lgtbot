@@ -88,19 +88,19 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
     };
     try {
         const lgtbot::game::GameInfo game_info = reinterpret_cast<lgtbot::game::GameInfo(*)()>(load_proc("GetGameInfo"))();
-        game_handles.emplace(std::piecewise_construct, std::forward_as_tuple(game_info.game_name_), std::forward_as_tuple(
-                    GameHandle::BasicInfo{
-                        .name_ = game_info.game_name_,
-                        .module_name_ = game_info.module_name_,
-                        .developer_ = game_info.developer_,
-                        .description_ = game_info.description_,
-                        .rule_ = game_info.rule_,
-                        .achievements_ = FillAchievements(std::span(game_info.achievements_.data_, game_info.achievements_.size_)),
-                        .max_player_num_fn_ = reinterpret_cast<GameHandle::max_player_num_handler>(load_proc("MaxPlayerNum")),
-                        .multiple_fn_ = reinterpret_cast<GameHandle::multiple_handler>(load_proc("Multiple")),
-                        .handle_rule_command_fn_ = reinterpret_cast<GameHandle::rule_command_handler>(load_proc("HandleRuleCommand")),
-                        .handle_init_options_command_fn_ = reinterpret_cast<GameHandle::init_options_command_handler>(load_proc("HandleInitOptionsCommand")),
-                    },
+
+        GameHandle::BasicInfo basic_info = *game_info.properties_;
+        basic_info.module_name_ = game_info.module_name_;
+        basic_info.rule_ = game_info.rule_;
+        basic_info.achievements_ = FillAchievements(std::span(game_info.achievements_.data_, game_info.achievements_.size_));
+        basic_info.max_player_num_fn_ = reinterpret_cast<GameHandle::max_player_num_handler>(load_proc("MaxPlayerNum"));
+        basic_info.multiple_fn_ = reinterpret_cast<GameHandle::multiple_handler>(load_proc("Multiple"));
+        basic_info.handle_rule_command_fn_ = reinterpret_cast<GameHandle::rule_command_handler>(load_proc("HandleRuleCommand"));
+        basic_info.handle_init_options_command_fn_ = reinterpret_cast<GameHandle::init_options_command_handler>(load_proc("HandleInitOptionsCommand"));
+
+        game_handles.emplace(std::piecewise_construct, std::forward_as_tuple(game_info.properties_->name_),
+                std::forward_as_tuple(
+                    std::move(basic_info),
                     GameHandle::InternalHandler{
                         .game_options_allocator_ = reinterpret_cast<GameHandle::game_options_allocator>(load_proc("NewGameOptions")),
                         .game_options_deleter_ = reinterpret_cast<GameHandle::game_options_deleter>(load_proc("DeleteGameOptions")),
@@ -108,8 +108,7 @@ static void LoadGame(HINSTANCE mod, GameHandleMap& game_handles)
                         .main_stage_deleter_ = reinterpret_cast<GameHandle::main_stage_deleter>(load_proc("DeleteMainStage")),
                         .mod_guard_ = [mod] { FreeLibrary(mod); },
                     },
-                    game_info.default_generic_options_
-                    ));
+                    game_info.default_generic_options_));
     } catch (const std::exception& e) {
         ErrorLog() << "Load mod failed: " << e.what();
         return;

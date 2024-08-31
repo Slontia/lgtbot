@@ -180,7 +180,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
             table.MergeDown(table.Row() - 2, 4, 2);
             table.MergeRight(table.Row() - 1, 1, 3);
             table.Get(table.Row() - 2, 0).SetContent("<font size=\"5\"> **" + name + "**</font>\n\n热度：" + std::to_string(game_handle.Activity()));
-            table.Get(table.Row() - 2, 1).SetContent("开发者：" + game_handle.Info().developer_);
+            table.Get(table.Row() - 2, 1).SetContent(std::string("开发者：") + game_handle.Info().developer_);
             table.Get(table.Row() - 2, 2).SetContent(default_max_player == 0 ? "无玩家数限制" :
                     ("最多 " HTML_COLOR_FONT_HEADER(blue) "**" + std::to_string(default_max_player) + "**" HTML_FONT_TAIL " 名玩家"));
             table.Get(table.Row() - 2, 3).SetContent(default_multiple == 0 ? "默认不计分" :
@@ -188,7 +188,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
             table.Get(table.Row() - 2, 4).SetContent("<img src=\"file:///" +
                     (std::filesystem::absolute(bot.game_path()) / game_handle.Info().module_name_ / "icon.png").string() +
                     "\" style=\"width:70px; height:70px; vertical-align: middle;\">");
-            table.Get(table.Row() - 1, 1).SetContent("<font size=\"3\"> " + game_handle.Info().description_ + "</font>");
+            table.Get(table.Row() - 1, 1).SetContent(std::string("<font size=\"3\"> ") + game_handle.Info().description_ + "</font>");
         }
         send_image();
     }

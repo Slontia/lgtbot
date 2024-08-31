@@ -24,12 +24,13 @@ namespace GAME_MODULE_NAME {
 class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
-
-const std::string k_game_name = "移子棋";// the game name which should be unique among all the games
+const GameProperties k_properties { 
+    .name_ = "移子棋",// the game name which should be unique among all the games
+    .developer_ = "睦月",
+    .description_ = "通过移动棋子形成四连的棋类游戏",
+};
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; }// 0 indicates no max-player limits
 uint32_t Multiple(const MyGameOptions& options) { return 2; }
-const std::string k_developer = "睦月";
-const std::string k_description = "通过移动棋子形成四连的棋类游戏";
 const MutableGenericOptions k_default_generic_options{
     .is_formal_{false},
 };

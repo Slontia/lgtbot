@@ -24,15 +24,16 @@ namespace GAME_MODULE_NAME {
 class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
-
-const std::string k_game_name = "十七步";
+const GameProperties k_properties { 
+    .name_ = "十七步",
+    .developer_ = "森高",
+    .description_ = "组成满贯听牌牌型，并经历 17 轮切牌的麻将游戏",
+};
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 4; } /* 0 means no max-player limits */
 uint32_t Multiple(const MyGameOptions& options)
 {
     return GET_OPTION_VALUE(options, 种子).empty() ? 3 : 0;
 }
-const std::string k_developer = "森高";
-const std::string k_description = "组成满贯听牌牌型，并经历 17 轮切牌的麻将游戏";
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 

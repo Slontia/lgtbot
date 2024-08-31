@@ -69,7 +69,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     virtual bool IsInDeduction() const override { return is_in_deduction_; }
     virtual uint64_t MatchId() const override { return mid_; }
-    virtual const char* GameName() const override { return game_handle_.Info().name_.c_str(); }
+    virtual const char* GameName() const override { return game_handle_.Info().name_; }
 
     ErrCode SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_computers_to_player_num);
     ErrCode SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_formal);

@@ -21,12 +21,15 @@ class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
-const std::string k_game_name = "喷色战士"; // the game name which should be unique among all the games
+
+const GameProperties k_properties {
+    .name_ = "std::", // the game name which should be unique among all the games
+    .developer_ = "std::",
+    .description_ = "std::",
+};
 const uint64_t k_max_player = game_util::unity_chess::k_max_player; // 0 indicates no max-player limits
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return k_max_player; }
 uint32_t Multiple(const MyGameOptions& options) { return 2; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
-const std::string k_developer = "森高";
-const std::string k_description = "同时落子的通过三连珠进行棋盘染色的棋类游戏";
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 

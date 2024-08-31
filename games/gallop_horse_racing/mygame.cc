@@ -22,15 +22,16 @@ namespace GAME_MODULE_NAME {
 class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
-
-const std::string k_game_name = "狂奔马场"; // the game name which should be unique among all the games
+const GameProperties k_properties { 
+    .name_ = "狂奔马场", // the game name which should be unique among all the games
+    .developer_ = "铁蛋",
+    .description_ = "扮演骑马手，完成目标距离并尽可能获得更高的名次",
+};
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 10; } // 0 indicates no max-player limits
 uint32_t Multiple(const MyGameOptions& options)
 {
     return ceil(GET_OPTION_VALUE(options, 目标) / 10.0 / GET_OPTION_VALUE(options, 上限));
 }
-const std::string k_developer = "铁蛋";
-const std::string k_description = "扮演骑马手，完成目标距离并尽可能获得更高的名次";
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 

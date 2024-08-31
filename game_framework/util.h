@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "game_framework/game_properties.h"
 #include "utility/msg_checker.h"
 
 class MsgSenderBase;
@@ -25,9 +26,7 @@ class MyGameOptions;
 // =====================================
 
 // Const variable at namespace scope has internal linkage. we need use 'extern' keyword to expose them.
-extern const std::string k_game_name;
-extern const std::string k_developer;
-extern const std::string k_description;
+extern const GameProperties k_properties;
 extern const MutableGenericOptions k_default_generic_options;
 
 // ====================================

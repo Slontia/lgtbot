@@ -17,10 +17,11 @@ namespace GAME_MODULE_NAME {
 class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
-
-const std::string k_game_name = "同步麻将";
-const std::string k_developer = "森高";
-const std::string k_description = "所有玩家同时摸牌和切牌的麻将游戏";
+const GameProperties k_properties { 
+    .name_ = "同步麻将",
+    .developer_ = "森高",
+    .description_ = "所有玩家同时摸牌和切牌的麻将游戏",
+};
 const MutableGenericOptions k_default_generic_options;
 
 const std::vector<RuleCommand> k_rule_commands = {};

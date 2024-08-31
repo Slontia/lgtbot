@@ -65,12 +65,14 @@ foreach (GAME_DIR ${GAME_DIRS})
         add_custom_target(${GAME}_rule_binary ALL
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
           COMMAND cd ${GAME_DIR} && aarch64-linux-gnu-objcopy --input binary --output elf64-littleaarch64 --binary-architecture aarch64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA --pad-to ${RULE_SIZE} rule.md ${RULE_BINARY}
+          BYPRODUCTS ${RULE_BINARY}
           COMMENT "Build rule binary"
         )
       else()
         add_custom_target(${GAME}_rule_binary ALL
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
           COMMAND cd ${GAME_DIR} && objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA --pad-to ${RULE_SIZE} rule.md ${RULE_BINARY}
+          BYPRODUCTS ${RULE_BINARY}
           COMMENT "Build rule binary"
         )
       endif()

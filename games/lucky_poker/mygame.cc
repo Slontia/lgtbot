@@ -26,15 +26,16 @@ namespace GAME_MODULE_NAME {
 class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
-
-const std::string k_game_name = "幸运波卡";
+const GameProperties k_properties { 
+    .name_ = "幸运波卡",
+    .developer_ = "森高",
+    .description_ = "能够看到各个玩家部分手牌，两阶段下注的比拼大小的游戏",
+};
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 4; } /* 0 means no max-player limits */
 uint32_t Multiple(const MyGameOptions& options)
 {
     return GET_OPTION_VALUE(options, 种子).empty() ? GET_OPTION_VALUE(options, 轮数) / 3 : 0;
 }
-const std::string k_developer = "森高";
-const std::string k_description = "能够看到各个玩家部分手牌，两阶段下注的比拼大小的游戏";
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 

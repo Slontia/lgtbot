@@ -52,9 +52,7 @@ lgtbot::game::GameInfo GetGameInfo()
     game_info.module_name_ = STRING_LITERAL(GAME_MODULE_NAME);
 #undef STRING_LITERAL
 #undef STRING_LITERAL2
-    game_info.game_name_ = this_module::k_game_name.c_str();
-    game_info.developer_ = this_module::k_developer.c_str();
-    game_info.description_ = this_module::k_description.c_str();
+    game_info.properties_ = &this_module::k_properties;
     game_info.achievements_.data_ = this_module::k_achievements.data();
     game_info.achievements_.size_ = this_module::k_achievements.size();
     game_info.default_generic_options_ = this_module::k_default_generic_options;
@@ -68,7 +66,7 @@ lgtbot::game::GameInfo GetGameInfo()
             int i = 0;
             for (const auto& command : commands) {
                 s += "\n" + std::to_string(++i) + ". ";
-                s += command.Info(true, false, command_prefix + this_module::k_game_name + " ");
+                s += command.Info(true, false, command_prefix + this_module::k_properties.name_ + " ");
             }
             return s;
         };

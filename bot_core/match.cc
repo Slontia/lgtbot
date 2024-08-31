@@ -217,7 +217,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
                     { "computer_id", static_cast<uint64_t>(cid) }
                 });
     }
-    if (users_.size() >= 2 && PlayerNum_() >= 3) {
+    if (game_handle_.Info().shuffled_player_id_) {
         std::random_device rd;
         std::mt19937 g(rd());
         std::shuffle(players_.begin(), players_.end(), g);
@@ -594,7 +594,7 @@ std::string Match::BriefInfo() const
 std::string Match::BriefInfo_() const
 {
     const auto multiple = Multiple_();
-    return "游戏名称：" + game_handle().Info().name_ +
+    return std::string("游戏名称：") + game_handle().Info().name_ +
         "\n- 倍率：" +
         (options_.generic_options_.is_formal_ || multiple == 0 ? std::to_string(multiple) :
                                                                  "0（开启计分后为 " + std::to_string(multiple) + "）") +

@@ -26,10 +26,11 @@ uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; }
 // The default score multiple for the game. The value of 0 denotes a testing game.
 // We recommend to increase the multiple by one for every 7~8 minutes the game lasts.
 uint32_t Multiple(const MyGameOptions& options) { return GET_OPTION_VALUE(options, 种子).empty() ? 2 : 0; }
-
-const std::string k_game_name = "扑克矩阵";
-const std::string k_developer = "森高";
-const std::string k_description = "将扑克放入 5 × 5 矩阵中的合适位置，尽可能在各横纵对角凑出更大牌型的游戏";
+const GameProperties k_properties { 
+    .name_ = "扑克矩阵",
+    .developer_ = "森高",
+    .description_ = "将扑克放入 5 × 5 矩阵中的合适位置，尽可能在各横纵对角凑出更大牌型的游戏",
+};
 
 const MutableGenericOptions k_default_generic_options;
 

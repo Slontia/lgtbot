@@ -28,13 +28,14 @@ namespace GAME_MODULE_NAME {
 class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
-
-const std::string k_game_name = "群雄象棋";
+const GameProperties k_properties { 
+    .name_ = "群雄象棋",
+    .developer_ = "森高",
+    .description_ = "多个帝国共同参与，定时重组棋盘的象棋游戏",
+};
 constexpr uint64_t k_max_player = 6;
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return k_max_player; }
 uint32_t Multiple(const MyGameOptions& options) { return GET_OPTION_VALUE(options, 最小回合限制) / 6; }
-const std::string k_developer = "森高";
-const std::string k_description = "多个帝国共同参与，定时重组棋盘的象棋游戏";
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 

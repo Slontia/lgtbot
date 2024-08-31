@@ -16,12 +16,13 @@ namespace GAME_MODULE_NAME {
 class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
-
-const std::string k_game_name = "肉鸽牧场";
+const GameProperties k_properties { 
+    .name_ = "肉鸽牧场",
+    .developer_ = "宽容",
+    .description_ = "放牧得分的游戏",
+};
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 1; }
 uint32_t Multiple(const MyGameOptions& options) { return 0; }
-const std::string k_developer = "宽容";
-const std::string k_description = "放牧得分的游戏";
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 

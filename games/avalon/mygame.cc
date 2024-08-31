@@ -45,18 +45,14 @@ template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages.
 // 0 indicates no max-player limits
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; }
 
-// The default score multiple for the game. The value of 0 denotes a testing game.
-// We recommend to increase the multiple by one for every 7~8 minutes the game lasts.
 uint32_t Multiple(const MyGameOptions& options) { return 0; }
 
-// The game name which should be unique among all the games.
-const std::string k_game_name = "阿瓦隆";
-
-// The game developer which can be shown in the game list image.
-const std::string k_developer = "森高";
-
-// The game description which can be shown in the game list image.
-const std::string k_description = "找出信赖的队友，组队完成三次任务的游戏";
+const GameProperties k_properties {
+    .name_ = "阿瓦隆",
+    .developer_ = "森高",
+    .description_ = "找出信赖的队友，组队完成三次任务的游戏",
+    .shuffled_player_id_ = true,
+};
 
 // The default generic options.
 const MutableGenericOptions k_default_generic_options;

@@ -22,12 +22,13 @@ namespace GAME_MODULE_NAME {
 class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
-
-const std::string k_game_name = "远足";
+const GameProperties k_properties { 
+    .name_ = "远足",
+    .developer_ = "dva",
+    .description_ = "通过计算和放置数字，争取分数的游戏",
+};
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } /* 0 means no max-player limits */
 uint32_t Multiple(const MyGameOptions& options) { return 2; }
-const std::string k_developer = "dva";
-const std::string k_description = "通过计算和放置数字，争取分数的游戏";
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 const std::array<const char*, 5> map_files = {"random", "wang_guo_bian_jing.txt",
