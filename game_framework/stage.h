@@ -29,8 +29,12 @@ class StageBaseInternal : public StageBase
 
     virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, MsgSenderBase& reply) = 0;
 
-    void SetOver() { is_over_ = true; }
+    virtual void Terminate() = 0;
+
     bool IsOver() const final { return is_over_; }
+
+  protected:
+    void SetOver() { is_over_ = true; }
 
   private:
     bool is_over_{false};
@@ -53,6 +57,8 @@ class AtomicStage : public StageBaseInternal
     StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, MsgSenderBase& reply) final;
     StageErrCode HandleLeave(const PlayerID pid) final;
     StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) final;
+
+    void Terminate() final;
 
   private:
     template <typename Logger>
@@ -136,6 +142,8 @@ class CompoundStage : public StageBaseInternal
     StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, MsgSenderBase& reply) final;
     StageErrCode HandleLeave(const PlayerID pid) final;
     StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) final;
+
+    void Terminate() final;
 
   private:
     void CheckoutSubStage_(const CheckoutReason reason);

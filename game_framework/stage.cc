@@ -81,6 +81,12 @@ StageErrCode AtomicStage::HandleRequest(MsgReader& reader, const uint64_t pid, c
     return StageErrCode::NOT_FOUND;
 }
 
+void AtomicStage::Terminate()
+{
+    StageLog_(InfoLog()) << " terminate";
+    Handle_(StageErrCode::CHECKOUT);
+}
+
 StageErrCode AtomicStage::HandleLeave(const PlayerID pid)
 {
     StageLog_(InfoLog()) << "HandleLeave begin pid=" << pid;
@@ -165,15 +171,27 @@ StageErrCode CompoundStage::HandleTimeout()
 StageErrCode CompoundStage::HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, MsgSenderBase& reply)
 {
     for (const auto& cmd : fsm_.Commands()) {
-        if (const auto rc = cmd.CallIfValid(reader, pid, is_public, reply); rc.has_value()) {
-            StageLog_(InfoLog()) << "handle request pid=" << pid << " is_public="
-                << Bool2Str(is_public) << " rc=" << *rc;
-            return *rc;
+        const auto rc = cmd.CallIfValid(reader, pid, is_public, reply);
+        if (!rc.has_value()) {
+            continue;
         }
+        StageLog_(InfoLog()) << "handle request pid=" << pid << " is_public="
+            << Bool2Str(is_public) << " rc=" << *rc;
+        if (*rc == StageErrCode::CHECKOUT) {
+            Terminate();
+        }
+        return *rc;
     }
     return PassToSubStage_(
             [&](StageBaseInternal& sub_stage) { return sub_stage.HandleRequest(reader, pid, is_public, reply); },
             CheckoutReason::BY_REQUEST);
+}
+
+void CompoundStage::Terminate()
+{
+    StageLog_(InfoLog()) << " terminate";
+    SetOver();
+    variant_sub_stage_.Get()->Terminate();
 }
 
 StageErrCode CompoundStage::HandleLeave(const PlayerID pid)
@@ -191,6 +209,10 @@ StageErrCode CompoundStage::HandleComputerAct(const uint64_t pid, const bool rea
     // For run_game_xxx, the tell msg will be output, so do not use EmptyMsgSender here.
     StageLog_(InfoLog()) << "HandleComputerAct begin pid=" << pid << " ready_as_user=" << Bool2Str(ready_as_user);
     const auto rc = fsm_.OnComputerAct(pid, fsm_.Global().TellMsgSender(pid));
+    if (rc == StageErrCode::CHECKOUT) {
+        Terminate();
+        return rc;
+    }
     if (rc != StageErrCode::OK) {
         return rc;
     }
