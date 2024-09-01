@@ -43,7 +43,7 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 // 0 indicates no max-player limits
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; }
+uint64_t MaxPlayerNum(const MyGameOptions& options) { return 10; }
 
 uint32_t Multiple(const MyGameOptions& options) { return 0; }
 
@@ -160,7 +160,7 @@ static std::vector<Player> InitializePlayers(const uint32_t player_num, const bo
     return {};
 }
 
-static std::array<Mission, k_mission_num> InitializeMissions(const uint32_t player_num, const LancelotMode lancelot_mode)
+static std::array<Mission, k_mission_num> InitializeMissions(const uint32_t player_num, const LancelotMode lancelot_mode, const bool shuffle = true)
 {
     std::array<bool, k_mission_num> to_convert_lancelots;
     to_convert_lancelots.fill(false);
@@ -168,11 +168,15 @@ static std::array<Mission, k_mission_num> InitializeMissions(const uint32_t play
     std::mt19937 gen {rd()};
     if (lancelot_mode == LancelotMode::explicit_five_rounds) {
         std::array<bool, 7> values = {true, true, false, false, false, false, false};
-        std::ranges::shuffle(values, gen);
+        if (shuffle) {
+            std::ranges::shuffle(values, gen);
+        }
         std::copy_n(values.begin(), 5, to_convert_lancelots.begin());
     } else if (lancelot_mode == LancelotMode::implicit_three_rounds) {
         std::array<bool, 5> values = {true, true, false, false, false};
-        std::ranges::shuffle(values, gen);
+        if (shuffle) {
+            std::ranges::shuffle(values, gen);
+        }
         std::copy_n(values.begin(), 3, to_convert_lancelots.begin() + 2);
     }
     int i = 0;
@@ -214,9 +218,15 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
 {
   public:
     MainStage(StageUtility&& utility)
-        : StageFsm(std::move(utility), MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")))
-        , players_(InitializePlayers(Global().PlayerNum(), GAME_OPTION(兰斯洛特模式) != LancelotMode::disable))
-        , missions_(InitializeMissions(Global().PlayerNum(), GAME_OPTION(兰斯洛特模式)))
+        : StageFsm(std::move(utility),
+                MakeStageCommand(*this, "查看当前游戏进展情况", &MainStage::Status_, VoidChecker("赛况")),
+                MakeStageCommand(*this, "尝试刺杀梅林", &MainStage::Assassin_, VoidChecker("刺杀"), ArithChecker<uint32_t>(0, utility.PlayerNum() - 1, "玩家 ID")))
+        , players_(InitializePlayers(utility.PlayerNum(), GAME_OPTION(兰斯洛特模式) != LancelotMode::disable))
+        , missions_(InitializeMissions(utility.PlayerNum(), GAME_OPTION(兰斯洛特模式)
+#ifdef TEST_BOT
+                    , !GAME_OPTION(测试模式)
+#endif
+                    ))
         , witch_pid_(Global().PlayerNum() >= GAME_OPTION(湖中仙女人数) ? std::optional<PlayerID>{Global().PlayerNum() - 1} : std::nullopt)
         , occupations_html_([&players = players_]()
                 {
@@ -238,7 +248,13 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
     {
         std::random_device rd;
         std::mt19937 gen {rd()};
-        std::ranges::shuffle(players_, gen);
+#ifdef TEST_BOT
+        if (!GAME_OPTION(测试模式)) {
+#else
+        if (true) {
+#endif
+            std::ranges::shuffle(players_, gen);
+        }
 
         const bool with_lancelot_card = NeedLancelotCard(GAME_OPTION(兰斯洛特模式));
         mission_table_.SetTableStyle(" align=\"center\" border=\"1px solid #ccc\" cellpadding=\"5\" cellspacing=\"1\" ");
@@ -325,6 +341,24 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
         reply() << "这里输出当前游戏情况";
         // Returning `OK` means the game stage
         return StageErrCode::OK;
+    }
+
+    CompReqErrCode Assassin_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const PlayerID assassin_pid)
+    {
+        if (!players_[pid].can_assassin_) {
+            reply() << "刺杀失败：你不具有刺杀能力";
+            return StageErrCode::FAILED;
+        }
+        auto sender = Global().Boardcast();
+        sender << ::Name(pid) << "选择刺杀" << ::Name(assassin_pid) << "，";
+        if (GetPlayers()[assassin_pid ].occupation_ == Occupation::梅林) {
+            sender << "成功，坏人阵营胜利";
+            winner_team_ = Team::坏;
+        } else {
+            sender << "失败，好人阵营胜利";
+            winner_team_ = Team::好;
+        }
+        return StageErrCode::CHECKOUT;
     }
 
     void UpdateTeamUpTable_(const std::vector<bool>& players_agree);
@@ -976,7 +1010,7 @@ void MainStage::NextStageFsm(ActStage& sub_stage, const CheckoutReason reason, S
             if (mission_succ_count_ > k_mission_num / 2) {
                 const PlayerID assassin_pid = std::distance(players_.begin(),
                         std::ranges::find_if(players_, [](const auto& player) { return player.can_assassin_; }));
-                sender << "，达到了任务成功次数的要求，但是" << At{assassin_pid} << "，你还有翻盘的机会，打出梅林的 ID，一击干掉他！";
+                sender << "，达到了任务成功次数的要求，但是" << At{assassin_pid} << "，你还有翻盘的机会，使用「刺杀 梅林ID」（例如「刺杀 0」），一击干掉他！";
                 setter.Emplace<AssassinStage>(*this);
                 ShowHtml("终局 - 绝地反击");
                 return;

@@ -70,6 +70,124 @@ GAME_TEST(7, select_witch)
     ASSERT_PRI_MSG(CHECKOUT, 0, "1"); // detect stage
 }
 
+GAME_TEST(5, only_assassin_can_assassin)
+{
+    ASSERT_PRI_MSG(OK, 0, "测试模式 开启");
+    START_GAME();
+
+    ASSERT_PRI_MSG(FAILED, 0, "刺杀 0");
+}
+
+GAME_TEST(5, assassin_directly_failed)
+{
+    ASSERT_PRI_MSG(OK, 0, "测试模式 开启");
+    START_GAME();
+
+    ASSERT_PRI_MSG(CHECKOUT, 1, "刺杀 0");
+
+    ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
+GAME_TEST(5, assassin_directly_succeed)
+{
+    ASSERT_PRI_MSG(OK, 0, "测试模式 开启");
+    START_GAME();
+
+    ASSERT_PRI_MSG(CHECKOUT, 1, "刺杀 2");
+
+    ASSERT_SCORE(1, 1, 0, 0, 0);
+}
+
+GAME_TEST(5, assassin_last_round_failed)
+{
+    ASSERT_PRI_MSG(OK, 0, "测试模式 开启");
+    ASSERT_PRI_MSG(OK, 0, "王者之剑 关闭");
+    START_GAME();
+
+    // round 1
+    ASSERT_PRI_MSG(CHECKOUT, 0, "0 1");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "成功");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "成功");
+
+    // round 2
+    ASSERT_PRI_MSG(CHECKOUT, 1, "0 1 2");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "成功");
+    ASSERT_PRI_MSG(OK, 1, "成功");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "成功");
+
+    // round 3
+    ASSERT_PRI_MSG(CHECKOUT, 2, "0 1");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "成功");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "成功");
+
+    // assassin
+    ASSERT_PRI_MSG(CHECKOUT, 1, "刺杀 0");
+
+    ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
+GAME_TEST(5, assassin_last_round_succeed)
+{
+    ASSERT_PRI_MSG(OK, 0, "测试模式 开启");
+    ASSERT_PRI_MSG(OK, 0, "王者之剑 关闭");
+    START_GAME();
+
+    // round 1
+    ASSERT_PRI_MSG(CHECKOUT, 0, "0 1");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "成功");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "成功");
+
+    // round 2
+    ASSERT_PRI_MSG(CHECKOUT, 1, "0 1 2");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "成功");
+    ASSERT_PRI_MSG(OK, 1, "成功");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "成功");
+
+    // round 3
+    ASSERT_PRI_MSG(CHECKOUT, 2, "0 1");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "成功");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "成功");
+
+    // assassin
+    ASSERT_PRI_MSG(CHECKOUT, 1, "刺杀 2");
+
+    ASSERT_SCORE(1, 1, 0, 0, 0);
+}
+
+GAME_TEST(5, three_tasks_failed_need_not_assassin)
+{
+    ASSERT_PRI_MSG(OK, 0, "测试模式 开启");
+    ASSERT_PRI_MSG(OK, 0, "王者之剑 关闭");
+    START_GAME();
+
+    // round 1
+    ASSERT_PRI_MSG(CHECKOUT, 0, "0 1");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "失败");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "成功");
+
+    // round 2
+    ASSERT_PRI_MSG(CHECKOUT, 1, "0 1 2");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "失败");
+    ASSERT_PRI_MSG(OK, 1, "成功");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "成功");
+
+    // round 3
+    ASSERT_PRI_MSG(CHECKOUT, 2, "0 1");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "失败");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "成功");
+
+    ASSERT_SCORE(1, 1, 0, 0, 0);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game

@@ -27,4 +27,8 @@ EXTEND_OPTION("兰斯洛特扩展的游戏模式（具体含义请参考规则�
 EXTEND_OPTION("启用湖中仙女的最小玩家数（配置为 11 代表任何情况都不启用湖中仙女）", 湖中仙女人数, (ArithChecker<uint32_t>(5, 11, "玩家数")), 7)
 EXTEND_OPTION("是否启用王者之剑扩展", 王者之剑, (BoolChecker("开启", "关闭")), true)
 
+#ifdef TEST_BOT
+EXTEND_OPTION("是否关闭一切随机", 测试模式, (BoolChecker("开启", "关闭")), true)
+#endif
+
 #endif
