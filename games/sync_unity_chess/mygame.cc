@@ -23,9 +23,9 @@ template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages.
 
 
 const GameProperties k_properties {
-    .name_ = "std::", // the game name which should be unique among all the games
-    .developer_ = "std::",
-    .description_ = "std::",
+    .name_ = "喷色战士", // the game name which should be unique among all the games
+    .developer_ = "森高",
+    .description_ = "同时落子的通过三连珠进行棋盘染色的棋类游戏",
 };
 const uint64_t k_max_player = game_util::unity_chess::k_max_player; // 0 indicates no max-player limits
 uint64_t MaxPlayerNum(const MyGameOptions& options) { return k_max_player; }
