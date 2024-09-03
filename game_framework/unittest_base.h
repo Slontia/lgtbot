@@ -200,7 +200,7 @@ class TestGame : public MockMatch, public testing::Test
         ASSERT_TRUE(StartGame()) << "Start game failed"; \
     } while (0)
 
-#define ASSERT_ERRCODE(expected, actual) ASSERT_TRUE((expected) == (actual)) << "ErrCode Mismatch, Actual: " << (actual)
+#define ASSERT_ERRCODE(expected, actual) ASSERT_TRUE((expected) == (actual)) << "ErrCode Mismatch, Actual: " << (actual.ToString())
 
 #define __ASSERT_ERRCODE_BASE(ret, statement) \
     do { \

@@ -47,7 +47,7 @@ TEST_F(TestPoker, straight_flush)
     hand.Add(poker::BokaaNumber::_4, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::STRAIGHT_FLUSH) << "best_deck: " << best_deck->type_;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::STRAIGHT_FLUSH) << "best_deck: " << best_deck->type_.ToString();
 }
 
 TEST_F(TestPoker, straight_flush_mix_1)
@@ -63,7 +63,7 @@ TEST_F(TestPoker, straight_flush_mix_1)
     hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::STRAIGHT_FLUSH) << "best_deck: " << best_deck->type_;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::STRAIGHT_FLUSH) << "best_deck: " << best_deck->type_.ToString();
 }
 
 TEST_F(TestPoker, four_of_a_kind)
@@ -76,7 +76,7 @@ TEST_F(TestPoker, four_of_a_kind)
     hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::FOUR_OF_A_KIND) << "best_deck: " << best_deck->type_;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::FOUR_OF_A_KIND) << "best_deck: " << best_deck->type_.ToString();
 }
 
 TEST_F(TestPoker, four_of_a_kind_1)
@@ -90,7 +90,7 @@ TEST_F(TestPoker, four_of_a_kind_1)
     hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::RED);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::FOUR_OF_A_KIND) << "best_deck: " << best_deck->type_;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::FOUR_OF_A_KIND) << "best_deck: " << best_deck->type_.ToString();
 }
 
 TEST_F(TestPoker, four_of_a_kind_2)
@@ -113,7 +113,7 @@ TEST_F(TestPoker, four_of_a_kind_2)
                 poker::Card<poker::CardType::BOKAA>{poker::BokaaNumber::_6, poker::BokaaSuit::BLUE},
                 poker::Card<poker::CardType::BOKAA>{poker::BokaaNumber::_6, poker::BokaaSuit::PURPLE},
                 poker::Card<poker::CardType::BOKAA>{poker::BokaaNumber::_X, poker::BokaaSuit::GREEN},
-            }})) << "Actual: " << *best_deck;
+            }})) << "Actual: " << best_deck->ToString();
 }
 
 TEST_F(TestPoker, full_house)
@@ -126,7 +126,7 @@ TEST_F(TestPoker, full_house)
     hand.Add(poker::BokaaNumber::_5, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::FULL_HOUSE) << "best_deck: " << best_deck->type_;;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::FULL_HOUSE) << "best_deck: " << best_deck->type_.ToString();;
 }
 
 TEST_F(TestPoker, flush)
@@ -140,7 +140,7 @@ TEST_F(TestPoker, flush)
     ASSERT_TRUE(hand.BestDeck().has_value());
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::FLUSH) << "best_deck: " << best_deck->type_;;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::FLUSH) << "best_deck: " << best_deck->type_.ToString();;
 }
 
 TEST_F(TestPoker, flush_mix_1)
@@ -156,7 +156,7 @@ TEST_F(TestPoker, flush_mix_1)
     ASSERT_TRUE(hand.BestDeck().has_value());
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::FLUSH) << "best_deck: " << best_deck->type_;;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::FLUSH) << "best_deck: " << best_deck->type_.ToString();;
 }
 
 TEST_F(TestPoker, straight)
@@ -170,7 +170,7 @@ TEST_F(TestPoker, straight)
     ASSERT_TRUE(hand.BestDeck().has_value());
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::STRAIGHT) << "best_deck: " << best_deck->type_;;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::STRAIGHT) << "best_deck: " << best_deck->type_.ToString();;
 }
 
 TEST_F(TestPoker, straight_mix_1)
@@ -185,7 +185,7 @@ TEST_F(TestPoker, straight_mix_1)
     ASSERT_TRUE(hand.BestDeck().has_value());
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::STRAIGHT) << "best_deck: " << best_deck->type_;;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::STRAIGHT) << "best_deck: " << best_deck->type_.ToString();;
 }
 
 TEST_F(TestPoker, three_of_a_kind)
@@ -198,7 +198,7 @@ TEST_F(TestPoker, three_of_a_kind)
     hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::THREE_OF_A_KIND) << "best_deck: " << best_deck->type_;;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::THREE_OF_A_KIND) << "best_deck: " << best_deck->type_.ToString();;
 }
 
 TEST_F(TestPoker, two_pairs)
@@ -211,7 +211,7 @@ TEST_F(TestPoker, two_pairs)
     hand.Add(poker::BokaaNumber::_6, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::TWO_PAIRS) << "best_deck: " << best_deck->type_;;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::TWO_PAIRS) << "best_deck: " << best_deck->type_.ToString();;
 }
 
 TEST_F(TestPoker, one_pair)
@@ -224,7 +224,7 @@ TEST_F(TestPoker, one_pair)
     hand.Add(poker::BokaaNumber::_7, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::ONE_PAIR) << "best_deck: " << best_deck->type_;;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::ONE_PAIR) << "best_deck: " << best_deck->type_.ToString();;
 }
 
 TEST_F(TestPoker, high_card)
@@ -237,7 +237,7 @@ TEST_F(TestPoker, high_card)
     hand.Add(poker::BokaaNumber::_8, poker::BokaaSuit::GREEN);
     const auto best_deck = hand.BestDeck();
     ASSERT_TRUE(best_deck.has_value());
-    ASSERT_TRUE(best_deck->type_ == poker::PatternType::HIGH_CARD) << "best_deck: " << best_deck->type_;;
+    ASSERT_TRUE(best_deck->type_ == poker::PatternType::HIGH_CARD) << "best_deck: " << best_deck->type_.ToString();;
 }
 
 TEST_F(TestPoker, compare_flushes)
