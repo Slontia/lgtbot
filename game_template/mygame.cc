@@ -23,14 +23,19 @@ uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; }
 // We recommend to increase the multiple by one for every 7~8 minutes the game lasts.
 uint32_t Multiple(const MyGameOptions& options) { return 0; }
 
-// The game name which should be unique among all the games.
-const std::string k_game_name = "测试游戏";
+const GameProperties k_properties {
+    // The game name which should be unique among all the games.
+    .name_ = "测试游戏",
 
-// The game developer which can be shown in the game list image.
-const std::string k_developer = "佚名";
+    // The game developer which can be shown in the game list image.
+    .developer_ = "佚名",
 
-// The game description which can be shown in the game list image.
-const std::string k_description = "暂无游戏描述";
+    // The game description which can be shown in the game list image.
+    .description_ = "暂无游戏描述",
+
+    // The true value indicates each user may be assigned with different player IDs in different matches.
+    .shuffled_player_id_ = false,
+};
 
 // The default generic options.
 const MutableGenericOptions k_default_generic_options;
