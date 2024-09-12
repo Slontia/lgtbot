@@ -149,13 +149,13 @@ class MainStage : public MainGameStage<TargetStage, RoundStage>
         if (GAME_OPTION(模式) == 0) {
             player_scores_[0] = point[0];
             player_scores_[1] = point[1];
-            if (round_ > GAME_OPTION(回合数)) {
+            if (round_ > GAME_OPTION(回合数) && player_scores_[0] < GAME_OPTION(目标) && player_scores_[1] < GAME_OPTION(目标)) {
                 Global().Boardcast() << "回合数到达上限，游戏结束\n"
                                      << "最终比分：　" << point[0] << " : " << point[1];
             } else {
-                if (player_scores_[0] >= GAME_OPTION(目标)) {
+                if (player_scores_[0] >= GAME_OPTION(目标) && player_scores_[1] < GAME_OPTION(目标)) {
                     Global().Boardcast() << At(PlayerID(0)) << " 奴隶胜利次数达到目标，获得胜利！";
-                } else if (player_scores_[1] >= GAME_OPTION(目标)) {
+                } else if (player_scores_[1] >= GAME_OPTION(目标) && player_scores_[0] < GAME_OPTION(目标)) {
                     Global().Boardcast() << At(PlayerID(1)) << " 奴隶胜利次数达到目标，获得胜利！";
                 } else {
                     Global().Boardcast() << "双方均达到目标分，游戏平局！";
