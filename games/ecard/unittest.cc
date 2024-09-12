@@ -349,6 +349,70 @@ GAME_TEST(2, DefaultMode_QuickWin1_test)
     ASSERT_SCORE(0, 2);
 }
 
+GAME_TEST(2, DefaultMode_QuickTie_test)
+{
+    ASSERT_PUB_MSG(OK, 0, "模式 经典");
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "皇帝");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "奴隶");   // 0-1
+
+    ASSERT_PRI_MSG(OK, 0, "奴隶");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "皇帝");   // 1-1
+
+    ASSERT_PRI_MSG(OK, 0, "皇帝");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "奴隶");   // 1-2
+
+    ASSERT_PRI_MSG(OK, 0, "奴隶");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "皇帝");   // 2-2
+    
+    ASSERT_SCORE(2, 2);
+}
+
+GAME_TEST(2, DefaultMode_LastRoundQuickTie_test)
+{
+    ASSERT_PUB_MSG(OK, 0, "模式 经典");
+    START_GAME();
+    
+    ASSERT_PRI_MSG(OK, 0, "皇帝");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "市民");
+
+    ASSERT_PRI_MSG(OK, 0, "市民");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "皇帝");
+
+    ASSERT_PRI_MSG(OK, 0, "皇帝");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "市民");
+
+    ASSERT_PRI_MSG(OK, 0, "奴隶");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "市民");
+
+    ASSERT_PRI_MSG(OK, 0, "市民");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "奴隶");
+
+    ASSERT_PRI_MSG(OK, 0, "奴隶");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "市民");
+
+    ASSERT_PRI_MSG(OK, 0, "皇帝");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "市民");
+
+    ASSERT_PRI_MSG(OK, 0, "市民");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "皇帝");
+
+    ASSERT_PRI_MSG(OK, 0, "皇帝");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "奴隶");   // 0-1
+
+    ASSERT_PRI_MSG(OK, 0, "奴隶");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "皇帝");   // 1-1
+
+    ASSERT_PRI_MSG(OK, 0, "皇帝");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "奴隶");   // 1-2
+
+    ASSERT_PRI_MSG(OK, 0, "奴隶");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "皇帝");   // 2-2
+    
+    ASSERT_SCORE(2, 2);
+}
+
 // [点球模式]
 GAME_TEST(2, ShootoutMode_StartFailed_test)
 {

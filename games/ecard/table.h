@@ -50,7 +50,7 @@ public:
     {
         GameMode = mode;
         ResourceDir = dir;
-        special = 0;
+        special = rand() % 10 == 0 ? 1 : 0;
 #ifndef TEST_BOT
         swapPlayer = rand() % 2 == 1 ? true : false;
 #endif
