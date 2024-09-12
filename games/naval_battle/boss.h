@@ -509,7 +509,7 @@ public:
                     }
                 }
             }
-            if (found_body.size() == 0) {
+            if (found_body.empty()) {
                 X = rand() % (board[0].sizeX - 2) + 2;
                 Y = rand() % (board[0].sizeY - 2) + 2;
             } else {
@@ -543,10 +543,10 @@ public:
             }
             for (int i = -1; i <= 1; i++) {
                 for (int j = -1; j <= 1; j++) {
-                    board[0].Attack(i, j);
+                    board[0].Attack(X + i, Y + j);
                 }
             }
-            if (found_body.size() == 0) {
+            if (found_body.empty()) {
                 return "【WARNING】BOSS发动技能 [热跟踪弹]！但未跟踪到任何飞机，导弹随机打击了 " + (string(1, 'A' + X - 1) + to_string(Y)) + " 所在的 3*3 区域";
             } else {
                 return "【WARNING】BOSS发动技能 [热跟踪弹]！导弹跟踪了位于 " + (string(1, 'A' + X - 1) + to_string(Y)) + " 的机身，并打击了附近的 3*3 区域";

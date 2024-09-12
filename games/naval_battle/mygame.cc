@@ -59,7 +59,7 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
 }
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
-    InitOptionsCommand("设置时须按照给定的顺序，不能跳过其中的某一项，未设置则为默认</br>"
+    InitOptionsCommand("使用快捷配置时须按照下方给定的顺序，不能跳过其中的某一项</br>"
                        "【单机BOSS挑战快捷配置】</br>"
                        "[第1项] 挑战的BOSS类型：仅支持 [0-3]，输入其他为随机</br>"
                        "[第2项] 重叠：[0] 为不允许，[大于0] 均为允许</br>"
@@ -70,10 +70,8 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
                        "【多人游戏快捷配置】</br>"
                        "[第1项] 地图边长：仅支持 [8-15]，其他输入均为默认10</br>"
                        "[第2项] 飞机数：仅支持 [1-8]，其他输入均为默认3</br>"
-                       "[第3项] 重叠：[0] 为不允许，[大于0] 均为允许</br>"
-                       "[第4项] 要害：[0] 为有要害，[1] 为无要害，[大于1] 均为首要害</br>"
-                       "[第5项] 连发次数：范围 [1-10]，其他输入均为默认3</br>"
-                       "[第6项] 侦察区域大小：范围 [0-30]，其他输入均为默认随机</br>",
+                       "[第3项] 重叠：(同上)　　　　[第4项] 要害：(同上)</br>"
+                       "[第5项] 连发次数：(同上)　　[第6项] 侦察区域大小：(同上)</br>",
             [] (MyGameOptions& game_options, MutableGenericOptions& generic_options, const bool& is_single, const vector<int32_t>& options)
             {
                 if (is_single) {
