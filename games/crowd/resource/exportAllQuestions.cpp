@@ -9,9 +9,10 @@
 using namespace std;
 
 // formal questions
-constexpr static uint32_t k_question_num = 68;
+constexpr static uint32_t k_question_num = 72;
 // with test questions
-constexpr static uint32_t all_question_num = 108;
+constexpr static uint32_t all_question_num = 113;
+
 
 static const std::array<Question*(*)(), all_question_num> create_question{
     []() -> Question* { return new Q1(); },
@@ -72,7 +73,6 @@ static const std::array<Question*(*)(), all_question_num> create_question{
     []() -> Question* { return new Q56(); },
     []() -> Question* { return new Q57(); },
     []() -> Question* { return new Q58(); },
-    // test questions
     []() -> Question* { return new Q59(); },
     []() -> Question* { return new Q60(); },
     []() -> Question* { return new Q61(); },
@@ -87,6 +87,7 @@ static const std::array<Question*(*)(), all_question_num> create_question{
     []() -> Question* { return new Q70(); },
     []() -> Question* { return new Q71(); },
     []() -> Question* { return new Q72(); },
+    // test questions
     []() -> Question* { return new Q73(); },
     []() -> Question* { return new Q74(); },
     []() -> Question* { return new Q75(); },
@@ -123,6 +124,11 @@ static const std::array<Question*(*)(), all_question_num> create_question{
     []() -> Question* { return new Q106(); },
     []() -> Question* { return new Q107(); },
     []() -> Question* { return new Q108(); },
+    []() -> Question* { return new Q109(); },
+    []() -> Question* { return new Q110(); },
+    []() -> Question* { return new Q111(); },
+    []() -> Question* { return new Q112(); },
+    []() -> Question* { return new Q113(); },
 };
 
 string init_question(int id)
