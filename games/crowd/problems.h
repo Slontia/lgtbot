@@ -2640,7 +2640,7 @@ public:
         options.push_back("役满：如果没有人选择B，+3.2");
         options.push_back("速攻：+0.5，如果有人选择A，改为+1.5");
 		options.push_back("平进：+1，如果B的人数最多，则B改为-1");
-		options.push_back("九种九牌：-4，如果任何人选择此项，则使其他选项无效；但如果有人选择C，此选项分数改为+2");
+		options.push_back("九种九牌：-4，如果任何人选择此项，<b>则使其他选项无效</b>；但如果有人选择C，此选项分数改为+2");
 		options.push_back("天选之人：1.6%的概率获得64分");
 	}
 	virtual void initExpects() override
@@ -2704,11 +2704,17 @@ public:
 		int maxIndex = 0;
 		bool multipleMinSelect = false;
 		bool multipleMaxSelect = false;
+		for (int i = 0; i < options.size(); i++) {
+			if (optionCount[i] > 0) {
+				minIndex = i;
+				break;
+			}
+		}
 		for (int i = 1; i < options.size(); i++) {
 			if (optionCount[i] < optionCount[minIndex] && optionCount[i] > 0) {
 				minIndex = i;
 				multipleMinSelect = false;
-			} else if (optionCount[i] == optionCount[minIndex]) {
+			} else if (optionCount[i] == optionCount[minIndex] && i != minIndex) {
 				multipleMinSelect = true;
 			}
 			if (optionCount[i] > optionCount[maxIndex]) {
@@ -2810,7 +2816,7 @@ public:
 			vars["num"] = round(4 + (playerNum - 5) / 2);
 		}
 		for (int i = 1; i <= vars["num"]; i++) {
-			options.push_back(to_string(i) + "号");
+			options.push_back("[" + to_string(i) + "]号");
 		}
 	}
 	virtual void initExpects() override
@@ -2848,7 +2854,7 @@ public:
 	
 	virtual void initTexts(vector<Player>& players) override
 	{
-		texts.push_back("如果某个怪物选项被2+人选择，则每种怪物均分 [A选项人数] 的分数，且A改为-1。");
+		texts.push_back("如果某个怪物选项被大于等于2人选择，则每种怪物改为均分 [A选项人数] 的分数，且A改为-1。");
 	}
 	virtual void initOptions() override
 	{
@@ -2865,16 +2871,17 @@ public:
 	}
 	virtual void calc(vector<Player>& players) override
 	{
-		tempScore[0] = playerNum / optionCount[0];
 		tempScore[1] = int(vars["leave"] / optionCount[1]);
-		tempScore[2] = -0.5;
-		tempScore[3] = -1;
-		tempScore[4] = -1.5;
 		if (optionCount[2] >= 2 || optionCount[3] >= 2 || optionCount[4] >= 2) {
-			tempScore[2] += optionCount[0] / optionCount[2];
-			tempScore[3] += optionCount[0] / optionCount[3];
-			tempScore[4] += optionCount[0] / optionCount[4];
 			tempScore[0] = -1;
+			tempScore[2] = optionCount[0] / optionCount[2];
+			tempScore[3] = optionCount[0] / optionCount[3];
+			tempScore[4] = optionCount[0] / optionCount[4];
+		} else {
+			tempScore[0] = playerNum / optionCount[0];
+			tempScore[2] = -0.5;
+			tempScore[3] = -1;
+			tempScore[4] = -1.5;
 		}
 	}
 };
@@ -3058,201 +3065,161 @@ public:
 	}
 };
 
-// ——————————测试题目——————————
-
-class Q69 : public Question   // [待修改]存在50%概率影响
+class Q69 : public Question
 {
 public:
 	Q69()
 	{
 		id = 69;
-		author = "齐齐";
-		title = "月下人狼";
+		author = "Allqa";
+		title = "吃西瓜";
 	}
 	
 	virtual void initTexts(vector<Player>& players) override
 	{
-		texts.push_back("选择一项。");
+		texts.push_back("西瓜真是太好吃了！来一起吃吧？");
 	}
 	virtual void initOptions() override
 	{
-		options.push_back("村人：如果 村人+狂人＞人狼+妖狐，+1，否则-2");
-		options.push_back("人狼：如果村人扣分，+1，否则-2");
-		options.push_back("狂人：如果村人扣分，+4，否则-2");
-		options.push_back("妖狐：50%概率+2，50%概率-2（所有妖狐得分情况相同）");
+		options.push_back("中心果肉：平分 " + str(playerNum * 0.5) + " 分");
+		options.push_back("边缘果肉：平分 " + str(playerNum * 0.3) + " 分");
+		options.push_back("磕点瓜子：如果选择此选项人数最多，则+3分");
+		options.push_back("啃西瓜皮：+1分");
 	}
 	virtual void initExpects() override
 	{
-		expects.push_back("aabccddd");
+		expects.push_back("aaaaabbbccccdd");
 	}
 	virtual void calc(vector<Player>& players) override
 	{
-		if (optionCount[0] + optionCount[2] > optionCount[1] + optionCount[3]) {
-			tempScore[0] = 1;
-		} else {
-			tempScore[0] = -2;
-		}
-		if (tempScore[0] < 0) {
-			tempScore[1] = 1;
-			tempScore[2] = 4;
-		} else {
-			tempScore[1] = -2;
-			tempScore[2] = -2;
-		}
-		if (rand() % 2 == 0) {
-			tempScore[3] = 2;
-		} else {
-			tempScore[3] = -2;
-		}
+		tempScore[0] = playerNum * 0.5 / optionCount[0];
+		tempScore[1] = playerNum * 0.3 / optionCount[1];
+		tempScore[2] = optionCount[2] == maxSelect ? 3 : 0;
+		tempScore[3] = 1;
 	}
 };
 
-class Q70 : public Question   // [待修改]选项不平衡，选A居多
+class Q70 : public Question
 {
 public:
 	Q70()
 	{
 		id = 70;
-		author = "匿名";
-		title = "选举";
+		author = "twobee";
+		title = "胡闹厨房";
 	}
 	
 	virtual void initTexts(vector<Player>& players) override
 	{
-		texts.push_back("选择人数最多的选项生效，且该选项的玩家额外+1.5。若平票，优先结算序号在后面的选项。");
+		texts.push_back("大家面前有一杯价值2分的水，觉得应该对这杯水做些什么呢？");
 	}
 	virtual void initOptions() override
 	{
-        options.push_back("分最高的人-3，分最低的人+2，其他人+1");
-        options.push_back("分最高的人+3，负分的玩家分数加至0");
-		options.push_back("选择该项的玩家增加等同于人数的分数，40%概率改为减少");
-		options.push_back("0");
+        options.push_back("放辣椒：这杯水-1分");
+        options.push_back("放柠檬：自己与这杯水+1分，人数大于 " + str(floor(playerNum / 3)) + " 则效果改为自己与这杯水-0.5分");
+		options.push_back("放薄荷：自己与这杯水+0.5分");
+		options.push_back("品鉴美食：平分这杯水的分数");
 	}
 	virtual void initExpects() override
 	{
-		expects.push_back("aabbbccd");
+		expects.push_back("aabbbcddd");
 	}
 	virtual void calc(vector<Player>& players) override
 	{
-		if (optionCount[3] == maxSelect) {
-			tempScore[3] += 1.5;
-		} else if (optionCount[2] == maxSelect) {
-			tempScore[2] = optionCount[2];
-			if (rand() % 10 < 4) {
-				tempScore[2] = -tempScore[2];
-			}
-			tempScore[2] += 1.5;
-		} else if (optionCount[1] == maxSelect) {
-			for (int i = 0; i < playerNum; i++) {
-				if (players[i].score == maxScore) {
-					players[i].score += 3;
-				}
-				if (players[i].score < 0) {
-					players[i].score = 0;
-				}
-			}
-			tempScore[1] += 1.5;
-		} else if (optionCount[0] == maxSelect) {
-			for (int i = 0; i < playerNum; i++) {
-				if (players[i].score == maxScore) {
-					players[i].score -= 3;
-				} else if (players[i].score == minScore) {
-					players[i].score += 2;
-				} else {
-					players[i].score += 1;
-				}
-			}
-			tempScore[0] += 1.5;
+		double water = 2 - optionCount[0] + optionCount[2] * 0.5;
+		if (optionCount[1] <= floor(playerNum / 3)) {
+			tempScore[1] = 1;
+			water += optionCount[1];
+		} else {
+			tempScore[1] = -0.5;
+			water -= optionCount[1] * 0.5;
 		}
+		tempScore[2] = 0.5;
+		tempScore[3] = water / optionCount[3];
 	}
 };
 
-class Q71 : public Question   // 备选题目   平衡 4
+class Q71 : public Question
 {
 public:
 	Q71()
 	{
 		id = 71;
-		author = "xiaogt";
-		title = "投资";
+		author = "小口木";
+		title = "阿瓦隆";
 	}
 	
 	virtual void initTexts(vector<Player>& players) override
 	{
-		vars["total"] = round(playerNum * 1.6);
-		texts.push_back("请选择一项投资，若总投资达到 " + str(vars["total"]) + " 则投资成功，每人返还 3.5 积分，投资金额最多的选项额外返还 2 积分。你选择：");
+		texts.push_back("你加入了一场阿瓦隆游戏，选择你的身份（人数更多的阵营胜利，相等则好人胜利）");
 	}
 	virtual void initOptions() override
 	{
-        options.push_back("拒绝投资");
-        options.push_back("投资 1 积分");
-		options.push_back("投资 2 积分");
-		options.push_back("投资 3 积分");
-		options.push_back("投资 4 积分");
+        options.push_back("亚瑟的忠臣[好]：好人胜利则+1分");
+        options.push_back("梅林[好]：好人胜利则+4分；如果有人选刺客，改为-1");
+		options.push_back("派西维尔[好]：如果好人胜利，且本选项人数在有人选择的选项里最少，+3分");
+		options.push_back("刺客[坏]：如果有人选梅林，<b>坏人阵营必定胜利</b>并且本选项+2分；否则-1分");
+		options.push_back("莫甘娜[坏]：坏人胜利则+1分");
 	}
 	virtual void initExpects() override
 	{
-		expects.push_back("aaabbbccdde");
+		expects.push_back("aaaabcddeeee");
 	}
 	virtual void calc(vector<Player>& players) override
 	{
-		tempScore[0] = 0;
-		tempScore[1] = -1;
-		tempScore[2] = -2;
-		tempScore[3] = -3;
-		tempScore[4] = -4;
-		if (optionCount[1] + optionCount[2]*2 + optionCount[3]*3 + optionCount[4]*4 >= vars["total"]) {
-			int max = 0;
-			for (int i = 1; i < 5; i++) {
-				tempScore[i] += 3.5;
-				if (optionCount[i] > 0) {
-					max = i;
-				}
+		bool badwin = (optionCount[1] && optionCount[3]) || (optionCount[0] + optionCount[1] + optionCount[2] < optionCount[3] + optionCount[4]);
+		if (badwin) {
+			tempScore[4] = 1;
+			if (optionCount[1] && optionCount[3]) {
+				tempScore[1] = -1;
 			}
-			tempScore[max] += 2;
+		} else {
+			tempScore[0] = 1;
+			tempScore[1] = 4;
+			tempScore[2] = optionCount[2] == nonZero_minSelect ? 3 : 0;
 		}
+		tempScore[3] = optionCount[1] > 0 ? 2 : -1;
 	}
 };
 
-class Q72 : public Question   // [待修改]人多时分数增减幅度太大
+class Q72 : public Question
 {
 public:
 	Q72()
 	{
 		id = 72;
-		author = "圣墓上的倒吊人";
-		title = "税收";
+		author = "晴雪风";
+		title = "猜单双";
 	}
 	
 	virtual void initTexts(vector<Player>& players) override
 	{
-		texts.push_back("选择一项。");
+		texts.push_back("猜单双，ABC选择的总人数就是点数");
 	}
 	virtual void initOptions() override
 	{
-        options.push_back("减45%分数");
-        options.push_back("减 [B选项人数] 的分数");
-		options.push_back("减 [C选项人数*1.5] 的分数");
+        options.push_back("猜单数：猜对+2分");
+        options.push_back("猜双数：猜对+2分");
+		options.push_back("出老千，+4分，有人选E则-2分");
+		options.push_back("坐庄：获得 [2-出老千人数] 分");
+		options.push_back("指认：有选择C的+2分，否则-1分");
 	}
 	virtual void initExpects() override
 	{
-		expects.push_back("abbbcc");
+		expects.push_back("aaabbbcdde");
 	}
 	virtual void calc(vector<Player>& players) override
 	{
-		for (int i = 0; i < playerNum; i++) {
-			if (players[i].select == 0) {
-				if (players[i].score > 0) {
-					players[i].score -= players[i].score * 0.45;
-				} else {
-					players[i].score += players[i].score * 0.45;
-				}
-			}
-		}
-		tempScore[1] = -optionCount[1];
-		tempScore[2] = -optionCount[2] * 1.5;
+		int total = optionCount[0] + optionCount[1] + optionCount[2];
+		tempScore[0] = total % 2 == 1 ? 2 : 0;
+		tempScore[1] = total % 2 == 1 ? 0 : 2;
+		tempScore[2] = optionCount[4] ? -2 : 4;
+		tempScore[3] = 2 - optionCount[2];
+		tempScore[4] = optionCount[2] ? 2 : -1;
 	}
 };
+
+// ——————————测试题目——————————
 
 class Q73 : public Question   // [待修改]人多时分数增减幅度太大
 {
@@ -4075,11 +4042,8 @@ public:
 	
 	virtual void initTexts(vector<Player>& players) override
 	{
-		texts.push_back("选择人数最多的两项+0.5分，且该两项进行对弈。（如果存在并列，仅选中选项靠前的）");
-		texts.push_back("双方的筹码等级将决定两方的加分（筹码大的在右边）：");
-		texts.push_back("多1级时 0:2");
-		texts.push_back("多2级时 0:0");
-		texts.push_back("多3级时 2:0");
+		texts.push_back("选择人数最多的两项（如果有并列则选更靠前的）并进行对奕（胜者+2分），且其选中者+0.5分");
+		texts.push_back("当筹码高的高于对面 1级/2级/3级 时，分别得到 胜/平/负 的结果");
 	}
 	virtual void initOptions() override
 	{
@@ -4087,7 +4051,7 @@ public:
         options.push_back("草民流：1级筹码");
 		options.push_back("市民流：2级筹码");
 		options.push_back("皇帝流：3级筹码");
-		options.push_back("悠悠流：0或1级筹码（当对手是奴隶流时为1级，否则为0级）");
+		options.push_back("悠悠流：0级或1级筹码（当对面是0时为1，否则为0）");
 	}
 	virtual void initExpects() override
 	{
@@ -4856,6 +4820,237 @@ public:
 			tempScore[0] = 2;
 			tempScore[2] = -1;
 		}
+	}
+};
+
+class Q109 : public Question   // [待修改]存在50%概率影响
+{
+public:
+	Q109()
+	{
+		id = 109;
+		author = "齐齐";
+		title = "月下人狼";
+	}
+	
+	virtual void initTexts(vector<Player>& players) override
+	{
+		texts.push_back("选择一项。");
+	}
+	virtual void initOptions() override
+	{
+		options.push_back("村人：如果 村人+狂人＞人狼+妖狐，+1，否则-2");
+		options.push_back("人狼：如果村人扣分，+1，否则-2");
+		options.push_back("狂人：如果村人扣分，+4，否则-2");
+		options.push_back("妖狐：50%概率+2，50%概率-2（所有妖狐得分情况相同）");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("aabccddd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		if (optionCount[0] + optionCount[2] > optionCount[1] + optionCount[3]) {
+			tempScore[0] = 1;
+		} else {
+			tempScore[0] = -2;
+		}
+		if (tempScore[0] < 0) {
+			tempScore[1] = 1;
+			tempScore[2] = 4;
+		} else {
+			tempScore[1] = -2;
+			tempScore[2] = -2;
+		}
+		if (rand() % 2 == 0) {
+			tempScore[3] = 2;
+		} else {
+			tempScore[3] = -2;
+		}
+	}
+};
+
+class Q110 : public Question   // [待修改]选项不平衡，选A居多
+{
+public:
+	Q110()
+	{
+		id = 110;
+		author = "匿名";
+		title = "选举";
+	}
+	
+	virtual void initTexts(vector<Player>& players) override
+	{
+		texts.push_back("选择人数最多的选项生效，且该选项的玩家额外+1.5。若平票，优先结算序号在后面的选项。");
+	}
+	virtual void initOptions() override
+	{
+        options.push_back("分最高的人-3，分最低的人+2，其他人+1");
+        options.push_back("分最高的人+3，负分的玩家分数加至0");
+		options.push_back("选择该项的玩家增加等同于人数的分数，40%概率改为减少");
+		options.push_back("0");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("aabbbccd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		if (optionCount[3] == maxSelect) {
+			tempScore[3] += 1.5;
+		} else if (optionCount[2] == maxSelect) {
+			tempScore[2] = optionCount[2];
+			if (rand() % 10 < 4) {
+				tempScore[2] = -tempScore[2];
+			}
+			tempScore[2] += 1.5;
+		} else if (optionCount[1] == maxSelect) {
+			for (int i = 0; i < playerNum; i++) {
+				if (players[i].score == maxScore) {
+					players[i].score += 3;
+				}
+				if (players[i].score < 0) {
+					players[i].score = 0;
+				}
+			}
+			tempScore[1] += 1.5;
+		} else if (optionCount[0] == maxSelect) {
+			for (int i = 0; i < playerNum; i++) {
+				if (players[i].score == maxScore) {
+					players[i].score -= 3;
+				} else if (players[i].score == minScore) {
+					players[i].score += 2;
+				} else {
+					players[i].score += 1;
+				}
+			}
+			tempScore[0] += 1.5;
+		}
+	}
+};
+
+class Q111 : public Question
+{
+public:
+	Q111()
+	{
+		id = 111;
+		author = "纤光";
+		title = "金铃铛";
+	}
+	
+	virtual void initTexts(vector<Player>& players) override
+	{
+		texts.push_back("每摇一次铃铛，所有摇过铃的人+0.3，且自己额外+0.7；当摇铃总次数>=" + str(int(playerNum * 1.5)) + "时，金铃铛魔力失效，所有摇过铃的人本题0分。");
+	}
+	virtual void initOptions() override
+	{
+        options.push_back("摇1次铃");
+        options.push_back("摇2次铃");
+		options.push_back("摇3次铃");
+		options.push_back("+ " + str(playerNum / 4) + " 分");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abbbccdd");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		int bell = optionCount[0] + optionCount[1] * 2 + optionCount[2] * 3;
+		if (bell < int(playerNum * 1.5)) {
+			tempScore[0] = 0.7 + bell * 0.3;
+			tempScore[1] = 1.4 + bell * 0.3;
+			tempScore[2] = 2.1 + bell * 0.3;
+		}
+		tempScore[3] = 	playerNum / 4;
+	}
+};
+
+class Q112 : public Question   // 备选题目   平衡 4
+{
+public:
+	Q112()
+	{
+		id = 112;
+		author = "xiaogt";
+		title = "投资";
+	}
+	
+	virtual void initTexts(vector<Player>& players) override
+	{
+		vars["total"] = round(playerNum * 1.6);
+		texts.push_back("请选择一项投资，若总投资达到 " + str(vars["total"]) + " 则投资成功，每人返还 3.5 积分，投资金额最多的选项额外返还 2 积分。你选择：");
+	}
+	virtual void initOptions() override
+	{
+        options.push_back("拒绝投资");
+        options.push_back("投资 1 积分");
+		options.push_back("投资 2 积分");
+		options.push_back("投资 3 积分");
+		options.push_back("投资 4 积分");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("aaabbbccdde");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		tempScore[0] = 0;
+		tempScore[1] = -1;
+		tempScore[2] = -2;
+		tempScore[3] = -3;
+		tempScore[4] = -4;
+		if (optionCount[1] + optionCount[2]*2 + optionCount[3]*3 + optionCount[4]*4 >= vars["total"]) {
+			int max = 0;
+			for (int i = 1; i < 5; i++) {
+				tempScore[i] += 3.5;
+				if (optionCount[i] > 0) {
+					max = i;
+				}
+			}
+			tempScore[max] += 2;
+		}
+	}
+};
+
+class Q113 : public Question   // [待修改]人多时分数增减幅度太大
+{
+public:
+	Q113()
+	{
+		id = 113;
+		author = "圣墓上的倒吊人";
+		title = "税收";
+	}
+	
+	virtual void initTexts(vector<Player>& players) override
+	{
+		texts.push_back("选择一项。");
+	}
+	virtual void initOptions() override
+	{
+        options.push_back("减45%分数");
+        options.push_back("减 [B选项人数] 的分数");
+		options.push_back("减 [C选项人数*1.5] 的分数");
+	}
+	virtual void initExpects() override
+	{
+		expects.push_back("abbbcc");
+	}
+	virtual void calc(vector<Player>& players) override
+	{
+		for (int i = 0; i < playerNum; i++) {
+			if (players[i].select == 0) {
+				if (players[i].score > 0) {
+					players[i].score -= players[i].score * 0.45;
+				} else {
+					players[i].score += players[i].score * 0.45;
+				}
+			}
+		}
+		tempScore[1] = -optionCount[1];
+		tempScore[2] = -optionCount[2] * 1.5;
 	}
 };
 

@@ -43,9 +43,9 @@ const MutableGenericOptions k_default_generic_options;
 
 
 // formal questions
-constexpr static uint32_t k_question_num = 68;
+constexpr static uint32_t k_question_num = 72;
 // with test questions
-constexpr static uint32_t all_question_num = 108;
+constexpr static uint32_t all_question_num = 113;
 
 
 static const std::array<Question*(*)(), all_question_num> create_question{
@@ -117,11 +117,11 @@ static const std::array<Question*(*)(), all_question_num> create_question{
     []() -> Question* { return new Q66(); },
     []() -> Question* { return new Q67(); },
     []() -> Question* { return new Q68(); },
-    // test questions
     []() -> Question* { return new Q69(); },
     []() -> Question* { return new Q70(); },
     []() -> Question* { return new Q71(); },
     []() -> Question* { return new Q72(); },
+    // test questions
     []() -> Question* { return new Q73(); },
     []() -> Question* { return new Q74(); },
     []() -> Question* { return new Q75(); },
@@ -158,6 +158,11 @@ static const std::array<Question*(*)(), all_question_num> create_question{
     []() -> Question* { return new Q106(); },
     []() -> Question* { return new Q107(); },
     []() -> Question* { return new Q108(); },
+    []() -> Question* { return new Q109(); },
+    []() -> Question* { return new Q110(); },
+    []() -> Question* { return new Q111(); },
+    []() -> Question* { return new Q112(); },
+    []() -> Question* { return new Q113(); },
 };
 
 
@@ -185,15 +190,15 @@ string init_question(int id)
     return str;
 }
 
-char* find_question(const string& keywords)
+char* find_question(const string& keyword)
 {
     thread_local static string find_str;
     thread_local static string notfind_str;
-    notfind_str = "[错误] 未找到包含“" + keywords + "”的题目";
+    notfind_str = "[错误] 未找到包含“" + keyword + "”的题目";
     bool flag = false;
     for (int i = 1; i <= all_question_num; i++) {
         find_str = init_question(i);
-        string::size_type position = find_str.find(keywords);
+        string::size_type position = find_str.find(keyword);
         if (position != std::string::npos) {
             flag = true;
             break;
