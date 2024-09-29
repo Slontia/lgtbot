@@ -43,9 +43,9 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 // 0 indicates no max-player limits
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 10; }
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 10; }
 
-uint32_t Multiple(const MyGameOptions& options) { return 0; }
+uint32_t Multiple(const CustomOptions& options) { return 0; }
 
 const GameProperties k_properties {
     .name_ = "阿瓦隆",
@@ -63,7 +63,7 @@ const std::vector<RuleCommand> k_rule_commands = {};
 // The commands for initialize the options when starting a game by "#新游戏 <game name> <init options command>..."
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 // Set the target player numbers when an user start the game with the "单机" argument.
                 // It is ok to make `k_init_options_commands` empty.
@@ -72,7 +72,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
             },
             VoidChecker("单机")),
     InitOptionsCommand("不启用任何扩展包",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 GET_OPTION_VALUE(game_options, 兰斯洛特模式) = LancelotMode::disable;
                 GET_OPTION_VALUE(game_options, 王者之剑) = false;
@@ -83,7 +83,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
 
 // The function is invoked before a game starts. You can make final adaption for the options.
 // The return value of false denotes failure to start a game.
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 5) {
         reply() << "该游戏至少 5 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();

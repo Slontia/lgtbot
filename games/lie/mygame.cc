@@ -25,12 +25,12 @@ const GameProperties k_properties {
     .description_ = "双方猜测数字的简单游戏",
 };
 
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } /* 0 means no max-player limits */
-uint32_t Multiple(const MyGameOptions& options) { return 1; }
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 2; } /* 0 means no max-player limits */
+uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
@@ -41,7 +41,7 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 generic_options.bench_computers_to_player_num_ = 2;
                 return NewGameMode::SINGLE_USER;
@@ -62,7 +62,7 @@ class MyTable
         bool is_lie_;
     };
 
-    MyTable(const MyGameOptions& option, const std::string_view resource_dir)
+    MyTable(const CustomOptions& option, const std::string_view resource_dir)
         : option_(option)
         , resource_dir_{resource_dir}
         , table_(GET_OPTION_VALUE(option, 失败数量) * 2 + 3, GET_OPTION_VALUE(option, 数字种类))
@@ -153,7 +153,7 @@ class MyTable
         }
     }
 
-    const MyGameOptions& option_;
+    const CustomOptions& option_;
     std::string_view resource_dir_;
     html::Table table_;
     std::array<std::vector<int>, 2> player_nums_;

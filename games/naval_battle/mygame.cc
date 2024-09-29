@@ -25,15 +25,15 @@ const GameProperties k_properties {
     .developer_ = "铁蛋",
     .description_ = "在地图上布置飞机，并击落对手的飞机",
 };
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; } // 0 indicates no max-player limits
-uint32_t Multiple(const MyGameOptions& options)
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 2; } // 0 indicates no max-player limits
+uint32_t Multiple(const CustomOptions& options)
 {
     return GET_OPTION_VALUE(options, 飞机) >= 3 ? std::min(3U, GET_OPTION_VALUE(options, 飞机) - 2) : 1;
 }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
@@ -72,7 +72,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
                        "[第2项] 飞机数：仅支持 [1-8]，其他输入均为默认3</br>"
                        "[第3项] 重叠：(同上)　　　　[第4项] 要害：(同上)</br>"
                        "[第5项] 连发次数：(同上)　　[第6项] 侦察区域大小：(同上)</br>",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options, const bool& is_single, const vector<int32_t>& options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options, const bool& is_single, const vector<int32_t>& options)
             {
                 if (is_single) {
                     if (options.size() >= 1) GET_OPTION_VALUE(game_options, BOSS挑战) = options[0] >= 0 && options[0] <= 3 ? options[0] : 100;

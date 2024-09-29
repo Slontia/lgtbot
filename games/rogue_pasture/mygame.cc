@@ -21,16 +21,16 @@ const GameProperties k_properties {
     .developer_ = "宽容",
     .description_ = "放牧得分的游戏",
 };
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 1; }
-uint32_t Multiple(const MyGameOptions& options) { return 0; }
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 1; }
+uint32_t Multiple(const CustomOptions& options) { return 0; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 return NewGameMode::SINGLE_USER;
             },

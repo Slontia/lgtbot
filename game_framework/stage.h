@@ -297,7 +297,7 @@ private:
 class MainStageFactory
 {
   public:
-    MainStageFactory(const MyGameOptions& game_options, const GenericOptions& generic_options, MatchBase& match)
+    MainStageFactory(const CustomOptions& game_options, const GenericOptions& generic_options, MatchBase& match)
         : game_options_(std::move(game_options)), generic_options_(generic_options), match_(match) {}
 
     // This function can only be invoked once.
@@ -307,11 +307,11 @@ class MainStageFactory
         return new internal::MainStage(std::make_unique<Fsm>(StageUtility{game_options_, generic_options_, match_}));
     }
 
-    const MyGameOptions& GetGameOptions() const { return game_options_; }
+    const CustomOptions& GetGameOptions() const { return game_options_; }
     const GenericOptions& GetGenericOptions() const { return generic_options_; }
 
   private:
-    const MyGameOptions& game_options_;
+    const CustomOptions& game_options_;
     const GenericOptions& generic_options_;
     MatchBase& match_;
 };

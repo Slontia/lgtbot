@@ -21,11 +21,11 @@ template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubSta
 template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages...>;
 
 // 0 indicates no max-player limits
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; }
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 0; }
 
 // The default score multiple for the game. The value of 0 denotes a testing game.
 // We recommend to increase the multiple by one for every 7~8 minutes the game lasts.
-uint32_t Multiple(const MyGameOptions& options) { return GET_OPTION_VALUE(options, 种子).empty() ? 2 : 0; }
+uint32_t Multiple(const CustomOptions& options) { return GET_OPTION_VALUE(options, 种子).empty() ? 2 : 0; }
 const GameProperties k_properties { 
     .name_ = "扑克矩阵",
     .developer_ = "森高",
@@ -40,7 +40,7 @@ const std::vector<RuleCommand> k_rule_commands = {};
 // The commands for initialize the options when starting a game by "#新游戏 <game name> <init options command>..."
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 generic_options.bench_computers_to_player_num_ = 1;
                 return NewGameMode::SINGLE_USER;
@@ -50,7 +50,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
 
 // The function is invoked before a game starts. You can make final adaption for the options.
 // The return value of false denotes failure to start a game.
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     return true;
 }

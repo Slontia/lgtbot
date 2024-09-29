@@ -32,13 +32,13 @@ namespace game {
 
 namespace GAME_MODULE_NAME {
 
-#define OPTION_CLASSNAME MyGameOptions
+#define OPTION_CLASSNAME CustomOptions
 #define OPTION_FILENAME GAME_OPTION_FILENAME
 #include "utility/extend_option.h"
 #undef OPTION_CLASSNAME
 #undef OPTION_FILENAME
 
-class GameOptions : public GameOptionsBase, public MyGameOptions
+class GameOptions : public GameOptionsBase, public CustomOptions
 {
   public:
     GameOptions() = default;
@@ -48,13 +48,13 @@ class GameOptions : public GameOptionsBase, public MyGameOptions
     virtual bool SetOption(const char* const msg) override
     {
         MsgReader msg_reader(msg);
-        return MyGameOptions::SetOption(msg_reader);
+        return CustomOptions::SetOption(msg_reader);
     }
 
     virtual const char* Info(const bool with_example, const bool with_html_syntax, const char* const prefix) const override
     {
         thread_local static std::string info;
-        return (info = MyGameOptions::Info(with_example, with_html_syntax, prefix)).c_str();
+        return (info = CustomOptions::Info(with_example, with_html_syntax, prefix)).c_str();
     }
 
     virtual const char* const* ShortInfo() const override

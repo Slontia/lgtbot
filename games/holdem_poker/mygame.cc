@@ -27,15 +27,15 @@ const GameProperties k_properties {
     .description_ = "同时下注或加注的德州波卡游戏",
 };
 constexpr uint64_t k_max_player = 15;
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return k_max_player; }
-uint32_t Multiple(const MyGameOptions& options)
+uint64_t MaxPlayerNum(const CustomOptions& options) { return k_max_player; }
+uint32_t Multiple(const CustomOptions& options)
 {
     return GET_OPTION_VALUE(options, 种子).empty() ? GET_OPTION_VALUE(options, 局数) / 4 : 0;
 }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (GET_OPTION_VALUE(game_options, 幸存) >= generic_options_readonly.PlayerNum()) {
         reply() << "幸存玩家数 " << GET_OPTION_VALUE(game_options, 幸存) << " 必须小于参赛玩家数 " << generic_options_readonly.PlayerNum();
@@ -54,7 +54,7 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 generic_options.bench_computers_to_player_num_ = 10;
                 return NewGameMode::SINGLE_USER;

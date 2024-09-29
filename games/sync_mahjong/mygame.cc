@@ -28,7 +28,7 @@ const std::vector<RuleCommand> k_rule_commands = {};
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
-            [](MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [](CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 generic_options.bench_computers_to_player_num_ = 4;
                 return NewGameMode::SINGLE_USER;
@@ -36,7 +36,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
             VoidChecker("单机")),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (const auto player_num = generic_options_readonly.PlayerNum(); player_num < 3) {
         reply() << "该游戏至少 3 人参加，当前玩家数为 " << player_num;
@@ -45,9 +45,9 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
     return true;
 }
 
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 4; }
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 4; }
 
-uint32_t Multiple(const MyGameOptions& options)
+uint32_t Multiple(const CustomOptions& options)
 {
     if (!GET_OPTION_VALUE(options, 种子).empty()) {
         return 0;

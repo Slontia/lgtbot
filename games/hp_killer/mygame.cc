@@ -29,8 +29,8 @@ const GameProperties k_properties {
     .developer_ = "森高",
     .description_ = "通过对其他玩家造成伤害，杀掉隐藏在玩家中的杀手的游戏",
 };
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 9; } // 0 indicates no max-player limits
-uint32_t Multiple(const MyGameOptions& options) { return 3; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 9; } // 0 indicates no max-player limits
+uint32_t Multiple(const CustomOptions& options) { return 3; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const MutableGenericOptions k_default_generic_options{
     .is_formal_{false},
 };
@@ -147,7 +147,7 @@ const std::vector<RuleCommand> k_rule_commands = {
             EnumChecker<Occupation>()),
 };
 
-static std::vector<Occupation>& GetOccupationList(MyGameOptions& option, const uint32_t player_num)
+static std::vector<Occupation>& GetOccupationList(CustomOptions& option, const uint32_t player_num)
 {
     return player_num == 5 ? GET_OPTION_VALUE(option, 五人身份) :
            player_num == 6 ? GET_OPTION_VALUE(option, 六人身份) :
@@ -156,12 +156,12 @@ static std::vector<Occupation>& GetOccupationList(MyGameOptions& option, const u
            player_num == 9 ? GET_OPTION_VALUE(option, 九人身份) : (assert(false), GET_OPTION_VALUE(option, 五人身份));
 }
 
-static const std::vector<Occupation>& GetOccupationList(const MyGameOptions& option, const uint32_t player_num)
+static const std::vector<Occupation>& GetOccupationList(const CustomOptions& option, const uint32_t player_num)
 {
-    return GetOccupationList(const_cast<MyGameOptions&>(option), player_num);
+    return GetOccupationList(const_cast<CustomOptions&>(option), player_num);
 }
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 5) {
         reply() << "该游戏至少 5 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -212,7 +212,7 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 generic_options.bench_computers_to_player_num_ = 8;
                 return NewGameMode::SINGLE_USER;
@@ -877,7 +877,7 @@ class MainStage : public MainGameStage<>
     }
 
   private:
-    static RoleOption DefaultRoleOption_(const MyGameOptions& option)
+    static RoleOption DefaultRoleOption_(const CustomOptions& option)
     {
         return RoleOption {
             .hp_ = GET_OPTION_VALUE(option, 血量),
@@ -1241,7 +1241,7 @@ class MainStage : public MainGameStage<>
         return v;
     }
 
-    static RoleManager::RoleVec GetRoleVec_(const MyGameOptions& option, const RoleOption& role_option, const uint32_t player_num, RoleManager& role_manager)
+    static RoleManager::RoleVec GetRoleVec_(const CustomOptions& option, const RoleOption& role_option, const uint32_t player_num, RoleManager& role_manager)
     {
         const auto make_roles = [&]<typename T>(const std::initializer_list<T>& occupation_lists)
             {

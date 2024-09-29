@@ -18,7 +18,7 @@ namespace GAME_MODULE_NAME {
 
 namespace internal {
 
-PublicStageUtility::PublicStageUtility(const MyGameOptions& game_options, const lgtbot::game::GenericOptions& generic_options, MatchBase& match)
+PublicStageUtility::PublicStageUtility(const CustomOptions& game_options, const lgtbot::game::GenericOptions& generic_options, MatchBase& match)
     : game_options_{game_options}
     , generic_options_(generic_options)
     , match_(match)

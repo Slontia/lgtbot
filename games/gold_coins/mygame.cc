@@ -25,8 +25,8 @@ const GameProperties k_properties {
     .developer_ = "铁蛋",
     .description_ = "选择行动，与他人博弈抢夺金币的游戏",
 };
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } // 0 indicates no max-player limits
-uint32_t Multiple(const MyGameOptions& options) { return 1; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 0; } // 0 indicates no max-player limits
+uint32_t Multiple(const CustomOptions& options) { return 1; } // the default score multiple for the game, 0 for a testing game, 1 for a formal game, 2 or 3 for a long formal game
 const MutableGenericOptions k_default_generic_options{
     .is_formal_{false},
 };
@@ -70,7 +70,7 @@ const std::vector<RuleCommand> k_rule_commands = {
             AlterChecker<int>({{"判定", 0}, {"撤离", 1}, {"捡金币", 2}, {"夺血条", 3}, {"守金币", 4}, {"抢金币", 5}, {"爆金币", 6}})),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 4) {
         reply() << "该游戏至少 4 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -81,7 +81,7 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 generic_options.bench_computers_to_player_num_ = 5;
                 return NewGameMode::SINGLE_USER;

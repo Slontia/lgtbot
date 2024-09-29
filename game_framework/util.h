@@ -19,7 +19,7 @@ class GenericOptions;
 
 namespace GAME_MODULE_NAME {
 
-class MyGameOptions;
+class CustomOptions;
 
 // =====================================
 //      Developer-defined constance
@@ -40,7 +40,7 @@ enum class NewGameMode {
     SINGLE_USER,    // start game immediately
     MULTIPLE_USERS, // wait other users to join
 };
-using InitOptionsCommand = Command<NewGameMode(MyGameOptions& game_options, MutableGenericOptions& generic_options)>; // command to initialize options
+using InitOptionsCommand = Command<NewGameMode(CustomOptions& game_options, MutableGenericOptions& generic_options)>; // command to initialize options
 extern const std::vector<InitOptionsCommand> k_init_options_commands;
 
 // =====================================
@@ -50,15 +50,15 @@ extern const std::vector<InitOptionsCommand> k_init_options_commands;
 // Validate the options and adapt them if not valid.
 // The return value of false indicates the options are not valid and fail to adapt. In this scenario, the game will fail
 // to start.
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options);
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options);
 
 // Get the maximum player numbers under the current options.
 // The return value of 0 indicates there are no player number limits.
-uint64_t MaxPlayerNum(const MyGameOptions& options);
+uint64_t MaxPlayerNum(const CustomOptions& options);
 
 // Get the score multiple under the current options.
 // The value of 0 indicates it is a match for practice.
-uint32_t Multiple(const MyGameOptions& options);
+uint32_t Multiple(const CustomOptions& options);
 
 } // namespace GAME_MODULE_NAME
 

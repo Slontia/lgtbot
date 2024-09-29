@@ -171,7 +171,7 @@ namespace game {
 
 namespace GAME_MODULE_NAME {
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly,
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly,
         MutableGenericOptions& generic_options)
 {
     return true;
@@ -180,9 +180,9 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
 template <typename T, T V>
 constexpr T ValueFunc() { return V; }
 
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 4; }
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 4; }
 
-uint32_t Multiple(const MyGameOptions& options) { return 1; }
+uint32_t Multiple(const CustomOptions& options) { return 1; }
 
 class MainStage;
 template <typename... SubStages> using SubGameStage = StageFsm<MainStage, SubStages...>;

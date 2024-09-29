@@ -23,8 +23,8 @@ const GameProperties k_properties {
     .developer_ = "铁蛋",
     .description_ = "玩家分别丢手帕和回头看，抓住最合适的时机才能获胜",
 };
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 2; }
-uint32_t Multiple(const MyGameOptions& options) {
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 2; }
+uint32_t Multiple(const CustomOptions& options) {
     return min(3U, max(GET_OPTION_VALUE(options, 模式) == 0 && GET_OPTION_VALUE(options, 生命) == 300 ? 1 : GET_OPTION_VALUE(options, 生命) / 150, 1U));
 }
 const MutableGenericOptions k_default_generic_options;
@@ -32,7 +32,7 @@ const std::vector<RuleCommand> k_rule_commands = {};
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("设定游戏模式",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options, const uint32_t& mode)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options, const uint32_t& mode)
             {
                 if (mode == 100) {
                     generic_options.bench_computers_to_player_num_ = 2;
@@ -45,7 +45,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
             AlterChecker<uint32_t>({{"快速", 0}, {"高级", 1}, {"实时", 2}, {"单机", 100}})),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();

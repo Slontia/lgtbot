@@ -31,8 +31,8 @@ const GameProperties k_properties {
     .description_ = "通过放置卡牌，让卡牌连成直线获得积分，比拼分数高低的游戏",
 };
 
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } /* 0 means no max-player limits */
-uint32_t Multiple(const MyGameOptions& options)
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 0; } /* 0 means no max-player limits */
+uint32_t Multiple(const CustomOptions& options)
 {
     return GET_OPTION_VALUE(options, 种子).empty() ? std::min(2U, GET_OPTION_VALUE(options, 回合数) / 10) : 0;
 }
@@ -41,7 +41,7 @@ const std::vector<RuleCommand> k_rule_commands = {};
 
 static int WinScoreThreshold(const bool mode) { return mode ? 200 : 10; }
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     const auto card_num = GET_OPTION_VALUE(game_options, 颜色) * GET_OPTION_VALUE(game_options, 点数) * GET_OPTION_VALUE(game_options, 副数);
     if (GET_OPTION_VALUE(game_options, 回合数) > card_num && GET_OPTION_VALUE(game_options, 副数) > 0) {
@@ -53,7 +53,7 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 generic_options.bench_computers_to_player_num_ = 1;
                 return NewGameMode::SINGLE_USER;

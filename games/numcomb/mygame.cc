@@ -31,16 +31,16 @@ const GameProperties k_properties {
     .developer_ = "森高",
     .description_ = "通过放置卡牌，让同数字连成直线获得积分，比拼分数高低的游戏",
 };
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return 0; } /* 0 means no max-player limits */
-uint32_t Multiple(const MyGameOptions& options) { return GET_OPTION_VALUE(options, 种子).empty() ? 2 : 0; }
+uint64_t MaxPlayerNum(const CustomOptions& options) { return 0; } /* 0 means no max-player limits */
+uint32_t Multiple(const CustomOptions& options) { return GET_OPTION_VALUE(options, 种子).empty() ? 2 : 0; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 generic_options.bench_computers_to_player_num_ = 1;
                 return NewGameMode::SINGLE_USER;

@@ -34,12 +34,12 @@ const GameProperties k_properties {
     .description_ = "多个帝国共同参与，定时重组棋盘的象棋游戏",
 };
 constexpr uint64_t k_max_player = 6;
-uint64_t MaxPlayerNum(const MyGameOptions& options) { return k_max_player; }
-uint32_t Multiple(const MyGameOptions& options) { return GET_OPTION_VALUE(options, 最小回合限制) / 6; }
+uint64_t MaxPlayerNum(const CustomOptions& options) { return k_max_player; }
+uint32_t Multiple(const CustomOptions& options) { return GET_OPTION_VALUE(options, 最小回合限制) / 6; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() == 5) {
         reply() << "不好意思，该游戏允许 2、3、4、6 人参加，但唯独不允许 5 人参加";
@@ -60,7 +60,7 @@ bool AdaptOptions(MsgSenderBase& reply, MyGameOptions& game_options, const Gener
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
-            [] (MyGameOptions& game_options, MutableGenericOptions& generic_options)
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
                 generic_options.bench_computers_to_player_num_ = 3;
                 return NewGameMode::SINGLE_USER;
