@@ -1161,10 +1161,11 @@ class MainStage : public MainGameStage<>
         switch (!civilian_lost + !killer_lost + !traitor_lost) {
         case 0: // multiple teams lost at the same time
             sender << "游戏结束，多个阵营的失败条件同时满足，此时根据优先级，判定";
-            if (traitor_lost && !last_round_traitor_lost_) { // traitor lost at this round
+            if (!last_round_traitor_lost_ &&
+                    (role_manager_.GetRole(Occupation::内奸) || role_manager_.GetRole(Occupation::初版内奸))) { // traitor lost at this round
                 traitor_lost = false;
                 sender << "内奸";
-            } else if (killer_lost && !last_round_killer_lost_) { // killer lost at this round
+            } else if (!last_round_killer_lost_) { // killer lost at this round
                 killer_lost = false;
                 sender << "杀手阵营";
             } else {

@@ -451,6 +451,18 @@ GAME_TEST(5, civilian_and_killer_and_traitor_dead_at_the_same_time_traitor_win)
     ASSERT_SCORE(0, 0, 0, 0, 1);
 }
 
+GAME_TEST(5, both_civilian_and_killer_lose_in_the_first_round)
+{
+    ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 平民 平民 圣女 守卫");
+    ASSERT_PUB_MSG(OK, 0, "血量 15");
+    START_GAME();
+    ASSERT_PRI_MSG(OK, 0, "攻击 A 15");
+    ASSERT_PRI_MSG(OK, 1, "攻击 B 15");
+    ASSERT_PRI_MSG(OK, 2, "攻击 C 15");
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_SCORE(1, 0, 0, 0, 0);
+}
+
 GAME_TEST(5, killer_dead_body_double_cannot_act)
 {
     ASSERT_PUB_MSG(OK, 0, "身份列表 杀手 替身 平民 平民 内奸");
