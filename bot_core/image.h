@@ -14,9 +14,9 @@
 #include "utility/log.h"
 
 #ifdef TEST_BOT
-static bool enable_markdown_to_image = false;
+inline bool enable_markdown_to_image = false;
 #else
-static bool enable_markdown_to_image = true;
+inline bool enable_markdown_to_image = true;
 #endif
 
 inline const std::string k_markdown2image_path = (std::filesystem::current_path() / "markdown2image").string(); // TODO: config
