@@ -508,7 +508,7 @@ class RoleBase
         reply() << "晚安玛卡巴卡，您已经无法再行动了";
         DisableActWhenRoundEnd();
         assert(pid_.has_value());
-        utility.Eliminate(*pid_);
+        DisableAct();
         cur_action_ = action;
         return true;
     }
@@ -1066,6 +1066,9 @@ class MainStage : public MainGameStage<>
     {
         role_manager_.Foreach([&](auto& role)
             {
+                if (!role.CanAct() && role.PlayerId().has_value()) {
+                    Global().Eliminate(*role.PlayerId());
+                }
                 role.OnRoundBegin();
             });
     }
@@ -1111,8 +1114,6 @@ class MainStage : public MainGameStage<>
                     Global().Tell(*other_role->PlayerId()) << "另一位双子死亡，您下一回合的阵营变更为：" << role.GetTeam() << "阵营";
                 }
             });
-        if (has_dead) {
-        }
     }
 
     bool CheckTeamsLost_(MsgSenderBase::MsgSenderGuard& sender)
