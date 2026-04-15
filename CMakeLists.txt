@@ -58,8 +58,7 @@ if (WITH_IMAGE)
     PATHS
       /usr/local/lib/cmake/Qt5Core
       /usr/lib/cmake/Qt5Core
-      /usr/lib64/cmake/Qt5Core
-    NO_DEFAULT_PATH)
+      /usr/lib64/cmake/Qt5Core)
   set(_qt5_usable FALSE)
   if (_qt5_core_cfg_path)
     # install prefix = Qt5CoreConfig.cmake dir / ../../.. (3 levels up)

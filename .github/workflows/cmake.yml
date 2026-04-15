@@ -65,6 +65,7 @@ jobs:
           mingw-w64-x86_64-gflags
           mingw-w64-x86_64-gtest
           mingw-w64-x86_64-glog
+          mingw-w64-x86_64-protobuf
           mingw-w64-x86_64-pybind11
 
     - name: Checkout repository and submodules
