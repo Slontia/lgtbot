@@ -74,14 +74,11 @@ jobs:
         submodules: recursive
 
     - name: Configure CMake
-      # Temporary: fix gflags compile error
-      #   define GFLAGS_IS_A_DLL=0 to avoid "operator '&&' has no left operand" in gflags.h
-      #   -Dgoogle=gflags resolves undefined 'google::RegisterFlagValidator' symbol
       run: |
         cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
           -DWITH_GCOV=OFF -DWITH_ASAN=OFF -DWITH_GLOG=OFF -DWITH_SQLITE=ON -DWITH_TEST=ON -DWITH_TOOLS=ON -DWITH_GAMES=ON \
           -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-          -DCMAKE_CXX_FLAGS="-DGFLAGS_IS_A_DLL=0 -Dgoogle=gflags"
+          -DCMAKE_CXX_FLAGS="-DGFLAGS_IS_A_DLL=0"
 
     - name: Build
       working-directory: build
