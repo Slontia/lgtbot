@@ -532,9 +532,9 @@ GAME_TEST(4, three_players_nyanpai_nagashi_mangan_nagashi)
     while (CHECK_TIMEOUT(CONTINUE));
 
     ASSERT_SCORE(25000, 25000, 25000, 25000);
-    ASSERT_ACHIEVEMENTS(0, "流局满贯", "三家和了", "累计役满");
-    ASSERT_ACHIEVEMENTS(1, "流局满贯", "三家和了", "累计役满");
-    ASSERT_ACHIEVEMENTS(2, "流局满贯", "三家和了", "累计役满");
+    ASSERT_ACHIEVEMENTS(0, "流局满贯", "三家和了");
+    ASSERT_ACHIEVEMENTS(1, "流局满贯", "三家和了");
+    ASSERT_ACHIEVEMENTS(2, "流局满贯", "三家和了");
     ASSERT_ACHIEVEMENTS(3);
 }
 
