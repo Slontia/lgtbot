@@ -1861,6 +1861,7 @@ class SyncMajong
                 CounterResult counter;
                 counter.yakus.emplace_back(Yaku::流局满贯);
                 counter.score1 = 4000;
+                counter.fan = 13;
                 player.fu_results_.emplace_back(SyncMahjongGamePlayer::k_none_player_id_, std::move(counter), Tile{});
             }
         }
