@@ -579,8 +579,8 @@ GAME_TEST(4, nyanpai_nagashi_mangan)
             25000 + (12000 - 4000) + (600 - 200) /*benchang*/ - 1000 + 500 /*richii_points*/,
             25000 - 4000 * 2 - 200 * 2 /*benchang*/,
             25000 - 4000 * 2 - 200 * 2 /*benchang*/);
-    ASSERT_ACHIEVEMENTS(0, "流局满贯", "累计役满");
-    ASSERT_ACHIEVEMENTS(1, "流局满贯", "累计役满");
+    ASSERT_ACHIEVEMENTS(0, "流局满贯");
+    ASSERT_ACHIEVEMENTS(1, "流局满贯");
     ASSERT_ACHIEVEMENTS(2);
     ASSERT_ACHIEVEMENTS(3);
 }
