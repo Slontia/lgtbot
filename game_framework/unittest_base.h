@@ -59,8 +59,10 @@ class TestGame : public ::testing::Test
         }
 
         const auto* const info = ::testing::UnitTest::GetInstance()->current_test_info();
-        const std::string suite = info ? info->test_case_name() : "suite";
-        const std::string name = info ? info->name() : "case";
+        // Truncate to 64 chars to avoid Windows MAX_PATH (260) limit
+        auto truncate = [](const std::string& s) { return s.size() > 64 ? s.substr(0, 64) : s; };
+        const std::string suite = truncate(info ? info->test_case_name() : "suite");
+        const std::string name = truncate(info ? info->name() : "case");
         saved_image_dir_str_ =
                 (std::filesystem::absolute(FLAGS_image_dir) / "unittest" / suite / name).lexically_normal().string();
         std::filesystem::create_directories(saved_image_dir_str_);

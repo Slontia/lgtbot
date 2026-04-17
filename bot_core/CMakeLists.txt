@@ -140,6 +140,7 @@ if (WITH_TEST)
   # glog is linked into test_bot only; plugin resolves LOG symbols from the executable (ENABLE_EXPORTS).
   set_target_properties(test_game_plugin PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${TEST_GAME_PLUGIN_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${TEST_GAME_PLUGIN_DIR}
     OUTPUT_NAME "libgame"
     PREFIX "")
   if (APPLE)
