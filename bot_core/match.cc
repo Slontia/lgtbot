@@ -75,29 +75,26 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, InitOption
         , game_handle_(game_handle)
         , host_uid_(host_uid)
         , gid_(gid)
-        , options_{
-            .resource_holder_{
-                .resource_dir_ =
-                    (std::filesystem::absolute(bot_.game_path()) / game_handle_.Info().module_name_ / "resource" / "").string(),
-                .saved_image_dir_ =
-                    (std::filesystem::absolute(bot_.image_path()) / "matches" /
-                     (std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + "_" + game_handle_.Info().module_name_)).string(),
-            },
-            .generic_options_{
-                lgtbot::game::ImmutableGenericOptions{
-                    .public_timer_alert_ = GET_OPTION_VALUE(*bot_.option().Lock(), 计时公开提示),
-                    .resource_dir_ = options_.resource_holder_.resource_dir_.c_str(),
-                    .saved_image_dir_ = options_.resource_holder_.saved_image_dir_.c_str(),
-                },
-                lgtbot::game::MutableGenericOptions{
-                    .bench_computers_to_player_num_ = init_options.bench_computers_to_player_num_,
-                    .is_formal_ = static_cast<bool>(init_options.is_formal_),
-                }
-            },
-          }
         , applied_options_log_(std::move(init_options.applied_options_log_))
         , group_sender_(gid.has_value() ? std::optional<MsgSender>(bot.MakeMsgSender(*gid_, this)) : std::nullopt)
 {
+    options_.resource_holder_.resource_dir_ =
+        (std::filesystem::absolute(bot_.game_path()) / game_handle_.Info().module_name_ / "resource" / "").string();
+    options_.resource_holder_.saved_image_dir_ =
+        (std::filesystem::absolute(bot_.image_path()) / "matches" /
+         (std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) + "_" +
+          game_handle_.Info().module_name_)).string();
+    options_.generic_options_ = lgtbot::game::GenericOptions{
+        lgtbot::game::ImmutableGenericOptions{
+            .public_timer_alert_ = GET_OPTION_VALUE(*bot_.option().Lock(), 计时公开提示),
+            .resource_dir_ = options_.resource_holder_.resource_dir_.c_str(),
+            .saved_image_dir_ = options_.resource_holder_.saved_image_dir_.c_str(),
+        },
+        lgtbot::game::MutableGenericOptions{
+            .bench_computers_to_player_num_ = init_options.bench_computers_to_player_num_,
+            .is_formal_ = static_cast<bool>(init_options.is_formal_),
+        }
+    };
     EmplaceUser_(host_uid);
 }
 
