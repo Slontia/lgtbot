@@ -147,6 +147,14 @@ if (WITH_TEST)
     # macOS requires explicit permission for unresolved symbols in dylibs.
     target_link_options(test_game_plugin PRIVATE -undefined dynamic_lookup)
   endif()
+  if (CMAKE_SYSTEM_NAME MATCHES "Windows")
+    set(GAME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test_game")
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource.rc.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/resource_test_game.rc"
+                   @ONLY)
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/resource_test_game.rc" PROPERTIES GENERATED TRUE)
+    target_sources(test_game_plugin PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/resource_test_game.rc")
+  endif()
 
   add_executable(test_bot
     test_bot.cc
