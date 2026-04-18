@@ -2,6 +2,13 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
+#include <optional>
+#include <array>
+#include <ranges>
+#include <algorithm>
+#include <variant>
+#include <iostream>
+
 #define private public
 #include "game_util/alchemist.h"
 #undef private

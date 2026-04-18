@@ -13,6 +13,7 @@
 
 #include "game_framework/stage.h"
 #include "game_framework/util.h"
+#include "utility/random.h"
 #include "utility/html.h"
 
 #include "opencomb.h"
@@ -123,8 +124,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage>
             std::uniform_int_distribution<unsigned long long> dis;
             seed_str_ = std::to_string(dis(rd));
         }
-        std::seed_seq seed(seed_str_.begin(), seed_str_.end());
-        g = std::mt19937(seed);
+        g = MakeRng(seed_str_);
 
         // 卡池模板生成
         std::vector<AreaCard> classical_cards_;
@@ -163,9 +163,9 @@ class MainStage : public MainGameStage<RoundStage, SelectStage>
             cards_.insert(cards_.end(), air_cards_.begin(), air_cards_.end());
         } else if (GAME_OPTION(卡池) == 3) {
             cards_.insert(cards_.end(), chaos_cards_.begin(), chaos_cards_.end());
-            std::shuffle(classical_cards_.begin(), classical_cards_.end(), g);
-            std::shuffle(wild_cards_.begin(), wild_cards_.end(), g);
-            std::shuffle(air_cards_.begin(), air_cards_.end(), g);
+            SeededShuffle(classical_cards_.begin(), classical_cards_.end(), g);
+            SeededShuffle(wild_cards_.begin(), wild_cards_.end(), g);
+            SeededShuffle(air_cards_.begin(), air_cards_.end(), g);
             cards_.insert(cards_.end(), classical_cards_.begin(), classical_cards_.begin() + 10);
             cards_.insert(cards_.end(), wild_cards_.begin(), wild_cards_.begin() + 10);
             cards_.insert(cards_.end(), air_cards_.begin(), air_cards_.begin() + 10);
@@ -185,7 +185,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage>
             for (uint32_t i = 0; i < 2; ++i) cards_.emplace_back("reshape");
         }
 
-        std::shuffle(cards_.begin(), cards_.end(), g);
+        SeededShuffle(cards_.begin(), cards_.end(), g);
 
         if (GAME_OPTION(道具)) {
             // first round
@@ -206,9 +206,9 @@ class MainStage : public MainGameStage<RoundStage, SelectStage>
             }
             dRate_ = std::pow(M_E, Global().PlayerNum() / 6.0) / M_E;
             iRate_ = dRate_;
-            std::shuffle(tmp_cards.begin(), tmp_cards.end(), g);
+            SeededShuffle(tmp_cards.begin(), tmp_cards.end(), g);
             cards2_.insert(cards2_.end(), tmp_cards.begin(), tmp_cards.end());
-            std::shuffle(tmp_cards.begin(), tmp_cards.end(), g);
+            SeededShuffle(tmp_cards.begin(), tmp_cards.end(), g);
             cards2_.insert(cards2_.end(), tmp_cards.begin(), tmp_cards.end());
         }
 
@@ -592,7 +592,7 @@ class RoundStage : public SubGameStage<>
             do {
                 b = false;
                 fight_map.clear();
-                std::shuffle(list.begin(), list.end(), Main().g);
+                SeededShuffle(list.begin(), list.end(), Main().g);
 
                 for (size_t i = 0; i < list.size() - 1; i += 2) {
                     for (const auto& hist : Main().fought_list_) {
@@ -708,7 +708,7 @@ class SelectStage : public SubGameStage<>
         }
         std::seed_seq seed(Main().seed_str_.begin(), Main().seed_str_.end());
         std::mt19937 g(seed);
-        std::shuffle(current_players.begin(), current_players.end(), Main().g);
+        SeededShuffle(current_players.begin(), current_players.end(), Main().g);
 
         std::sort(current_players.begin(), current_players.end(), [this](const PlayerID &p1, const PlayerID &p2) {
             if (Main().players_[p1].hp != Main().players_[p2].hp) {
