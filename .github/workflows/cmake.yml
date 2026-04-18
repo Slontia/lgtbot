@@ -77,12 +77,35 @@ jobs:
       run: |
         cmake -G "MinGW Makefiles" -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
           -DWITH_GCOV=OFF -DWITH_ASAN=OFF -DWITH_GLOG=OFF -DWITH_SQLITE=ON -DWITH_TEST=ON -DWITH_TOOLS=ON -DWITH_GAMES=ON \
-          -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
           -DCMAKE_CXX_FLAGS="-DGFLAGS_IS_A_DLL=0"
 
     - name: Build
       working-directory: build
       run: mingw32-make -j15
+
+    - name: Test
+      working-directory: build
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure
+
+  build-on-macos:
+    runs-on: macos-latest
+    steps:
+    - name: Install dependences
+      run: brew install googletest gflags glog sqlite protobuf pybind11 qtwebengine
+
+    - name: Checkout repository and submodules
+      uses: actions/checkout@v2
+      with:
+        submodules: recursive
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+          -DWITH_GCOV=OFF -DWITH_ASAN=OFF -DWITH_GLOG=OFF -DWITH_SQLITE=ON -DWITH_TEST=ON -DWITH_TOOLS=ON -DWITH_GAMES=ON \
+          -DCMAKE_PREFIX_PATH="$(brew --prefix qt);$(brew --prefix qtwebengine)"
+
+    - name: Build
+      run: cmake --build build --config ${{env.BUILD_TYPE}} -j$(sysctl -n hw.logicalcpu)
 
     - name: Test
       working-directory: build
