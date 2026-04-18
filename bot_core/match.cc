@@ -160,7 +160,7 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t
     }
     options_.generic_options_.bench_computers_to_player_num_ = bench_computers_to_player_num;
     KickForConfigChange_();
-    sender << "设置成功！\n\n" << BriefInfo_();
+    { std::string brief; BriefInfo_(brief); sender << "设置成功！\n\n" << brief; }
     return EC_OK;
 }
 
@@ -246,7 +246,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
     game_handle_.UpdateCachedLimits(max_player, multiple);
     applied_options_log_.push_back(msg);
     KickForConfigChange_();
-    reply() << "设置成功！\n\n" << BriefInfo_();
+    { std::string brief; BriefInfo_(brief); reply() << "设置成功！\n\n" << brief; }
     return EC_GAME_REQUEST_OK;
 }
 
@@ -392,7 +392,7 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
     }
     EmplaceUser_(uid);
-    Boardcast() << "玩家 " << At(uid) << " 加入了游戏\n\n" << BriefInfo_();
+    { std::string brief; BriefInfo_(brief); Boardcast() << "玩家 " << At(uid) << " 加入了游戏\n\n" << brief; }
     return EC_OK;
 }
 
@@ -415,7 +415,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
             match_manager().UnbindMatch(uid);
             users_.erase(uid);
             reply() << "退出成功";
-            Boardcast() << "玩家 " << At(uid) << " 退出了游戏\n\n" << BriefInfo_();
+            { std::string brief; BriefInfo_(brief); Boardcast() << "玩家 " << At(uid) << " 退出了游戏\n\n" << brief; }
             if (users_.empty()) {
                 Boardcast() << "所有玩家都退出了游戏，游戏解散";
                 Unbind_();
@@ -700,21 +700,25 @@ void Match::ShowInfo(MsgSenderBase& reply) const
     }
 }
 
-std::string Match::BriefInfo() const
+void Match::BriefInfo(std::string& out) const
 {
-    std::lock_guard l(mutex_);
-    return BriefInfo_();
+    std::lock_guard<std::mutex> l(mutex_);
+    BriefInfo_(out);
 }
 
-std::string Match::BriefInfo_() const
+void Match::BriefInfo_(std::string& out) const
 {
     const auto multiple = Multiple_();
-    return std::string("游戏名称：") + game_handle().Info().name_ +
+    const char* const name = game_handle().Info().name_;
+    const auto is_formal = options_.generic_options_.is_formal_;
+    const auto usize = users_.size();
+    const auto cnum = ComputerNum_();
+    out = std::string("游戏名称：") + name +
         "\n- 倍率：" +
-        (options_.generic_options_.is_formal_ || multiple == 0 ? std::to_string(multiple) :
-                                                                 "0（开启计分后为 " + std::to_string(multiple) + "）") +
-        "\n- 当前用户数：" + std::to_string(users_.size()) +
-        "\n- 当前电脑数：" + std::to_string(ComputerNum_());
+        (is_formal || multiple == 0 ? std::to_string(multiple) :
+                                      "0（开启计分后为 " + std::to_string(multiple) + "）") +
+        "\n- 当前用户数：" + std::to_string(usize) +
+        "\n- 当前电脑数：" + std::to_string(cnum);
 }
 
 std::string Match::OptionInfo_() const

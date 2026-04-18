@@ -108,7 +108,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     const State state() const { return state_; }
     MatchManager& match_manager() { return bot_.match_manager(); }
 
-    std::string BriefInfo() const;
+    void BriefInfo(std::string& out) const;
 
     void ReleaseGameChildIfOver();
 
@@ -148,7 +148,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         return logger;
     }
 
-    std::string BriefInfo_() const;
+    void BriefInfo_(std::string& out) const;
     void Help_(MsgSenderBase& reply, const bool text_mode);
     std::string OptionInfo_() const;
     void ApplyChildPlayerState(const PlayerID pid, const std::string& state);

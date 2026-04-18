@@ -213,6 +213,9 @@ class MsgSender : public MsgSenderBase
 
     virtual void Flush() override
     {
+        if (messages_.empty()) {
+            return;
+        }
         std::vector<LGTBot_Message> raw_messages;
         raw_messages.reserve(messages_.size());
         for (const auto& message : messages_) {

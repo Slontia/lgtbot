@@ -25,8 +25,48 @@ class GameHandle
     struct BasicInfo : public lgtbot::game::GameProperties
     {
         BasicInfo() = default;
-        BasicInfo(const lgtbot::game::GameProperties& properties) : GameProperties(properties) {}
+        BasicInfo(const lgtbot::game::GameProperties& properties)
+            : GameProperties(properties)
+            , name_owned_(properties.name_ ? properties.name_ : "")
+            , developer_owned_(properties.developer_ ? properties.developer_ : "")
+            , description_owned_(properties.description_ ? properties.description_ : "")
+        {
+            name_ = name_owned_.c_str();
+            developer_ = developer_owned_.c_str();
+            description_ = description_owned_.c_str();
+        }
+        BasicInfo(const BasicInfo& other)
+            : GameProperties(other)
+            , name_owned_(other.name_owned_)
+            , developer_owned_(other.developer_owned_)
+            , description_owned_(other.description_owned_)
+            , module_name_(other.module_name_)
+            , rule_(other.rule_)
+            , achievements_(other.achievements_)
+        {
+            name_ = name_owned_.c_str();
+            developer_ = developer_owned_.c_str();
+            description_ = description_owned_.c_str();
+        }
+        BasicInfo(BasicInfo&& other)
+            : GameProperties(other)
+            , name_owned_(std::move(other.name_owned_))
+            , developer_owned_(std::move(other.developer_owned_))
+            , description_owned_(std::move(other.description_owned_))
+            , module_name_(std::move(other.module_name_))
+            , rule_(std::move(other.rule_))
+            , achievements_(std::move(other.achievements_))
+        {
+            name_ = name_owned_.c_str();
+            developer_ = developer_owned_.c_str();
+            description_ = description_owned_.c_str();
+        }
+        BasicInfo& operator=(const BasicInfo&) = delete;
+        BasicInfo& operator=(BasicInfo&&) = delete;
 
+        std::string name_owned_;
+        std::string developer_owned_;
+        std::string description_owned_;
         std::string module_name_;
         std::string rule_;
 

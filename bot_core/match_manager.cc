@@ -27,7 +27,12 @@ static ErrCode StartGame(const lgtbot::game::InitOptionsResult start_mode, const
             sender << "现在玩家可以通过私信我「" META_COMMAND_SIGN "加入 " << match.MatchId()
                 << "」报名比赛，您也可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置";
         }
-        sender << "\n\n" << match.BriefInfo();
+        sender << "\n\n";
+        {
+            std::string brief;
+            match.BriefInfo(brief);
+            sender << brief;
+        }
     }
     return EC_OK;
 }
@@ -53,9 +58,7 @@ ErrCode MatchManager::NewMatch(GameHandle& game_handle, const std::string_view i
         uint64_t max_player = game_handle.CachedMaxPlayer();
         uint32_t multiple = game_handle.CachedMultiple();
         uint32_t bench = 0;
-        fprintf(stderr, "[DBG] QueryDefaultFormal begin\n"); fflush(stderr);
         uint8_t is_formal = game_handle.ConfigClient().QueryDefaultFormal() ? 1 : 0;
-        fprintf(stderr, "[DBG] QueryDefaultFormal done: %d\n", (int)is_formal); fflush(stderr);
         if (!init_options_args.empty()) {
             start_mode = game_handle.ConfigClient().InitOptions(std::string(init_options_args), max_player, multiple, bench, is_formal);
             if (start_mode == lgtbot::game::InitOptionsResult::INVALID_INIT_OPTIONS_COMMAND) {
@@ -69,12 +72,8 @@ ErrCode MatchManager::NewMatch(GameHandle& game_handle, const std::string_view i
         Match::InitOptions options;
         options.bench_computers_to_player_num_ = bench;
         options.is_formal_ = is_formal;
-        fprintf(stderr, "[DBG] GetAppliedLog begin\n"); fflush(stderr);
         options.applied_options_log_ = game_handle.ConfigClient().GetAppliedLog();
-        fprintf(stderr, "[DBG] GetAppliedLog done\n"); fflush(stderr);
-        fprintf(stderr, "[DBG] make_shared<Match> begin\n"); fflush(stderr);
         new_match = std::make_shared<Match>(bot_, mid, game_handle, std::move(options), uid, gid);
-        fprintf(stderr, "[DBG] make_shared<Match> done\n"); fflush(stderr);
         BindMatch_(mid, new_match);
         BindMatch_(uid, new_match);
         if (gid.has_value()) {
