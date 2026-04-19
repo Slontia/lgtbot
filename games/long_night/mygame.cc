@@ -1200,7 +1200,7 @@ bool RoundStage::PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& send
 
         Player& target = Main().board.players[t];
         target.NewContentRecord("[首轮被抓传送]", "teleport");
-        if (t < currentPlayer) {    // 被抓玩家在前面，强制刷新完整赛况
+        if (t.Get() < currentPlayer.Get()) {    // 被抓玩家在前面，强制刷新完整赛况
             target.all_record.back() = target.move_record;
         }
 
