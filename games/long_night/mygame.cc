@@ -356,6 +356,7 @@ class MainStage : public MainGameStage<RoundStage>
                 case SpecialEvent::LAZYGARDENER:    board.unitMaps.SpecialEvent1(); break;
                 case SpecialEvent::OVERGROWTH:      board.unitMaps.SpecialEvent2(); break;
                 case SpecialEvent::RAINSTORY:       board.unitMaps.SpecialEvent3(); break;
+                case SpecialEvent::NONE: case SpecialEvent::RANDOM: break;
             }
             sender << UnitMaps::ShowSpecialEvent(GAME_OPTION(特殊事件)) << "\n\n";
         }

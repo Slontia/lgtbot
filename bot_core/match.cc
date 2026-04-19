@@ -92,7 +92,7 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, InitOption
         },
         lgtbot::game::MutableGenericOptions{
             .bench_computers_to_player_num_ = init_options.bench_computers_to_player_num_,
-            .is_formal_ = static_cast<bool>(init_options.is_formal_),
+            .is_formal_ = init_options.is_formal_,
         }
     };
     EmplaceUser_(host_uid);

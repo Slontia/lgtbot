@@ -77,8 +77,7 @@ struct MutableGenericOptions
 {
     uint32_t bench_computers_to_player_num_{0}; // The minimal player number. If it is greater than the current player
                                                 // number, computers will be added to the game.
-    uint8_t is_formal_{1}; // The value of 0 indicates the result of this match will not be recorded. The other values
-                           // indicate the result will be recorded.
+    bool is_formal_{true}; // If false, the result of this match will not be recorded.
 };
 
 struct GenericOptions : public ImmutableGenericOptions, public MutableGenericOptions

@@ -58,7 +58,7 @@ ErrCode MatchManager::NewMatch(GameHandle& game_handle, const std::string_view i
         uint64_t max_player = game_handle.CachedMaxPlayer();
         uint32_t multiple = game_handle.CachedMultiple();
         uint32_t bench = 0;
-        uint8_t is_formal = game_handle.ConfigClient().QueryDefaultFormal() ? 1 : 0;
+        bool is_formal = game_handle.ConfigClient().QueryDefaultFormal();
         if (!init_options_args.empty()) {
             start_mode = game_handle.ConfigClient().InitOptions(std::string(init_options_args), max_player, multiple, bench, is_formal);
             if (start_mode == lgtbot::game::InitOptionsResult::INVALID_INIT_OPTIONS_COMMAND) {

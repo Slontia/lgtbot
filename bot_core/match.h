@@ -49,7 +49,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     struct InitOptions
     {
         uint32_t bench_computers_to_player_num_{0};
-        uint8_t is_formal_{1};
+        bool is_formal_{true};
         std::vector<std::string> applied_options_log_;
     };
 

@@ -76,7 +76,7 @@ class PlayerAchievement
     // 【牛头魅魔】
     bool boss_chase_four_steps = false;
 
-    PlayerAchievement(const vector<pair<int, int>>& pos): blocks(move(pos))
+    PlayerAchievement(const vector<pair<int, int>>& pos): blocks(std::move(pos))
     {
         InitializeBlockChecker();
     }

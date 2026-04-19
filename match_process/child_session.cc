@@ -272,7 +272,7 @@ bool ChildGameSession::HandleInit(const lgtbot::ipc::InitReq& req, std::string& 
     imm.user_num_ = 0;
     lgtbot::game::MutableGenericOptions mut{};
     mut.bench_computers_to_player_num_ = req.bench();
-    mut.is_formal_ = static_cast<uint8_t>(req.is_formal());
+    mut.is_formal_ = req.is_formal();
     generic_options_ = lgtbot::game::GenericOptions(imm, mut);
     lgtbot::ipc::GameResponse resp;
     resp.mutable_ack()->set_ok(true);

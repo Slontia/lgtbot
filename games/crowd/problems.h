@@ -5969,7 +5969,7 @@ public:
 		}
 
 		for (int i = 0; i < 6; i++) {
-			if(!shen_xiao[i]) tempScore[i] =- 0.5;
+			if(!shen_xiao[i]) tempScore[i] = -0.5;
 			else tempScore[i] = 0;
 		}
 

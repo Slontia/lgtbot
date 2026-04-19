@@ -240,7 +240,7 @@ lgtbot::game::InitOptionsResult GameConfigClient::InitOptions(const std::string&
                                                                uint64_t& max_player,
                                                                uint32_t& multiple,
                                                                uint32_t& bench,
-                                                               uint8_t& is_formal)
+                                                               bool& is_formal)
 {
     std::lock_guard<std::mutex> lk(mutex_);
     for (int attempt = 0; attempt < 2; ++attempt) {
@@ -261,7 +261,7 @@ lgtbot::game::InitOptionsResult GameConfigClient::InitOptions(const std::string&
         max_player = r.max_player();
         multiple = r.multiple();
         bench = r.bench();
-        is_formal = static_cast<uint8_t>(r.is_formal());
+        is_formal = r.is_formal();
         return (r.start_mode() == lgtbot::ipc::InitOptionsResp::SINGLE)
                     ? lgtbot::game::NEW_SINGLE_USER_MODE_GAME
                     : lgtbot::game::NEW_MULTIPLE_USERS_MODE_GAME;

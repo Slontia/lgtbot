@@ -77,7 +77,7 @@ class TestGame : public ::testing::Test
         imm_.saved_image_dir_ = saved_image_dir_str_.c_str();
         mut_ = MutableGenericOptions{};
         mut_.bench_computers_to_player_num_ = static_cast<uint32_t>(kPlayerNum);
-        mut_.is_formal_ = 1;
+        mut_.is_formal_ = true;
 
         std::filesystem::path mock_image_dir;
         if (want_mock_images) {

@@ -198,7 +198,7 @@ bool ChildConfigSession::HandleInitOptions(const lgtbot::ipc::InitOptionsReq& re
     }
 
     lgtbot::game::MutableGenericOptions generic_options{};
-    generic_options.is_formal_ = static_cast<uint8_t>(default_is_formal_);
+    generic_options.is_formal_ = default_is_formal_;
     const auto result = module_.init_options_(req.args().c_str(), opts.get(), &generic_options);
 
     lgtbot::ipc::ConfigResponse resp;

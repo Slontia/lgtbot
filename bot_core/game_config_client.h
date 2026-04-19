@@ -60,7 +60,7 @@ class GameConfigClient
                                                 uint64_t& max_player,
                                                 uint32_t& multiple,
                                                 uint32_t& bench,
-                                                uint8_t& is_formal);
+                                                bool& is_formal);
 
     // Shut down the subprocess if it is running (called on bot shutdown).
     void Shutdown();
