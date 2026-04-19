@@ -102,15 +102,15 @@ namespace poker {
 constexpr inline const char* GetPatternTypeName(const PatternType type)
 {
     constexpr const char* k_pattern_type_names[] = {
-        /* PatternType{PatternType::HIGH_CARD}.ToUInt() */ "高牌",
-        /* PatternType{PatternType::ONE_PAIR}.ToUInt() */ "一对",
-        /* PatternType{PatternType::TWO_PAIRS}.ToUInt() */ "两对",
-        /* PatternType{PatternType::THREE_OF_A_KIND}.ToUInt() */ "三条",
-        /* PatternType{PatternType::STRAIGHT}.ToUInt() */ "顺子",
-        /* PatternType{PatternType::FLUSH}.ToUInt() */ "同花",
-        /* PatternType{PatternType::FULL_HOUSE}.ToUInt() */ "满堂红",
-        /* PatternType{PatternType::FOUR_OF_A_KIND}.ToUInt() */ "四条",
-        /* PatternType{PatternType::STRAIGHT_FLUSH}.ToUInt() */ "同花顺",
+        [PatternType{PatternType::HIGH_CARD}.ToUInt()] = "高牌",
+        [PatternType{PatternType::ONE_PAIR}.ToUInt()] = "一对",
+        [PatternType{PatternType::TWO_PAIRS}.ToUInt()] = "两对",
+        [PatternType{PatternType::THREE_OF_A_KIND}.ToUInt()] = "三条",
+        [PatternType{PatternType::STRAIGHT}.ToUInt()] = "顺子",
+        [PatternType{PatternType::FLUSH}.ToUInt()] = "同花",
+        [PatternType{PatternType::FULL_HOUSE}.ToUInt()] = "满堂红",
+        [PatternType{PatternType::FOUR_OF_A_KIND}.ToUInt()] = "四条",
+        [PatternType{PatternType::STRAIGHT_FLUSH}.ToUInt()] = "同花顺",
     };
     static_assert(sizeof(k_pattern_type_names) / sizeof(k_pattern_type_names[0]) == PatternType::Count());
     return k_pattern_type_names[type.ToUInt()];
