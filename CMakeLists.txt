@@ -37,6 +37,17 @@ else()
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wsuggest-override -Werror=suggest-override")
   endif()
 endif()
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=switch -Werror=unused-result")
+check_cxx_compiler_flag(-Wunqualified-std-cast-call COMPILER_SUPPORTS_WUNQUALIFIED_STD_CAST_CALL)
+if (COMPILER_SUPPORTS_WUNQUALIFIED_STD_CAST_CALL)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=unqualified-std-cast-call")
+endif()
+# -Wbraced-scalar-init is clang-only; clang also incorrectly fires on valid
+# designated-initializer syntax like .x{false}, so suppress it there too.
+check_cxx_compiler_flag(-Wno-braced-scalar-init COMPILER_SUPPORTS_WNO_BRACED_SCALAR_INIT)
+if (COMPILER_SUPPORTS_WNO_BRACED_SCALAR_INIT)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-braced-scalar-init")
+endif()
 
 include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/include)
 

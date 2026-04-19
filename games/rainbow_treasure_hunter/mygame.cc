@@ -29,7 +29,7 @@ const GameProperties k_properties {
 uint64_t MaxPlayerNum(const CustomOptions& options) { return 12; }
 uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options{
-    .is_formal_{0},
+    .is_formal_{false},
 };
 const std::vector<RuleCommand> k_rule_commands = {};
 
