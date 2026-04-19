@@ -91,14 +91,14 @@ struct PlayerChipInfo
 const char* Action2Str(const int action)
 {
     static constexpr const char* k_strs[] = {
-        /* PlayerChipInfo::CALL */ "(Call)",
-        /* PlayerChipInfo::RAISE */ "(Raise)",
-        /* PlayerChipInfo::BET */ "(Bet)",
-        /* PlayerChipInfo::CHECK */ "(Check)",
-        /* PlayerChipInfo::ALLIN */ "(All In)",
-        /* PlayerChipInfo::FOLD */ "(Fold)",
-        /* PlayerChipInfo::BLIND */ "(Blind)",
-        /* PlayerChipInfo::NO_ACTION */ "",
+        [PlayerChipInfo::CALL] = "(Call)",
+        [PlayerChipInfo::RAISE] = "(Raise)",
+        [PlayerChipInfo::BET] = "(Bet)",
+        [PlayerChipInfo::CHECK] = "(Check)",
+        [PlayerChipInfo::ALLIN] = "(All In)",
+        [PlayerChipInfo::FOLD] = "(Fold)",
+        [PlayerChipInfo::BLIND] = "(Blind)",
+        [PlayerChipInfo::NO_ACTION] = "",
     };
     return k_strs[action];
 }
@@ -880,12 +880,12 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
     }
 
     static constexpr const char* k_state_names_[6] {
-        /* 0 */ "preflop",
-        /* 1 */ "",
-        /* 2 */ "",
-        /* 3 */ "flop",
-        /* 4 */ "turn",
-        /* 5 */ "river",
+        [0] = "preflop",
+        [1] = "",
+        [2] = "",
+        [3] = "flop",
+        [4] = "turn",
+        [5] = "river",
     };
     const int32_t base_chips_;
     int32_t bet_chips_;

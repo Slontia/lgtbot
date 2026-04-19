@@ -58,9 +58,9 @@ static const char* AppleTypeStr(const AppleType type)
 {
     static const char* k_apple_type_str[] =
     {
-        /* static_cast<int>(AppleType::RED) */ "红",
-        /* static_cast<int>(AppleType::GOLD) */ "金",
-        /* static_cast<int>(AppleType::SILVER) */ "银",
+        [static_cast<int>(AppleType::RED)] = "红",
+        [static_cast<int>(AppleType::GOLD)] = "金",
+        [static_cast<int>(AppleType::SILVER)] = "银",
     };
     return k_apple_type_str[static_cast<int>(type)];
 }
@@ -69,9 +69,9 @@ static const char* AppleTypeLightColor(const AppleType type)
 {
     static const char* k_apple_type_color[] =
     {
-        /* static_cast<int>(AppleType::RED) */ "#FFC1C1",
-        /* static_cast<int>(AppleType::GOLD) */ "#FFDEAD",
-        /* static_cast<int>(AppleType::SILVER) */ "#DCDCDC",
+        [static_cast<int>(AppleType::RED)] = "#FFC1C1",
+        [static_cast<int>(AppleType::GOLD)] = "#FFDEAD",
+        [static_cast<int>(AppleType::SILVER)] = "#DCDCDC",
     };
     return k_apple_type_color[static_cast<int>(type)];
 }
@@ -80,9 +80,9 @@ static const char* AppleTypeDeepColor(const AppleType type)
 {
     static const char* k_apple_type_color[] =
     {
-        /* static_cast<int>(AppleType::RED) */ "#B22222",
-        /* static_cast<int>(AppleType::GOLD) */ "#DAA520",
-        /* static_cast<int>(AppleType::SILVER) */ "#696969",
+        [static_cast<int>(AppleType::RED)] = "#B22222",
+        [static_cast<int>(AppleType::GOLD)] = "#DAA520",
+        [static_cast<int>(AppleType::SILVER)] = "#696969",
     };
     return k_apple_type_color[static_cast<int>(type)];
 }
@@ -91,9 +91,9 @@ static const char* AppleTypeName(const AppleType type)
 {
     static const char* k_apple_type_name[] =
     {
-        /* static_cast<int>(AppleType::RED) */ "red",
-        /* static_cast<int>(AppleType::GOLD) */ "gold",
-        /* static_cast<int>(AppleType::SILVER) */ "silver",
+        [static_cast<int>(AppleType::RED)] = "red",
+        [static_cast<int>(AppleType::GOLD)] = "gold",
+        [static_cast<int>(AppleType::SILVER)] = "silver",
     };
     return k_apple_type_name[static_cast<int>(type)];
 }
