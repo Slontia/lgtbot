@@ -229,17 +229,17 @@ class RoundStage : public SubGameStage<CardStage, PlaceStage>
     {}
 
   private:
-   void FirstStageFsm(SubStageFsmSetter setter)
+   void FirstStageFsm(SubStageFsmSetter setter) override
     {
         setter.Emplace<CardStage>(Main());
     }
 
-    void NextStageFsm(CardStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
+    void NextStageFsm(CardStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         setter.Emplace<PlaceStage>(Main());
     }
 
-    void NextStageFsm(PlaceStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
+    void NextStageFsm(PlaceStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         // End RoundStage
     }
