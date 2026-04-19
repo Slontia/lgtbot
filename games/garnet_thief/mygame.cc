@@ -98,7 +98,7 @@ class MainStage : public MainGameStage<RoundStage>
         return StageErrCode::OK;
     }
 
-    void FirstStageFsm(SubStageFsmSetter setter)
+    void FirstStageFsm(SubStageFsmSetter setter) override
     {
         srand((unsigned int)time(NULL));
         for (int i = 0; i < Global().PlayerNum(); i++) {
@@ -137,9 +137,8 @@ class MainStage : public MainGameStage<RoundStage>
         setter.Emplace<RoundStage>(*this, ++round_);
     }
 
-    void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
+    void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
-        
         bool chips_all_zero = all_of(player_chips_.begin(), player_chips_.end(), [](int64_t c) { return c == 0; });
         if ((++round_) <= GAME_OPTION(回合数) && !chips_all_zero) {
             setter.Emplace<RoundStage>(*this, round_);

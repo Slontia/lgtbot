@@ -334,7 +334,7 @@ class MainStage : public MainGameStage<RoundStage>
         return StageErrCode::OK;
     }
     
-    void FirstStageFsm(SubStageFsmSetter setter)
+    void FirstStageFsm(SubStageFsmSetter setter) override
     {
         srand((unsigned int)time(NULL));
 
@@ -432,7 +432,7 @@ class MainStage : public MainGameStage<RoundStage>
         setter.Emplace<RoundStage>(*this, ++round_);
     }
 
-    void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
+    void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         bool game_end =
             ((Alive_() <= 1 || all_active_stop) && Global().PlayerNum() > 1) ||

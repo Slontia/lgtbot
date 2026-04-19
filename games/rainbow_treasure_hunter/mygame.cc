@@ -187,7 +187,7 @@ class MainStage : public MainGameStage<RoundStage>
         return StageErrCode::OK;
     }
 
-    void FirstStageFsm(SubStageFsmSetter setter)
+    void FirstStageFsm(SubStageFsmSetter setter) override
     {
         srand((unsigned int)time(NULL));
         const int32_t hp_option = GAME_OPTION(生命) >= 0 ? GAME_OPTION(生命) : maps[GAME_OPTION(地图)].hp;
@@ -210,7 +210,7 @@ class MainStage : public MainGameStage<RoundStage>
         setter.Emplace<RoundStage>(*this, ++round_);
     }
 
-    void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
+    void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         if (board.countLeftGridType(GridType::TREASURE) > 0 && board.AliveCount() > 1) {
             setter.Emplace<RoundStage>(*this, ++round_);

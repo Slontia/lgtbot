@@ -24,7 +24,7 @@ option(WITH_GLOG "build with glog" TRUE)
 option(WITH_SQLITE "build with sqlite" TRUE)
 
 # 'char' type in arm machines is 'unsigned char', we should define it as 'signed char'
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsigned-char -g -Wno-invalid-utf8 -Wno-c99-designator")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsigned-char -g -Wno-invalid-utf8 -Wno-c99-designator -Winconsistent-missing-override -Werror=inconsistent-missing-override")
 SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsigned-char -g -Wno-invalid-utf8")
 
 include_directories(SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/include)

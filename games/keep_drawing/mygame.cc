@@ -84,7 +84,7 @@ class MainStage : public MainGameStage<RoundStage>
     bool GameEnd() { return std::any_of(player_scores_.begin(), player_scores_.end(), [this](int64_t s) { return s >= GAME_OPTION(分数); }); }
 
   private:
-    void FirstStageFsm(SubStageFsmSetter setter)
+    void FirstStageFsm(SubStageFsmSetter setter) override
     {
         srand((unsigned int)time(NULL));
 
@@ -94,7 +94,7 @@ class MainStage : public MainGameStage<RoundStage>
         setter.Emplace<RoundStage>(*this, ++round_);
     }
 
-    void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
+    void NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         if ((++round_) <= GAME_OPTION(局数) && !GameEnd()) {
             setter.Emplace<RoundStage>(*this, round_);

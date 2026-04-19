@@ -223,7 +223,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage>
 
     bool hasBots();
 
-    int64_t PlayerScore(const PlayerID pid) const
+    int64_t PlayerScore(const PlayerID pid) const override
     {
         if (GAME_OPTION(连线奖励)) {
             return players_[pid].comb_->Score() + players_[pid].comb_->ExtraScore();
