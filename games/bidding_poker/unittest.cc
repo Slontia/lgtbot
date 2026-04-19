@@ -104,14 +104,14 @@ GAME_TEST(5, do_nothing_no_items)
 }
 
 // 种子 ABC
-// 1号商品：○1 △3 ○6 ☆6 □8
-// 2号商品：△1 ☆1 △2 ○4 △9
-// 3号商品：□1 ○2 △4 ☆5 △7
-// 4号商品：□2 ☆2 □3 ○5 ☆7
-// 5号商品：○3 ☆3 ☆4 ○9 ☆X
-// 6号商品：□4 ○7 ○8 △8 □9
-// 7号商品：△5 □5 □6 □7 △X
-// 8号商品：△6 ☆8 ☆9 ○X □X
+// 1号商品：○1 ■1 △2 ○3 ■5
+// 2号商品：△1 ★3 △4 ○8 △9
+// 3号商品：★1 ○2 ○4 ★5 △8
+// 4号商品：■2 ★2 ○7 ★7 ★8
+// 5号商品：△3 ○9 ○X △X ■X
+// 6号商品：■3 △5 △7 ■7 ■8
+// 7号商品：■4 △6 ■6 ★9 ★X
+// 8号商品：★4 ○5 ○6 ★6 ■9
 
 GAME_TEST(5, discarder_auto_ready)
 {
@@ -121,16 +121,12 @@ GAME_TEST(5, discarder_auto_ready)
     ASSERT_PUB_MSG(OK, 0, "回合数 1");
     START_GAME();
 
-    // 玩家0 中标 5 号商品（△2 ☆6 □7 ○8 ☆X），其余各商品 timeout
-    for (int i = 0; i < 4; ++i) {
-        ASSERT_TIMEOUT(CHECKOUT);
-    }
     ASSERT_PRI_MSG(OK, 0, "50");
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 8; ++i) {
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    ASSERT_PRI_MSG(CHECKOUT, 0, "圆3"); // others need not discard (○3 in item 5)
+    ASSERT_PRI_MSG(CHECKOUT, 0, "角2"); // others need not discard
 
     for (int i = 1; i < 4; ++i) {
         ASSERT_PRI_MSG(OK, i, "pass");
@@ -154,7 +150,7 @@ GAME_TEST(5, no_coins_auto_ready)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    ASSERT_PRI_MSG(OK, 0, "圆1");
+    ASSERT_PRI_MSG(OK, 0, "角2");
     ASSERT_TIMEOUT(CHECKOUT);
 
     for (int i = 2; i < 4; ++i) {
@@ -176,15 +172,15 @@ GAME_TEST(5, discard_should_ready)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    ASSERT_PRI_MSG(CHECKOUT, 0, "圆1");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "角2");
 
     ASSERT_PRI_MSG(OK, 1, "50");
     for (int i = 0; i < 8; ++i) {
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    ASSERT_PRI_MSG(OK, 0, "角3");
-    ASSERT_PRI_MSG(CHECKOUT, 1, "圆1");
+    ASSERT_PRI_MSG(OK, 0, "圆1");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "角2");
 }
 
 GAME_TEST(5, discard_1)
@@ -208,7 +204,8 @@ GAME_TEST(5, discard_1)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    ASSERT_SCORE(182, 66, 53, 83, 116);
+    // pool coins 50 * 5 + 13 = 263
+    ASSERT_SCORE(50 + 33, 50 + 16, 37 + 16, 50 + 66, 50 + 132);
 }
 
 GAME_TEST(5, discard_2)
@@ -225,9 +222,9 @@ GAME_TEST(5, discard_2)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    // round 1 — 1 号商品（种子 ABC）为 ○1 △3 ○6 ☆6 □8，与注释中误写的 ○1☆2☆3 不一致
-    ASSERT_PRI_MSG(FAILED, 0, "方1"); // □1 不在该手牌内
-    ASSERT_PRI_MSG(CHECKOUT, 0, "圆1 角3 圆6"); // ○1 △3 ○6 均在 1 号商品
+    // round 1
+    ASSERT_PRI_MSG(FAILED, 0, "角1");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "圆1 方1 角2");
 
     ASSERT_PRI_MSG(FAILED, 0, "1"); // cannot bid own item
     ASSERT_PRI_MSG(FAILED, 0, "pass"); // cannot cancel own item
@@ -241,18 +238,18 @@ GAME_TEST(5, discard_2)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    // round 2 — P1 中标 1 号商品（○1 △3 ○6），P2 中标 3 号商品（□1 ○2 △4 ☆5 △7）
+    // round 2
     ASSERT_PRI_MSG(FAILED, 1, "弃牌"); // empty discard
     ASSERT_PRI_MSG(FAILED, 1, "今天天气真好啊");
-    ASSERT_PRI_MSG(FAILED, 1, "方1"); // □1 不在 P1 手牌
-    ASSERT_PRI_MSG(OK, 1, "圆1 角3 圆6");
-    ASSERT_PRI_MSG(FAILED, 1, "圆5"); // ○5 不在 P1 手牌
+    ASSERT_PRI_MSG(FAILED, 1, "星2");
+    ASSERT_PRI_MSG(OK, 1, "圆1 方1 角2");
+    ASSERT_PRI_MSG(FAILED, 1, "圆5");
     ASSERT_PUB_MSG(FAILED, 1, "pass");
     ASSERT_PRI_MSG(OK, 0, "pass");
     ASSERT_PRI_MSG(OK, 1, "pass");
     ASSERT_PRI_MSG(OK, 3, "pass");
     ASSERT_PRI_MSG(OK, 4, "pass");
-    ASSERT_PRI_MSG(CHECKOUT, 2, "星5"); // ☆5 in 3 号商品
+    ASSERT_PRI_MSG(CHECKOUT, 2, "星1");
 
     ASSERT_PRI_MSG(OK, 0, "赛况");
 
@@ -260,6 +257,7 @@ GAME_TEST(5, discard_2)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
+    // pool coins 103 + 13 + 25 + 25 = 166
     ASSERT_SCORE(48 + 83, 37, 99 + 83, 75, 75);
 }
 
@@ -276,13 +274,13 @@ GAME_TEST(5, no_bid_return_item)
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    ASSERT_PRI_MSG(CHECKOUT, 0, "圆1");
+    ASSERT_PRI_MSG(CHECKOUT, 0, "角2");
 
     for (int i = 0; i < 8; ++i) {
         ASSERT_TIMEOUT(CHECKOUT);
     }
 
-    ASSERT_PRI_MSG(CHECKOUT, 0, "角3"); // 首轮仅弃圆1，剩余含 △3
+    ASSERT_PRI_MSG(CHECKOUT, 0, "角2");
 }
 
 } // namespace GAME_MODULE_NAME

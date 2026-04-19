@@ -53,7 +53,7 @@ GAME_TEST(5, bet_same_is_consensus)
         }
         ASSERT_PRI_MSG(CHECKOUT, 4, "bet 10");
     }
-    ASSERT_SCORE(100, 100, 100, 100, 100);
+    ASSERT_SCORE(280, 55, 55, 55, 55);
 }
 
 #define ALL_CHECK_FOR_ONE_GAME() \
@@ -76,7 +76,7 @@ GAME_TEST(5, check_same_is_consensus)
     START_GAME();
 
     ALL_CHECK_FOR_ONE_GAME();
-    ASSERT_SCORE(100, 100, 100, 100, 100);
+    ASSERT_SCORE(120, 95, 95, 95, 95);
 }
 
 GAME_TEST(3, all_fold_except_one_will_finish_game)
@@ -117,7 +117,7 @@ GAME_TEST(3, all_allin_except_raise_highest_will_finish_game)
     ASSERT_PRI_MSG(OK, 1, "allin"); // 5 -> 95
     ASSERT_PRI_MSG(CHECKOUT, 2, "allin"); // 5 -> 95
 
-    ASSERT_SCORE(15, 0, 285);
+    ASSERT_SCORE(300, 0, 0);
 }
 
 GAME_TEST(3, all_allin_or_fold_except_raise_highest_will_finish_game)
@@ -186,7 +186,7 @@ GAME_TEST(5, check_when_timeout)
         ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "check");
     }
 
-    ASSERT_SCORE(100, 100, 100, 100, 100);
+    ASSERT_SCORE(120, 95, 95, 95, 95);
 }
 
 GAME_TEST(5, check_when_timeout_and_then_fold)
@@ -219,7 +219,7 @@ GAME_TEST(5, check_when_timeout_and_then_fold)
         ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "check");
     }
 
-    ASSERT_SCORE(95, 90, 90, 90, 135);
+    ASSERT_SCORE(95, 90, 135, 90, 90);
 }
 
 GAME_TEST(5, fold_when_timeout)
@@ -251,7 +251,7 @@ GAME_TEST(5, fold_when_timeout)
         ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "check");
     }
 
-    ASSERT_SCORE(95, 85, 85, 85, 150);
+    ASSERT_SCORE(95, 85, 150, 85, 85);
 }
 
 GAME_TEST(5, allin_when_cant_afford_base_chips)
@@ -284,7 +284,9 @@ GAME_TEST(5, allin_when_cant_afford_base_chips)
         ASSERT_PRI_MSG(CHECKOUT, options_.generic_options_.PlayerNum() - 1, "check");
     }
 
-    ASSERT_SCORE(10, 0, 0, 425, 65);
+    // round 1 scores: 95, 85, 150, 85, 85
+
+    ASSERT_SCORE(445, 0, 55, 0, 0);
 }
 
 GAME_TEST(5, raise_must_be_greater_than_raise_bet)

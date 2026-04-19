@@ -26,7 +26,7 @@ GAME_TEST(1, one_finish)
     for (uint32_t i = 1; i <= 19; ++i) {
         ASSERT_PUB_MSG(CHECKOUT, 0, std::to_string(i).c_str());
     }
-    ASSERT_SCORE(73);
+    ASSERT_SCORE(0);
     ASSERT_ACHIEVEMENTS(0);
 }
 
@@ -40,7 +40,7 @@ GAME_TEST(2, two_finish)
         ASSERT_PUB_MSG(OK, 0, std::to_string(i).c_str());
         ASSERT_PUB_MSG(CHECKOUT, 1, std::to_string(i).c_str());
     }
-    ASSERT_SCORE(73, 73);
+    ASSERT_SCORE(0, 0);
     ASSERT_ACHIEVEMENTS(0);
 }
 

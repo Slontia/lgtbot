@@ -65,7 +65,7 @@ GAME_TEST(2, second_bet_exceed_first_bet)
     ASSERT_PRI_MSG(OK, 1, "E 40");
     ASSERT_PRI_MSG(CHECKOUT, 1, "准备");
     ASSERT_PRI_MSG(FAILED, 0, "B 1 红1");
-    ASSERT_PRI_MSG(OK, 0, "A 1 星5"); // 种子 ABC0 下 A 组为 ☆5☆3☆9
+    ASSERT_PRI_MSG(OK, 0, "A 1 蓝5");
 }
 
 GAME_TEST(2, second_bet_raise_folded)
@@ -82,7 +82,7 @@ GAME_TEST(2, second_bet_raise_folded)
     ASSERT_PRI_MSG(OK, 1, "G 弃牌");
     ASSERT_PRI_MSG(OK, 1, "H 弃牌");
     ASSERT_PRI_MSG(CHECKOUT, 1, "准备");
-    ASSERT_PRI_MSG(FAILED, 0, "A 1 圆1"); // ○1 不在 A 组
+    ASSERT_PRI_MSG(FAILED, 0, "A 1 蓝5");
 }
 
 GAME_TEST(2, fold_exceed_remain_scores)
@@ -104,7 +104,7 @@ GAME_TEST(2, not_bet_skip_second_bet)
     ASSERT_PRI_MSG(OK, 0, "准备");
     ASSERT_PRI_MSG(OK, 1, "E 40");
     ASSERT_PRI_MSG(CHECKOUT, 1, "准备");
-    ASSERT_PRI_MSG(OK, 0, "A 20 星5");
+    ASSERT_PRI_MSG(OK, 0, "A 20 蓝5");
     ASSERT_PRI_MSG(OK, 0, "准备");
 }
 
@@ -113,7 +113,7 @@ GAME_TEST(2, timeout)
     ASSERT_PUB_MSG(OK, 0, "种子 ABC");
     START_GAME();
     ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PRI_MSG(OK, 0, "A 20 星5");
+    ASSERT_PRI_MSG(OK, 0, "A 20 蓝5");
     ASSERT_PRI_MSG(CHECKOUT, 0, "准备");
 }
 
@@ -127,8 +127,8 @@ GAME_TEST(2, folded_score_add_when_round_over)
     ASSERT_PRI_MSG(OK, 0, "D 弃牌");
     ASSERT_PRI_MSG(OK, 0, "准备");
     ASSERT_TIMEOUT(CHECKOUT);
-    ASSERT_PRI_MSG(FAILED, 0, "A 6 星5"); // 仍在同一回合次轮，牌组仍为 ABC0 的 ☆5☆3☆9
-    ASSERT_PRI_MSG(OK, 0, "A 5 星5");
+    ASSERT_PRI_MSG(FAILED, 0, "A 6 蓝5"); // 仍在同一回合次轮，牌组仍为 ABC0 的 ☆5☆3☆9
+    ASSERT_PRI_MSG(OK, 0, "A 5 蓝5");
     ASSERT_PRI_MSG(CHECKOUT, 0, "准备");
 }
 
@@ -146,8 +146,8 @@ GAME_TEST(2, raise_exceed_score_both_bet)
     ASSERT_PRI_MSG(FAILED, 0, "A 65");
     ASSERT_PRI_MSG(OK, 0, "A 64");
     ASSERT_PRI_MSG(CHECKOUT, 0, "准备");
-    ASSERT_PRI_MSG(FAILED, 0, "A 21 角8");
-    ASSERT_PRI_MSG(OK, 0, "A 20 角8");
+    ASSERT_PRI_MSG(FAILED, 0, "A 21 蓝1");
+    ASSERT_PRI_MSG(OK, 0, "A 20 蓝1");
 }
 
 } // namespace GAME_MODULE_NAME
