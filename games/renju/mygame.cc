@@ -76,7 +76,7 @@ class MainStage : public MainGameStage<>
     {
     }
 
-    virtual void OnStageBegin()
+    virtual void OnStageBegin() override
     {
         if (GAME_OPTION(pass胜利)) {
             Global().Boardcast() << "[注意] 本局和棋时 pass 次数较多的玩家取得胜利\n\n但是因为首回合 pass 不计 pass 次数，所以第一手还请正常落子";
@@ -86,7 +86,7 @@ class MainStage : public MainGameStage<>
         Global().Boardcast() << "请私信裁判落子位置";
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         uint32_t x, y;
         do {
@@ -97,7 +97,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::READY;
     }
 
-    int64_t PlayerScore(const PlayerID pid) const
+    virtual int64_t PlayerScore(const PlayerID pid) const override
     {
         return winner_ == pid;
     }
@@ -208,7 +208,7 @@ class MainStage : public MainGameStage<>
         return str;
     }
 
-    virtual CheckoutErrCode OnStageOver()
+    virtual CheckoutErrCode OnStageOver() override
     {
         if (!SetToBoard_(Global().BoardcastMsgSender())) {
             Global().ClearReady();
@@ -218,7 +218,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    CheckoutErrCode OnStageTimeout()
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         Global().HookUnreadyPlayers();
         if (!SetToBoard_(Global().BoardcastMsgSender())) {

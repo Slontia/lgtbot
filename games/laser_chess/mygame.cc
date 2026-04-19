@@ -94,7 +94,7 @@ class MainStage : public MainGameStage<>
     {
     }
 
-    virtual void OnStageBegin()
+    virtual void OnStageBegin() override
     {
         Global().StartTimer(GAME_OPTION(局时));
         board_html_ = board_.ToHtml();
@@ -103,7 +103,7 @@ class MainStage : public MainGameStage<>
                     << "秒未行动自动 pass\n格式：棋子位置 行动方式";
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -121,7 +121,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::READY;
     }
 
-    int64_t PlayerScore(const PlayerID pid) const
+    virtual int64_t PlayerScore(const PlayerID pid) const override
     {
         return scores_[pid];
     }
@@ -224,7 +224,7 @@ class MainStage : public MainGameStage<>
         return str;
     }
 
-    virtual CheckoutErrCode OnStageOver()
+    virtual CheckoutErrCode OnStageOver() override
     {
         return CheckoutErrCode::Condition(ShootAndSettle_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
@@ -272,7 +272,7 @@ class MainStage : public MainGameStage<>
         return finish;
     }
 
-    CheckoutErrCode OnStageTimeout()
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         return CheckoutErrCode::Condition(ShootAndSettle_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }

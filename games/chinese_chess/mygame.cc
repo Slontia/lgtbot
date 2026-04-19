@@ -92,7 +92,7 @@ class MainStage : public MainGameStage<>
         , round_(0)
     {}
 
-    virtual void OnStageBegin()
+    virtual void OnStageBegin() override
     {
         board_.SetImagePath(Global().ResourceDir());
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
@@ -102,12 +102,12 @@ class MainStage : public MainGameStage<>
         ResetTimer_(Global().Boardcast());
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply)
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
     {
         return StageErrCode::READY;
     }
 
-    int64_t PlayerScore(const PlayerID pid) const
+    virtual int64_t PlayerScore(const PlayerID pid) const override
     {
         return board_.GetScore(pid);
     }
@@ -196,7 +196,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::OK;
     }
 
-    virtual CheckoutErrCode OnStageOver()
+    virtual CheckoutErrCode OnStageOver() override
     {
         return CheckoutErrCode::Condition(Settle_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
@@ -292,7 +292,7 @@ class MainStage : public MainGameStage<>
                << " 回合后将切换棋盘";
     }
 
-    CheckoutErrCode OnStageTimeout()
+    virtual CheckoutErrCode OnStageTimeout() override
     {
         return CheckoutErrCode::Condition(Settle_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
