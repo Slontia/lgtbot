@@ -729,6 +729,9 @@ class SelectStage : public SubGameStage<>
   private:
     void HandleUnreadyPlayer_()
     {
+        if (current_players.empty()) {
+            return;
+        }
         PlayerID pid = current_players[0];
         if (!Global().IsReady(pid) || Main().player_leave_[pid]) {
             auto& player = Main().players_[pid];
