@@ -195,12 +195,12 @@ class RoundStage : public SubGameStage<DeclareStage, SelectStage>
         return StageErrCode::OK;
     }
 
-    void FirstStageFsm(SubStageFsmSetter setter)
+    void FirstStageFsm(SubStageFsmSetter setter) override
     {
         setter.Emplace<DeclareStage>(Main());
     }
 
-    void NextStageFsm(DeclareStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
+    void NextStageFsm(DeclareStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         string status_Board = Main().GetStatusBoard();
 
@@ -221,7 +221,7 @@ class RoundStage : public SubGameStage<DeclareStage, SelectStage>
         setter.Emplace<SelectStage>(Main());
     }
 
-    void NextStageFsm(SelectStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
+    void NextStageFsm(SelectStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override
     {
         RoundStage::calc();
     }
