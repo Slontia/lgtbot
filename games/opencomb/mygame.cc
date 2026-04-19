@@ -190,8 +190,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage>
         if (GAME_OPTION(道具)) {
             // first round
             const std::string special_cards[5] = {"wall", "wall_broken", "erase", "move", "reshape"};
-            std::uniform_int_distribution<int32_t> dist(0, 4);
-            int32_t start = dist(g);
+            int32_t start = RandInt(g, 0, 4);
             cards_.insert(cards_.begin(), special_cards[start]);
         } else {
             round_ = 0;
@@ -706,8 +705,6 @@ class SelectStage : public SubGameStage<>
             const auto& card = *(it2_++);
             tmp_cards_.push_back(card);
         }
-        std::seed_seq seed(Main().seed_str_.begin(), Main().seed_str_.end());
-        std::mt19937 g(seed);
         SeededShuffle(current_players.begin(), current_players.end(), Main().g);
 
         std::sort(current_players.begin(), current_players.end(), [this](const PlayerID &p1, const PlayerID &p2) {
