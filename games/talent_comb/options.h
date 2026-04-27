@@ -7,7 +7,7 @@
 // 后续新增 SpecialEvent / Talent 时无需再手动更新本文件。
 
 #ifdef INIT_OPTION_DEPEND
-#include "talent.h"
+#include "talent_comb.h"
 // 选项表达式在 namespace lgtbot::game::GAME_MODULE_NAME 内被求值，
 // 因此 Make*OptionMap 可直接按未限定名使用；此处不需要 using。
 #endif

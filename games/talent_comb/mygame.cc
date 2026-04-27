@@ -238,7 +238,6 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     std::pair<std::string, std::string> PlayerScoreDetail(const PlayerID pid) const;
     void SetPlayerBoard(html::Table& table, const int pos, const PlayerID pid, const bool isEliminated);
     std::string CombHtml(const std::string& str);
-    static std::string ForgeFragmentStr_(const Player& player);
 
     // Check if game should end
     bool CheckGameOver() const
@@ -252,6 +251,8 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     void ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror, std::string& result);
     int32_t ApplyAttackTalents_(PlayerID attacker, PlayerID defender, int32_t damage);
     int32_t ApplyDefenseTalents_(PlayerID defender, int32_t damage);
+    void ApplyDefeatTalents_(PlayerID loser, bool mirror, int32_t& damage, std::string& result);
+    void ApplyVictoryTalents_(PlayerID winner, bool mirror, std::string& result);
     void DoEliminationAfterBattle_();
     void DoPoison_();
 
@@ -263,10 +264,10 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             if (player_out_[pid] != 0) continue;
             auto& p = players_[pid];
-            if (p.counterattack_triggered_ && p.counterattack_trigger_round_ < round_) {
-                p.counterattack_triggered_ = false;
-                p.counterattack_extra_ = 0;
-                p.counterattack_trigger_round_ = 0;
+            if (p.Counterattack().triggered && p.Counterattack().trigger_round < round_) {
+                p.Counterattack().triggered = false;
+                p.Counterattack().extra_score = 0;
+                p.Counterattack().trigger_round = 0;
             }
         }
     }
@@ -276,9 +277,12 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
 
     // ===== Talent Effects (implemented in talent_impl.h) =====
     // idx: the position (1-19) the card was placed at; 0 means "no galaxy-flow trigger applicable".
-    std::pair<std::string, int32_t> OnCardPlaced_(PlayerID pid, uint32_t idx, const ScoreResult& result);
+    std::pair<std::string, int32_t> OnCardPlaced_(PlayerID pid, uint32_t idx, const ScoreResult& result,
+                                                  std::optional<Talent> source_talent = std::nullopt,
+                                                  const AreaCard* previous_card = nullptr,
+                                                  TalentCardPlacementSource placement_source = TalentCardPlacementSource::Selection);
     std::pair<AreaCard, std::string> TransformCardForPlacement_(PlayerID pid, const AreaCard& card, bool is_normal_round = false);
-    std::string HandleDiscard_(PlayerID pid, const AreaCard& card);
+    std::string HandleDiscard_(PlayerID pid, const AreaCard& card, std::optional<Talent> source_talent = std::nullopt);
     bool HandleThreeYearStore_(PlayerID pid, const AreaCard& card);
 
     // ===== Card Pool Management (implemented in talent_impl.h) =====
@@ -440,7 +444,7 @@ class RoundStage : public SubGameStage<>
                     continue;
                 }
                 if (Main().HandleThreeYearStore_(pid, shared_card_)) {
-                    Global().Boardcast() << At(pid) << " 触发天赋「三年之期」，本轮砖块已存储（" << Main().players_[pid].three_year_cards_.size() << "/3）";
+                    Global().Boardcast() << At(pid) << " 触发天赋「三年之期」，本轮砖块已存储（" << Main().players_[pid].ThreeYear().cards.size() << "/3）";
                     Global().SetReady(pid);
                 }
             }
@@ -478,7 +482,9 @@ class RoundStage : public SubGameStage<>
             if (player.comb_->HasEmptyPosition()) {
                 auto [actual_card, transform_notify] = Main().TransformCardForPlacement_(pid, card, true);
                 const auto [idx, result] = player.comb_->SeqFill(actual_card);
-                auto [place_notify, actual_delta] = Main().OnCardPlaced_(pid, idx, result);
+                auto [place_notify, actual_delta] = Main().OnCardPlaced_(
+                    pid, idx, result, std::nullopt, nullptr,
+                    is_initial_ ? TalentCardPlacementSource::InitialDeal : TalentCardPlacementSource::RegularRound);
                 sender << At(pid) << " 超时，自动填入位置 " << idx;
                 if (actual_delta > 0) {
                     sender << "，收获 " << actual_delta << " 点积分";
@@ -518,7 +524,8 @@ class RoundStage : public SubGameStage<>
         if (player.comb_->HasEmptyPosition()) {
             auto [actual_card, transform_notify] = Main().TransformCardForPlacement_(pid, card, true);
             const auto [idx, result] = player.comb_->SeqFill(actual_card);
-            Main().OnCardPlaced_(pid, idx, result);
+            Main().OnCardPlaced_(pid, idx, result, std::nullopt, nullptr,
+                                 is_initial_ ? TalentCardPlacementSource::InitialDeal : TalentCardPlacementSource::RegularRound);
         } else {
             Main().HandleDiscard_(pid, card);
         }
@@ -546,10 +553,18 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::READY;
         }
 
+        if (auto block_msg = player.ProtectedPositionMessage(idx)) {
+            reply() << "[错误] " << *block_msg;
+            return StageErrCode::FAILED;
+        }
+
         // Transform card based on talents (三相之力, 以退为进, 完美块)
+        const auto previous_card = player.comb_->GetCard(idx);
         auto [actual_card, transform_notify] = Main().TransformCardForPlacement_(pid, card, true);
         const auto result = player.comb_->Fill(idx, actual_card);
-        auto [notify, actual_delta] = Main().OnCardPlaced_(pid, idx, result);
+        auto [notify, actual_delta] = Main().OnCardPlaced_(
+            pid, idx, result, std::nullopt, previous_card ? &*previous_card : nullptr,
+            is_initial_ ? TalentCardPlacementSource::InitialDeal : TalentCardPlacementSource::RegularRound);
 
         auto sender = reply();
         sender << "设置位置 " << idx << " 成功";
@@ -637,12 +652,12 @@ class SelectStage : public SubGameStage<>
             auto& player1 = Main().players_[p1];
             auto& player2 = Main().players_[p2];
             // 紧急救援 (unused): highest priority
-            bool er1 = player1.HasTalent(Talent::紧急救援) && !player1.emergency_rescue_used_;
-            bool er2 = player2.HasTalent(Talent::紧急救援) && !player2.emergency_rescue_used_;
+            bool er1 = player1.HasTalent(Talent::紧急救援) && !player1.EmergencyRescue().used;
+            bool er2 = player2.HasTalent(Talent::紧急救援) && !player2.EmergencyRescue().used;
             if (er1 != er2) return er1;
             // 占得先机 priority next
-            if (player1.selection_priority_ != player2.selection_priority_) {
-                return player1.selection_priority_ < player2.selection_priority_;
+            if (player1.Seize().selection_priority != player2.Seize().selection_priority) {
+                return player1.Seize().selection_priority < player2.Seize().selection_priority;
             }
             if (player1.hp_ != player2.hp_) {
                 return player1.hp_ < player2.hp_;
@@ -756,6 +771,13 @@ class SelectStage : public SubGameStage<>
         auto& player = Main().players_[pid];
         const AreaCard card = tmp_cards_[card_id - 1];
 
+        if (pos != 0) {
+            if (auto block_msg = player.ProtectedPositionMessage(pos)) {
+                reply() << "[错误] " << *block_msg;
+                return StageErrCode::FAILED;
+            }
+        }
+
         // Check if this is the last player and they have 尾货处理
         bool is_last_player = (current_players_.size() == 1);
         if (is_last_player && player.HasTalent(Talent::尾货处理) && tmp_cards_.size() >= 2) {
@@ -775,9 +797,10 @@ class SelectStage : public SubGameStage<>
             return StageErrCode::READY;
         }
 
+        const auto previous_card = player.comb_->GetCard(pos);
         auto [actual_card, transform_notify] = Main().TransformCardForPlacement_(pid, card);
         const auto result = player.comb_->Fill(pos, actual_card);
-        auto [notify, actual_delta] = Main().OnCardPlaced_(pid, pos, result);
+        auto [notify, actual_delta] = Main().OnCardPlaced_(pid, pos, result, std::nullopt, previous_card ? &*previous_card : nullptr);
         auto sender = reply();
         sender << "选择 " << card_id << " 号砖块，设置位置 " << pos << " 成功";
         if (actual_delta > 0) {
@@ -804,7 +827,7 @@ class SelectStage : public SubGameStage<>
             std::string avatar = Global().PlayerAvatar(current_players_[i], 40);
             if (Main().is_emergency_select_
                        && Main().players_[current_players_[i]].HasTalent(Talent::紧急救援)
-                       && !Main().players_[current_players_[i]].emergency_rescue_used_) {
+                       && !Main().players_[current_players_[i]].EmergencyRescue().used) {
                 // 紧急救援 triggered: rainbow border (gold + thick border as fallback)
                 avatar = "<div style=\"position:relative;display:inline-block;width:40px;height:40px;\">"
                          + avatar +
@@ -995,7 +1018,8 @@ class ExtraCardStage : public SubGameStage<>
         if (player.comb_->HasEmptyPosition() || allow_overwrite) {
             auto [actual_card, transform_notify] = Main().TransformCardForPlacement_(pid, card);
             const auto [idx, result] = player.comb_->SeqFill(actual_card);
-            auto [notify, actual_delta] = Main().OnCardPlaced_(pid, idx, result);
+            auto [notify, actual_delta] = Main().OnCardPlaced_(
+                pid, idx, result, std::nullopt, nullptr, TalentCardPlacementSource::ExtraCard);
             if (out_notify) *out_notify = transform_notify + notify;
         } else {
             Main().HandleDiscard_(pid, card);
@@ -1017,6 +1041,7 @@ class ExtraCardStage : public SubGameStage<>
             auto& entry = CurrentEntry_(player);
             const AreaCard card = entry.cards[0];
             const std::string source = entry.source;
+            const auto source_talent = entry.source_talent;
             player.extra_card_queue_.erase(player.extra_card_queue_.begin());
 
             auto sender = Global().Boardcast();
@@ -1024,18 +1049,27 @@ class ExtraCardStage : public SubGameStage<>
             if (player.comb_->HasEmptyPosition()) {
                 auto [actual_card, transform_notify] = Main().TransformCardForPlacement_(pid, card);
                 const auto [idx, result] = player.comb_->SeqFill(actual_card);
-                auto [place_notify, actual_delta] = Main().OnCardPlaced_(pid, idx, result);
+                auto [place_notify, actual_delta] = Main().OnCardPlaced_(
+                    pid, idx, result, source_talent, nullptr, TalentCardPlacementSource::ExtraCard);
                 sender << At(pid) << " 超时，额外砖块自动填入位置 " << idx;
                 CheckTempWildAfterPlace_(pid, source, idx);
             } else if (can_overwrite) {
                 // 临时用品: overwrite position 1 when board is full
+                if (auto block_msg = player.ProtectedPositionMessage(1)) {
+                    Main().HandleDiscard_(pid, card, source_talent);
+                    sender << At(pid) << " 超时，" << *block_msg << "，额外砖块自动弃牌";
+                    CheckForgeAfterPlace_(pid);
+                    continue;
+                }
+                const auto previous_card = player.comb_->GetCard(1);
                 auto [actual_card, transform_notify] = Main().TransformCardForPlacement_(pid, card);
                 const auto result = player.comb_->Fill(1, actual_card);
-                auto [place_notify, actual_delta] = Main().OnCardPlaced_(pid, 1, result);
+                auto [place_notify, actual_delta] = Main().OnCardPlaced_(
+                    pid, 1, result, source_talent, previous_card ? &*previous_card : nullptr, TalentCardPlacementSource::ExtraCard);
                 sender << At(pid) << " 超时，额外砖块自动覆盖位置 1";
                 CheckTempWildAfterPlace_(pid, source, 1);
             } else {
-                Main().HandleDiscard_(pid, card);
+                Main().HandleDiscard_(pid, card, source_talent);
                 sender << At(pid) << " 超时，盘面已满自动弃牌";
             }
             CheckForgeAfterPlace_(pid);
@@ -1047,11 +1081,15 @@ class ExtraCardStage : public SubGameStage<>
     void CheckForgeAfterPlace_(PlayerID pid)
     {
         auto& player = Main().players_[pid];
-        if (player.HasTalent(Talent::锻造) && player.forge_fragments_.size() >= 3) {
-            AreaCard forged(player.forge_fragments_[0], player.forge_fragments_[1], player.forge_fragments_[2]);
-            player.extra_card_queue_.push_back({{forged}, "锻造"});
-            player.forge_fragments_.clear();
-            Global().Boardcast() << At(pid) << " 通过「锻造」合成了一枚新砖块！";
+        static constexpr Talent k_extra_card_action_end_order[] = {
+            Talent::锻造,
+        };
+        for (const auto talent : k_extra_card_action_end_order) {
+            if (!player.HasTalent(talent)) continue;
+            const auto notify = player.talent_states_.at(talent)->OnExtraCardActionEnd(player);
+            if (!notify.empty()) {
+                Global().Boardcast() << At(pid) << " " << notify;
+            }
         }
     }
 
@@ -1060,8 +1098,8 @@ class ExtraCardStage : public SubGameStage<>
     {
         if (source == "临时用品" && pos > 0) {
             auto& player = Main().players_[pid];
-            player.temp_wild_pos_ = pos;
-            player.temp_wild_rounds_ = 3;
+            player.TempWild().position = pos;
+            player.TempWild().rounds_left = 3;
         }
     }
 
@@ -1110,20 +1148,29 @@ class ExtraCardStage : public SubGameStage<>
 
         const AreaCard card = CurrentEntry_(player).cards[0];
         const std::string source = CurrentEntry_(player).source;
+        const auto source_talent = CurrentEntry_(player).source_talent;
         bool can_overwrite = (source == "临时用品");
         player.extra_card_queue_.erase(player.extra_card_queue_.begin());
         if (player.comb_->HasEmptyPosition()) {
             auto [actual_card, transform_notify] = Main().TransformCardForPlacement_(pid, card);
             const auto [idx, result] = player.comb_->SeqFill(actual_card);
-            auto [place_notify, actual_delta] = Main().OnCardPlaced_(pid, idx, result);
+            auto [place_notify, actual_delta] = Main().OnCardPlaced_(
+                pid, idx, result, source_talent, nullptr, TalentCardPlacementSource::ExtraCard);
             CheckTempWildAfterPlace_(pid, source, idx);
         } else if (can_overwrite) {
+            if (player.ProtectedPositionMessage(1)) {
+                Main().HandleDiscard_(pid, card, source_talent);
+                CheckForgeAfterPlace_(pid);
+                return StageErrCode::READY;
+            }
+            const auto previous_card = player.comb_->GetCard(1);
             auto [actual_card, transform_notify] = Main().TransformCardForPlacement_(pid, card);
             const auto result = player.comb_->Fill(1, actual_card);
-            auto [place_notify, actual_delta] = Main().OnCardPlaced_(pid, 1, result);
+            auto [place_notify, actual_delta] = Main().OnCardPlaced_(
+                pid, 1, result, source_talent, previous_card ? &*previous_card : nullptr, TalentCardPlacementSource::ExtraCard);
             CheckTempWildAfterPlace_(pid, source, 1);
         } else {
-            Main().HandleDiscard_(pid, card);
+            Main().HandleDiscard_(pid, card, source_talent);
         }
         CheckForgeAfterPlace_(pid);
         return StageErrCode::READY;
@@ -1150,10 +1197,11 @@ class ExtraCardStage : public SubGameStage<>
 
         const AreaCard card = entry.cards[0];
         const std::string source = entry.source;
-        player.extra_card_queue_.erase(player.extra_card_queue_.begin());
+        const auto source_talent = entry.source_talent;
 
         if (idx == 0) {
-            std::string notify = Main().HandleDiscard_(pid, card);
+            player.extra_card_queue_.erase(player.extra_card_queue_.begin());
+            std::string notify = Main().HandleDiscard_(pid, card, source_talent);
             CheckForgeAfterPlace_(pid);
             reply() << "额外砖块弃牌成功" << notify;
             if (player.extra_card_queue_.empty()) return StageErrCode::READY;
@@ -1162,9 +1210,17 @@ class ExtraCardStage : public SubGameStage<>
             return StageErrCode::OK;
         }
 
+        if (auto block_msg = player.ProtectedPositionMessage(idx)) {
+            reply() << "[错误] " << *block_msg;
+            return StageErrCode::FAILED;
+        }
+
+        player.extra_card_queue_.erase(player.extra_card_queue_.begin());
+        const auto previous_card = player.comb_->GetCard(idx);
         auto [actual_card, transform_notify] = Main().TransformCardForPlacement_(pid, card);
         const auto result = player.comb_->Fill(idx, actual_card);
-        auto [notify, actual_delta] = Main().OnCardPlaced_(pid, idx, result);
+        auto [notify, actual_delta] = Main().OnCardPlaced_(
+            pid, idx, result, source_talent, previous_card ? &*previous_card : nullptr, TalentCardPlacementSource::ExtraCard);
         CheckForgeAfterPlace_(pid);
         CheckTempWildAfterPlace_(pid, source, idx);
 
@@ -1207,6 +1263,14 @@ class ExtraCardStage : public SubGameStage<>
         const AreaCard card = entry.cards[card_id - 1];
         const std::string source = entry.source;
         const bool place_all = entry.place_all;
+        const auto source_talent = entry.source_talent;
+
+        if (pos != 0) {
+            if (auto block_msg = player.ProtectedPositionMessage(pos)) {
+                reply() << "[错误] " << *block_msg;
+                return StageErrCode::FAILED;
+            }
+        }
 
         if (place_all) {
             // Remove chosen card from entry, keep entry if more cards remain
@@ -1220,7 +1284,7 @@ class ExtraCardStage : public SubGameStage<>
         }
 
         if (pos == 0) {
-            std::string notify = Main().HandleDiscard_(pid, card);
+            std::string notify = Main().HandleDiscard_(pid, card, source_talent);
             CheckForgeAfterPlace_(pid);
             reply() << source << "选择 " << card_id << " 号砖块，弃牌成功" << notify;
             if (place_all && !player.extra_card_queue_.empty() && !player.extra_card_queue_.front().cards.empty()) {
@@ -1231,9 +1295,11 @@ class ExtraCardStage : public SubGameStage<>
             return StageErrCode::READY;
         }
 
+        const auto previous_card = player.comb_->GetCard(pos);
         auto [actual_card, transform_notify] = Main().TransformCardForPlacement_(pid, card);
         const auto result = player.comb_->Fill(pos, actual_card);
-        auto [notify, actual_delta] = Main().OnCardPlaced_(pid, pos, result);
+        auto [notify, actual_delta] = Main().OnCardPlaced_(
+            pid, pos, result, source_talent, previous_card ? &*previous_card : nullptr, TalentCardPlacementSource::ExtraCard);
         CheckForgeAfterPlace_(pid);
         CheckTempWildAfterPlace_(pid, source, pos);
 
@@ -1296,8 +1362,8 @@ class TalentStage : public SubGameStage<>
             std::string msg = " 触发天赋「我全都要」！获得全部天赋：";
             for (size_t i = 0; i < acquired.size(); ++i) {
                 msg += "\n「" + std::string(TalentName(acquired[i])) + "」——" + std::string(TalentDescription(acquired[i]));
-                std::string extra = ApplyImmediateTalentEffects_(pid, acquired[i]);
-                if (!extra.empty()) msg += extra;
+                // Apply talent's immediate effects
+                ApplyImmediateTalentEffects_(pid, acquired[i]);
             }
             Global().Boardcast() << At(pid) << msg;
 
@@ -1359,29 +1425,6 @@ class TalentStage : public SubGameStage<>
         auto& player = Main().players_[pid];
         std::string extra_msg;
         switch (talent) {
-            case Talent::来点实在的:
-                // +4 is handled in RecalcPermanentExtra_() via UpdateScore below
-                extra_msg = "，立即获得4分！";
-                break;
-            case Talent::占得先机:
-                player.selection_priority_ = 1;
-                break;
-            case Talent::以退为进:
-                player.comb_->ApplyRetreatingAdvance();
-                if (player.HasTalent(Talent::完美块)) {
-                    player.comb_->ApplyPerfectBlock();
-                }
-                player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, HasValuableOne(Main().special_event_));
-                extra_msg = "，盘面上所有7变6、4变3！";
-                break;
-            case Talent::完美块:
-                if (player.HasTalent(Talent::以退为进)) {
-                    player.comb_->ApplyRetreatingAdvance();
-                }
-                player.comb_->ApplyPerfectBlock();
-                player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, HasValuableOne(Main().special_event_));
-                extra_msg = "，盘面上所有312变为万能牌！";
-                break;
             case Talent::摇奖机: {
                 // Randomly draw an A-tier talent (excluding PANDORA_BOX which cannot be obtained via random talents)
                 std::vector<Talent> avail;
@@ -1397,34 +1440,11 @@ class TalentStage : public SubGameStage<>
                     player.available_a_.erase(result);
                     player.available_b_.erase(result);
                     // Apply the drawn talent's immediate effects
-                    std::string result_extra = ApplyImmediateTalentEffects_(pid, result);
-                    extra_msg = "，摇到了A级天赋「" + std::string(TalentName(result)) + "」——" + std::string(TalentDescription(result)) + result_extra;
+                    ApplyImmediateTalentEffects_(pid, result);
+                    extra_msg = "，摇到了A级天赋「" + std::string(TalentName(result)) + "」——" + std::string(TalentDescription(result));
                 } else {
                     extra_msg = "，但已没有可用的A级天赋！";
                 }
-                break;
-            }
-            case Talent::三年之期:
-                player.three_year_active_ = true;
-                player.three_year_rounds_left_ = 3;
-                break;
-            case Talent::两级反转:
-                // Apply 1↔9 swap to all existing cards on board
-                player.comb_->ApplyDigitReverse();
-                if (player.HasTalent(Talent::以退为进)) {
-                    player.comb_->ApplyRetreatingAdvance();
-                }
-                if (player.HasTalent(Talent::完美块)) {
-                    player.comb_->ApplyPerfectBlock();
-                }
-                player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, HasValuableOne(Main().special_event_));
-                extra_msg = "，盘面上所有1变9、9变1！";
-                break;
-            case Talent::临时用品: {
-                // Push wild card to extra_card_queue_ for manual placement (can overwrite existing cards)
-                AreaCard wild_card; // full wild
-                player.extra_card_queue_.push_back({{wild_card}, "临时用品"});
-                extra_msg = "，请在额外放置阶段选择位置放置临时癞子（3回合后到期）";
                 break;
             }
             case Talent::潘多拉魔盒: {
@@ -1452,42 +1472,14 @@ class TalentStage : public SubGameStage<>
                     if (it != player.talents_.end()) *it = t1;
                     player.available_a_.erase(t1); player.available_b_.erase(t1);
                     std::string extra1 = ApplyImmediateTalentEffects_(pid, t1);
-                    extra_msg = "，开启潘多拉魔盒！获得B级天赋「" + std::string(TalentName(t1)) + "」" + extra1 + "，但B级天赋已不足";
+                    extra_msg = "，开启潘多拉魔盒！但B级天赋已不足，仅获得B级天赋「" + std::string(TalentName(t1)) + "」" + extra1;
                 } else {
                     extra_msg = "，但已没有可用的B级天赋！";
                 }
                 break;
             }
-            case Talent::包扎:
-                player.hp_ += 20;
-                extra_msg = "，立即获得20点生命！";
-                break;
-            case Talent::百味草:
-                player.poison_layers_++;
-                extra_msg = "，获得 1 层中毒（当前中毒：" + std::to_string(player.poison_layers_) + " 层）";
-                break;
-            case Talent::戴森球:
-                // If already qualified at acquisition time, activate immediately so no further placement is needed to trigger the notification.
-                if (player.CountCompletedLength3Lines_() >= 6) {
-                    player.dyson_sphere_activated_ = true;
-                    extra_msg = "，已达成条件！立即获得 6% 额外分数";
-                }
-                break;
-            case Talent::星河流转:
-                // Apply single-direction wilds to all occupied galaxy positions on the board
-                player.comb_->ApplyGalaxyFlow();
-                player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, HasValuableOne(Main().special_event_));
-                extra_msg = "，盘面上2、4、7、13、16、18号位的砖块已获得单线癞子！";
-                break;
-            case Talent::冥想:
-                player.meditation_active_ = true;
-                extra_msg = "，每回合获得5点生命，直到连线获得25分及以上的分数";
-                break;
-            case Talent::天使轮:
-                player.angel_round_active_ = true;
-                extra_msg = "，获得15点临时分，直到下次完成连线为止";
-                break;
             default:
+                extra_msg = player.talent_states_.at(talent)->OnAcquire(player, TalentAcquireContext{HasValuableOne(Main().special_event_)});
                 break;
         }
 
@@ -1605,7 +1597,7 @@ void MainStage::AdvancePhase_(SubStageFsmSetter& setter)
             if (round_ > 2 && !IsSelectionRound(round_)) {
                 for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
                     if (player_out_[pid] != 0) continue;
-                    if (players_[pid].HasTalent(Talent::紧急救援) && !players_[pid].emergency_rescue_used_) {
+                    if (players_[pid].HasTalent(Talent::紧急救援) && !players_[pid].EmergencyRescue().used) {
                         has_emergency = true;
                         Global().Boardcast() << At(pid) << " 触发天赋「紧急救援」，跳过本轮对战，启动紧急选牌阶段！";
                     }
@@ -1662,35 +1654,18 @@ void MainStage::StartNewRound_(SubStageFsmSetter& setter)
     for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0) continue;
         auto& player = players_[pid];
-
-        // 0号位: clear temp score from previous round (only lasts 1 round)
-        player.discard_scorer_temp_ = 0;
-
-        // 冥想: +5 HP per round while active (silently, until player scores any points)
-        if (player.HasTalent(Talent::冥想) && player.meditation_active_) {
-            player.hp_ += 5;
-        }
-
-        // 利滚利: +1 permanent score per 100 total score
-        if (player.HasTalent(Talent::利滚利)) {
-            int32_t interest = player.TotalScore() / 100;
-            if (interest > 0) {
-                player.compound_interest_accumulated_ += interest;
-                player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, HasValuableOne(special_event_));
-            }
-        }
-
-        // 临时用品: countdown and removal (selection round doesn't count)
-        if (player.temp_wild_pos_ > 0 && !IsSelectionRound(round_)) {
-            player.temp_wild_rounds_--;
-            if (player.temp_wild_rounds_ <= 0) {
-                const auto& card = player.comb_->GetCard(player.temp_wild_pos_);
-                if (card.has_value() && card->IsWild()) {
-                    auto result = player.comb_->RemoveCard(player.temp_wild_pos_);
-                    player.UpdateScore(result, HasValuableOne(special_event_));
-                    Global().Boardcast() << At(pid) << " 的「临时用品」癞子到期，已从位置 " << player.temp_wild_pos_ << " 移除";
-                }
-                player.temp_wild_pos_ = 0;
+        const TalentRoundContext context{IsSelectionRound(round_), HasValuableOne(special_event_)};
+        static constexpr Talent k_round_start_order[] = {
+            Talent::零号位,
+            Talent::冥想,
+            Talent::利滚利,
+            Talent::临时用品,
+        };
+        for (const auto talent : k_round_start_order) {
+            if (!player.HasTalent(talent)) continue;
+            const std::string message = player.talent_states_.at(talent)->OnRoundStart(player, context);
+            if (!message.empty()) {
+                Global().Boardcast() << At(pid) << message;
             }
         }
     }
@@ -1751,38 +1726,29 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
                     player.available_b_.erase(talent);
                 }
             }
-            // 立即生效的天赋：设置标记
-            if (player.HasTalent(Talent::占得先机)) player.selection_priority_ = 1;
-            if (player.HasTalent(Talent::三年之期)) {
-                player.three_year_active_ = true;
-                player.three_year_rounds_left_ = 3;
-            }
-            // 两级反转: apply 1↔9 swap to existing board
-            if (player.HasTalent(Talent::两级反转)) {
-                player.comb_->ApplyDigitReverse();
-            }
-            // 临时用品: auto-place wild at first empty position
-            if (player.HasTalent(Talent::临时用品) && player.comb_->HasEmptyPosition()) {
-                AreaCard wild_card;
-                const auto [idx, result] = player.comb_->SeqFill(wild_card);
-                player.temp_wild_pos_ = idx;
-                player.temp_wild_rounds_ = 3;
-            }
-            // 包扎: +20 HP immediately
-            if (player.HasTalent(Talent::包扎)) {
-                player.hp_ += 20;
-            }
-            // 星河流转: apply galaxy flow to existing board
-            if (player.HasTalent(Talent::星河流转)) {
-                player.comb_->ApplyGalaxyFlow();
-            }
-            // 冥想: activate
-            if (player.HasTalent(Talent::冥想)) {
-                player.meditation_active_ = true;
-            }
-            // 天使轮: activate
-            if (player.HasTalent(Talent::天使轮)) {
-                player.angel_round_active_ = true;
+            for (int t : test_talents) {
+                Talent talent = static_cast<Talent>(t);
+                if (!player.HasTalent(talent)) continue;
+                static constexpr Talent k_initial_effect_talents[] = {
+                    Talent::占得先机,
+                    Talent::三年之期,
+                    Talent::两级反转,
+                    Talent::九转玄机,
+                    Talent::临时用品,
+                    Talent::包扎,
+                    Talent::星河流转,
+                    Talent::冥想,
+                    Talent::天使轮,
+                    Talent::贪婪宝藏,
+                    Talent::零的力量,
+                    Talent::虚空之心,
+                };
+                if (std::find(std::begin(k_initial_effect_talents), std::end(k_initial_effect_talents), talent) ==
+                    std::end(k_initial_effect_talents)) {
+                    continue;
+                }
+                player.talent_states_.at(talent)->OnAcquire(
+                    player, TalentAcquireContext{HasValuableOne(special_event_), true});
             }
             // 更新分数（来点实在的+4 等通过 RecalcPermanentExtra_ 生效）
             player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, HasValuableOne(special_event_));
@@ -1797,19 +1763,20 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 
 void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
-    // After placement, apply 以退为进, 完美块, 星河流转 if active (for newly placed cards)
+    // After placement, apply placement-stage-end talent effects.
     for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0) continue;
-        if (players_[pid].HasTalent(Talent::以退为进)) {
-            players_[pid].comb_->ApplyRetreatingAdvance();
-            players_[pid].UpdateScore(ScoreResult{players_[pid].comb_->BaseScore(), players_[pid].comb_->LineCount(), 0}, HasValuableOne(special_event_));
+        auto& player = players_[pid];
+        const TalentPlacementContext context{HasValuableOne(special_event_)};
+        static constexpr Talent k_placement_end_order[] = {
+            Talent::以退为进,
+            Talent::完美块,
+        };
+        for (const auto talent : k_placement_end_order) {
+            if (player.HasTalent(talent)) {
+                player.talent_states_.at(talent)->OnPlacementStageEnd(player, context);
+            }
         }
-        if (players_[pid].HasTalent(Talent::完美块)) {
-            players_[pid].comb_->ApplyPerfectBlock();
-            players_[pid].UpdateScore(ScoreResult{players_[pid].comb_->BaseScore(), players_[pid].comb_->LineCount(), 0}, HasValuableOne(special_event_));
-        }
-        // 星河流转 已改为放置时即触发（见 OnCardPlaced_ 中的 ApplyGalaxyFlowAt），
-        // 无需在此再整盘扫描。
     }
 
     AdvancePhase_(setter);
@@ -1820,16 +1787,17 @@ void MainStage::NextStageFsm(SelectStage& sub_stage, const CheckoutReason reason
     // Same post-placement processing as RoundStage
     for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0) continue;
-        if (players_[pid].HasTalent(Talent::以退为进)) {
-            players_[pid].comb_->ApplyRetreatingAdvance();
-            players_[pid].UpdateScore(ScoreResult{players_[pid].comb_->BaseScore(), players_[pid].comb_->LineCount(), 0}, HasValuableOne(special_event_));
+        auto& player = players_[pid];
+        const TalentPlacementContext context{HasValuableOne(special_event_)};
+        static constexpr Talent k_placement_end_order[] = {
+            Talent::以退为进,
+            Talent::完美块,
+        };
+        for (const auto talent : k_placement_end_order) {
+            if (player.HasTalent(talent)) {
+                player.talent_states_.at(talent)->OnPlacementStageEnd(player, context);
+            }
         }
-        if (players_[pid].HasTalent(Talent::完美块)) {
-            players_[pid].comb_->ApplyPerfectBlock();
-            players_[pid].UpdateScore(ScoreResult{players_[pid].comb_->BaseScore(), players_[pid].comb_->LineCount(), 0}, HasValuableOne(special_event_));
-        }
-        // 星河流转 已改为放置时即触发（见 OnCardPlaced_ 中的 ApplyGalaxyFlowAt），
-        // 无需在此再整盘扫描。
     }
 
     // 紧急救援: after emergency SelectStage, mark used and skip to post-battle extras (no battle)
@@ -1837,8 +1805,8 @@ void MainStage::NextStageFsm(SelectStage& sub_stage, const CheckoutReason reason
         is_emergency_select_ = false;
         for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
             if (player_out_[pid] != 0) continue;
-            if (players_[pid].HasTalent(Talent::紧急救援) && !players_[pid].emergency_rescue_used_) {
-                players_[pid].emergency_rescue_used_ = true;
+            if (players_[pid].HasTalent(Talent::紧急救援) && !players_[pid].EmergencyRescue().used) {
+                players_[pid].EmergencyRescue().used = true;
             }
         }
         // Skip battle/elimination/poison, go directly to post-battle extras and next round
@@ -1861,13 +1829,16 @@ void MainStage::NextStageFsm(ExtraCardStage& sub_stage, const CheckoutReason rea
     // Apply per-placement talent effects after extra cards
     for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0) continue;
-        if (players_[pid].HasTalent(Talent::以退为进)) {
-            players_[pid].comb_->ApplyRetreatingAdvance();
-            players_[pid].UpdateScore(ScoreResult{players_[pid].comb_->BaseScore(), players_[pid].comb_->LineCount(), 0}, HasValuableOne(special_event_));
-        }
-        if (players_[pid].HasTalent(Talent::完美块)) {
-            players_[pid].comb_->ApplyPerfectBlock();
-            players_[pid].UpdateScore(ScoreResult{players_[pid].comb_->BaseScore(), players_[pid].comb_->LineCount(), 0}, HasValuableOne(special_event_));
+        auto& player = players_[pid];
+        const TalentPlacementContext context{HasValuableOne(special_event_)};
+        static constexpr Talent k_placement_end_order[] = {
+            Talent::以退为进,
+            Talent::完美块,
+        };
+        for (const auto talent : k_placement_end_order) {
+            if (player.HasTalent(talent)) {
+                player.talent_states_.at(talent)->OnPlacementStageEnd(player, context);
+            }
         }
     }
 
@@ -1883,8 +1854,6 @@ void MainStage::NextStageFsm(TalentStage& sub_stage, const CheckoutReason reason
     }
     AdvancePhase_(setter);
 }
-
-// LootStage removed — loot choices now go through ExtraCardStage via extra_card_queue_
 
 // ==================== Game Over ====================
 

@@ -70,8 +70,56 @@ class AreaCard
     int32_t PointSum() const { return std::accumulate(points_.begin(), points_.end(), 0); }
 
     bool IsWild() const { return points_[0] == 10 && points_[1] == 10 && points_[2] == 10; }
+    bool IsZero() const { return points_[0] == 0 && points_[1] == 0 && points_[2] == 0; }
 
-    // Opencomb-style HTML rendering: card.png base + 3 directional number overlays
+    void ApplyRetreatingAdvance()
+    {
+        for (auto& point : points_) {
+            if (point == 4) point = 3;
+            else if (point == 7) point = 6;
+        }
+    }
+
+    void ApplyPerfectBlock()
+    {
+        if (IsWild()) return;
+        if ((points_[0] == 3 || points_[0] == 10) &&
+            (points_[1] == 1 || points_[1] == 10) &&
+            (points_[2] == 2 || points_[2] == 10)) {
+            points_ = {10, 10, 10};
+        }
+    }
+
+    void ApplyDigitReverse()
+    {
+        for (auto& point : points_) {
+            if (point == 1) point = 9;
+            else if (point == 9) point = 1;
+        }
+    }
+
+    void ApplyNineAsWild()
+    {
+        for (auto& point : points_) {
+            if (point == 9) point = 10;
+        }
+    }
+
+    void ApplyThreeToFour()
+    {
+        for (auto& point : points_) {
+            if (point == 3) point = 4;
+        }
+    }
+
+    void SetDirectionWild(const int32_t dir)
+    {
+        if (dir >= 0 && dir < static_cast<int32_t>(k_direct_max)) {
+            points_[dir] = 10;
+        }
+    }
+
+    // HTML rendering: card.png base + 3 directional number overlays
     std::string ToHtml(const std::string& image_path) const
     {
         std::string div = "<div class=\"brick\"><img src=\"file:///" + image_path + "card.png\">";
@@ -103,11 +151,18 @@ class AreaCard
     {
         int32_t val = points_[static_cast<uint32_t>(direct)];
         if (val == 10) {
-            // Wild direction: use X overlay
             switch (direct) {
                 case Direct::垂直: return "Xv";
                 case Direct::左上: return "Xl";
                 case Direct::右上: return "Xr";
+            }
+            return "";
+        }
+        if (val == 0) {
+            switch (direct) {
+                case Direct::垂直: return "0v";
+                case Direct::左上: return "0l";
+                case Direct::右上: return "0r";
             }
             return "";
         }
@@ -378,6 +433,29 @@ class TalentComb
                 }
             }
         }
+        return Rescore_();
+    }
+
+    ScoreResult ApplyNineAsWild()
+    {
+        for (uint32_t i = 1; i < areas_.size(); ++i) {
+            if (areas_[i].card_.has_value()) {
+                AreaCard card = *areas_[i].card_;
+                card.ApplyNineAsWild();
+                if (!(card == *areas_[i].card_)) {
+                    areas_[i].card_ = card;
+                    areas_[i].box_.SetContent(CardHtml_(*areas_[i].card_));
+                }
+            }
+        }
+        return Rescore_();
+    }
+
+    ScoreResult SetWildAt(const uint32_t idx)
+    {
+        assert(idx >= 1 && idx <= 19);
+        areas_[idx].card_ = AreaCard();
+        areas_[idx].box_.SetContent(CardHtml_(*areas_[idx].card_));
         return Rescore_();
     }
 

@@ -8,8 +8,19 @@
 
 // Note: this header is included from the bottom of talent_comb.h after AreaCard
 // and TalentComb are defined. Do not include it directly — include talent_comb.h.
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <map>
+#include <memory>
+#include <optional>
+#include <set>
+#include <string>
+#include <vector>
+
 #include "utility/random.h"
 #include "games/talent_comb/talent.h"
+#include "games/talent_comb/talent_base.h"
 
 namespace lgtbot {
 
@@ -27,18 +38,11 @@ struct Player
         , base_score_(0)
         , permanent_extra_(0)
         , valuable_one_bonus_(0)
-        , max_total_score_(0)
         , is_leave_(false)
-        , poison_layers_(0)
-        , counterattack_triggered_(false)
-        , counterattack_used_(false)
-        , three_year_active_(false)
-        , three_year_rounds_left_(0)
-        , discard_count_(0)
-        , loss_count_(0)
         , talent_selection_count_(0)
-        , selection_priority_(2)  // default: normal priority (1 = high from 占得先机)
-    {}
+    {
+        InitTalentStates_();
+    }
 
     Player(Player&&) = default;
 
@@ -48,7 +52,7 @@ struct Player
     int32_t base_score_;
     int32_t permanent_extra_;    // Accumulated from talents: 垃圾回收, 来点实在的, etc.
     int32_t valuable_one_bonus_; // "有1吗" special event bonus (stored separately for display)
-    int32_t max_total_score_;    // For 零风险投资
+    int32_t poison_layers_ = 0;  // Shared poison layers; talents may add poison, 百味草 only scores from it.
     bool is_leave_;
 
     // --- Talents ---
@@ -57,33 +61,7 @@ struct Player
     std::set<Talent> available_a_;         // Remaining grade A talents
     std::set<Talent> available_b_;         // Remaining grade B talents
     uint32_t talent_selection_count_;      // Number of talent selections made (not affected by PANDORA_BOX/WANT_ALL bonus talents)
-
-    // --- Talent-specific state ---
-    int32_t poison_layers_;                // 中毒叠加层数
-    bool counterattack_triggered_;         // 绝地反击 death trigger activated
-    bool counterattack_used_;              // 绝地反击 already consumed
-    int32_t counterattack_extra_ = 0;      // 绝地反击 permanent bonus score while active
-    int32_t counterattack_trigger_round_ = 0; // Round when 绝地反击 extra was granted
-    bool three_year_active_;               // 三年之期 currently storing cards
-    int32_t three_year_rounds_left_;       // Rounds left to store
-    std::vector<AreaCard> three_year_cards_;  // Stored cards
-    int32_t three_year_damage_stored_ = 0; // Damage accumulated during storage for HP restore
-    std::vector<int32_t> forge_fragments_; // 锻造 collected fragments
-    int32_t discard_count_;                // For 垃圾回收
-    int32_t loss_count_;                   // For 有舍有得
-    std::array<bool, 3> local_enhance_triggered_ = {false, false, false};  // 局部强化 per-digit trigger
-    int32_t tri_force_progress_ = 0;       // 三相之力 progress (0-3)
-    int32_t defeat_count_ = 0;             // 事不过三 defeat counter (0-3, at 3 next defeat is immune)
-    bool emergency_rescue_used_ = false;   // 紧急救援 one-time use flag
-    int32_t compound_interest_accumulated_ = 0; // 利滚利 accumulated interest
-    bool dyson_sphere_activated_ = false;      // 戴森球 condition already activated
-    int32_t loser_blade_temp_ = 0;         // 败者之刃 accumulated temp score (cleared on win)
-    int32_t discard_scorer_temp_ = 0;     // 0号位 temp score from discards (cleared each round)
-    int32_t poison_score_ = 0;             // 百味草 accumulated score from poison damage
-    uint32_t temp_wild_pos_ = 0;           // 临时用品 position on board (0 = none)
-    int32_t temp_wild_rounds_ = 0;         // 临时用品 rounds remaining
-    bool meditation_active_ = false;       // 冥想 active (true until 单次连线分 ≥ 25)
-    bool angel_round_active_ = false;      // 天使轮 active (+15 temp until next line)
+    std::map<Talent, std::unique_ptr<TalentBase>> talent_states_;
 
     // Extra card queue: each entry has 1+ cards and a source name.
     // 1 card = direct placement; >1 cards = player picks one then places it.
@@ -91,17 +69,77 @@ struct Player
         std::vector<AreaCard> cards;
         std::string source;
         bool place_all = false;  // true: place each card one by one; false: pick one, discard rest
+        std::optional<Talent> source_talent = std::nullopt;
     };
     std::vector<ExtraCardEntry> extra_card_queue_;
-
-    // Selection priority (1 = 占得先机, 2 = normal)
-    int32_t selection_priority_;
 
     // Battle tracking (for achievements)
     bool never_lost_ = true;        // True if player never lost a battle (draws OK)
     int32_t first_talent_round_ = 0; // Round when first talent was selected (0 = never)
 
     // --- Helper methods ---
+
+    template <typename TalentState>
+    TalentState& TalentStateAs(Talent talent)
+    {
+        return static_cast<TalentState&>(*talent_states_.at(talent));
+    }
+
+    template <typename TalentState>
+    const TalentState& TalentStateAs(Talent talent) const
+    {
+        return static_cast<const TalentState&>(*talent_states_.at(talent));
+    }
+
+    CounterattackTalent& Counterattack();
+    const CounterattackTalent& Counterattack() const;
+    SeizeTalent& Seize();
+    const SeizeTalent& Seize() const;
+    ZeroRiskInvestmentTalent& ZeroRisk();
+    const ZeroRiskInvestmentTalent& ZeroRisk() const;
+    TriForceTalent& TriForce();
+    const TriForceTalent& TriForce() const;
+    EmergencyRescueTalent& EmergencyRescue();
+    const EmergencyRescueTalent& EmergencyRescue() const;
+    CompoundInterestTalent& CompoundInterest();
+    const CompoundInterestTalent& CompoundInterest() const;
+    DysonSphereTalent& DysonSphere();
+    const DysonSphereTalent& DysonSphere() const;
+    DiscardScorerTalent& DiscardScorer();
+    const DiscardScorerTalent& DiscardScorer() const;
+    MeditationTalent& Meditation();
+    const MeditationTalent& Meditation() const;
+    TrashRecycleTalent& TrashRecycle();
+    const TrashRecycleTalent& TrashRecycle() const;
+    LocalEnhanceTalent& LocalEnhance();
+    const LocalEnhanceTalent& LocalEnhance() const;
+    GainAfterLossTalent& GainAfterLoss();
+    const GainAfterLossTalent& GainAfterLoss() const;
+    ThreeYearTalent& ThreeYear();
+    const ThreeYearTalent& ThreeYear() const;
+    ForgeTalent& Forge();
+    const ForgeTalent& Forge() const;
+    NoMoreThanThreeTalent& NoMoreThanThree();
+    const NoMoreThanThreeTalent& NoMoreThanThree() const;
+    LoserBladeTalent& LoserBlade();
+    const LoserBladeTalent& LoserBlade() const;
+    TempWildTalent& TempWild();
+    const TempWildTalent& TempWild() const;
+    HerbalGrowthTalent& HerbalGrowth();
+    const HerbalGrowthTalent& HerbalGrowth() const;
+    AngelRoundTalent& AngelRound();
+    const AngelRoundTalent& AngelRound() const;
+    GreedyTreasureTalent& GreedyTreasure();
+    const GreedyTreasureTalent& GreedyTreasure() const;
+    ZeroPowerTalent& ZeroPower();
+    const ZeroPowerTalent& ZeroPower() const;
+    VoidHeartTalent& VoidHeart();
+    const VoidHeartTalent& VoidHeart() const;
+    PerformancePersonalityTalent& PerformancePersonality();
+    const PerformancePersonalityTalent& PerformancePersonality() const;
+
+    std::optional<std::string> ProtectedPositionMessage(uint32_t idx) const;
+    int32_t PerformancePersonalityBonus() const;
 
     bool HasTalent(Talent t) const
     {
@@ -115,37 +153,14 @@ struct Player
     }
 
     // Calculate total score (base + permanent extra + valuable_one, with ZERO_RISK floor and DYSON_SPHERE bonus)
-    // counterattack_extra_ is added AFTER floor/dyson so it doesn't inflate those calculations
-    int32_t TotalScore() const
-    {
-        int32_t total = RawTotalScore();
-        if (HasTalent(Talent::零风险投资)) {
-            total = std::max(total, max_total_score_);
-        }
-        if (HasTalent(Talent::戴森球) && CountCompletedLength3Lines_() >= 6) {
-            total = static_cast<int32_t>(std::ceil(total * 1.06));
-        }
-        total += counterattack_extra_;
-        return total;
-    }
+    // counterattack extra is added AFTER floor/dyson so it doesn't inflate those calculations
+    int32_t TotalScore() const;
 
     // ZERO_RISK floor adjustment (how much the floor added)
-    int32_t ZeroRiskFloor() const
-    {
-        if (!HasTalent(Talent::零风险投资)) return 0;
-        int32_t raw = RawTotalScore();
-        int32_t floored = std::max(raw, max_total_score_);
-        return floored - raw;
-    }
+    int32_t ZeroRiskFloor() const;
 
     // DYSON_SPHERE bonus (how much the 6% adds)
-    int32_t DysonSphereBonus() const
-    {
-        if (!HasTalent(Talent::戴森球) || CountCompletedLength3Lines_() < 6) return 0;
-        int32_t before_dyson = RawTotalScore() + ZeroRiskFloor();
-        int32_t after_dyson = static_cast<int32_t>(std::ceil(before_dyson * 1.06));
-        return after_dyson - before_dyson;
-    }
+    int32_t DysonSphereBonus() const;
 
     // Calculate the "还是有用的" bonus based on current board state
     int32_t StillUsefulBonus() const
@@ -162,8 +177,8 @@ struct Player
         return bonus;
     }
 
-    // 光波干涉: 若用相同数字形成了相同长度的连线（≥2 条同数同长度），这些连线整体获得 15% 额外分数。
-    // 实现方式：按 (matched_value, length) 分组累计连线分；分组数量 ≥2 时对该组总分取 ceil(total * 0.15)。
+    // 光波干涉: 若用相同数字形成了相同长度的连线（≥2 条同数同长度），这些连线整体获得 20% 额外分数。
+    // 实现方式：按 (matched_value, length) 分组累计连线分；分组数量 ≥2 时对该组总分取 ceil(total * 0.20)。
     int32_t LightInterferenceBonus() const
     {
         if (!HasTalent(Talent::光波干涉)) return 0;
@@ -171,9 +186,19 @@ struct Player
         std::map<std::pair<int32_t, size_t>, std::pair<int32_t, int32_t>> groups;
         for (const auto& line_def : k_all_lines) {
             if (!IsLineCompleted_(line_def)) continue;
-            int32_t matched = GetLineMatchedValue_(line_def);     // 0 表示全癞子行
+            int32_t matched = 0;
+            bool all_wild = true;
+            const uint32_t dir_idx = static_cast<uint32_t>(line_def.direction);
+            for (uint32_t pos : line_def.positions) {
+                const auto& card = comb_->GetCard(pos);
+                if (card.has_value() && card->PointAt(dir_idx) != 10) {
+                    all_wild = false;
+                    matched = card->PointAt(dir_idx);
+                    break;
+                }
+            }
             size_t len = line_def.positions.size();
-            int32_t line_score = (matched == 0 ? 10 : matched) * static_cast<int32_t>(len);
+            int32_t line_score = (all_wild ? 10 : matched) * static_cast<int32_t>(len);
             auto& entry = groups[{matched, len}];
             entry.first += 1;
             entry.second += line_score;
@@ -181,7 +206,7 @@ struct Player
         int32_t bonus = 0;
         for (const auto& [key, val] : groups) {
             if (val.first >= 2) {
-                bonus += static_cast<int32_t>(std::ceil(val.second * 0.15));
+                bonus += static_cast<int32_t>(std::ceil(val.second * 0.20));
             }
         }
         return bonus;
@@ -245,30 +270,10 @@ struct Player
     }
 
     // Calculate temporary battle score from talents
-    int32_t TempBattleScore() const
-    {
-        int32_t temp = 0;
-        int32_t total = TotalScore();
-        if (HasTalent(Talent::特立独行) && total % 2 == 1) temp += 6;
-        if (HasTalent(Talent::成双成对) && total % 2 == 0) temp += 6;
-        // COUNTERATTACK bonus is now in counterattack_extra_ (part of TotalScore), not here
-        temp += loser_blade_temp_;      // 败者之刃 accumulated temp score
-        temp += discard_scorer_temp_;   // 0号位 temp score from discards this round
-        if (HasTalent(Talent::天使轮) && angel_round_active_) temp += 15;  // 天使轮
-        return temp;
-    }
+    int32_t TempBattleScore() const;
 
     // Update base score from board rescore result
-    void UpdateScore(const ScoreResult& result, bool has_valuable_one)
-    {
-        base_score_ = result.base_score;
-        permanent_extra_ = RecalcPermanentExtra_();
-        valuable_one_bonus_ = has_valuable_one ? ValuableOneBonus() : 0;
-        int32_t total = base_score_ + permanent_extra_ + valuable_one_bonus_;
-        if (HasTalent(Talent::零风险投资)) {
-            max_total_score_ = std::max(max_total_score_, total);
-        }
-    }
+    void UpdateScore(const ScoreResult& result, bool has_valuable_one);
 
     // Generate talent pool based on Python logic
     void GenerateTalentPool(std::mt19937& rng)
@@ -332,11 +337,7 @@ struct Player
     }
 
     // Initialize available talent pools
-    void InitTalentPools()
-    {
-        for (auto t : k_grade_a_talents) available_a_.insert(t);
-        for (auto t : k_grade_b_talents) available_b_.insert(t);
-    }
+    void InitTalentPools();
 
     // Remove talents incompatible with special events (called after InitTalentPools)
     void RemoveEventIncompatibleTalents(SpecialEvent event)
@@ -364,60 +365,16 @@ struct Player
     }
 
   private:
+    void InitTalentStates_();
+
     // Recalculate 局部强化 bonus from current board state.
     // Each of the 3 directions on pos 10 defines an enhance digit.
     // A completed line matching that digit triggers +3 for that direction (once per direction, cap 9).
     // Wild direction (value 10) matches ANY completed line's digit.
-    int32_t LocalEnhanceBonus_()
-    {
-        const auto& center_card = comb_->GetCard(10);
-        if (!center_card.has_value()) {
-            local_enhance_triggered_ = {false, false, false};
-            return 0;
-        }
+    int32_t LocalEnhanceBonus_();
 
-        std::array<int32_t, 3> enhance_nums = {
-            center_card->PointAt(0),
-            center_card->PointAt(1),
-            center_card->PointAt(2)
-        };
-
-        // Recalculate from scratch each time
-        std::array<bool, 3> new_triggered = {false, false, false};
-        for (const auto& line_def : k_all_lines) {
-            if (!IsLineCompleted_(line_def)) continue;
-            int32_t matched = GetLineMatchedValue_(line_def);
-            for (int i = 0; i < 3; ++i) {
-                if (new_triggered[i]) continue;
-                if (enhance_nums[i] == 10) {
-                    // Wild direction: any completed line triggers this direction
-                    new_triggered[i] = true;
-                } else if (matched == enhance_nums[i]) {
-                    new_triggered[i] = true;
-                }
-            }
-        }
-        local_enhance_triggered_ = new_triggered;
-
-        int32_t bonus = 0;
-        for (int i = 0; i < 3; ++i) {
-            if (local_enhance_triggered_[i]) bonus += 3;  // 局部强化：每方向 +3，上限 9
-        }
-        return bonus;
-    }
-
-    int32_t RecalcPermanentExtra_()
-    {
-        int32_t extra = 0;
-        if (HasTalent(Talent::来点实在的)) extra += 4;
-        if (HasTalent(Talent::垃圾回收)) extra += discard_count_ * 2;
-        extra += StillUsefulBonus();
-        extra += LightInterferenceBonus();        // 光波干涉：同数同长度≥2条连线整体+15%
-        if (HasTalent(Talent::局部强化)) extra += LocalEnhanceBonus_();
-        extra += compound_interest_accumulated_;  // 利滚利 accumulated interest
-        extra += poison_score_;                   // 百味草 accumulated score from poison
-        return extra;
-    }
+    int32_t RecalcPermanentExtra_();
+    int32_t RecalcPermanentExtraBeforePerformance_();
 
     bool IsLineCompleted_(const LineDefinition& line_def) const
     {
@@ -462,6 +419,191 @@ struct Player
         return result;
     }
 };
+
+#include "games/talent_comb/talent_classes.h"
+
+inline CounterattackTalent& Player::Counterattack() { return TalentStateAs<CounterattackTalent>(Talent::绝地反击); }
+inline const CounterattackTalent& Player::Counterattack() const { return TalentStateAs<CounterattackTalent>(Talent::绝地反击); }
+inline SeizeTalent& Player::Seize() { return TalentStateAs<SeizeTalent>(Talent::占得先机); }
+inline const SeizeTalent& Player::Seize() const { return TalentStateAs<SeizeTalent>(Talent::占得先机); }
+inline ZeroRiskInvestmentTalent& Player::ZeroRisk() { return TalentStateAs<ZeroRiskInvestmentTalent>(Talent::零风险投资); }
+inline const ZeroRiskInvestmentTalent& Player::ZeroRisk() const { return TalentStateAs<ZeroRiskInvestmentTalent>(Talent::零风险投资); }
+inline TriForceTalent& Player::TriForce() { return TalentStateAs<TriForceTalent>(Talent::三相之力); }
+inline const TriForceTalent& Player::TriForce() const { return TalentStateAs<TriForceTalent>(Talent::三相之力); }
+inline EmergencyRescueTalent& Player::EmergencyRescue() { return TalentStateAs<EmergencyRescueTalent>(Talent::紧急救援); }
+inline const EmergencyRescueTalent& Player::EmergencyRescue() const { return TalentStateAs<EmergencyRescueTalent>(Talent::紧急救援); }
+inline CompoundInterestTalent& Player::CompoundInterest() { return TalentStateAs<CompoundInterestTalent>(Talent::利滚利); }
+inline const CompoundInterestTalent& Player::CompoundInterest() const { return TalentStateAs<CompoundInterestTalent>(Talent::利滚利); }
+inline DysonSphereTalent& Player::DysonSphere() { return TalentStateAs<DysonSphereTalent>(Talent::戴森球); }
+inline const DysonSphereTalent& Player::DysonSphere() const { return TalentStateAs<DysonSphereTalent>(Talent::戴森球); }
+inline DiscardScorerTalent& Player::DiscardScorer() { return TalentStateAs<DiscardScorerTalent>(Talent::零号位); }
+inline const DiscardScorerTalent& Player::DiscardScorer() const { return TalentStateAs<DiscardScorerTalent>(Talent::零号位); }
+inline MeditationTalent& Player::Meditation() { return TalentStateAs<MeditationTalent>(Talent::冥想); }
+inline const MeditationTalent& Player::Meditation() const { return TalentStateAs<MeditationTalent>(Talent::冥想); }
+inline TrashRecycleTalent& Player::TrashRecycle() { return TalentStateAs<TrashRecycleTalent>(Talent::垃圾回收); }
+inline const TrashRecycleTalent& Player::TrashRecycle() const { return TalentStateAs<TrashRecycleTalent>(Talent::垃圾回收); }
+inline LocalEnhanceTalent& Player::LocalEnhance() { return TalentStateAs<LocalEnhanceTalent>(Talent::局部强化); }
+inline const LocalEnhanceTalent& Player::LocalEnhance() const { return TalentStateAs<LocalEnhanceTalent>(Talent::局部强化); }
+inline GainAfterLossTalent& Player::GainAfterLoss() { return TalentStateAs<GainAfterLossTalent>(Talent::有舍有得); }
+inline const GainAfterLossTalent& Player::GainAfterLoss() const { return TalentStateAs<GainAfterLossTalent>(Talent::有舍有得); }
+inline ThreeYearTalent& Player::ThreeYear() { return TalentStateAs<ThreeYearTalent>(Talent::三年之期); }
+inline const ThreeYearTalent& Player::ThreeYear() const { return TalentStateAs<ThreeYearTalent>(Talent::三年之期); }
+inline ForgeTalent& Player::Forge() { return TalentStateAs<ForgeTalent>(Talent::锻造); }
+inline const ForgeTalent& Player::Forge() const { return TalentStateAs<ForgeTalent>(Talent::锻造); }
+inline NoMoreThanThreeTalent& Player::NoMoreThanThree() { return TalentStateAs<NoMoreThanThreeTalent>(Talent::事不过三); }
+inline const NoMoreThanThreeTalent& Player::NoMoreThanThree() const { return TalentStateAs<NoMoreThanThreeTalent>(Talent::事不过三); }
+inline LoserBladeTalent& Player::LoserBlade() { return TalentStateAs<LoserBladeTalent>(Talent::败者之刃); }
+inline const LoserBladeTalent& Player::LoserBlade() const { return TalentStateAs<LoserBladeTalent>(Talent::败者之刃); }
+inline TempWildTalent& Player::TempWild() { return TalentStateAs<TempWildTalent>(Talent::临时用品); }
+inline const TempWildTalent& Player::TempWild() const { return TalentStateAs<TempWildTalent>(Talent::临时用品); }
+inline HerbalGrowthTalent& Player::HerbalGrowth() { return TalentStateAs<HerbalGrowthTalent>(Talent::百味草); }
+inline const HerbalGrowthTalent& Player::HerbalGrowth() const { return TalentStateAs<HerbalGrowthTalent>(Talent::百味草); }
+inline AngelRoundTalent& Player::AngelRound() { return TalentStateAs<AngelRoundTalent>(Talent::天使轮); }
+inline const AngelRoundTalent& Player::AngelRound() const { return TalentStateAs<AngelRoundTalent>(Talent::天使轮); }
+inline GreedyTreasureTalent& Player::GreedyTreasure() { return TalentStateAs<GreedyTreasureTalent>(Talent::贪婪宝藏); }
+inline const GreedyTreasureTalent& Player::GreedyTreasure() const { return TalentStateAs<GreedyTreasureTalent>(Talent::贪婪宝藏); }
+inline ZeroPowerTalent& Player::ZeroPower() { return TalentStateAs<ZeroPowerTalent>(Talent::零的力量); }
+inline const ZeroPowerTalent& Player::ZeroPower() const { return TalentStateAs<ZeroPowerTalent>(Talent::零的力量); }
+inline VoidHeartTalent& Player::VoidHeart() { return TalentStateAs<VoidHeartTalent>(Talent::虚空之心); }
+inline const VoidHeartTalent& Player::VoidHeart() const { return TalentStateAs<VoidHeartTalent>(Talent::虚空之心); }
+inline PerformancePersonalityTalent& Player::PerformancePersonality() { return TalentStateAs<PerformancePersonalityTalent>(Talent::表演型人格); }
+inline const PerformancePersonalityTalent& Player::PerformancePersonality() const { return TalentStateAs<PerformancePersonalityTalent>(Talent::表演型人格); }
+
+inline std::optional<std::string> Player::ProtectedPositionMessage(uint32_t idx) const
+{
+    if (HasTalent(Talent::贪婪宝藏) && GreedyTreasure().ProtectsPosition(idx)) {
+        return "受到天赋「贪婪宝藏」影响，这个位置的000在变形前无法被覆盖";
+    }
+    return std::nullopt;
+}
+
+inline int32_t Player::TotalScore() const
+{
+    int32_t total = RawTotalScore();
+    if (HasTalent(Talent::零风险投资)) {
+        total = std::max(total, ZeroRisk().max_total_score);
+    }
+    if (HasTalent(Talent::戴森球) && CountCompletedLength3Lines_() >= 6) {
+        total = static_cast<int32_t>(std::ceil(total * 1.06));
+    }
+    total += Counterattack().extra_score;
+    return total;
+}
+
+inline int32_t Player::ZeroRiskFloor() const
+{
+    if (!HasTalent(Talent::零风险投资)) return 0;
+    int32_t raw = RawTotalScore();
+    int32_t floored = std::max(raw, ZeroRisk().max_total_score);
+    return floored - raw;
+}
+
+inline int32_t Player::DysonSphereBonus() const
+{
+    if (!HasTalent(Talent::戴森球) || CountCompletedLength3Lines_() < 6) return 0;
+    int32_t before_dyson = RawTotalScore() + ZeroRiskFloor();
+    int32_t after_dyson = static_cast<int32_t>(std::ceil(before_dyson * 1.06));
+    return after_dyson - before_dyson;
+}
+
+inline int32_t Player::TempBattleScore() const
+{
+    int32_t temp = 0;
+    for (const auto talent : talents_) {
+        temp += talent_states_.at(talent)->TempBattleScore(*this);
+    }
+    return temp;
+}
+
+inline int32_t Player::PerformancePersonalityBonus() const
+{
+    if (!HasTalent(Talent::表演型人格)) return 0;
+    return PerformancePersonality().current_bonus;
+}
+
+inline void Player::UpdateScore(const ScoreResult& result, bool has_valuable_one)
+{
+    base_score_ = result.base_score;
+    permanent_extra_ = RecalcPermanentExtra_();
+    valuable_one_bonus_ = has_valuable_one ? ValuableOneBonus() : 0;
+    int32_t total = base_score_ + permanent_extra_ + valuable_one_bonus_;
+    if (HasTalent(Talent::零风险投资)) {
+        ZeroRisk().max_total_score = std::max(ZeroRisk().max_total_score, total);
+    }
+}
+
+inline void Player::InitTalentPools()
+{
+    for (auto t : GradeATalents()) available_a_.insert(t);
+    for (auto t : GradeBTalents()) available_b_.insert(t);
+}
+
+inline void Player::InitTalentStates_()
+{
+    for (int i = 0; i < static_cast<int>(Talent::COUNT); ++i) {
+        Talent talent = static_cast<Talent>(i);
+        talent_states_.emplace(talent, CreateTalentState(talent));
+    }
+}
+
+inline int32_t Player::LocalEnhanceBonus_()
+{
+    const auto& center_card = comb_->GetCard(10);
+    if (!center_card.has_value()) {
+        LocalEnhance().triggered = {false, false, false};
+        return 0;
+    }
+
+    std::array<int32_t, 3> enhance_nums = {
+        center_card->PointAt(0),
+        center_card->PointAt(1),
+        center_card->PointAt(2)
+    };
+
+    std::array<bool, 3> new_triggered = {false, false, false};
+    for (const auto& line_def : k_all_lines) {
+        if (!IsLineCompleted_(line_def)) continue;
+        int32_t matched = GetLineMatchedValue_(line_def);
+        for (int i = 0; i < 3; ++i) {
+            if (new_triggered[i]) continue;
+            if (enhance_nums[i] == 10) {
+                new_triggered[i] = true;
+            } else if (matched == enhance_nums[i]) {
+                new_triggered[i] = true;
+            }
+        }
+    }
+    LocalEnhance().triggered = new_triggered;
+
+    int32_t bonus = 0;
+    for (int i = 0; i < 3; ++i) {
+        if (LocalEnhance().triggered[i]) bonus += 3;
+    }
+    return bonus;
+}
+
+inline int32_t Player::RecalcPermanentExtra_()
+{
+    int32_t extra = RecalcPermanentExtraBeforePerformance_();
+    if (HasTalent(Talent::表演型人格)) {
+        PerformancePersonality().current_bonus = PerformancePersonality().ScoreBonus(*this, extra);
+        extra += PerformancePersonality().current_bonus;
+    }
+    return extra;
+}
+
+inline int32_t Player::RecalcPermanentExtraBeforePerformance_()
+{
+    int32_t extra = 0;
+    if (HasTalent(Talent::来点实在的)) extra += 4;
+    if (HasTalent(Talent::垃圾回收)) extra += TrashRecycle().discard_count * 2;
+    extra += StillUsefulBonus();
+    extra += LightInterferenceBonus();
+    if (HasTalent(Talent::局部强化)) extra += LocalEnhanceBonus_();
+    extra += CompoundInterest().accumulated;
+    extra += HerbalGrowth().poison_score;
+    return extra;
+}
 
 } // namespace GAME_MODULE_NAME
 
