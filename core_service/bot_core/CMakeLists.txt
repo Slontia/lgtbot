@@ -172,6 +172,8 @@ if (WITH_TEST)
     TEST_BOT)
   set_target_properties(test_bot PROPERTIES ENABLE_EXPORTS ON)
   add_test(NAME test_bot COMMAND test_bot)
+  # ~30s alone but parallel `ctest -j` can push wall-clock past global `--timeout` defaults.
+  set_tests_properties(test_bot PROPERTIES TIMEOUT 120)
 
   add_library(test_game_for_test_lib OBJECT ${TEST_GAME_SOURCE_FILES})
   target_compile_definitions(test_game_for_test_lib PUBLIC
