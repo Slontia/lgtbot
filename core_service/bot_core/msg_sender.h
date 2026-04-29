@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -203,12 +204,13 @@ class MsgSender : public MsgSenderBase
         if (!image_path_) {
             return;
         }
-        std::stringstream ss;
-        ss << std::this_thread::get_id();
         const std::string path =
-            (std::filesystem::path(*image_path_) / "gen" / ss.str() += ".png").string();
+            (std::filesystem::path(*image_path_) / "gen" /
+             (std::to_string(markdown_image_seq_.fetch_add(1)) + ".png"))
+                .string();
         MarkdownToImage(markdown, path, width);
-        SaveImage(path.c_str());
+        messages_.emplace_back(std::move(path), LGTBot_MessageType::LGTBOT_MSG_IMAGE,
+                               true);
     }
 
     virtual void Flush() override
@@ -222,6 +224,12 @@ class MsgSender : public MsgSenderBase
             raw_messages.emplace_back(message.str_.c_str(), message.type_);
         }
         callbacks_->handle_messages(handler_, id_.c_str(), is_to_user_, raw_messages.data(), raw_messages.size());
+        for (const auto& message : messages_) {
+            if (message.delete_after_send_) {
+                std::error_code ec;
+                std::filesystem::remove(message.str_, ec);
+            }
+        }
         messages_.clear();
     }
 
@@ -235,7 +243,13 @@ class MsgSender : public MsgSenderBase
     {
         std::string str_;
         LGTBot_MessageType type_;
+        bool delete_after_send_{false};
+        Message(std::string s, const LGTBot_MessageType t, const bool del = false)
+            : str_(std::move(s)), type_(t), delete_after_send_(del)
+        {
+        }
     };
+    static std::atomic<uint64_t> markdown_image_seq_;
     void* handler_;
     const std::string* image_path_;
     const LGTBot_Callback* callbacks_;

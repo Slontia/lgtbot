@@ -2,10 +2,14 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
+#include <atomic>
 #include <filesystem>
 
 #include "msg_sender.h"
+
 #include "bot_core/match.h"
+
+std::atomic<uint64_t> MsgSender::markdown_image_seq_{0};
 
 bool DownloadUserAvatar(const char* const uid, const char* const dest_filename);
 
