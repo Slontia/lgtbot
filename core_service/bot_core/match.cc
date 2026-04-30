@@ -6,7 +6,12 @@
 
 #include <cassert>
 
+#include <chrono>
+#include <cstdio>
+#include <ctime>
 #include <filesystem>
+#include <fstream>
+#include <map>
 #include <numeric>
 #include <algorithm>
 #include <utility> // g++12 has a bug which will cause 'exchange' is not a member of 'std'
@@ -46,6 +51,22 @@ void AppendMsgItem(MsgSenderBase::MsgSenderGuard& g, const lgtbot::ipc::MsgItem&
     }
 }
 
+std::pair<std::string, std::string> ArchiveYearMonth(const std::chrono::system_clock::time_point tp)
+{
+    const auto timet = std::chrono::system_clock::to_time_t(tp);
+    std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm, &timet);
+#else
+    localtime_r(&timet, &tm);
+#endif
+    char ybuf[8];
+    char mbuf[8];
+    std::snprintf(ybuf, sizeof(ybuf), "%04d", tm.tm_year + 1900);
+    std::snprintf(mbuf, sizeof(mbuf), "%02d", tm.tm_mon + 1);
+    return {std::string(ybuf), std::string(mbuf)};
+}
+
 std::filesystem::path ResolveRunnerExe()
 {
     if (const char* const e = std::getenv("LGTBOT_MATCH_RUNNER")) {
@@ -76,6 +97,7 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, InitOption
         , host_uid_(host_uid)
         , gid_(gid)
         , applied_options_log_(std::move(init_options.applied_options_log_))
+        , started_at_(std::chrono::system_clock::now())
         , group_sender_(gid.has_value() ? std::optional<MsgSender>(bot.MakeMsgSender(*gid_, this)) : std::nullopt)
 {
     options_.resource_holder_.resource_dir_ =
@@ -144,7 +166,7 @@ Match::VariantID Match::ConvertPid(const PlayerID pid) const
 
 ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_computers_to_player_num)
 {
-    std::lock_guard<std::mutex> l(mutex_);
+    std::lock_guard<std::recursive_mutex> l(mutex_);
     if (uid != host_uid_) {
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
@@ -166,7 +188,7 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t
 
 ErrCode Match::SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_formal)
 {
-    std::lock_guard<std::mutex> l(mutex_);
+    std::lock_guard<std::recursive_mutex> l(mutex_);
     if (uid != host_uid_) {
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
@@ -189,7 +211,7 @@ ErrCode Match::SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_f
 ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg,
                        MsgSender& reply)
 {
-    std::unique_lock<std::mutex> l(mutex_);
+    std::unique_lock<std::recursive_mutex> l(mutex_);
     const auto it = users_.find(uid);
     if (it == users_.end() || it->second.state_ == ParticipantUser::State::LEFT) {
         reply() << "[错误] 您未处于游戏中或已经离开";
@@ -252,7 +274,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
 
 ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
 {
-    std::lock_guard<std::mutex> l(mutex_);
+    std::lock_guard<std::recursive_mutex> l(mutex_);
     if (state_ != State::NOT_STARTED) {
         reply() << "[错误] 开始失败：游戏已经开始";
         return EC_MATCH_ALREADY_BEGIN;
@@ -374,7 +396,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
 
 ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
 {
-    std::lock_guard<std::mutex> l(mutex_);
+    std::lock_guard<std::recursive_mutex> l(mutex_);
     if (state_ != State::NOT_STARTED) {
         reply() << "[错误] 加入失败：游戏已经开始";
         return EC_MATCH_ALREADY_BEGIN;
@@ -402,7 +424,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
     std::unique_ptr<MatchChildClient> terminate_child;
     bool send_leave_ipc = false;
     {
-        std::lock_guard<std::mutex> l(mutex_);
+        std::lock_guard<std::recursive_mutex> l(mutex_);
         const auto it = users_.find(uid);
         if (it == users_.end() || it->second.state_ == ParticipantUser::State::LEFT) {
             reply() << "[错误] 退出失败：您未处于游戏中或已经离开";
@@ -571,15 +593,15 @@ void Match::StartReadThread_()
     struct Callbacks : IMatchChildCallbacks {
         explicit Callbacks(Match& m) : match(m) {}
         void OnPost(const PostFrame& f) override {
-            std::lock_guard<std::mutex> l(match.mutex_);
+            std::lock_guard<std::recursive_mutex> l(match.mutex_);
             match.ApplyChildPost_(f);
         }
         void OnPlayerState(const PlayerStateFrame& f) override {
-            std::lock_guard<std::mutex> l(match.mutex_);
+            std::lock_guard<std::recursive_mutex> l(match.mutex_);
             match.ApplyChildPlayerState(f.pid, f.state);
         }
         void OnGameOver(const GameOverFrame& f) override {
-            std::lock_guard<std::mutex> l(match.mutex_);
+            std::lock_guard<std::recursive_mutex> l(match.mutex_);
             match.ApplyChildGameOverFromScores(f);
         }
         void OnEof(const bool unexpected) override {
@@ -588,7 +610,7 @@ void Match::StartReadThread_()
             }
             std::unique_ptr<MatchChildClient> child;
             {
-                std::lock_guard<std::mutex> l(match.mutex_);
+                std::lock_guard<std::recursive_mutex> l(match.mutex_);
                 if (match.state_ == State::IS_OVER) {
                     return;
                 }
@@ -662,10 +684,10 @@ void Match::Activate(const PlayerID pid)
     }
 }
 
-void Match::ShowInfo(MsgSenderBase& reply) const
+void Match::ShowInfo(MsgSenderBase& reply)
 {
     reply.SetMatch(this);
-    std::lock_guard<std::mutex> l(mutex_);
+    std::lock_guard<std::recursive_mutex> l(mutex_);
     auto sender = reply();
     sender << "游戏名称：" << game_handle().Info().name_ << "\n";
     sender << "配置信息：" << OptionInfo_() << "\n";
@@ -702,7 +724,7 @@ void Match::ShowInfo(MsgSenderBase& reply) const
 
 void Match::BriefInfo(std::string& out) const
 {
-    std::lock_guard<std::mutex> l(mutex_);
+    std::lock_guard<std::recursive_mutex> l(mutex_);
     BriefInfo_(out);
 }
 
@@ -724,6 +746,132 @@ void Match::BriefInfo_(std::string& out) const
 std::string Match::OptionInfo_() const
 {
     return game_handle_.ConfigClient().QueryOptionInfo(true /* text_mode */);
+}
+
+void Match::RecordMessages(const std::string& recipient_id, const bool is_to_user,
+        const std::chrono::system_clock::time_point t, std::vector<RecordedMsgItem> items)
+{
+    if (items.empty()) {
+        return;
+    }
+    RecordedMessage entry;
+    entry.recipient_id_ = recipient_id;
+    entry.is_to_user_ = is_to_user;
+    entry.timestamp_sec_ = std::chrono::duration_cast<std::chrono::seconds>(t.time_since_epoch()).count();
+    entry.items_ = std::move(items);
+    std::lock_guard<std::recursive_mutex> lk(mutex_);
+    message_log_.push_back(std::move(entry));
+}
+
+void Match::RunPendingArchiveIfAny_()
+{
+    std::optional<uint64_t> mid;
+    std::vector<std::pair<UserID, int64_t>> scores;
+    std::vector<RecordedMessage> log_copy;
+    {
+        std::lock_guard<std::recursive_mutex> lk(mutex_);
+        if (!pending_archive_db_match_id_.has_value()) {
+            return;
+        }
+        mid = pending_archive_db_match_id_;
+        pending_archive_db_match_id_.reset();
+        scores = std::move(pending_archive_scores_);
+        pending_archive_scores_.clear();
+        log_copy = std::move(message_log_);
+        message_log_.clear();
+    }
+    WriteArchive_(*mid, scores, std::move(log_copy));
+}
+
+void Match::WriteArchive_(const uint64_t db_match_id, const std::vector<std::pair<UserID, int64_t>>& player_scores,
+        std::vector<RecordedMessage> log)
+{
+    if (db_match_id == 0) {
+        return;
+    }
+    namespace fs = std::filesystem;
+    const fs::path archive_root = fs::absolute(bot_.image_path()) / "local_archive";
+    std::map<std::string, std::string> path_to_key;
+
+    for (const auto& entry : log) {
+        for (const auto& it : entry.items_) {
+            if (it.type_ != LGTBOT_MSG_IMAGE) {
+                continue;
+            }
+            const fs::path src(it.payload_);
+            if (!fs::exists(src)) {
+                continue;
+            }
+            const std::string fname = src.filename().string();
+            const std::string key = "matches/" + std::to_string(db_match_id) + "/" + fname;
+            const fs::path dest = archive_root / "matches" / std::to_string(db_match_id) / fname;
+            std::error_code ec;
+            fs::create_directories(dest.parent_path(), ec);
+            fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
+            path_to_key[it.payload_] = key;
+        }
+    }
+
+    const auto ended_at = std::chrono::system_clock::now();
+    const auto [ym_year, ym_month] = ArchiveYearMonth(ended_at);
+    const auto ended_sec =
+            static_cast<int64_t>(std::chrono::duration_cast<std::chrono::seconds>(ended_at.time_since_epoch()).count());
+    const std::string archive_base =
+            std::to_string(ended_sec) + "_" + game_handle_.Info().module_name_ + "_" + std::to_string(db_match_id);
+    const std::string archive_key = "archives/" + ym_year + "/" + ym_month + "/" + archive_base + ".json";
+
+    nlohmann::json j;
+    j["match_id"] = db_match_id;
+    j["game"] = game_handle_.Info().module_name_;
+    j["started_at"] =
+            static_cast<int64_t>(std::chrono::duration_cast<std::chrono::seconds>(started_at_.time_since_epoch()).count());
+    j["ended_at"] = ended_sec;
+    j["players"] = nlohmann::json::array();
+    for (const auto& [uid, sc] : player_scores) {
+        j["players"].push_back(nlohmann::json{{"user_id", uid.GetStr()}, {"score", sc}});
+    }
+    j["messages"] = nlohmann::json::array();
+    for (const auto& rm : log) {
+        nlohmann::json mj;
+        mj["t"] = rm.timestamp_sec_;
+        mj["recipient_id"] = rm.recipient_id_;
+        mj["is_to_user"] = rm.is_to_user_;
+        mj["items"] = nlohmann::json::array();
+        for (const auto& it : rm.items_) {
+            if (it.type_ == LGTBOT_MSG_TEXT || it.type_ == LGTBOT_MSG_USER_NAME) {
+                mj["items"].push_back(nlohmann::json{{"type", "text"}, {"content", it.payload_}});
+            } else if (it.type_ == LGTBOT_MSG_USER_MENTION) {
+                mj["items"].push_back(nlohmann::json{{"type", "user_mention"}, {"user_id", it.payload_}});
+            } else if (it.type_ == LGTBOT_MSG_IMAGE) {
+                const auto kit = path_to_key.find(it.payload_);
+                const std::string img_key = kit != path_to_key.end() ? kit->second : it.payload_;
+                mj["items"].push_back(nlohmann::json{{"type", "image"}, {"key", img_key}});
+            }
+        }
+        j["messages"].push_back(std::move(mj));
+    }
+
+    const fs::path dest_json = archive_root / "archives" / ym_year / ym_month / (archive_base + ".json");
+    {
+        std::error_code ec;
+        fs::create_directories(dest_json.parent_path(), ec);
+    }
+    {
+        std::ofstream out(dest_json);
+        out << j.dump(2);
+    }
+
+    if (std::getenv("S3_ENDPOINT")) {
+        MatchLog_(InfoLog()) << "WriteArchive: S3 upload not implemented (stub); wrote local archive "
+                             << dest_json.string();
+    }
+
+    if (bot_.db_manager()) {
+        bot_.db_manager()->RecordArchive(db_match_id, archive_key);
+    }
+
+    std::error_code ec;
+    fs::remove_all(options_.resource_holder_.saved_image_dir_, ec);
 }
 
 void Match::ApplyChildPlayerState(const PlayerID pid, const std::string& state)
@@ -792,16 +940,21 @@ void Match::ApplyChildGameOverFromScores(const GameOverFrame& frame)
             sender << "\n\n游戏结果不记录：因为未连接数据库";
         } else if (const auto multiple = Multiple_(); !options_.generic_options_.is_formal_ || multiple == 0) {
             sender << "\n\n游戏结果不记录：因为该游戏为非正式游戏";
-        } else if (const auto score_info =
+        } else if (const auto record_result =
                     bot_.db_manager()->RecordMatch(game_handle_.Info().name_, gid_, host_uid_,
                         multiple, user_game_scores, user_achievements);
-                score_info.empty()) {
+                record_result.score_infos_.empty()) {
             sender << "\n\n[错误] 游戏结果写入数据库失败，请联系管理员";
             MatchLog_(ErrorLog()) << "Save database failed";
         } else {
-            assert(score_info.size() == users_.size());
+            assert(record_result.score_infos_.size() == users_.size());
+            {
+                std::lock_guard<std::recursive_mutex> lk(mutex_);
+                pending_archive_db_match_id_ = record_result.match_id_;
+                pending_archive_scores_ = user_game_scores;
+            }
             sender << "\n\n游戏结果写入数据库成功：";
-            for (const auto& info : score_info) {
+            for (const auto& info : record_result.score_infos_) {
                 sender << "\n" << At(info.uid_) << "：" << show_score("零和", info.zero_sum_score_)
                                                         << show_score("头名", info.top_score_)
                                                         << show_score("等级", info.level_score_);
@@ -859,7 +1012,7 @@ ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool 
 {
     std::unique_ptr<MatchChildClient> child;
     {
-        const std::lock_guard<std::mutex> l(mutex_);
+        const std::lock_guard<std::recursive_mutex> l(mutex_);
         const auto it = users_.find(uid);
         const char* const operation_str = cancel ? "取消中断" : "确定中断";
         if (it == users_.end() && it->second.state_ == ParticipantUser::State::LEFT) {
@@ -902,7 +1055,7 @@ ErrCode Match::Terminate(const bool is_force)
 {
     std::unique_ptr<MatchChildClient> child;
     {
-        const std::lock_guard<std::mutex> l(mutex_);
+        const std::lock_guard<std::recursive_mutex> l(mutex_);
         if (is_force || state_ == State::NOT_STARTED) {
             BoardcastAtAll() << "游戏已解散，谢谢大家参与";
             MatchLog_(InfoLog()) << "Match is terminated outside";
@@ -936,6 +1089,7 @@ void Match::UnbindMatchSide_()
                           child = std::move(game_child_)]() mutable {
             if (t.joinable()) t.join();
             child.reset(); // destroy after thread has exited
+            self->RunPendingArchiveIfAny_();
             // self (and thus ~Match) destructs here, on the cleanup thread — safe.
         });
     }

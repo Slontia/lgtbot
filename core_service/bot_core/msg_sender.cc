@@ -3,6 +3,7 @@
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
 #include <atomic>
+#include <chrono>
 #include <filesystem>
 
 #include "msg_sender.h"
@@ -27,5 +28,46 @@ void MsgSender::SavePlayer(const PlayerID& pid, const bool is_at)
         SaveUser(std::get<UserID>(id), is_at);
     }
     SaveText_("]");
+}
+
+void MsgSender::SaveMarkdown(const char* const markdown, const uint32_t width)
+{
+    if (!image_path_) {
+        return;
+    }
+    const std::string path =
+            (std::filesystem::path(*image_path_) / "gen" /
+                    (std::to_string(markdown_image_seq_.fetch_add(1)) + ".png"))
+                    .string();
+    MarkdownToImage(markdown, path, width);
+    messages_.emplace_back(std::move(path), LGTBot_MessageType::LGTBOT_MSG_IMAGE, true);
+}
+
+void MsgSender::Flush()
+{
+    if (messages_.empty()) {
+        return;
+    }
+    std::vector<LGTBot_Message> raw_messages;
+    raw_messages.reserve(messages_.size());
+    for (const auto& message : messages_) {
+        raw_messages.emplace_back(message.str_.c_str(), message.type_);
+    }
+    callbacks_->handle_messages(handler_, id_.c_str(), is_to_user_, raw_messages.data(), raw_messages.size());
+    if (match_) {
+        std::vector<RecordedMsgItem> recorded;
+        recorded.reserve(messages_.size());
+        for (const auto& message : messages_) {
+            recorded.push_back(RecordedMsgItem{message.type_, message.str_});
+        }
+        match_->RecordMessages(id_, is_to_user_, std::chrono::system_clock::now(), std::move(recorded));
+    }
+    for (const auto& message : messages_) {
+        if (message.delete_after_send_) {
+            std::error_code ec;
+            std::filesystem::remove(message.str_, ec);
+        }
+    }
+    messages_.clear();
 }
 

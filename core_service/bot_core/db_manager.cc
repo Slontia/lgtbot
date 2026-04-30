@@ -11,7 +11,6 @@
 #include <cmath>
 
 #include "utility/log.h"
-#include "bot_core/match.h"
 #include "bot_core/score_calculation.h"
 
 #include "sqlite_modern_cpp.h"
@@ -391,7 +390,7 @@ SQLiteDBManager::SQLiteDBManager(std::string db_name) : db_name_(std::move(db_na
 
 SQLiteDBManager::~SQLiteDBManager() {}
 
-void RecordMatch(sqlite::database& db, const std::string& game_name, const std::optional<GroupID> gid,
+uint64_t RecordMatch(sqlite::database& db, const std::string& game_name, const std::optional<GroupID> gid,
         const UserID host_uid, const uint64_t multiple, const std::vector<ScoreInfo>& score_infos,
         const std::vector<std::pair<UserID, std::string>>& achievements)
 {
@@ -405,6 +404,7 @@ void RecordMatch(sqlite::database& db, const std::string& game_name, const std::
         const auto birth_count = GetBirthCountOfUser(db, user_id);
         InsertUserWithAchievement(db, match_id, user_id, birth_count, achievement_name);
     }
+    return match_id;
 }
 
 std::vector<UserInfoForCalScore> GetUserInfoForCalScore(sqlite::database& db, const std::string& game_name,
@@ -418,18 +418,31 @@ std::vector<UserInfoForCalScore> GetUserInfoForCalScore(sqlite::database& db, co
     return user_infos;
 }
 
-std::vector<ScoreInfo> SQLiteDBManager::RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
+RecordMatchResult SQLiteDBManager::RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
         const UserID& host_uid, const uint64_t multiple, const std::vector<std::pair<UserID, int64_t>>& game_score_infos,
         const std::vector<std::pair<UserID, std::string>>& achievements)
 {
-    std::vector<ScoreInfo> score_infos; // TODO: get from game_score_infos
-    return ExecuteTransaction(db_name_, [&](sqlite::database& db)
+    RecordMatchResult result;
+    const bool ok = ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
             auto user_infos = GetUserInfoForCalScore(db, game_name, game_score_infos);
-            score_infos = CalScores(user_infos, multiple);
-            ::RecordMatch(db, game_name, gid, host_uid, multiple, score_infos, achievements);
+            result.score_infos_ = CalScores(user_infos, multiple);
+            result.match_id_ = ::RecordMatch(db, game_name, gid, host_uid, multiple, result.score_infos_, achievements);
             return true;
-        }) ? score_infos : std::vector<ScoreInfo>();
+        });
+    if (!ok) {
+        return RecordMatchResult{};
+    }
+    return result;
+}
+
+void SQLiteDBManager::RecordArchive(const uint64_t match_id, const std::string& archive_key)
+{
+    ExecuteTransaction(db_name_, [&](sqlite::database& db)
+        {
+            db << "INSERT OR REPLACE INTO match_archives (match_id, archive_key) VALUES (?, ?);" << match_id << archive_key;
+            return true;
+        });
 }
 
 UserProfile SQLiteDBManager::GetUserProfile(const UserID& uid, const std::string_view& time_range_begin,
@@ -651,6 +664,9 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const char* const db_name)
                 "match_id BIGINT UNSIGNED NOT NULL, "
                 "achievement_name VARCHAR(100) NOT NULL);";
         db << "CREATE INDEX IF NOT EXISTS user_id_index ON user_with_achievement(user_id);";
+        db << "CREATE TABLE IF NOT EXISTS match_archives("
+                "match_id BIGINT UNSIGNED PRIMARY KEY REFERENCES match(match_id), "
+                "archive_key TEXT NOT NULL);";
         return std::unique_ptr<DBManagerBase>(new SQLiteDBManager(db_name_str));
     } catch (const sqlite::sqlite_exception& e) {
         HandleError(e);

@@ -6,7 +6,10 @@
 
 #include <cassert>
 
+#include <chrono>
 #include <map>
+#include <mutex>
+#include <optional>
 #include <set>
 #include <bitset>
 #include <memory>
@@ -27,6 +30,13 @@
 inline bool match_is_valid(MatchID id) { return id != INVALID_MATCH; }
 
 typedef enum { PRIVATE_MATCH, GROUP_MATCH, DISCUSS_MATCH } MatchType;
+
+struct RecordedMessage {
+    std::string recipient_id_;
+    bool is_to_user_{false};
+    int64_t timestamp_sec_{0};
+    std::vector<RecordedMsgItem> items_;
+};
 
 class GameBase;
 class Match;
@@ -91,12 +101,12 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     MsgSenderBase::MsgSenderGuard Tell(const PlayerID pid) { return TellMsgSender(pid)(); }
     MsgSenderBase::MsgSenderGuard BoardcastAiInfo() { return BoardcastAiInfoMsgSender()(); }
 
-    void ShowInfo(MsgSenderBase& reply) const;
+    void ShowInfo(MsgSenderBase& reply);
 
     bool SwitchHost();
 
     bool IsPrivate() const { return !gid_.has_value(); }
-    auto UserNum() const { std::lock_guard<std::mutex> l(mutex_); return users_.size(); }
+    auto UserNum() const { std::lock_guard<std::recursive_mutex> l(mutex_); return users_.size(); }
 
     VariantID ConvertPid(const PlayerID pid) const;
 
@@ -104,13 +114,16 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     const GameHandle& game_handle() const { return game_handle_; }
     std::optional<GroupID> gid() const { return gid_; }
-    UserID HostUserId() const { std::lock_guard<std::mutex> l(mutex_); return host_uid_; }
+    UserID HostUserId() const { std::lock_guard<std::recursive_mutex> l(mutex_); return host_uid_; }
     const State state() const { return state_; }
     MatchManager& match_manager() { return bot_.match_manager(); }
 
     void BriefInfo(std::string& out) const;
 
     void ReleaseGameChildIfOver();
+
+    void RecordMessages(const std::string& recipient_id, bool is_to_user, std::chrono::system_clock::time_point t,
+            std::vector<RecordedMsgItem> items);
 
     friend class MatchChildClient;
 
@@ -168,13 +181,17 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     // let the child be destroyed. Must be called WITHOUT holding mutex_.
     void FinishTerminate_(std::unique_ptr<MatchChildClient> child);
 
+    void RunPendingArchiveIfAny_();
+    void WriteArchive_(uint64_t db_match_id, const std::vector<std::pair<UserID, int64_t>>& player_scores,
+            std::vector<RecordedMessage> log);
+
     bool Has_(const UserID uid) const;
     std::string HostUserName_() const;
     uint32_t PlayerNum_() const;
     uint32_t ComputerNum_() const;
     void EmplaceUser_(const UserID uid);
 
-    mutable std::mutex mutex_;
+    mutable std::recursive_mutex mutex_;
 
     // bot
     BotCtx& bot_;
@@ -247,4 +264,9 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     };
 
     bool is_in_deduction_{false};
+
+    std::chrono::system_clock::time_point started_at_;
+    std::vector<RecordedMessage> message_log_;
+    std::optional<uint64_t> pending_archive_db_match_id_;
+    std::vector<std::pair<UserID, int64_t>> pending_archive_scores_;
 };

@@ -85,7 +85,7 @@ class MockMsgSender : public MsgSenderBase
         ss_.str("");
     }
 
-    virtual void SetMatch(const Match* const) override {}
+    virtual void SetMatch(Match* /*match*/) override {}
 
   private:
     static inline std::atomic<uint64_t> image_no_ = 0;

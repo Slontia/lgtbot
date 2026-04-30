@@ -29,7 +29,7 @@ static char** g_argv = nullptr;
 class MockDBManager : public DBManagerBase
 {
   public:
-    virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
+    virtual RecordMatchResult RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
             const UserID& host_uid, const uint64_t multiple,
             const std::vector<std::pair<UserID, int64_t>>& game_score_infos,
             const std::vector<std::pair<UserID, std::string>>& achievements) override
@@ -46,8 +46,13 @@ class MockDBManager : public DBManagerBase
         for (const auto& [user_id, achievement_name] : achievements) {
             user_achievements_[user_id].emplace_back(achievement_name);
         }
-        return score_infos;
+        RecordMatchResult out;
+        out.match_id_ = 1;
+        out.score_infos_ = std::move(score_infos);
+        return out;
     }
+
+    virtual void RecordArchive(uint64_t /*match_id*/, const std::string& /*archive_key*/) override {}
 
     virtual UserProfile GetUserProfile(const UserID& uid, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) override

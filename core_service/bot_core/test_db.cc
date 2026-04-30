@@ -59,7 +59,7 @@ class TestDB : public testing::Test
     ASSERT_EQ((top), profile.top_score_); \
 }()
 
-void RecordMatch(sqlite::database& db, const std::string& game_name, const std::optional<GroupID> gid,
+uint64_t RecordMatch(sqlite::database& db, const std::string& game_name, const std::optional<GroupID> gid,
         const UserID host_uid, const uint64_t multiple, const std::vector<ScoreInfo>& score_infos,
         const std::vector<std::pair<UserID, std::string>>& achievements);
 

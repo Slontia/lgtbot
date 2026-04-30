@@ -114,6 +114,12 @@ struct AchievementStatisticInfo
     uint64_t achieved_user_num_;
 };
 
+struct RecordMatchResult
+{
+    uint64_t match_id_{0};
+    std::vector<ScoreInfo> score_infos_;
+};
+
 struct UserProfile
 {
     UserID uid_;
@@ -131,10 +137,11 @@ class DBManagerBase
 {
    public:
     virtual ~DBManagerBase() {}
-    virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
+    virtual RecordMatchResult RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
             const UserID& host_uid, const uint64_t multiple,
             const std::vector<std::pair<UserID, int64_t>>& game_score_infos,
             const std::vector<std::pair<UserID, std::string>>& achievements) = 0;
+    virtual void RecordArchive(uint64_t match_id, const std::string& archive_key) = 0;
     virtual UserProfile GetUserProfile(const UserID& uid, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) = 0;
     virtual bool Suicide(const UserID& uid, const uint32_t required_match_num) = 0;
@@ -155,10 +162,11 @@ class SQLiteDBManager : public DBManagerBase
   public:
     static std::unique_ptr<DBManagerBase> UseDB(const char* sv);
     virtual ~SQLiteDBManager();
-    virtual std::vector<ScoreInfo> RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
+    virtual RecordMatchResult RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
             const UserID& host_uid, const uint64_t multiple,
             const std::vector<std::pair<UserID, int64_t>>& game_score_infos,
             const std::vector<std::pair<UserID, std::string>>& achievements) override;
+    virtual void RecordArchive(uint64_t match_id, const std::string& archive_key) override;
     virtual UserProfile GetUserProfile(const UserID& uid, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) override;
     virtual bool Suicide(const UserID& uid, const uint32_t required_match_num) override;

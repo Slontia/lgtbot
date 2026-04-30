@@ -17,7 +17,7 @@ namespace {
 class ErrCollector final : public MsgSenderBase
 {
   public:
-    void SetMatch(const Match* const) override {}
+    void SetMatch(Match* /*match*/) override {}
 
   protected:
     void SaveText(const char* const data, const uint64_t len) override { text_.append(data, data + len); }
@@ -38,7 +38,7 @@ class ReplySender final : public MsgSenderBase
         : session_(session)
     {}
 
-    void SetMatch(const Match* const) override {}
+    void SetMatch(Match* /*match*/) override {}
 
   protected:
     void SaveText(const char* const data, const uint64_t len) override

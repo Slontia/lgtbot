@@ -92,7 +92,7 @@ class IpcMatchEnv final : public MatchBase
             , target_pid_(target_pid)
         {}
 
-        void SetMatch(const Match* const) override {}
+        void SetMatch(Match* /*match*/) override {}
 
       protected:
         void SaveText(const char* const data, const uint64_t len) override;

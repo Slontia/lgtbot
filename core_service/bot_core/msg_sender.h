@@ -21,6 +21,11 @@
 
 class Match;
 
+struct RecordedMsgItem {
+    LGTBot_MessageType type_;
+    std::string payload_;
+};
+
 template <typename IdType> struct At { IdType id_; };
 template <typename IdType> struct Name { IdType id_; };
 
@@ -108,7 +113,7 @@ class MsgSenderBase
   public:
     virtual ~MsgSenderBase() {}
     virtual MsgSenderGuard operator()() { return MsgSenderGuard(*this); }
-    virtual void SetMatch(const Match* const match) = 0;
+    virtual void SetMatch(Match* match) = 0;
 
     friend class MsgSenderGuard;
 
@@ -137,7 +142,7 @@ class EmptyMsgSender : public MsgSenderBase
     virtual void SaveImage(const char* const path) override {};
     virtual void SaveMarkdown(const char* const markdown, const uint32_t width) override {};
     virtual void Flush() override {}
-    virtual void SetMatch(const Match* const match) override {}
+    virtual void SetMatch(Match* /*match*/) override {}
 
   private:
     EmptyMsgSender() : MsgSenderBase() {}
@@ -160,9 +165,9 @@ class MsgSender : public MsgSenderBase
     {
     }
 
-    explicit MsgSender(const Match* const match = nullptr) : match_(match) {}
+    explicit MsgSender(Match* const match = nullptr) : match_(match) {}
 
-    virtual void SetMatch(const Match* const match) override { match_ = match; }
+    virtual void SetMatch(Match* const match) override { match_ = match; }
 
     virtual MsgSenderGuard operator()() override { return MsgSenderGuard(*this); }
 
@@ -199,39 +204,8 @@ class MsgSender : public MsgSenderBase
         messages_.emplace_back(std::string(path), LGTBot_MessageType::LGTBOT_MSG_IMAGE);
     }
 
-    virtual void SaveMarkdown(const char* const markdown, const uint32_t width) override
-    {
-        if (!image_path_) {
-            return;
-        }
-        const std::string path =
-            (std::filesystem::path(*image_path_) / "gen" /
-             (std::to_string(markdown_image_seq_.fetch_add(1)) + ".png"))
-                .string();
-        MarkdownToImage(markdown, path, width);
-        messages_.emplace_back(std::move(path), LGTBot_MessageType::LGTBOT_MSG_IMAGE,
-                               true);
-    }
-
-    virtual void Flush() override
-    {
-        if (messages_.empty()) {
-            return;
-        }
-        std::vector<LGTBot_Message> raw_messages;
-        raw_messages.reserve(messages_.size());
-        for (const auto& message : messages_) {
-            raw_messages.emplace_back(message.str_.c_str(), message.type_);
-        }
-        callbacks_->handle_messages(handler_, id_.c_str(), is_to_user_, raw_messages.data(), raw_messages.size());
-        for (const auto& message : messages_) {
-            if (message.delete_after_send_) {
-                std::error_code ec;
-                std::filesystem::remove(message.str_, ec);
-            }
-        }
-        messages_.clear();
-    }
+    virtual void SaveMarkdown(const char* const markdown, const uint32_t width) override;
+    virtual void Flush() override;
 
     void SaveText_(const std::string_view& sv)
     {
@@ -255,7 +229,7 @@ class MsgSender : public MsgSenderBase
     const LGTBot_Callback* callbacks_;
     std::string id_;
     bool is_to_user_;
-    const Match* match_;
+    Match* match_;
     std::vector<Message> messages_;
 };
 
@@ -349,7 +323,7 @@ class MsgSenderBatch : public MsgSenderBase
         fn_([&](MsgSenderBase& sender) { sender.SaveMarkdown(markdown, width); });
     };
 
-    virtual void SetMatch(const Match* const match) override
+    virtual void SetMatch(Match* match) override
     {
         fn_([&](MsgSenderBase& sender) { sender.SetMatch(match); });
     }
