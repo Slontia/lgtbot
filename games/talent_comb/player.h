@@ -139,7 +139,7 @@ struct Player
     const PerformancePersonalityTalent& PerformancePersonality() const;
 
     std::optional<std::string> ProtectedPositionMessage(uint32_t idx) const;
-    int32_t PerformancePersonalityBonus() const;
+    int32_t Heal(int32_t amount, bool can_double = true);
 
     bool HasTalent(Talent t) const
     {
@@ -161,56 +161,6 @@ struct Player
 
     // DYSON_SPHERE bonus (how much the 6% adds)
     int32_t DysonSphereBonus() const;
-
-    // Calculate the "还是有用的" bonus based on current board state
-    int32_t StillUsefulBonus() const
-    {
-        if (!HasTalent(Talent::还是有用的)) return 0;
-        int32_t bonus = 0;
-        for (const auto& line_def : k_all_lines) {
-            if (IsLineCompleted_(line_def)) {
-                int32_t matched = GetLineMatchedValue_(line_def);
-                if (matched == 1) bonus += 3;
-                if (matched == 2) bonus += 6;
-            }
-        }
-        return bonus;
-    }
-
-    // 光波干涉: 若用相同数字形成了相同长度的连线（≥2 条同数同长度），这些连线整体获得 20% 额外分数。
-    // 实现方式：按 (matched_value, length) 分组累计连线分；分组数量 ≥2 时对该组总分取 ceil(total * 0.20)。
-    int32_t LightInterferenceBonus() const
-    {
-        if (!HasTalent(Talent::光波干涉)) return 0;
-        // key: (matched_value, length); value: {count, total_line_score}
-        std::map<std::pair<int32_t, size_t>, std::pair<int32_t, int32_t>> groups;
-        for (const auto& line_def : k_all_lines) {
-            if (!IsLineCompleted_(line_def)) continue;
-            int32_t matched = 0;
-            bool all_wild = true;
-            const uint32_t dir_idx = static_cast<uint32_t>(line_def.direction);
-            for (uint32_t pos : line_def.positions) {
-                const auto& card = comb_->GetCard(pos);
-                if (card.has_value() && card->PointAt(dir_idx) != 10) {
-                    all_wild = false;
-                    matched = card->PointAt(dir_idx);
-                    break;
-                }
-            }
-            size_t len = line_def.positions.size();
-            int32_t line_score = (all_wild ? 10 : matched) * static_cast<int32_t>(len);
-            auto& entry = groups[{matched, len}];
-            entry.first += 1;
-            entry.second += line_score;
-        }
-        int32_t bonus = 0;
-        for (const auto& [key, val] : groups) {
-            if (val.first >= 2) {
-                bonus += static_cast<int32_t>(std::ceil(val.second * 0.20));
-            }
-        }
-        return bonus;
-    }
 
     // Calculate the "有1吗" special event bonus
     int32_t ValuableOneBonus() const
@@ -367,14 +317,7 @@ struct Player
   private:
     void InitTalentStates_();
 
-    // Recalculate 局部强化 bonus from current board state.
-    // Each of the 3 directions on pos 10 defines an enhance digit.
-    // A completed line matching that digit triggers +3 for that direction (once per direction, cap 9).
-    // Wild direction (value 10) matches ANY completed line's digit.
-    int32_t LocalEnhanceBonus_();
-
     int32_t RecalcPermanentExtra_();
-    int32_t RecalcPermanentExtraBeforePerformance_();
 
     bool IsLineCompleted_(const LineDefinition& line_def) const
     {
@@ -515,10 +458,16 @@ inline int32_t Player::TempBattleScore() const
     return temp;
 }
 
-inline int32_t Player::PerformancePersonalityBonus() const
+inline int32_t Player::Heal(int32_t amount, bool can_double)
 {
-    if (!HasTalent(Talent::表演型人格)) return 0;
-    return PerformancePersonality().current_bonus;
+    if (amount <= 0) return 0;
+    if (can_double) {
+        for (const auto talent : talents_) {
+            amount = talent_states_.at(talent)->ModifyHealAmount(*this, amount);
+        }
+    }
+    hp_ += amount;
+    return amount;
 }
 
 inline void Player::UpdateScore(const ScoreResult& result, bool has_valuable_one)
@@ -546,62 +495,16 @@ inline void Player::InitTalentStates_()
     }
 }
 
-inline int32_t Player::LocalEnhanceBonus_()
-{
-    const auto& center_card = comb_->GetCard(10);
-    if (!center_card.has_value()) {
-        LocalEnhance().triggered = {false, false, false};
-        return 0;
-    }
-
-    std::array<int32_t, 3> enhance_nums = {
-        center_card->PointAt(0),
-        center_card->PointAt(1),
-        center_card->PointAt(2)
-    };
-
-    std::array<bool, 3> new_triggered = {false, false, false};
-    for (const auto& line_def : k_all_lines) {
-        if (!IsLineCompleted_(line_def)) continue;
-        int32_t matched = GetLineMatchedValue_(line_def);
-        for (int i = 0; i < 3; ++i) {
-            if (new_triggered[i]) continue;
-            if (enhance_nums[i] == 10) {
-                new_triggered[i] = true;
-            } else if (matched == enhance_nums[i]) {
-                new_triggered[i] = true;
-            }
-        }
-    }
-    LocalEnhance().triggered = new_triggered;
-
-    int32_t bonus = 0;
-    for (int i = 0; i < 3; ++i) {
-        if (LocalEnhance().triggered[i]) bonus += 3;
-    }
-    return bonus;
-}
-
 inline int32_t Player::RecalcPermanentExtra_()
 {
-    int32_t extra = RecalcPermanentExtraBeforePerformance_();
-    if (HasTalent(Talent::表演型人格)) {
-        PerformancePersonality().current_bonus = PerformancePersonality().ScoreBonus(*this, extra);
-        extra += PerformancePersonality().current_bonus;
-    }
-    return extra;
-}
-
-inline int32_t Player::RecalcPermanentExtraBeforePerformance_()
-{
     int32_t extra = 0;
-    if (HasTalent(Talent::来点实在的)) extra += 4;
-    if (HasTalent(Talent::垃圾回收)) extra += TrashRecycle().discard_count * 2;
-    extra += StillUsefulBonus();
-    extra += LightInterferenceBonus();
-    if (HasTalent(Talent::局部强化)) extra += LocalEnhanceBonus_();
-    extra += CompoundInterest().accumulated;
-    extra += HerbalGrowth().poison_score;
+    for (int pass = 0; pass <= 1; ++pass) {
+        for (const auto talent : talents_) {
+            auto& state = *talent_states_.at(talent);
+            if (state.PermanentExtraScorePass() != pass) continue;
+            extra += state.PermanentExtraScore(*this, extra);
+        }
+    }
     return extra;
 }
 

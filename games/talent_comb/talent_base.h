@@ -10,11 +10,13 @@
 
 #include <array>
 #include <cstdint>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <random>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #include "talent.h"
@@ -121,6 +123,19 @@ class TalentBase
     // 查询对战分数时调用。
     // 返回参与对战比较的临时分修正值，但不会写入玩家的永久盘面分。
     virtual int32_t TempBattleScore(const Player& player) const;
+
+    // 玩家即将获得生命值时调用。
+    // 返回实际获得的生命值，适合回血强化类天赋统一修改回血量。
+    virtual int32_t ModifyHealAmount(const Player& player, int32_t amount) const;
+
+    // 重算玩家永久额外分时调用；数字较大的阶段会在较小的阶段之后计算。
+    // 适合需要依赖其它永久额外分结果的天赋调整计算顺序。
+    virtual int32_t PermanentExtraScorePass() const;
+
+    // 重算玩家永久额外分时调用。
+    // current_extra 是此前阶段和此前天赋已累计的永久额外分。
+    // 返回写入玩家总分的永久额外分，适合纯分数类天赋把加分逻辑放在类内。
+    virtual int32_t PermanentExtraScore(Player& player, int32_t current_extra);
 
     // 玩家获得该天赋后立即调用。
     // 适合处理立即生效效果、排入额外砖块、初始化计数器、全盘转换等逻辑。
@@ -243,6 +258,10 @@ class GreedyTreasureTalent;
 class ZeroPowerTalent;
 class VoidHeartTalent;
 class PerformancePersonalityTalent;
+class InnerRingTalent;
+class ChestnutTalent;
+class VitalityTalent;
+class OneWayTalent;
 
 std::unique_ptr<TalentBase> CreateTalentState(Talent talent);
 

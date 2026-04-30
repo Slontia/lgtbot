@@ -112,6 +112,14 @@ class AreaCard
         }
     }
 
+    void ApplyThreeSixToFourSeven()
+    {
+        for (auto& point : points_) {
+            if (point == 3) point = 4;
+            else if (point == 6) point = 7;
+        }
+    }
+
     void SetDirectionWild(const int32_t dir)
     {
         if (dir >= 0 && dir < static_cast<int32_t>(k_direct_max)) {

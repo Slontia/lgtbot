@@ -177,7 +177,7 @@ GAME_TEST(2, strategic_retreat_advance) {
     ASSERT_PUB_MSG(OK, 0, "16");  ASSERT_PUB_MSG(CHECKOUT, 1, "0");
     ASSERT_PUB_MSG(OK, 0, "3");   ASSERT_PUB_MSG(CHECKOUT, 1, "0");
     for (int i = 0; i < 200 && !this->main_stage_->IsOver(); ++i) this->TimeoutRequest_();
-    ASSERT_FINAL_SCORE(33, 71);
+    ASSERT_FINAL_SCORE(33, 65);
 }
 
 // Strategic with 垃圾回收: P1 discards 7 cards → 14 bonus points from recycle.

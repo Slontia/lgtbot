@@ -11,6 +11,9 @@ inline std::string TalentBase::BoardDisplay(const Player& player) const { return
 inline std::string TalentBase::ScoreDetail(const Player& player) const { return ""; }
 inline int32_t TalentBase::ScoreDetailDisplayedPermanentExtra(const Player& player) const { return 0; }
 inline int32_t TalentBase::TempBattleScore(const Player& player) const { return 0; }
+inline int32_t TalentBase::ModifyHealAmount(const Player& player, int32_t amount) const { return amount; }
+inline int32_t TalentBase::PermanentExtraScorePass() const { return 0; }
+inline int32_t TalentBase::PermanentExtraScore(Player& player, int32_t current_extra) { return 0; }
 inline std::string TalentBase::OnAcquire(Player& player, const TalentAcquireContext& context) { return ""; }
 inline std::string TalentBase::OnBeforePlaceCard(Player& player, AreaCard& card, bool is_normal_round) { return ""; }
 inline std::string TalentBase::OnRoundStart(Player& player, const TalentRoundContext& context) { return ""; }
@@ -28,11 +31,13 @@ inline TalentDamageEffect TalentBase::AttackDamageDelta(Player& attacker, Player
 inline int32_t TalentBase::DefenseDamageDelta(Player& defender, int32_t damage) { return 0; }
 
 inline constexpr const char* kTalentColorInactive = "#999999";
+inline constexpr const char* kTalentColorGlobal = "#D94A6A";
 inline constexpr const char* kTalentColorProgress = "#DAA520";
 inline constexpr const char* kTalentColorTempScore = "#FF6347";
 inline constexpr const char* kTalentColorExtraScore = "#1E3A8A";
 inline constexpr const char* kTalentColorBlueBuff = "#4169E1";
 inline constexpr const char* kTalentColorPenalty = "#8B0000";
+inline constexpr const char* kTalentColorPoison = "#6A0DAD";
 inline constexpr const char* kTalentColorPermanentGreen = "green";
 
 inline std::string TalentColoredText(const char* color, const std::string& text)
@@ -41,10 +46,14 @@ inline std::string TalentColoredText(const char* color, const std::string& text)
 }
 
 inline std::string TalentInactiveText(const std::string& text) { return TalentColoredText(kTalentColorInactive, text); }
+inline std::string TalentGlobalText(const std::string& text) { return TalentColoredText(kTalentColorGlobal, text); }
 inline std::string TalentProgressText(const std::string& text) { return TalentColoredText(kTalentColorProgress, text); }
 inline std::string TalentTempScoreText(const std::string& text) { return TalentColoredText(kTalentColorTempScore, text); }
 inline std::string TalentExtraScoreText(const std::string& text) { return TalentColoredText(kTalentColorExtraScore, text); }
+inline std::string TalentBlueBuffText(const std::string& text) { return TalentColoredText(kTalentColorBlueBuff, text); }
 inline std::string TalentPenaltyText(const std::string& text) { return TalentColoredText(kTalentColorPenalty, text); }
+inline std::string TalentPoisonText(const std::string& text) { return TalentColoredText(kTalentColorPoison, text); }
+inline std::string TalentPermanentGreenText(const std::string& text) { return TalentColoredText(kTalentColorPermanentGreen, text); }
 
 class PerfectBlockTalent : public TalentBase
 {
@@ -86,18 +95,18 @@ class CounterattackTalent : public TalentBase
     std::string BoardDisplay(const Player& player) const override
     {
         if (extra_score > 0) {
-            return Name() + TalentColoredText(kTalentColorBlueBuff, "[+" + std::to_string(extra_score) + "]");
+            return Name() + TalentBlueBuffText("[+" + std::to_string(extra_score) + "]");
         }
         if (used) {
             return TalentInactiveText(Name());
         }
-        return TalentColoredText(kTalentColorBlueBuff, Name());
+        return TalentBlueBuffText(Name());
     }
 
     std::string ScoreDetail(const Player& player) const override
     {
         if (extra_score == 0) return "";
-        return "+" + TalentColoredText(kTalentColorBlueBuff, "[反击+" + std::to_string(extra_score) + "]");
+        return "+" + TalentBlueBuffText("[反击+" + std::to_string(extra_score) + "]");
     }
 
     bool triggered = false;
@@ -233,7 +242,7 @@ class EmergencyRescueTalent : public TalentBase
         if (used) {
             return TalentInactiveText(Name());
         }
-        return TalentColoredText(kTalentColorBlueBuff, Name());
+        return TalentBlueBuffText(Name());
     }
 
     bool used = false;
@@ -273,6 +282,8 @@ class CompoundInterestTalent : public TalentBase
         player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, context.has_valuable_one);
         return "";
     }
+
+    int32_t PermanentExtraScore(Player& player, int32_t current_extra) override { return accumulated; }
 
     int32_t accumulated = 0;
 };
@@ -362,7 +373,7 @@ class SincereTalent : public TalentBase
 
     std::string BoardDisplay(const Player& player) const override
     {
-        std::string s = TalentColoredText("#D94A6A", Name());
+        std::string s = TalentGlobalText(Name());
         const int32_t ignored = player.TotalScore() + player.TempBattleScore() - player.base_score_;
         if (ignored > 0) {
             s += TalentPenaltyText("[-" + std::to_string(ignored) + "]");
@@ -411,7 +422,7 @@ class MeditationTalent : public TalentBase
 
     std::string OnRoundStart(Player& player, const TalentRoundContext& context) override
     {
-        if (active) player.hp_ += 5;
+        if (active) player.Heal(5);
         return "";
     }
 
@@ -440,11 +451,63 @@ class LightInterferenceTalent : public TalentBase
     std::string BoardDisplay(const Player& player) const override
     {
         std::string s = Name();
-        const int32_t bonus = player.LightInterferenceBonus();
+        const int32_t bonus = Bonus(player);
         if (bonus > 0) {
             s += TalentProgressText("(+" + std::to_string(bonus) + ")");
         }
         return s;
+    }
+
+    int32_t PermanentExtraScore(Player& player, int32_t current_extra) override { return Bonus(player); }
+
+    int32_t Bonus(const Player& player) const
+    {
+        std::map<std::pair<int32_t, size_t>, std::pair<int32_t, int32_t>> groups;
+        for (const auto& line_def : k_all_lines) {
+            if (!IsLineCompleted(player, line_def)) continue;
+            int32_t matched = 0;
+            bool all_wild = true;
+            const uint32_t dir_idx = static_cast<uint32_t>(line_def.direction);
+            for (uint32_t pos : line_def.positions) {
+                const auto& card = player.comb_->GetCard(pos);
+                if (card.has_value() && card->PointAt(dir_idx) != 10) {
+                    all_wild = false;
+                    matched = card->PointAt(dir_idx);
+                    break;
+                }
+            }
+            const size_t len = line_def.positions.size();
+            const int32_t line_score = (all_wild ? 10 : matched) * static_cast<int32_t>(len);
+            auto& entry = groups[{matched, len}];
+            entry.first += 1;
+            entry.second += line_score;
+        }
+        int32_t bonus = 0;
+        for (const auto& [key, val] : groups) {
+            if (val.first >= 2) {
+                bonus += static_cast<int32_t>(std::ceil(val.second * 0.20));
+            }
+        }
+        return bonus;
+    }
+
+    bool IsLineCompleted(const Player& player, const LineDefinition& line_def) const
+    {
+        const uint32_t dir_idx = static_cast<uint32_t>(line_def.direction);
+        std::optional<int32_t> matched_value;
+        for (uint32_t pos : line_def.positions) {
+            const auto& card = player.comb_->GetCard(pos);
+            if (!card.has_value()) return false;
+            const int32_t val = card->PointAt(dir_idx);
+            if (val != 10) {
+                if (!matched_value.has_value()) {
+                    matched_value = val;
+                } else if (val != *matched_value) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 };
 
@@ -476,7 +539,7 @@ class BloodlustTalent : public TalentBase
 
     std::string OnVictory(Player& player, const TalentVictoryContext& context) override
     {
-        player.hp_ += 4;
+        player.Heal(4);
         return "";
     }
 };
@@ -489,11 +552,56 @@ class StillUsefulTalent : public TalentBase
     std::string BoardDisplay(const Player& player) const override
     {
         std::string s = Name();
-        const int32_t bonus = player.StillUsefulBonus();
+        const int32_t bonus = Bonus(player);
         if (bonus > 0) {
             s += TalentProgressText("(+" + std::to_string(bonus) + ")");
         }
         return s;
+    }
+
+    int32_t PermanentExtraScore(Player& player, int32_t current_extra) override { return Bonus(player); }
+
+    int32_t Bonus(const Player& player) const
+    {
+        int32_t bonus = 0;
+        for (const auto& line_def : k_all_lines) {
+            if (!IsLineCompleted(player, line_def)) continue;
+            const int32_t matched = GetLineMatchedValue(player, line_def);
+            if (matched == 1) bonus += 3;
+            if (matched == 2) bonus += 6;
+        }
+        return bonus;
+    }
+
+    bool IsLineCompleted(const Player& player, const LineDefinition& line_def) const
+    {
+        const uint32_t dir_idx = static_cast<uint32_t>(line_def.direction);
+        std::optional<int32_t> matched_value;
+        for (uint32_t pos : line_def.positions) {
+            const auto& card = player.comb_->GetCard(pos);
+            if (!card.has_value()) return false;
+            const int32_t val = card->PointAt(dir_idx);
+            if (val != 10) {
+                if (!matched_value.has_value()) {
+                    matched_value = val;
+                } else if (val != *matched_value) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    int32_t GetLineMatchedValue(const Player& player, const LineDefinition& line_def) const
+    {
+        const uint32_t dir_idx = static_cast<uint32_t>(line_def.direction);
+        for (uint32_t pos : line_def.positions) {
+            const auto& card = player.comb_->GetCard(pos);
+            if (card.has_value() && card->PointAt(dir_idx) != 10) {
+                return card->PointAt(dir_idx);
+            }
+        }
+        return 0;
     }
 };
 
@@ -570,6 +678,8 @@ class TrashRecycleTalent : public TalentBase
         return "\n触发天赋「垃圾回收」，获得 2 点积分";
     }
 
+    int32_t PermanentExtraScore(Player& player, int32_t current_extra) override { return discard_count * 2; }
+
     int32_t discard_count = 0;
 };
 
@@ -580,13 +690,15 @@ class SomethingRealTalent : public TalentBase
 
     std::string BoardDisplay(const Player& player) const override
     {
-        return Name() + TalentColoredText(kTalentColorPermanentGreen, "(+4)");
+        return Name() + TalentPermanentGreenText("(+4)");
     }
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
         return "，立即获得 4 分！";
     }
+
+    int32_t PermanentExtraScore(Player& player, int32_t current_extra) override { return 4; }
 };
 
 class OffensiveFormTalent : public TalentBase
@@ -637,6 +749,71 @@ class LocalEnhanceTalent : public TalentBase
             s += TalentProgressText("(+" + std::to_string(bonus) + ")");
         }
         return s;
+    }
+
+    int32_t PermanentExtraScore(Player& player, int32_t current_extra) override
+    {
+        const auto& center_card = player.comb_->GetCard(10);
+        if (!center_card.has_value()) {
+            triggered = {false, false, false};
+            return 0;
+        }
+
+        const std::array<int32_t, 3> enhance_nums = {
+            center_card->PointAt(0),
+            center_card->PointAt(1),
+            center_card->PointAt(2)
+        };
+
+        std::array<bool, 3> new_triggered = {false, false, false};
+        for (const auto& line_def : k_all_lines) {
+            if (!IsLineCompleted(player, line_def)) continue;
+            const int32_t matched = GetLineMatchedValue(player, line_def);
+            for (int i = 0; i < 3; ++i) {
+                if (new_triggered[i]) continue;
+                if (enhance_nums[i] == 10 || matched == enhance_nums[i]) {
+                    new_triggered[i] = true;
+                }
+            }
+        }
+        triggered = new_triggered;
+
+        int32_t bonus = 0;
+        for (const bool is_triggered : triggered) {
+            if (is_triggered) bonus += 3;
+        }
+        return bonus;
+    }
+
+    bool IsLineCompleted(const Player& player, const LineDefinition& line_def) const
+    {
+        const uint32_t dir_idx = static_cast<uint32_t>(line_def.direction);
+        std::optional<int32_t> matched_value;
+        for (uint32_t pos : line_def.positions) {
+            const auto& card = player.comb_->GetCard(pos);
+            if (!card.has_value()) return false;
+            const int32_t val = card->PointAt(dir_idx);
+            if (val != 10) {
+                if (!matched_value.has_value()) {
+                    matched_value = val;
+                } else if (val != *matched_value) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    int32_t GetLineMatchedValue(const Player& player, const LineDefinition& line_def) const
+    {
+        const uint32_t dir_idx = static_cast<uint32_t>(line_def.direction);
+        for (uint32_t pos : line_def.positions) {
+            const auto& card = player.comb_->GetCard(pos);
+            if (card.has_value() && card->PointAt(dir_idx) != 10) {
+                return card->PointAt(dir_idx);
+            }
+        }
+        return 0;
     }
 
     std::array<bool, 3> triggered = {false, false, false};
@@ -917,7 +1094,7 @@ class BandageTalent : public TalentBase
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
-        player.hp_ += 20;
+        player.Heal(20);
         return "，立即获得 20 点生命！";
     }
 };
@@ -929,12 +1106,7 @@ class HerbalGrowthTalent : public TalentBase
 
     std::string BoardDisplay(const Player& player) const override
     {
-        std::string s = Name() + TalentColoredText("#6A0DAD", "(" + std::to_string(player.poison_layers_) + "毒");
-        if (poison_score > 0) {
-            s += TalentColoredText("#6A0DAD", "+" + std::to_string(poison_score) + "分)");
-        } else {
-            s += TalentColoredText("#6A0DAD", ")");
-        }
+        std::string s = Name() + TalentPoisonText("(" + std::to_string(player.poison_layers_) + "毒+" + std::to_string(poison_score) + "分)");
         return s;
     }
 
@@ -943,6 +1115,8 @@ class HerbalGrowthTalent : public TalentBase
         player.poison_layers_++;
         return "，获得1层中毒（当前中毒：" + std::to_string(player.poison_layers_) + " 层）";
     }
+
+    int32_t PermanentExtraScore(Player& player, int32_t current_extra) override { return poison_score; }
 
     int32_t poison_score = 0;
 };
@@ -1008,8 +1182,8 @@ class ZhangSanTalent : public TalentBase
         }
         if (threes <= 0) return "";
         const int32_t heal = threes * 3;
-        player.hp_ += heal;
-        return "\n触发天赋「张三来袭」，获得 " + std::to_string(heal) + " 点生命";
+        const int32_t actual_heal = player.Heal(heal);
+        return "\n触发天赋「张三来袭」，获得 " + std::to_string(actual_heal) + " 点生命";
     }
 };
 
@@ -1078,14 +1252,14 @@ class GreedyTreasureTalent : public TalentBase
 class ZeroPowerTalent : public TalentBase
 {
   public:
-    ZeroPowerTalent() : TalentBase({"B", Talent::零的力量, "0的力量", "获得一张000，只要000在场上存在，你放置卡牌时3视为4"}) {}
+    ZeroPowerTalent() : TalentBase({"B", Talent::零的力量, "0的力量", "获得一张000，只要000在场上存在，你放置卡牌时3视为4，6视为7"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
         if (!active) return TalentInactiveText(Name());
         std::string s = Name();
         if (position > 0) {
-            s += TalentProgressText("[位置" + std::to_string(position) + "]");
+            s += TalentTempScoreText("[位置" + std::to_string(position) + "]");
         }
         return s;
     }
@@ -1093,16 +1267,16 @@ class ZeroPowerTalent : public TalentBase
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
         player.extra_card_queue_.push_back({{AreaCard(0, 0, 0)}, Name(), false, Talent::零的力量});
-        return "，获得一张000；它在场时，你新放置的3视为4！";
+        return "，获得一张000；它在场时，你新放置的3视为4，6视为7！";
     }
 
     std::string OnBeforePlaceCard(Player& player, AreaCard& card, bool is_normal_round) override
     {
         if (!active) return "";
         AreaCard before = card;
-        card.ApplyThreeToFour();
+        card.ApplyThreeSixToFourSeven();
         if (card == before) return "";
-        return "\n触发天赋「0的力量」，该砖块的3视为4！";
+        return "\n触发天赋「0的力量」，该砖块的3视为4，6视为7！";
     }
 
     std::string OnCardPlaced(Player& player, uint32_t idx, const ScoreResult& original_result, ScoreResult& effective_result,
@@ -1182,6 +1356,14 @@ class PerformancePersonalityTalent : public TalentBase
         return current_bonus;
     }
 
+    int32_t PermanentExtraScorePass() const override { return 1; }
+
+    int32_t PermanentExtraScore(Player& player, int32_t current_extra) override
+    {
+        current_bonus = ScoreBonus(player, current_extra);
+        return current_bonus;
+    }
+
     std::string AfterScoreUpdatedOnCardPlaced(Player& player, uint32_t idx, const ScoreResult& effective_result,
                                               const TalentCardPlacedContext& context, int32_t old_permanent_extra) override
     {
@@ -1218,6 +1400,148 @@ class PerformancePersonalityTalent : public TalentBase
 
     int32_t percent_permille = 0;
     int32_t current_bonus = 0;
+};
+
+class InnerRingTalent : public TalentBase
+{
+  public:
+    InnerRingTalent() : TalentBase({"B", Talent::二环里, "二环里", "与10号位相邻的六个块若连接成功，10号位变成癞子"}) {}
+
+    std::string BoardDisplay(const Player& player) const override
+    {
+        if (triggered) return TalentInactiveText(Name());
+        return Name() + TalentProgressText("(" + std::to_string(ConnectedPairCount(player)) + "/6)");
+    }
+
+    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
+    {
+        if (TryTrigger(player, context.has_valuable_one)) {
+            return "，已达成条件，10号位变为癞子！";
+        }
+        return "，若10号位周围二环连线成功，10号位将变为癞子";
+    }
+
+    std::string AfterScoreUpdatedOnCardPlaced(Player& player, uint32_t idx, const ScoreResult& effective_result,
+                                              const TalentCardPlacedContext& context, int32_t old_permanent_extra) override
+    {
+        if (!TryTrigger(player, context.has_valuable_one)) return "";
+        return "\n触发天赋「二环里」，10号位变为癞子！";
+    }
+
+    bool TryTrigger(Player& player, bool has_valuable_one)
+    {
+        if (triggered || !IsOuterRingCompleted(player)) return false;
+        auto result = player.comb_->SetWildAt(10);
+        player.UpdateScore(result, has_valuable_one);
+        triggered = true;
+        return true;
+    }
+
+    bool IsOuterRingCompleted(const Player& player) const
+    {
+        return ConnectedPairCount(player) >= 6;
+    }
+
+    int32_t ConnectedPairCount(const Player& player) const
+    {
+        int32_t count = 0;
+        for (const auto& [lhs, rhs, dir] : OuterPairs()) {
+            if (IsPairConnected(player, lhs, rhs, dir)) ++count;
+        }
+        return count;
+    }
+
+    std::array<std::tuple<uint32_t, uint32_t, uint32_t>, 6> OuterPairs() const
+    {
+        return {{
+            {5, 6, 1}, {6, 11, 0}, {11, 15, 2}, {14, 15, 1}, {9, 14, 0}, {5, 9, 2},
+        }};
+    }
+
+    bool IsPairConnected(const Player& player, uint32_t lhs, uint32_t rhs, uint32_t dir) const
+    {
+        const auto& lhs_card = player.comb_->GetCard(lhs);
+        const auto& rhs_card = player.comb_->GetCard(rhs);
+        if (!lhs_card.has_value() || !rhs_card.has_value()) return false;
+        const int32_t lhs_value = lhs_card->PointAt(dir);
+        const int32_t rhs_value = rhs_card->PointAt(dir);
+        return lhs_value == 10 || rhs_value == 10 || lhs_value == rhs_value;
+    }
+
+    bool triggered = false;
+};
+
+class ChestnutTalent : public TalentBase
+{
+  public:
+    ChestnutTalent() : TalentBase({"B", Talent::恭喜栗子, "恭喜栗子", "你的中线连成4、9、7时，分别加4分、9分、7分"}) {}
+
+    std::string BoardDisplay(const Player& player) const override
+    {
+        const int32_t bonus = Bonus(player);
+        if (bonus <= 0) return Name();
+        return Name() + TalentProgressText("(+" + std::to_string(bonus) + ")");
+    }
+
+    int32_t PermanentExtraScore(Player& player, int32_t current_extra) override
+    {
+        return Bonus(player);
+    }
+
+    int32_t Bonus(const Player& player) const
+    {
+        int32_t bonus = 0;
+        if (IsLineCompletedWith(player, {1, 5, 10, 15, 19}, 0, 4)) bonus += 4;
+        if (IsLineCompletedWith(player, {8, 9, 10, 11, 12}, 1, 9)) bonus += 9;
+        if (IsLineCompletedWith(player, {3, 6, 10, 14, 17}, 2, 7)) bonus += 7;
+        return bonus;
+    }
+
+    bool IsLineCompletedWith(const Player& player, std::initializer_list<uint32_t> positions, uint32_t dir, int32_t target) const
+    {
+        for (uint32_t pos : positions) {
+            const auto& card = player.comb_->GetCard(pos);
+            if (!card.has_value()) return false;
+            const int32_t value = card->PointAt(dir);
+            if (value != target && value != 10) {
+                return false;
+            }
+        }
+        return true;
+    }
+};
+
+class VitalityTalent : public TalentBase
+{
+  public:
+    VitalityTalent() : TalentBase({"B", Talent::勃勃生机, "勃勃生机", "立即获得15点生命。你的回血效果翻倍"}) {}
+
+    int32_t ModifyHealAmount(const Player& player, int32_t amount) const override
+    {
+        return amount * 2;
+    }
+
+    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
+    {
+        player.Heal(15, false);
+        return "，立即获得15点生命，此后的回血效果翻倍！";
+    }
+};
+
+class OneWayTalent : public TalentBase
+{
+  public:
+    OneWayTalent() : TalentBase({"B", Talent::一方通行, "一方通行", "从X00、0X0、00X中选择一张牌"}) {}
+
+    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
+    {
+        player.extra_card_queue_.push_back({{
+            AreaCard(10, 0, 0),
+            AreaCard(0, 10, 0),
+            AreaCard(0, 0, 10),
+        }, Name(), false, Talent::一方通行});
+        return "，请在额外放置阶段从X00、0X0、00X中选择一张牌";
+    }
 };
 
 inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
@@ -1272,6 +1596,10 @@ inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
         case Talent::零的力量: return std::make_unique<ZeroPowerTalent>();
         case Talent::虚空之心: return std::make_unique<VoidHeartTalent>();
         case Talent::表演型人格: return std::make_unique<PerformancePersonalityTalent>();
+        case Talent::二环里: return std::make_unique<InnerRingTalent>();
+        case Talent::恭喜栗子: return std::make_unique<ChestnutTalent>();
+        case Talent::勃勃生机: return std::make_unique<VitalityTalent>();
+        case Talent::一方通行: return std::make_unique<OneWayTalent>();
         case Talent::COUNT: break;
     }
     return std::make_unique<WantAllTalent>();

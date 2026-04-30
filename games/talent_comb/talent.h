@@ -92,7 +92,7 @@ enum class Talent
     潘多拉魔盒,
     利滚利,
     戴森球,
-    零号位,        // 原名 0号位
+    零号位,         // 原名：0号位
     坦诚相见,
     星河流转,
     冥想,
@@ -127,16 +127,20 @@ enum class Talent
     多维抉择,
     张三来袭,
     贪婪宝藏,
-    零的力量,
+    零的力量,       // 原名：0的力量
     虚空之心,
     表演型人格,
+    二环里,
+    恭喜栗子,
+    勃勃生机,
+    一方通行,
 
     COUNT
 };
 
 struct TalentInfo
 {
-    const char* grade;          // "A" / "B" / ... 后续可扩展更多等级
+    const char* grade;
     Talent      id;
     const char* name;
     const char* description;

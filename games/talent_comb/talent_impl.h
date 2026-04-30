@@ -150,6 +150,7 @@ inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(PlayerID pid, ui
         Talent::张三来袭,
         Talent::贪婪宝藏,
         Talent::零的力量,
+        Talent::虚空之心,
     };
     for (const auto talent : k_card_placed_order) {
         if (!player.HasTalent(talent)) continue;
@@ -191,8 +192,8 @@ inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(PlayerID pid, ui
         Talent::戴森球,
         Talent::冥想,
         Talent::天使轮,
-        Talent::虚空之心,
         Talent::表演型人格,
+        Talent::二环里,
     };
     for (const auto talent : k_after_score_order) {
         if (!player.HasTalent(talent)) continue;
@@ -221,8 +222,8 @@ inline std::pair<AreaCard, std::string> MainStage::TransformCardForPlacement_(Pl
         Talent::三相之力,
         Talent::两级反转,
         Talent::九转玄机,
-        Talent::以退为进,
         Talent::零的力量,
+        Talent::以退为进,
         Talent::完美块,
     };
     for (const auto talent : k_transform_order) {
@@ -678,9 +679,9 @@ inline void MainStage::CollectPostBattleExtras_()
             player.extra_card_queue_.push_back({player.ThreeYear().cards, "三年之期", true});
             // Restore HP accumulated during storage period
             if (player.ThreeYear().damage_stored > 0) {
-                player.hp_ += player.ThreeYear().damage_stored;
+                const int32_t restored = player.Heal(player.ThreeYear().damage_stored);
                 Global().Boardcast() << At(pid) << " 触发天赋「三年之期」，恢复存储期间受到的 "
-                                     << player.ThreeYear().damage_stored << " 点伤害！";
+                                     << restored << " 点伤害！";
                 player.ThreeYear().damage_stored = 0;
             }
             player.ThreeYear().cards.clear();

@@ -41,7 +41,27 @@ const GameProperties k_properties {
 uint64_t MaxPlayerNum(const CustomOptions& options) { return 8; }
 uint32_t Multiple(const CustomOptions& options) { return 2; }
 const MutableGenericOptions k_default_generic_options;
-const std::vector<RuleCommand> k_rule_commands = {};
+
+static std::string TalentRuleText(const int talent_id)
+{
+    if (talent_id < 0 || talent_id >= static_cast<int>(Talent::COUNT)) {
+        return "未知天赋";
+    }
+    const auto talent = static_cast<Talent>(talent_id);
+    const auto& info = GetTalentInfo(talent);
+    return "【" + std::string(info.name) + "】\n等级：" + std::string(info.grade) + "\n" + info.description;
+}
+
+const std::vector<RuleCommand> k_rule_commands = {
+    RuleCommand("查看指定天赋效果",
+            [](const int talent_id) -> const char* const
+            {
+                static std::string rule_text;
+                rule_text = TalentRuleText(talent_id);
+                return rule_text.c_str();
+            },
+            AlterChecker<int>(MakeTalentOptionMap())),
+};
 
 bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
@@ -130,7 +150,8 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
   public:
     MainStage(StageUtility&& utility)
         : StageFsm(std::move(utility),
-            MakeStageCommand(*this, "查看蜂巢初始状态", &MainStage::Info_, VoidChecker("赛况")))
+            MakeStageCommand(*this, "查看蜂巢初始状态", &MainStage::Info_, VoidChecker("赛况")),
+            MakeStageCommand(*this, "查看指定天赋效果", &MainStage::TalentRule_, AlterChecker<int>(MakeTalentOptionMap())))
         , round_(0)
         , alive_(Global().PlayerNum())
         , player_out_(Global().PlayerNum(), 0)
@@ -378,6 +399,12 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     CompReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
         reply() << Markdown(CombHtml("## 第 " + std::to_string(round_) + " 回合"));
+        return StageErrCode::OK;
+    }
+
+    CompReqErrCode TalentRule_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int talent_id)
+    {
+        reply() << TalentRuleText(talent_id);
         return StageErrCode::OK;
     }
 };
@@ -1339,6 +1366,9 @@ class TalentStage : public SubGameStage<>
 
     virtual void OnStageBegin() override
     {
+        // Boardcast player boards before choosing talents
+        Global().Boardcast() << Markdown{Main().CombHtml("## 天赋选择阶段")};
+
         // Pre-process: handle 我全都要 for qualifying players
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             if (Main().player_out_[pid] != 0) continue;
