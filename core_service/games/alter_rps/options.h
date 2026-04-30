@@ -86,6 +86,15 @@ class CardChecker : public MsgArgChecker<Card>
                 value.type_ == Type::SCISSOR ? "剪刀" : "空白") + (value.point_ == 0 ? "-" : std::to_string(value.point_));
     }
 
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        ArgDef d;
+        d.format_info = FormatInfo();
+        d.example = ExampleInfo();
+        d.arg = TextArgDef{"手势与点数"};
+        return std::vector<ArgDef>{std::move(d)};
+    }
+
   private:
     ArithChecker<int> arith_checker_;
 };

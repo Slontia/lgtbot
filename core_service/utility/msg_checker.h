@@ -17,8 +17,10 @@
 #include <sstream>
 #include <bitset>
 #include <charconv>
+#include <variant>
 
 #include "html.h"
+#include "utility/arg_def.h"
 
 // TODO: check callback parameters
 
@@ -66,6 +68,7 @@ class MsgArgCheckerBase
     virtual std::string EscapedFormatInfo() const = 0;
     virtual std::string ColoredFormatInfo() const = 0;
     virtual std::string ExampleInfo() const = 0;
+    virtual std::vector<ArgDef> ToArgDefs() const = 0;
 };
 
 template <typename T>
@@ -103,6 +106,15 @@ class AnyArg : public MsgArgChecker<std::string>
         return reader.NextArg();
     }
     virtual std::string ArgString(const std::string& value) const override { return value; }
+
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        ArgDef d;
+        d.format_info = FormatInfo();
+        d.example = ExampleInfo();
+        d.arg = TextArgDef{example_};
+        return std::vector<ArgDef>{std::move(d)};
+    }
 
    private:
     const std::string format_info_;
@@ -143,6 +155,15 @@ class BoolChecker : public MsgArgChecker<bool>
         }
     }
     virtual std::string ArgString(const bool& value) const override { return value ? true_str_ : false_str_; }
+
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        ArgDef d;
+        d.format_info = FormatInfo();
+        d.example = ExampleInfo();
+        d.arg = BoolArgDef{true_str_, false_str_};
+        return std::vector<ArgDef>{std::move(d)};
+    }
 
    private:
     const std::string true_str_;
@@ -190,6 +211,19 @@ class AlterChecker : public MsgArgChecker<T>
         return "(错误，非预期的值)";
     }
 
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        ArgDef d;
+        d.format_info = FormatInfo();
+        d.example = ExampleInfo();
+        AltArgDef alt;
+        for (const auto& [k, _] : arg_map_) {
+            alt.options.push_back(k);
+        }
+        d.arg = std::move(alt);
+        return std::vector<ArgDef>{std::move(d)};
+    }
+
   private:
     static std::string FormatInfoInternal_(const std::map<std::string, T>& arg_map)
     {
@@ -223,8 +257,9 @@ class ArithChecker : public MsgArgChecker<T>
     template <typename String = const char* const>
     ArithChecker(const T min, const T max, String&& meaning = "数字")
             : min_(min), max_(max)
-            , format_info_("<" + FormatInfoInternal_(meaning, min, max) + ">")
-            , escaped_format_info_(HTML_ESCAPE_LT + FormatInfoInternal_(meaning, min, max) + HTML_ESCAPE_GT)
+            , meaning_str_(std::forward<String>(meaning))
+            , format_info_("<" + FormatInfoInternal_(meaning_str_, min, max) + ">")
+            , escaped_format_info_(HTML_ESCAPE_LT + FormatInfoInternal_(meaning_str_, min, max) + HTML_ESCAPE_GT)
             , colored_format_info_(HTML_COLOR_FONT_HEADER(green) + escaped_format_info_ + HTML_FONT_TAIL)
     {}
     virtual ~ArithChecker() {}
@@ -251,6 +286,15 @@ class ArithChecker : public MsgArgChecker<T>
     }
     virtual std::string ArgString(const T& value) const override { return std::to_string(value); }
 
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        ArgDef d;
+        d.format_info = FormatInfo();
+        d.example = ExampleInfo();
+        d.arg = IntArgDef{static_cast<int64_t>(min_), static_cast<int64_t>(max_), meaning_str_};
+        return std::vector<ArgDef>{std::move(d)};
+    }
+
   private:
     static std::string FormatInfoInternal_(const std::string& meaning, const T min, const T max)
     {
@@ -259,6 +303,7 @@ class ArithChecker : public MsgArgChecker<T>
 
     const T min_;
     const T max_;
+    const std::string meaning_str_;
     const std::string format_info_;
     const std::string escaped_format_info_;
     const std::string colored_format_info_;
@@ -271,7 +316,8 @@ class BasicChecker : public MsgArgChecker<T>
 {
    public:
     BasicChecker(const std::string& meaning = "对象", const std::string& example = "")
-            : format_info_("<" + meaning + ">")
+            : meaning_(meaning)
+            , format_info_("<" + meaning + ">")
             , escaped_format_info_(HTML_ESCAPE_LT + meaning + HTML_ESCAPE_GT)
             , colored_format_info_(HTML_COLOR_FONT_HEADER(green) + escaped_format_info_ + HTML_FONT_TAIL)
             , example_info_(!example.empty() ? example :
@@ -304,7 +350,17 @@ class BasicChecker : public MsgArgChecker<T>
         return ss.str();
     }
 
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        ArgDef d;
+        d.format_info = FormatInfo();
+        d.example = ExampleInfo();
+        d.arg = TextArgDef{meaning_};
+        return std::vector<ArgDef>{std::move(d)};
+    }
+
    private:
+    const std::string meaning_;
     const std::string format_info_;
     const std::string escaped_format_info_;
     const std::string colored_format_info_;
@@ -314,7 +370,7 @@ class BasicChecker : public MsgArgChecker<T>
 using VoidChecker = MsgArgChecker<void>;
 
 template <>
-class MsgArgChecker<void> final
+class MsgArgChecker<void> final : public MsgArgCheckerBase
 {
    public:
     typedef void arg_type;
@@ -336,10 +392,19 @@ class MsgArgChecker<void> final
     {
         return reader.HasNext() && std::ranges::find(optional_strs_, reader.NextArg()) != optional_strs_.end();
     }
-    std::string FormatInfo() const { return format_info_; };
-    std::string EscapedFormatInfo() const { return format_info_; };
-    std::string ColoredFormatInfo() const { return format_info_; };
-    std::string ExampleInfo() const { return optional_strs_.front(); };
+    std::string FormatInfo() const override { return format_info_; };
+    std::string EscapedFormatInfo() const override { return format_info_; };
+    std::string ColoredFormatInfo() const override { return format_info_; };
+    std::string ExampleInfo() const override { return optional_strs_.front(); };
+
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        ArgDef d;
+        d.format_info = FormatInfo();
+        d.example = ExampleInfo();
+        d.arg = VoidArgDef{optional_strs_.front()};
+        return std::vector<ArgDef>{std::move(d)};
+    }
 
    private:
     const std::vector<std::string> optional_strs_;
@@ -383,19 +448,21 @@ class RepeatableCheckerBase : public MsgArgChecker<std::vector<typename Checker:
 
   protected:
     const Checker checker_;
+
+    const Checker& InnerChecker() const { return checker_; }
 };
 
 template <typename Checker> requires std::is_base_of_v<MsgArgChecker<typename Checker::arg_type>, Checker>
 class RepeatableChecker : public RepeatableCheckerBase<Checker>
 {
-    using RepeatableCheckerBase<Checker>::checker_;
-
   public:
     template <typename ...Args>
     RepeatableChecker(Args&&... args)
             : RepeatableCheckerBase<Checker>(std::forward<Args>(args)...)
-            , format_info_("[" + checker_.FormatInfo() + " " + checker_.FormatInfo() + " ...]")
-            , escaped_format_info_("[" + checker_.EscapedFormatInfo() + " " + checker_.EscapedFormatInfo() + " ...]")
+            , format_info_("[" + RepeatableCheckerBase<Checker>::InnerChecker().FormatInfo() + " "
+                    + RepeatableCheckerBase<Checker>::InnerChecker().FormatInfo() + " ...]")
+            , escaped_format_info_("[" + RepeatableCheckerBase<Checker>::InnerChecker().EscapedFormatInfo() + " "
+                    + RepeatableCheckerBase<Checker>::InnerChecker().EscapedFormatInfo() + " ...]")
             , colored_format_info_(HTML_COLOR_FONT_HEADER(blue) + escaped_format_info_ + HTML_FONT_TAIL)
     {}
     virtual std::string FormatInfo() const override { return format_info_; }
@@ -403,7 +470,22 @@ class RepeatableChecker : public RepeatableCheckerBase<Checker>
     virtual std::string ColoredFormatInfo() const override { return colored_format_info_; }
     virtual std::string ExampleInfo() const override
     {
-        return checker_.ExampleInfo();
+        return RepeatableCheckerBase<Checker>::InnerChecker().ExampleInfo();
+    }
+
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        const auto& inner_checker = RepeatableCheckerBase<Checker>::InnerChecker();
+        const auto inner_parts = inner_checker.ToArgDefs();
+        ArgDef outer;
+        outer.format_info = FormatInfo();
+        outer.example = ExampleInfo();
+        auto rep = std::make_unique<RepArgDef>();
+        rep->inner = std::make_unique<ArgDef>(
+                inner_parts.empty() ? ArgDef::TextFallback(inner_checker.FormatInfo(), inner_checker.ExampleInfo())
+                                    : inner_parts.front());
+        outer.arg = std::move(rep);
+        return std::vector<ArgDef>{std::move(outer)};
     }
 
   protected:
@@ -415,15 +497,15 @@ class RepeatableChecker : public RepeatableCheckerBase<Checker>
 template <typename Checker> requires std::is_base_of_v<MsgArgChecker<typename Checker::arg_type>, Checker>
 class FixedSizeRepeatableChecker : public RepeatableCheckerBase<Checker>
 {
-    using RepeatableCheckerBase<Checker>::checker_;
-
   public:
     template <typename ...Args>
     FixedSizeRepeatableChecker(const size_t size, Args&&... args)
             : RepeatableCheckerBase<Checker>(std::forward<Args>(args)...)
             , size_(size)
-            , format_info_("[" + checker_.FormatInfo() + " " + checker_.FormatInfo() + " ...(total: " + std::to_string(size) + ")]")
-            , escaped_format_info_("[" + checker_.EscapedFormatInfo() + " " + checker_.EscapedFormatInfo() + " ...(total: " + std::to_string(size) + ")]")
+            , format_info_("[" + RepeatableCheckerBase<Checker>::InnerChecker().FormatInfo() + " "
+                    + RepeatableCheckerBase<Checker>::InnerChecker().FormatInfo() + " ...(total: " + std::to_string(size) + ")]")
+            , escaped_format_info_("[" + RepeatableCheckerBase<Checker>::InnerChecker().EscapedFormatInfo() + " "
+                    + RepeatableCheckerBase<Checker>::InnerChecker().EscapedFormatInfo() + " ...(total: " + std::to_string(size) + ")]")
             , colored_format_info_(HTML_COLOR_FONT_HEADER(blue) + escaped_format_info_ + HTML_FONT_TAIL)
     {}
     virtual std::string FormatInfo() const override { return format_info_; }
@@ -433,7 +515,7 @@ class FixedSizeRepeatableChecker : public RepeatableCheckerBase<Checker>
     {
         std::string s;
         for (size_t i = 0; i < size_; ++i) {
-            s += checker_.ExampleInfo() + " ";
+            s += RepeatableCheckerBase<Checker>::InnerChecker().ExampleInfo() + " ";
         }
         return s;
     }
@@ -441,6 +523,20 @@ class FixedSizeRepeatableChecker : public RepeatableCheckerBase<Checker>
     {
         const auto ret = RepeatableCheckerBase<Checker>::Check(reader);
         return ret.has_value() && ret->size() == size_ ? ret : std::nullopt;
+    }
+
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        const auto& inner_checker = RepeatableCheckerBase<Checker>::InnerChecker();
+        const auto inner_parts = inner_checker.ToArgDefs();
+        ArgDef slot = inner_parts.empty() ? ArgDef::TextFallback(inner_checker.FormatInfo(), inner_checker.ExampleInfo())
+                                          : inner_parts.front();
+        std::vector<ArgDef> out;
+        out.reserve(size_);
+        for (size_t i = 0; i < size_; ++i) {
+            out.push_back(slot);
+        }
+        return out;
     }
 
   protected:
@@ -480,6 +576,20 @@ class OptionalChecker : public MsgArgChecker<std::optional<typename Checker::arg
         return value.has_value() ? checker_.ArgString(*value) : "";
     }
 
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        const auto inner_parts = checker_.ToArgDefs();
+        ArgDef outer;
+        outer.format_info = FormatInfo();
+        outer.example = ExampleInfo();
+        auto opt = std::make_unique<OptArgDef>();
+        opt->inner = std::make_unique<ArgDef>(
+                inner_parts.empty() ? ArgDef::TextFallback(checker_.FormatInfo(), checker_.ExampleInfo())
+                                      : inner_parts.front());
+        outer.arg = std::move(opt);
+        return std::vector<ArgDef>{std::move(outer)};
+    }
+
   private:
     const Checker checker_;
     const std::string format_info_;
@@ -515,6 +625,20 @@ class OptionalDefaultChecker : public MsgArgChecker<typename Checker::arg_type>
     }
     virtual std::string ArgString(const Checker::arg_type& value) const override { return checker_.ArgString(value); }
 
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        const auto inner_parts = checker_.ToArgDefs();
+        ArgDef outer;
+        outer.format_info = FormatInfo();
+        outer.example = ExampleInfo();
+        auto opt = std::make_unique<OptArgDef>();
+        opt->inner = std::make_unique<ArgDef>(
+                inner_parts.empty() ? ArgDef::TextFallback(checker_.FormatInfo(), checker_.ExampleInfo())
+                                      : inner_parts.front());
+        outer.arg = std::move(opt);
+        return std::vector<ArgDef>{std::move(outer)};
+    }
+
   private:
     const Checker::arg_type default_value_;
     const Checker checker_;
@@ -546,6 +670,18 @@ class BatchChecker : public MsgArgChecker<std::tuple<typename Checkers::arg_type
     virtual std::string ArgString(const std::tuple<typename Checkers::arg_type...>& value) const override
     {
         return ArgString_(value);
+    }
+
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        std::vector<ArgDef> out;
+        std::apply(
+                [&](const Checkers&... cs)
+                {
+                    ((void) out.insert(out.end(), cs.ToArgDefs().begin(), cs.ToArgDefs().end()), ...);
+                },
+                checkers_);
+        return out;
     }
 
   private:
@@ -615,6 +751,19 @@ class EnumChecker : public MsgArgChecker<Enum>
     virtual std::optional<Enum> Check(const std::string& str) const { return Enum::Parse(str); }
     virtual std::string ArgString(const Enum& value) const override { return value.ToString(); }
 
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        ArgDef d;
+        d.format_info = FormatInfo();
+        d.example = ExampleInfo();
+        AltArgDef alt;
+        for (const auto& m : Enum::Members()) {
+            alt.options.push_back(m.ToString());
+        }
+        d.arg = std::move(alt);
+        return std::vector<ArgDef>{std::move(d)};
+    }
+
   private:
     static std::string FormatInfoInternal_()
     {
@@ -680,6 +829,19 @@ class FlagsChecker : public MsgArgChecker<typename Enum::BitSet>
         return result.empty() ? "" : result.substr(0, result.size() - 1);
     }
 
+    std::vector<ArgDef> ToArgDefs() const override
+    {
+        ArgDef d;
+        d.format_info = FormatInfo();
+        d.example = ExampleInfo();
+        AltArgDef alt;
+        for (const auto& m : Enum::Members()) {
+            alt.options.push_back(m.ToString());
+        }
+        d.arg = std::move(alt);
+        return std::vector<ArgDef>{std::move(d)};
+    }
+
   private:
     static std::string FormatInfoInternal_()
     {
@@ -718,6 +880,8 @@ class Command<UserResult(UserArgs...)>
         virtual ~Base_() {}
         virtual CommandResult CallIfValid(MsgReader& msg_reader, UserArgs... user_args) const = 0;
         virtual std::string Info(const bool with_example, const bool with_html_color, const std::string& prefix) const = 0;
+        virtual std::vector<ArgDef> AllArgDefs() const = 0;
+        virtual const char* RawDescription() const = 0;
     };
 
     template <typename Callback, typename... Checkers>
@@ -801,6 +965,20 @@ class Command<UserResult(UserArgs...)>
             return outstr;
         }
 
+        std::vector<ArgDef> AllArgDefs() const override
+        {
+            std::vector<ArgDef> out;
+            std::apply(
+                    [&](const auto&... checkers)
+                    {
+                        ((void) out.insert(out.end(), checkers.ToArgDefs().begin(), checkers.ToArgDefs().end()), ...);
+                    },
+                    checkers_);
+            return out;
+        }
+
+        const char* RawDescription() const override { return description_; }
+
       private:
         const char* const description_;
         const std::decay_t<Callback> callback_;
@@ -820,7 +998,21 @@ class Command<UserResult(UserArgs...)>
     template <typename ...Args>
     auto CallIfValid(Args&&... args) const { return cmd_->CallIfValid(std::forward<Args>(args)...); }
 
-    auto Info(const bool with_example, const bool with_html_color, const std::string& prefix = "") const { return cmd_->Info(with_example, with_html_color, prefix); }
+    auto Info(const bool with_example, const bool with_html_color, const std::string& prefix = "") const
+    {
+        return cmd_->Info(with_example, with_html_color, prefix);
+    }
+
+    std::vector<ArgDef> ArgDefs() const { return cmd_->AllArgDefs(); }
+
+    CommandDefEntry ToCommandDef(const bool is_visible = true) const
+    {
+        CommandDefEntry e;
+        e.description = cmd_->RawDescription();
+        e.args = cmd_->AllArgDefs();
+        e.is_visible = is_visible;
+        return e;
+    }
 
   private:
     std::shared_ptr<Base_> cmd_;
