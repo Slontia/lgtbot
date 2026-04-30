@@ -44,7 +44,7 @@ const MutableGenericOptions k_default_generic_options;
 
 const char* const boss_details[1] = {
     R"EOF(《BOSS 规则和技能》
-    【👹米诺陶斯】
+    【🐮米诺陶斯】
 1、随机生成在地图中，每回合最后行动，首回合锁定最近玩家为目标（公屏显示）
 2、每回合移动步数递增，发现更近玩家则更换目标并重置步数。
 3、BOSS无视地形，移动结束时会发出巨响，如果玩家在其周围会听到喘息声。
@@ -71,6 +71,8 @@ const char* const rule_details[5] = {
 炸弹必须要有[进入]并[离开]两步才能引爆。炸弹下到玩家上因为没有[进入]的过程，[离开]不会引爆。同理，随机传送到炸弹上，[离开]也不会引爆。
 [拆弹]也需要[进入]并[停止行动]，放置炸弹直接撞墙，因为没有[进入]的过程，不会拆弹。同理，随机传送到炸弹上，直接[停止行动]也不会拆弹。
 特殊：抓人时脚下有炸弹不会触发拆弹；进入逃生舱不会引爆/拆弹；隐匿状态一样会引爆炸弹；亚空间内下包会放置于传送门入口处
+【箱子】
+箱子可以进入地形，但是会被后方的任意附着、墙壁、存活玩家阻挡，但不会被逃生和出局玩家阻挡
 【传送门】
 如果传送门被四周封闭，对应的传送门将会失效，仅发出啪啪声不会传送（相当于水洼）
 【热源相关】
@@ -87,18 +89,20 @@ const char* const rule_details[5] = {
 - 保险方案：直接从最大连通区域中随机选取位置)EOF",
 
     R"EOF(【成就相关】
-[乒铃乓啷]撞箱子不会计数，必须要成功推动箱子。引爆/拆弹均会计数，但是算作同一种类型。“单向传送门”和“普通传送门”视为同一种地形
+[乒铃乓啷]撞箱子不会计数，必须要成功推动箱子，不同的箱子视为同一种地形。引爆/拆弹均会计数，但是算作同一种类型。“单向传送门”和“普通传送门”视为同一种地形。
 隐匿状态进入树丛等声响地形，仍可以获得[无声]相关成就。
 [守株待兔]可以直接停止也可以第1步撞墙，[谋定后动模式]走1步抓不会触发此成就。)EOF",
 
     R"EOF(【开局区块随机】
-游戏开始时，将根据不同是游戏模式从不同的区块池抽取区块。
-默认情况下，逃生舱数量为本局玩家人数的一半。但12*12地图逃生舱固定为4个
+游戏开始时，根据当前游戏模式从对应区块池随机抽取区块。
+默认情况下，逃生舱数量为本局玩家人数的一半；12×12地图固定为4个。
+【热源&小太阳】
+当区块池中同时存在[热源]与[小太阳]时，默认仅随机保留其中一种，不会同时出现在地图中。若区块数量不足以支持该限制，则自动取消该规则，从全部区块随机。
 【自定义模式】
-因自定义模式逃生舱池可能为任意数量，根据不同情况采用如下的随机方案：
+因自定义模式区块与逃生舱数量可能任意，采用如下规则：
 - 情况1：逃生舱数量不足[默认数量]，使用全部逃生舱
-- 情况2：逃生舱数量充足，同时区块数量充足，逃生舱为[默认数量]
-- 情况3：当逃生舱为[默认数量]时，普通区块数量不足。使用全部普通区块，并抽取额外的逃生舱补足至需要的区块总数)EOF",
+- 情况2：逃生舱数量充足，且区块数量充足，逃生舱为[默认数量]（优先应用热源互斥规则）
+- 情况3：当逃生舱为[默认数量]时普通区块不足，使用全部普通区块，并额外抽取逃生舱补足至区块总数（必要时取消热源互斥规则）)EOF",
 };
 const std::vector<RuleCommand> k_rule_commands = {
     RuleCommand("查看所有 BOSS 的规则和技能",
@@ -373,8 +377,8 @@ class MainStage : public MainGameStage<RoundStage>
             board.exit_num = 4;
             sender << "【12*12】本局游戏地图将更改为 " << GAME_OPTION(边长) << "x" << GAME_OPTION(边长) << " 大地图。使用 16 个区块铺满地图，逃生舱固定为 4 个。\n";
         }
-        if (GAME_OPTION(点杀)) {    // 点杀
-            sender << "【点杀模式】捕捉改为仅在回合结束时触发，路过不会触发捕捉\n";
+        if (!GAME_OPTION(点杀)) {   // 关闭点杀
+            sender << "【关闭点杀】仅需路过即可触发捕捉，回合结束也会触发捕捉\n";
         }
         if (GAME_OPTION(隐匿) == HideMode::TURN) {   // 隐匿
             sender << "【隐匿模式】回合隐匿：隐匿效果持续1回合，**仅可使用1次**，隐匿后当回合的行动转为私聊进行，不会发出声响，不会触发捕捉。\n";
@@ -1145,7 +1149,7 @@ bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderG
     }
     // [热源]
     string step_info, heat_message;
-    if (Main().board.HeatNotice(player.pid)) {
+    if (Main().board.HeatWaveNotice(player.pid)) {
         step_info = "[热浪(第" + to_string(step) + "步)]";
         heat_message = GetRandomHint(heat_wave_hints) + "\n移动进入【热浪范围】，当前位置附近存在热源";
         player.NewExtraPriContent("热浪",  "heat-wave");
@@ -1200,7 +1204,7 @@ bool RoundStage::PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& send
 
         Player& target = Main().board.players[t];
         target.NewContentRecord("[首轮被抓传送]", "teleport");
-        if (t < currentPlayer) {    // 被抓玩家在前面，强制刷新完整赛况
+        if (t.Get() < currentPlayer.Get()) {    // 被抓玩家在前面，强制刷新完整赛况
             target.all_record.back() = target.move_record;
         }
 
@@ -1242,29 +1246,52 @@ void RoundStage::SendSoundMessage(const int fromX, const int fromY, const Sound 
         if ((pid != currentPlayer || to_all) && Main().board.players[pid].out == 0) {
             string direction = Main().board.GetSoundDirection(fromX, fromY, Main().board.players[pid]);
             string step_info = "[" + to_string(currentPlayer) + "号(第" + to_string(step) + "步)]";
+
+            // 记录声响信息
             string sound_message;
-            if (direction == "同格") {
-                if (Main().board.players[currentPlayer].target != pid || GAME_OPTION(点杀)) {
+            if (Main().board.IsNearJammer(pid)) {
+                // 被[屏蔽器]影响
+                switch (sound) {
+                    case Sound::SHASHA: sound_message = step_info + "你感到地面有所振动，那是踩动草木（沙沙）特有的动静；但周围？却没有任何声音？"; break;
+                    case Sound::PAPA:   sound_message = step_info + "你感到地面有所振动，那是踩动水体（啪啪）特有的动静；但周围？却没有任何声音？"; break;
+                    case Sound::BOSS:   sound_message = "[BOSS-米诺陶斯] 你感到地面正在剧烈振动！但是，声响好像来自四面八方？"; break;
+                    default:            sound_message = "[错误] 未知声音类型：被屏蔽的未知声音";
+                }
+                sound_message += "\n声响方向被屏蔽，当前位置附近存在【屏蔽器】";
+                // 声响传播方向被屏蔽
+                if (sound == Sound::BOSS) {
+                    Main().board.boss.AddSoundPropagation("被屏蔽");
+                } else {
+                    Main().board.players[currentPlayer].AddSoundPropagation("被屏蔽");
+                }
+            } else {
+                if (direction == "同格") {
+                    if (Main().board.players[currentPlayer].target != pid || GAME_OPTION(点杀)) {
+                        switch (sound) {
+                            case Sound::SHASHA: sound_message = step_info + "\n" + GetRandomHint(grass_sound_hints); break;
+                            case Sound::PAPA:   sound_message = step_info + "\n" + GetRandomHint(papa_sound_hints); break;
+                            default:            sound_message = "[错误] 未知声音类型：相同格子的未知声音";
+                        }
+                    }
+                } else {
                     switch (sound) {
-                        case Sound::SHASHA: sound_message = step_info + "\n" + GetRandomHint(grass_sound_hints); break;
-                        case Sound::PAPA:   sound_message = step_info + "\n" + GetRandomHint(papa_sound_hints); break;
-                        default:            sound_message = "[错误] 未知声音类型：相同格子的未知声音";
+                        case Sound::SHASHA: sound_message = step_info + "你听见了来自【" + direction + "方】的沙沙声！"; break;
+                        case Sound::PAPA:   sound_message = step_info + "你听见了来自【" + direction + "方】的啪啪声！"; break;
+                        case Sound::BOSS:   sound_message = "[BOSS-米诺陶斯] 你听见了来自【" + direction + "方】的巨大响声！"; break;
+                        default:            sound_message = "[错误] 未知声音类型：不同格子来自【" + direction + "方】的未知声音";
                     }
                 }
-            } else {
-                switch (sound) {
-                    case Sound::SHASHA: sound_message = step_info + "你听见了来自【" + direction + "方】的沙沙声！"; break;
-                    case Sound::PAPA:   sound_message = step_info + "你听见了来自【" + direction + "方】的啪啪声！"; break;
-                    case Sound::BOSS:   sound_message = "[BOSS-米诺陶斯] 你听见了来自【" + direction + "方】的巨大响声！"; break;
-                    default:            sound_message = "[错误] 未知声音类型：不同格子来自【" + direction + "方】的未知声音";
+                // 记录声响传播方向记录
+                if (sound == Sound::BOSS) {
+                    Main().board.boss.AddSoundPropagation(direction);
+                } else {
+                    Main().board.players[currentPlayer].AddSoundPropagation(direction);
                 }
             }
-            if (sound == Sound::BOSS) {
-                Main().board.boss.AddSoundPropagation(direction);
-            } else {
-                Main().board.players[currentPlayer].AddSoundPropagation(direction);
+            // 发送声响私信
+            if (!sound_message.empty()) {
+                Global().Tell(pid) << sound_message;
             }
-            Global().Tell(pid) << sound_message;
         } else {
             Main().board.players[currentPlayer].AddSoundPropagation("错误");
         }

@@ -70,6 +70,8 @@ class UnitMaps {
         {Map40(), "40", "男卫生间", GridType::TRAP, AttachType::BUTTON},
         {Map41(), "41", "红石迷宫A", GridType::GRASS, AttachType::BUTTON},
         {Map42(), "42", "红石迷宫B", GridType::GRASS, AttachType::BUTTON},
+        {Map43(), "43", "小太阳", GridType::EMPTY, AttachType::HEATBOX},
+        {Map44(), "44", "屏蔽器", GridType::EMPTY, AttachType::JAMMERBOX},
         // {Map31(), "31", "单向门A", GridType::PORTAL},
         // {Map32(), "32", "单向门B", GridType::PORTAL},
     };
@@ -86,6 +88,8 @@ class UnitMaps {
         {Exit10(), "10", "逃生地道B", true, GridType::TRAP},
         {Exit11(), "11", "隐蔽逃生通道A", true, GridType::EMPTY, AttachType::BUTTON},
         {Exit12(), "12", "隐蔽逃生通道B", true, GridType::EMPTY, AttachType::BUTTON},
+        {Exit13(), "13", "银行金库", true, GridType::PORTAL, AttachType::JAMMERBOX},
+        {Exit14(), "14", "三箱之力", true, GridType::EMPTY, AttachType::BOX},
     };
     vector<Map> all_special_maps = {
         {MapS1(), "S1", "实验场", GridType::HEAT, AttachType::EMPTY, true},
@@ -94,15 +98,17 @@ class UnitMaps {
         {MapS4(), "S4", "黑洞", GridType::PORTAL, AttachType::EMPTY, true},
     };
 
+    // 幻变
     const vector<string> twist_mode_ids = {
-        "2", "3", "4", "6",
-        "7", "8", "11", "12",
-        "17", "18", "21", "22",
-        "23", "24", "25", "26",
-        "37", "38", "39", "40",
+        "2", "6", "3", "7",
+        "9", "10", "11", "12",
+        "19", "20", "21", "22",
+        "5", "25", "26", "27",
+        "29", "30", "43", "44",
         "E1", "E2", "E3", "E4",
-        "E9", "E10",
+        "E13", "E14",
     };
+    // 按钮
     const vector<string> button_mode_ids = {
         "2", "6", "3", "7",
         "4", "8", "9", "10",
@@ -112,6 +118,7 @@ class UnitMaps {
         "E1", "E2", "E3", "E4",
         "E11", "E12",
     };
+    // 陷阱
     const vector<string> trap_mode_ids = {
         "2", "6", "9", "10",
         "19", "20", "21", "22",
@@ -175,8 +182,9 @@ class UnitMaps {
 
     void SampleBlockPoolsFromIds(const vector<string>& mode_ids)
     {
-        pool_maps.clear();
-        pool_exits.clear();
+        maps.clear(); exits.clear();
+        pool_maps.clear(); pool_exits.clear();
+
         for (const auto& map_id : mode_ids) {
             const bool is_exit = !map_id.empty() && map_id[0] == 'E';
             const bool is_special = !map_id.empty() && map_id[0] == 'S';
@@ -212,6 +220,128 @@ class UnitMaps {
             exits.push_back(exits_pool[p * 2]);
             exits.push_back(exits_pool[p * 2 + 1]);
         }
+    }
+
+    bool HasHeatConflictPool(const vector<Map>& maps_pool) const
+    {
+        bool has_heat = false, has_heatbox = false;
+        for (const auto& map : maps_pool) {
+            if (IsHeatMap(map)) has_heat = true;
+            if (IsHeatBoxMap(map)) has_heatbox = true;
+        }
+        return has_heat && has_heatbox;
+    }
+
+    // 自定义模式下，判断“热源/小太阳互斥规则”是否足够抽满普通区块，用【其余区块 + min(热源数, 小太阳数)】做保守检测
+    bool CanApplyHeatExclusiveRule(const vector<Map>& maps_pool, const int required_map_num) const
+    {
+        int heat_count = 0;
+        int heatbox_count = 0;
+        int other_count = 0;
+
+        for (const auto& map : maps_pool) {
+            if (IsHeatMap(map)) ++heat_count;
+            else if (IsHeatBoxMap(map)) ++heatbox_count;
+            else ++other_count;
+        }
+
+        return other_count + std::min(heat_count, heatbox_count) >= required_map_num;
+    }
+
+    // 区块抽取随机
+    vector<Map> RandomSelectBlocks(const BlockMode block_mode, const int exit_num) const
+    {
+        vector<Map> maps_pool = maps;
+        vector<Map> exits_pool = exits;
+        std::shuffle(maps_pool.begin(), maps_pool.end(), *g);
+        std::shuffle(exits_pool.begin(), exits_pool.end(), *g);
+
+        const int total_pos = static_cast<int>(pos.size());
+
+        int selected_map_num = 0;
+        int selected_exit_num = 0;
+
+        if (block_mode != BlockMode::CUSTOM) {
+            // 非自定义模式
+            selected_map_num = total_pos - exit_num;
+            selected_exit_num = exit_num;
+        } else {
+            // 自定义模式
+            const int exit_count = static_cast<int>(exits_pool.size());
+
+            if (exit_count < exit_num) {
+                selected_exit_num = exit_count;
+                selected_map_num = total_pos - selected_exit_num;
+            } else {
+                selected_exit_num = exit_num;
+                selected_map_num = total_pos - selected_exit_num;
+            }
+        }
+
+        // 热源 / 小太阳互斥规则
+        bool enable_heat_exclusive_rule = false;
+        if (HasHeatConflictPool(maps_pool)) {
+            if (block_mode == BlockMode::CUSTOM) {
+                enable_heat_exclusive_rule = CanApplyHeatExclusiveRule(maps_pool, selected_map_num);
+            } else {
+                enable_heat_exclusive_rule = true;
+            }
+        }
+
+        vector<Map> selected_maps;
+        if (enable_heat_exclusive_rule) {
+            vector<Map> normal_maps;
+            vector<Map> heat_maps;
+            vector<Map> heatbox_maps;
+
+            for (const auto& map : maps_pool) {
+                if (IsHeatMap(map)) heat_maps.push_back(map);
+                else if (IsHeatBoxMap(map)) heatbox_maps.push_back(map);
+                else normal_maps.push_back(map);
+            }
+
+            // 二选一，只保留一种热系区块
+            const bool choose_heat =
+                heatbox_maps.empty() ? true :
+                heat_maps.empty() ? false :
+                (std::uniform_int_distribution<int>(0, 1)(*g) == 0);
+
+            vector<Map> candidate_maps = normal_maps;
+            if (choose_heat) {
+                candidate_maps.insert(candidate_maps.end(), heat_maps.begin(), heat_maps.end());
+            } else {
+                candidate_maps.insert(candidate_maps.end(), heatbox_maps.begin(), heatbox_maps.end());
+            }
+
+            std::shuffle(candidate_maps.begin(), candidate_maps.end(), *g);
+
+            // 双保险，避免极端情况下越界
+            selected_map_num = std::min(selected_map_num, static_cast<int>(candidate_maps.size()));
+            for (int i = 0; i < selected_map_num; ++i) {
+                selected_maps.push_back(candidate_maps[i]);
+            }
+        } else {
+            // 规则关闭，直接全池随机，防止自定义区块不足时越界
+            selected_map_num = std::min(selected_map_num, static_cast<int>(maps_pool.size()));
+            for (int i = 0; i < selected_map_num; ++i) {
+                selected_maps.push_back(maps_pool[i]);
+            }
+        }
+
+        vector<Map> selected;
+        selected.reserve(selected_maps.size() + selected_exit_num);
+
+        for (auto& map : selected_maps) {
+            selected.push_back(map);
+        }
+
+        selected_exit_num = std::min(selected_exit_num, static_cast<int>(exits_pool.size()));
+        for (int i = 0; i < selected_exit_num; ++i) {
+            selected.push_back(exits_pool[i]);
+        }
+
+        std::shuffle(selected.begin(), selected.end(), *g);
+        return selected;
     }
 
     vector<vector<Grid>> FindBlockById(const string& id, bool is_exit, SpecialEvent event) const
@@ -453,6 +583,10 @@ class UnitMaps {
 
   private:
     std::unique_ptr<std::mt19937> g;
+
+    bool IsHeatMap(const Map& map) const { return map.grid == GridType::HEAT; }
+
+    bool IsHeatBoxMap(const Map& map) const { return map.attach == AttachType::HEATBOX; }
 
     void SetBlock(const int x, const int y, vector<vector<Grid>>& grid_map, const vector<vector<Grid>> block) const
     {
@@ -1365,7 +1499,23 @@ class UnitMaps {
         return map;
     }
 
-    // static vector<vector<Grid>> Map43()
+    static vector<vector<Grid>> Map43()
+    {
+        auto map = InitializeMapTemplate();
+        map[1][1].SetAttach(AttachType::HEATBOX);
+
+        return map;
+    }
+
+    static vector<vector<Grid>> Map44()
+    {
+        auto map = InitializeMapTemplate();
+        map[1][1].SetAttach(AttachType::JAMMERBOX);
+
+        return map;
+    }
+
+    // static vector<vector<Grid>> Map45()
     // {
     //     auto map = InitializeMapTemplate();
     //     map[0][0].SetType(GridType::WATER);
@@ -1694,6 +1844,52 @@ class UnitMaps {
         map[2][0].SetWall(Wall::NORMAL, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
         map[2][1].SetWall(Wall::NORMAL, Wall::NORMAL, Wall::EMPTY, Wall::EMPTY);
         map[2][2].SetWall(Wall::NORMAL, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+
+        return map;
+    }
+
+    static vector<vector<Grid>> Exit13()
+    {
+        auto map = InitializeMapTemplate();
+        map[0][0].SetType(GridType::PORTAL).SetPortal(2, 2);
+        map[0][2].SetAttach(AttachType::BUTTON).SetButton({{1, -1, Direct::DOWN}}).SetContent("A");
+        map[1][1].SetType(GridType::EXIT).SetAttach(AttachType::JAMMERBOX);
+        map[2][0].SetAttach(AttachType::BUTTON).SetButton({{-1, 1, Direct::UP}}).SetContent("B");
+        map[2][2].SetType(GridType::PORTAL).SetPortal(-2, -2);
+
+        map[0][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[0][1].SetWall(Wall::EMPTY, Wall::DOOR, Wall::EMPTY, Wall::NORMAL);
+        map[0][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::EMPTY);
+
+        map[1][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::NORMAL);
+        map[1][1].SetWall(Wall::DOOR, Wall::DOOR, Wall::NORMAL, Wall::NORMAL).SetWallContent({"B", "A", "", ""});
+        map[1][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::NORMAL);
+
+        map[2][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::NORMAL);
+        map[2][1].SetWall(Wall::DOOR, Wall::EMPTY, Wall::NORMAL, Wall::EMPTY);
+        map[2][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+
+        return map;
+    }
+
+    static vector<vector<Grid>> Exit14()
+    {
+        auto map = InitializeMapTemplate();
+        map[0][1].SetAttach(AttachType::BOX);
+        map[1][1].SetType(GridType::EXIT).SetAttach(AttachType::BOX);
+        map[2][1].SetAttach(AttachType::BOX);
+
+        map[0][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[0][1].SetWall(Wall::NORMAL, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[0][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+
+        map[1][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::NORMAL);
+        map[1][1].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::NORMAL);
+        map[1][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::NORMAL);
+
+        map[2][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[2][1].SetWall(Wall::EMPTY, Wall::NORMAL, Wall::EMPTY, Wall::EMPTY);
+        map[2][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
 
         return map;
     }

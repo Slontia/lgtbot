@@ -65,9 +65,9 @@ class Boss
         for (const auto& mv : boss_all_record) {
             string sound_d;
             if (mv.sound != Sound::NONE && !is_public) {
-                if (query_pid < mv.propagation.size()) {
+                if (query_pid >= 0 && query_pid < mv.propagation.size()) {
                     sound_d = "[" + mv.propagation[query_pid] + "]";
-                } else {
+                } else if (query_pid >= 0) {
                     sound_d = "{越界异常[pid=" + to_string(query_pid) + "]}";
                 }
             }

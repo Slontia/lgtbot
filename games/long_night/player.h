@@ -321,7 +321,7 @@ class Player
     int subspace = -1;          // 亚空间剩余步数
     string private_record;      // 当前回合私信记录
     int hide_remaining = 0;     // 隐匿剩余次数
-    bool inHeatZone = false;    // 在热源区块内
+    bool in_heat_zone = false;  // 在热浪区域内
     bool heated = false;        // 两次烫伤强制停止
     // 挂机状态（等待时间缩减）
     bool hook_status = false;

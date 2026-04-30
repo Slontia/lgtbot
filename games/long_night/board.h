@@ -104,7 +104,7 @@ class Board
                     }
                 }
                 // 调试：测试地形文字颜色
-                // map.Get(x, y).SetContent(GetColoredMark(num[0], grid.Type(), grid.Attach()));
+                // map.Get(x, y).SetContent(GetColoredMark(string(num[0]), grid.Type(), grid.Attach()));
             }
         }
         // 纵向围墙
@@ -236,17 +236,19 @@ class Board
             { Wall::DOOROPEN, "【门 (开)】初始打开状态的门，玩家可移动穿过打开的门。在私信墙壁信息会显示为**无墙壁**" },
         };
         const vector<pair<AttachType, string>> all_attachs_info = {
-            { AttachType::BUTTON, "【按钮】玩家进入时会触发区块内按钮相关事件。（出生不算）<br>进入按钮格**没有任何信息提示**，且仅在进入时才会触发按钮" },
-            { AttachType::BOMB, "【炸弹】玩家**经过并尝试离开**会引爆炸弹，使玩家**立即出局并-100分**<br>在炸弹上**结束行动**可拆除炸弹，放置后直接停止不会拆除。**炸弹不能放置在其他附着类型上**" },
+            { AttachType::BUTTON, "【按钮】玩家进入时会触发区块内按钮相关事件。（出生不算）<br>进入按钮格**没有任何额外信息提示**，且仅在进入时才会触发按钮" },
+            { AttachType::BOMB, "【炸弹】玩家**经过并尝试离开**会引爆炸弹，使玩家**立即出局并-100分**<br>在炸弹上**结束行动**可拆除炸弹，放置后直接停止不会拆除。<font color=red>**炸弹不能放置在其他附着类型上**</font>" },
             { AttachType::BOX, "【箱子】玩家相邻箱子且向箱子移动时，箱子可被推动。（不会出生在箱子内）<br>**箱子不可移动到本区块外，其后方有玩家、墙壁或其他附着时，均不可被推动**。<br>若箱子不可被推动，则视为**撞墙**，且**箱子本身不会显示为墙壁**。" },
+            { AttachType::HEATBOX, "【小太阳】有 5x5 **热浪范围**的箱子，基础推动规则和**箱子**一致。（不会出生在小太阳内）<br>玩家进入小太阳周围 5x5 范围时，将**私信**收到热浪提示。<br><font color=red>小太阳和其他热源区块**不会同时出现在地图中**</font>（自定义模式区块不足时除外）" },
+            { AttachType::JAMMERBOX, "【屏蔽器】有 3x3 **寂静范围**的箱子，基础推动规则和**箱子**一致。（不会出生在屏蔽器内）<br>玩家位于屏蔽器周围 3x3 范围内时，<font color=teal>**将无法获知所有声响的方向来源**</font>。" },
         };
         const vector<pair<GridType, string>> all_grids_info = {
-            { GridType::GRASS, "【树丛】玩家进入时会发出让其他人听见的**沙沙声**。（出生不算）" },
-            { GridType::WATER, "【水洼】玩家进入时会发出让其他人听见的**啪啪声**。（出生不算）" },
-            { GridType::PORTAL, "【传送门】玩家进入时会发出其他人听见的**啪啪声**。（出生不算）<br>进入后，再任意2次移动后就会传送至同区块另1个传送门。<br>进入后，玩家视作进入亚空间，上述2次移动都在亚空间内。" },
-            { GridType::ONEWAYPORTAL, "【传送门出口】玩家进入时会发出其他人听见的**啪啪声**。（出生不算）<br>传送门的单向出口，进入时不会触发传送（必须从入口进入才会传送至此处）<br>**玩家在进入同一区块的传送门入口时，传送门会转换方向，入口和出口交换位置**" },
-            { GridType::TRAP, "【陷阱】陷阱隐藏在树丛中：被奇数次进入时，会发出让其他人听见的**沙沙声**（出生不算）<br>被偶数次进入时，不发出声响，并**强制玩家停止**（出生不算）" },
-            { GridType::HEAT, "【热源】进入热源周围8格时，将**私信**收到热浪提示。（只有移动时才能感受到热浪）<br>当进入热源时，将**私信**收到高温烫伤提示（不会出生在热源内）<br>在整局游戏中，**当第 2 次或更多次进入热源时，会被强制停止行动**" },
+            { GridType::GRASS, "【树丛】玩家进入时会发出让其他人听见的<font color=#00af50>**沙沙声**</font>。（出生不算）" },
+            { GridType::WATER, "【水洼】玩家进入时会发出让其他人听见的<font color=#01b0f1>**啪啪声**</font>。（出生不算）" },
+            { GridType::PORTAL, "【传送门】玩家进入时会发出其他人听见的<font color=#01b0f1>**啪啪声**</font>。（出生不算）<br>进入后，再任意 <font color=purple>**2次**</font> 移动后就会传送至同区块另一个传送门。<br>进入后，玩家视作进入亚空间，上述 <font color=purple>**2次**</font> 移动都在亚空间内。" },
+            { GridType::ONEWAYPORTAL, "【传送门出口】玩家进入时会发出其他人听见的<font color=#01b0f1>**啪啪声**</font>。（出生不算）<br>传送门的单向出口，进入时不会触发传送（必须从入口进入才会传送至此处）<br>**玩家在进入同一区块的传送门入口时，传送门会转换方向，入口和出口交换位置**" },
+            { GridType::TRAP, "【陷阱】陷阱隐藏在树丛中：被奇数次进入时，会发出让其他人听见的<font color=#00af50>**沙沙声**</font>（出生不算）<br>被偶数次进入时，不发出声响，并**强制玩家停止**（出生不算）" },
+            { GridType::HEAT, "【热源】进入热源周围 8 格时，将**私信**收到热浪提示。（只有移动时才能感受到热浪）<br>当进入热源时，将**私信**收到高温烫伤提示（不会出生在热源内）<br><font color=red>在整局游戏中，**当第 2 次或更多次进入热源时，会被强制停止行动**</font>" },
             { GridType::EXIT, "【逃生舱】逃生者使用后，**会消失**。" + (test_mode == BlockMode::CLASSIC ? ("本局逃生舱数量为 **" + to_string(exit_num) + "** 个。") : "") },
         };
 
@@ -528,7 +530,7 @@ class Board
                 default: return false;
             }
             // 非撞墙，尝试移动箱子
-            if (!hit_wall && grid_map[nx][ny].Attach() == AttachType::BOX) {
+            if (!hit_wall && grid_map[nx][ny].HasBox()) {
                 bool box_success = BoxMove(nx, ny, k_DX_Direct[d], k_DY_Direct[d]);
                 if (box_success) players[pid].achievement.visitAttach(AttachType::BOX); // 成就[乒铃乓啷]辅助
                 hit_wall = !box_success;
@@ -582,7 +584,16 @@ class Board
     {
         int b_nx = (b_cx + dx + size) % size;
         int b_ny = (b_cy + dy + size) % size;
-        if (!player_map[b_nx][b_ny].empty()) return false;
+
+        // 起点必须有箱子
+        if (!grid_map[b_cx][b_cy].HasBox()) return false;
+        // 仅存活玩家阻挡箱子，出局玩家可被覆盖
+        for (auto pid : player_map[b_nx][b_ny]) {
+            if (players[pid].out == 0) {
+                return false;
+            }
+        }
+        // 后方有任何附着物，则不可推动
         if (grid_map[b_nx][b_ny].Attach() != AttachType::EMPTY) return false;
 
         bool wall = false;
@@ -603,8 +614,10 @@ class Board
         }
         if (!sameBlock) return false;
 
+        // 支持全部箱子类型
+        AttachType box_type = grid_map[b_cx][b_cy].Attach();
         grid_map[b_cx][b_cy].SetAttach(AttachType::EMPTY);
-        grid_map[b_nx][b_ny].SetAttach(AttachType::BOX);
+        grid_map[b_nx][b_ny].SetAttach(box_type);
         return true;
     }
 
@@ -707,31 +720,68 @@ class Board
         return horizontal + vertical;
     }
 
-    // 热浪提示
-    bool HeatNotice(const PlayerID pid)
+    // 热浪提示（返回true提示热浪）
+    bool HeatWaveNotice(const PlayerID pid)
     {
         int cx = players[pid].x;
         int cy = players[pid].y;
         if (grid_map[cx][cy].Type() == GridType::HEAT) {
             return false;
         }
-        bool inZone = false;
-        for (int dx = -1; dx <= 1 && !inZone; dx++) {
-            for (int dy = -1; dy <= 1 && !inZone; dy++) {
+
+        bool in_zone = false;
+
+        // [热源-HEAT]: 3*3 范围
+        for (int dx = -1; dx <= 1 && !in_zone; dx++) {
+            for (int dy = -1; dy <= 1 && !in_zone; dy++) {
                 int nx = (cx + dx + size) % size;
                 int ny = (cy + dy + size) % size;
                 if (grid_map[nx][ny].Type() == GridType::HEAT) {
-                    inZone = true;
+                    in_zone = true;
                 }
             }
         }
-        if (inZone && !players[pid].inHeatZone) {
-            players[pid].inHeatZone = true;
+        // [小太阳-HEATBOX]: 5*5 范围
+        for (int dx = -2; dx <= 2 && !in_zone; dx++) {
+            for (int dy = -2; dy <= 2 && !in_zone; dy++) {
+                int nx = (cx + dx + size) % size;
+                int ny = (cy + dy + size) % size;
+                if (grid_map[nx][ny].Attach() == AttachType::HEATBOX) {
+                    in_zone = true;
+                }
+            }
+        }
+
+        if (in_zone && !players[pid].in_heat_zone) {
+            players[pid].in_heat_zone = true;
             return true;
         }
-        if (!inZone) {
-            players[pid].inHeatZone = false;
+        if (!in_zone) {
+            players[pid].in_heat_zone = false;
         }
+        return false;
+    }
+
+    // 玩家是否在屏蔽器附近
+    bool IsNearJammer(const PlayerID pid)
+    {
+        int cx = players[pid].x;
+        int cy = players[pid].y;
+
+        bool in_zone = false;
+
+        // [屏蔽器-JAMMERBOX]: 3*3 范围
+        for (int dx = -1; dx <= 1 && !in_zone; dx++) {
+            for (int dy = -1; dy <= 1 && !in_zone; dy++) {
+                int nx = (cx + dx + size) % size;
+                int ny = (cy + dy + size) % size;
+                if (grid_map[nx][ny].Attach() == AttachType::JAMMERBOX) {
+                    in_zone = true;
+                }
+            }
+        }
+
+        if (in_zone) return true;
         return false;
     }
 
@@ -770,7 +820,7 @@ class Board
     void TeleportPlayer(const PlayerID pid)
     {
         players[pid].subspace = -1;         // 移除亚空间状态
-        players[pid].inHeatZone = false;    // 移除热浪区域状态
+        players[pid].in_heat_zone = false;  // 移除热浪区域状态
         players[pid].bomb_trigger = false;  // 移除炸弹触发状态
         vector<pair<int, int>> candidates = FindLargestConnectedArea();
     
@@ -888,52 +938,9 @@ class Board
     // 初始化区块
     void InitializeBlocks()
     {
-        vector<UnitMaps::Map> maps = unitMaps.maps;
-        vector<UnitMaps::Map> exits = unitMaps.exits;
-        std::shuffle(maps.begin(), maps.end(), g);
-        std::shuffle(exits.begin(), exits.end(), g);
+        vector<UnitMaps::Map> selected = unitMaps.RandomSelectBlocks(block_mode, exit_num);
 
-        int total_pos = unitMaps.pos.size();
-        int selected_map_num = 0;
-        int selected_exit_num = 0;
-
-        if (block_mode != BlockMode::CUSTOM) {
-            // 非自定义模式
-            selected_map_num = total_pos - exit_num;
-            selected_exit_num = exit_num;
-        } else {
-            // 自定义模式
-            int map_count = maps.size();
-            int exit_count = exits.size();
-            if (exit_count < exit_num) {
-                // 情况1：逃生舱数量不足exit_num，使用全部逃生舱
-                selected_exit_num = exit_count;
-                selected_map_num = std::min(map_count, total_pos - selected_exit_num);
-            } else {
-                int required_map_num = total_pos - exit_num;
-                if (map_count >= required_map_num) {
-                    // 情况2：区块数量充足，exit_num个逃生舱
-                    selected_exit_num = exit_num;
-                    selected_map_num = required_map_num;
-                } else {
-                    // 情况3：区块不足，使用全部普通区块
-                    selected_map_num = map_count;
-                    selected_exit_num = total_pos - selected_map_num;
-                    selected_exit_num = std::min(selected_exit_num, exit_count);
-                }
-            }
-        }
-
-        vector<UnitMaps::Map> selected;
-        for (int i = 0; i < selected_map_num; i++) {
-            selected.push_back(maps[i]);
-        }
-        for (int i = 0; i < selected_exit_num; i++) {
-            selected.push_back(exits[i]);
-        }
-        std::shuffle(selected.begin(), selected.end(), g);
-
-        for (int i = 0; i < unitMaps.pos.size(); i++) {
+        for (int i = 0; i < static_cast<int>(selected.size()) && i < static_cast<int>(unitMaps.pos.size()); i++) {
             if (selected[i].is_exit) {
                 unitMaps.SetExitBlock(unitMaps.pos[i].first, unitMaps.pos[i].second, grid_map, selected[i].id, SpecialEvent::RANDOM);   // 此处特殊事件仅用于调用原始地图
             } else {
@@ -981,15 +988,21 @@ class Board
         }
     }
 
+    bool IsBlocked(const Grid& g) const
+    {
+        return g.Type() == GridType::HEAT ||
+            g.Attach() == AttachType::BOX ||
+            g.Attach() == AttachType::HEATBOX ||
+            g.Attach() == AttachType::JAMMERBOX;
+    }
+
     // 判断(x, y)格子沿(dx, dy)方向是否连通（考虑环绕）
     bool IsConnected(int x, int y, int dx, int dy) const
     {
         int nx = (x + dx + size) % size;
         int ny = (y + dy + size) % size;
-        if (grid_map[x][y].Type() == GridType::HEAT || grid_map[x][y].Attach() == AttachType::BOX) {
-            return false;
-        }
-        if (grid_map[nx][ny].Type() == GridType::HEAT || grid_map[nx][ny].Attach() == AttachType::BOX) {
+        // 当前格或目标格无法通行
+        if (IsBlocked(grid_map[x][y]) || IsBlocked(grid_map[nx][ny])) {
             return false;
         }
         if (dx == -1 && dy == 0)
@@ -1309,7 +1322,10 @@ class Board
             default:;
         }
         switch (attach) {
-            case AttachType::BOMB:  color = "#FFFF00"; break;
+            case AttachType::BOMB:      color = "#FFFF00"; break;
+            case AttachType::BOX:       color = "#FFFF00"; break;
+            case AttachType::HEATBOX:   color = "#FFFF00"; break;
+            case AttachType::JAMMERBOX: color = "#FFFF00"; break;
             default:;
         }
 

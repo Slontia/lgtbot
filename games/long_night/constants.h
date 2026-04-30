@@ -24,89 +24,91 @@ inline constexpr int EXTRATIMECRAD_TIME = 60;
 /* ========== enum class ========== */
 // 方向
 enum class Direct {
-    UP,
-    DOWN,
-    LEFT,
-    RIGHT,
+    UP,     // 上
+    DOWN,   // 下
+    LEFT,   // 左
+    RIGHT,  // 右
 };
 
 // 声响
 enum class Sound {
-    NONE,
-    SHASHA,
-    PAPA,
-    BOSS,
+    NONE,   // 无
+    SHASHA, // 沙沙
+    PAPA,   // 啪啪
+    BOSS,   // [米诺陶斯] 巨大响声
 };
 
 // 地形
 enum class GridType {
-    EMPTY,
-    GRASS,
-    WATER,
-    PORTAL,
-    EXIT,
-    TRAP,
-    HEAT,
-    ONEWAYPORTAL,
+    EMPTY,      // 空
+    GRASS,      // 树丛
+    WATER,      // 水洼
+    PORTAL,     // 传送门
+    EXIT,       // 逃生舱
+    TRAP,       // 陷阱
+    HEAT,       // 热源
+    ONEWAYPORTAL,   // 单向传送门
 };
 
 // 附着
 enum class AttachType {
-    EMPTY,
-    BUTTON,
-    BOMB,
-    BOX,
+    EMPTY,      // 空
+    BUTTON,     // 按钮
+    BOMB,       // 炸弹
+    BOX,        // 箱子
+    HEATBOX,    // 小太阳[箱子]
+    JAMMERBOX,  // 屏蔽器[箱子]
 };
 
 // 墙壁：优先级从低到高，连通性越好优先级理应越高
 enum class Wall {
-    EMPTY,
-    NORMAL,
-    DOOR,
-    DOOROPEN,
+    EMPTY,      // 空
+    NORMAL,     // 墙壁
+    DOOR,       // 门
+    DOOROPEN,   // 门 (开)
 };
 
 // BOSS
 enum class BossType {
-    NONE,
-    MINOTAUR,
-    BANGBANG,
+    NONE,       // 无
+    MINOTAUR,   // [米诺陶斯]
+    BANGBANG,   // [邦邦]
 };
 
 
 /* ========== Game Option enum class ========== */
 enum class BlockMode {
-    CUSTOM,
-    CLASSIC,
-    WILD,
-    TWIST,
-    CRAZY,
-    BUTTON,
-    TRAP,
+    CUSTOM,     // 自定义
+    CLASSIC,    // 经典
+    WILD,       // 狂野
+    TWIST,      // 幻变
+    CRAZY,      // 疯狂
+    BUTTON,     // 按钮
+    TRAP,       // 陷阱
 };
 
 enum class SpecialEvent {
-    NONE,
-    RANDOM,
-    LAZYGARDENER,
-    OVERGROWTH,
-    RAINSTORY,
+    NONE,           // 无
+    RANDOM,         // 随机
+    LAZYGARDENER,   // [怠惰的园丁]
+    OVERGROWTH,     // [营养过剩]
+    RAINSTORY,      // [雨天小故事]
 };
 
 enum class Target {
-    PREVIOUS,
-    NEXT,
+    PREVIOUS,   // 上家
+    NEXT,       // 下家
 };
 
 enum class HideMode {
-    NONE,
-    TURN,
-    STEP,
+    NONE,   // 无
+    TURN,   // 回合隐匿
+    STEP,   // 单步隐匿
 };
 
 enum class Texture {
-    CLASSIC,
-    RETRO,
+    CLASSIC,    // 经典材质
+    RETRO,      // 复古材质
 };
 
 
@@ -141,6 +143,8 @@ inline std::string GetAttachImage(const AttachType type)
         case AttachType::BUTTON:    return "button.png";
         case AttachType::BOMB:      return "bomb.png";
         case AttachType::BOX:       return "box.png";
+        case AttachType::HEATBOX:   return "heat_box.png";
+        case AttachType::JAMMERBOX: return "jammer_box.png";
         default:                    return "unknown.png";
     }
 }
@@ -423,9 +427,10 @@ inline const std::array<std::string_view, 2> papa_sound_hints = {
     "啪！啪！看来是有人来了。两个人，狭小的隔间，不间断地啪啪声……'淫秽的人！'你的脑海回想起了她的声音。是啊。我承认，我确实有点想她了。",
 };
 // 无逃生舱最后生还
-inline const std::array<std::string_view, 2> withoutE_win_hints = {
+inline const std::array<std::string_view, 3> withoutE_win_hints = {
     "我睁开了双眼，眼前的一切既熟悉又陌生。看来这次终于是我赢了。我用力地端详着周遭的一切，试图捕捉错过的几日时光的任何蛛丝马迹。“我真希望他们彻底离开了 ......”说完，我在床脚拿起了本该在枕边的剃须刀；“看来上次赢的是萝卜。”我下意识地抹了抹嘴唇。在指尖晕开的口红证实了我的猜测。我笑了。",     // 大萝卜姬
     "你醒啦？现在已经是第二天了哦。\n明媚的阳光照进迷宫，耳旁传来小鸟的叫声，一切美好的不太真实，唯有眼前冰冷的血迹，无声的诉说着昨晚的那场噩梦，而有些人，永远留在了那场梦中。\n可你，真的从中逃出来了吗？\n“地形参数设置完毕，新的循环正在重启……”",   // 纤光
+    "官方简单地公示了那次事件仅有一人生还，只有你知道你都经历了些什么。每当你听到树丛的“沙沙”声和水的“啪啪”声，你都不由自主回想起那个时候。幸好，现在的你已经安全了。",     // shiga
 };
 // 有逃生舱但死斗取胜
 inline const std::array<std::string_view, 2> withE_win_hints = {

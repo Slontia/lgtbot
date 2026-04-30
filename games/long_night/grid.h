@@ -51,6 +51,15 @@ class Grid
     {
         return wall[0] == w || wall[1] == w || wall[2] == w || wall[3] == w;
     }
+    bool HasBox() const
+    {
+        switch (attach) {
+            case AttachType::BOX:       return true;
+            case AttachType::HEATBOX:   return true;
+            case AttachType::JAMMERBOX: return true;
+            default: return false;
+        }
+    }
 
     template <Direct direct>
     void SetWall(const Wall new_wall) { wall[static_cast<int>(direct)] = new_wall; }
