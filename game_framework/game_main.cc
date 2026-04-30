@@ -69,8 +69,8 @@ extern "C" void GetGameInfo(lgtbot::game::GameInfo* game_info_out)
             return s;
         };
     static const std::string rule_str = std::string(this_module::Rule()) +
-        commands_str(this_module::k_rule_commands, "#规则 ", "\n\n可以通过以下指令查看规则细节：") +
-        commands_str(this_module::k_init_options_commands, "#新游戏 ",
+        commands_str(this_module::k_rule_commands, META_COMMAND_SIGN "规则 ", "\n\n可以通过以下指令查看规则细节：") +
+        commands_str(this_module::k_init_options_commands, META_COMMAND_SIGN "新游戏 ",
                 "\n\n可以通过以下预设指令开启不同模式的游戏：");
     game_info.rule_ = rule_str.c_str();
 
