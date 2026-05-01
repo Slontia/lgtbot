@@ -314,7 +314,7 @@ inline bool MainStage::DoBattle_()
     do {
         retry = false;
         fight_map.clear();
-        SeededShuffle(list.begin(), list.end(), g_);
+        SeededShuffle(list.begin(), list.end(), battle_rng_);
         for (size_t i = 0; i + 1 < list.size(); i += 2) {
             for (const auto& hist : fought_list_) {
                 auto it1 = hist.find(list[i]);
@@ -351,7 +351,7 @@ inline bool MainStage::DoBattle_()
         PlayerID mirror;
         int32_t attempts = 0;
         do {
-            mirror = list[RandInt(g_, 0, static_cast<uint32_t>(list.size() - 2))];
+            mirror = list[RandInt(battle_rng_, 0, static_cast<uint32_t>(list.size() - 2))];
         } while (mirror == last_mirror_ && ++attempts < 20);
         last_mirror_ = mirror;
         ProcessBattle_(solo, mirror, true, result);
@@ -468,7 +468,7 @@ inline int32_t MainStage::ApplyAttackTalents_(PlayerID attacker, PlayerID defend
     };
     for (const auto talent : k_attack_order) {
         if (!players_[attacker].HasTalent(talent)) continue;
-        auto effect = players_[attacker].talent_states_.at(talent)->AttackDamageDelta(players_[attacker], players_[defender], damage, g_);
+        auto effect = players_[attacker].talent_states_.at(talent)->AttackDamageDelta(players_[attacker], players_[defender], damage, battle_rng_);
         extra += effect.delta;
         if (!effect.message.empty()) {
             Global().Boardcast() << At(attacker) << " " << effect.message;
@@ -565,7 +565,7 @@ inline void MainStage::DoEliminationAfterBattle_()
         if (killer.has_value()) {
             // Pick up to 5 random filled positions from dead player's board
             auto filled = players_[pid].comb_->GetFilledPositions();
-            SeededShuffle(filled.begin(), filled.end(), g_);
+            SeededShuffle(filled.begin(), filled.end(), random_card_rng_);
             size_t pick_count = std::min<size_t>(5, filled.size());
             std::vector<AreaCard> loot_cards;
             for (size_t i = 0; i < pick_count; ++i) {
@@ -652,12 +652,12 @@ inline void MainStage::CollectPreBattleExtras_()
                     pool_mid.assign(k_points[1].begin(), k_points[1].end());
                 }
                 offered_card.emplace(
-                    k_points[0][RandInt(g_, 0, static_cast<uint32_t>(k_points[0].size() - 1))],
-                    pool_mid[RandInt(g_, 0, static_cast<uint32_t>(pool_mid.size() - 1))],
-                    k_points[2][RandInt(g_, 0, static_cast<uint32_t>(k_points[2].size() - 1))]);
+                    k_points[0][RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[0].size() - 1))],
+                    pool_mid[RandInt(random_card_rng_, 0, static_cast<uint32_t>(pool_mid.size() - 1))],
+                    k_points[2][RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[2].size() - 1))]);
             }
             const auto notify = player.talent_states_.at(talent)->OnPreBattleExtraCards(
-                player, TalentPreBattleExtraContext{HasValuableOne(special_event_), special_event_, g_,
+                player, TalentPreBattleExtraContext{HasValuableOne(special_event_), special_event_, random_card_rng_,
                                                     offered_card.has_value() ? &*offered_card : nullptr});
             if (!notify.empty()) {
                 Global().Boardcast() << At(pid) << " " << notify;
@@ -697,7 +697,7 @@ inline AreaCard MainStage::DrawFromPool2_()
 {
     if (it2_ == cards2_.end()) {
         // Reshuffle pool2
-        SeededShuffle(cards2_.begin(), cards2_.end(), g_);
+        SeededShuffle(cards2_.begin(), cards2_.end(), pool2_rng_);
         it2_ = cards2_.begin();
     }
     return *(it2_++);
@@ -712,7 +712,7 @@ inline std::vector<AreaCard> MainStage::DrawBalancedCards_(uint32_t count)
                                                count * 3);
     if (candidate_count < count) {
         // Not enough candidates, reshuffle
-        SeededShuffle(cards2_.begin(), cards2_.end(), g_);
+        SeededShuffle(cards2_.begin(), cards2_.end(), pool2_rng_);
         it2_ = cards2_.begin();
     }
 
@@ -753,10 +753,10 @@ inline std::vector<AreaCard> MainStage::DrawBalancedCards_(uint32_t count)
     // Insert unused cards back at current position
     auto pos = it2_ - cards2_.begin();
     cards2_.insert(it2_, unused.begin(), unused.end());
-    it2_ = cards2_.begin() + pos + unused.size();
+    it2_ = cards2_.begin() + pos;
 
     // Shuffle the result so assignment order is random
-    SeededShuffle(result.begin(), result.end(), g_);
+    SeededShuffle(result.begin(), result.end(), pool2_rng_);
     return result;
 }
 

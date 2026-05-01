@@ -98,7 +98,7 @@ struct TalentDamageEffect
 class TalentBase
 {
   public:
-    explicit TalentBase(const TalentInfo info) : info_(info) {}
+    explicit TalentBase(const TalentInfo info, bool enabled = true) : info_(info), enabled_(enabled) {}
     virtual ~TalentBase() = default;
 
     Talent Id() const { return info_.id; }
@@ -106,6 +106,12 @@ class TalentBase
     std::string Description() const { return info_.description; }
     std::string_view Grade() const { return info_.grade; }
     const TalentInfo& Info() const { return info_; }
+    bool Enabled() const { return enabled_; }
+    bool CanAppearInRandomPool(SpecialEvent event) const { return enabled_ && IsCompatibleWithSpecialEvent(event); }
+
+    // 初始化玩家随机天赋池时调用。
+    // 返回 false 时，该天赋不会进入本局随机池；用于特殊事件兼容性判断。
+    virtual bool IsCompatibleWithSpecialEvent(SpecialEvent event) const;
 
     // 棋盘上渲染玩家天赋列表时调用。
     // 返回该天赋的完整显示文本，可包含进度、临时分、失效状态、记录位置等彩色后缀。
@@ -206,6 +212,7 @@ class TalentBase
 
   private:
     TalentInfo info_;
+    bool enabled_;
 };
 
 class PerfectBlockTalent;

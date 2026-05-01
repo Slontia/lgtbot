@@ -40,7 +40,8 @@ struct Coordinate
     int32_t y_;
 };
 
-template <Direct direct> inline const Coordinate k_direct_step;
+template <Direct direct> extern const Coordinate k_direct_step;
+
 template <> inline const Coordinate k_direct_step<Direct::左上>{1, 1};
 template <> inline const Coordinate k_direct_step<Direct::垂直>{0, 2};
 template <> inline const Coordinate k_direct_step<Direct::右上>{-1, 1};

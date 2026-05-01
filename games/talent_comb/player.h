@@ -287,20 +287,7 @@ struct Player
     }
 
     // Initialize available talent pools
-    void InitTalentPools();
-
-    // Remove talents incompatible with special events (called after InitTalentPools)
-    void RemoveEventIncompatibleTalents(SpecialEvent event)
-    {
-        // 完美块 requires 1s in the card pool; remove from 大的要来了(无1) event
-        if (event == SpecialEvent::大的要来了) {
-            available_a_.erase(Talent::完美块);
-        }
-        // 两级反转 requires both 1 and 9 in card pool
-        if (event == SpecialEvent::大的要来了 || event == SpecialEvent::大的没了) {
-            available_b_.erase(Talent::两级反转);
-        }
-    }
+    void InitTalentPools(SpecialEvent event);
 
     // Count completed lines of length 3 (for 戴森球) — public for UI display
     int32_t CountCompletedLength3Lines_() const
@@ -481,10 +468,16 @@ inline void Player::UpdateScore(const ScoreResult& result, bool has_valuable_one
     }
 }
 
-inline void Player::InitTalentPools()
+inline void Player::InitTalentPools(SpecialEvent event)
 {
-    for (auto t : GradeATalents()) available_a_.insert(t);
-    for (auto t : GradeBTalents()) available_b_.insert(t);
+    available_a_.clear();
+    available_b_.clear();
+    for (auto t : GradeATalents()) {
+        if (talent_states_.at(t)->CanAppearInRandomPool(event)) available_a_.insert(t);
+    }
+    for (auto t : GradeBTalents()) {
+        if (talent_states_.at(t)->CanAppearInRandomPool(event)) available_b_.insert(t);
+    }
 }
 
 inline void Player::InitTalentStates_()

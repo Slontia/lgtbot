@@ -126,6 +126,16 @@ static std::vector<AreaCard> GenerateBaseCards(SpecialEvent event)
     return cards;
 }
 
+static std::mt19937 MakeSubRng(std::mt19937& seed_generator)
+{
+    std::array<uint32_t, 8> seed_data;
+    for (auto& value : seed_data) {
+        value = seed_generator();
+    }
+    std::seed_seq seq(seed_data.begin(), seed_data.end());
+    return std::mt19937(seq);
+}
+
 // ==================== Forward Declarations ====================
 
 class RoundStage;
@@ -167,7 +177,14 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
             std::uniform_int_distribution<unsigned long long> dis;
             seed_str_ = std::to_string(dis(rd));
         }
-        g_ = MakeRng(seed_str_);
+        std::mt19937 seed_generator = MakeRng(seed_str_);
+        event_rng_ = MakeSubRng(seed_generator);
+        pool1_rng_ = MakeSubRng(seed_generator);
+        pool2_rng_ = MakeSubRng(seed_generator);
+        talent_rng_ = MakeSubRng(seed_generator);
+        random_card_rng_ = MakeSubRng(seed_generator);
+        battle_rng_ = MakeSubRng(seed_generator);
+        selection_order_rng_ = MakeSubRng(seed_generator);
 
         // Special event
         int event_opt = GAME_OPTION(事件);
@@ -185,7 +202,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
                 SpecialEvent::小透不算挂, SpecialEvent::小透不算挂,
                 SpecialEvent::愚人节,
             };
-            special_event_ = pool[RandInt(g_, 0, static_cast<uint32_t>(pool.size() - 1))];
+            special_event_ = pool[RandInt(event_rng_, 0, static_cast<uint32_t>(pool.size() - 1))];
         } else {
             special_event_ = static_cast<SpecialEvent>(event_opt - 1);
         }
@@ -194,8 +211,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
         const int32_t init_hp = static_cast<int32_t>(GAME_OPTION(血量));
         for (uint64_t i = 0; i < Global().PlayerNum(); ++i) {
             players_.emplace_back(Global().ResourceDir(), init_hp);
-            players_.back().InitTalentPools();
-            players_.back().RemoveEventIncompatibleTalents(special_event_);
+            players_.back().InitTalentPools(special_event_);
         }
 
         // Generate card pools
@@ -208,7 +224,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
             cards_.emplace_back();
             cards_.emplace_back();
         }
-        SeededShuffle(cards_.begin(), cards_.end(), g_);
+        SeededShuffle(cards_.begin(), cards_.end(), pool1_rng_);
 
         // Pool2 (cards2_): for round 1 initial + selection rounds, 54 base cards, no wild
         cards2_ = GenerateBaseCards(special_event_);
@@ -217,12 +233,12 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
             cards2_.emplace_back();
             cards2_.emplace_back();
         }
-        SeededShuffle(cards2_.begin(), cards2_.end(), g_);
+        SeededShuffle(cards2_.begin(), cards2_.end(), pool2_rng_);
 
         it_ = cards_.begin();
         it2_ = cards2_.begin();
 
-        // Damage rate (same formula as opencomb)
+        // Damage rate
         dRate_ = std::pow(M_E, Global().PlayerNum() / 6.0) / M_E;
         iRate_ = dRate_;
     }
@@ -336,7 +352,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
             if (!player.talent_pool_.empty()) continue;
             uint32_t line_count = player.comb_->LineCount();
             if (player.talent_selection_count_ < line_count / 3) {
-                player.GenerateTalentPool(g_);
+                player.GenerateTalentPool(talent_rng_);
             }
         }
     }
@@ -376,7 +392,13 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     std::vector<AreaCard> cards2_;
     decltype(cards2_)::iterator it2_;
 
-    std::mt19937 g_;
+    std::mt19937 event_rng_;
+    std::mt19937 pool1_rng_;
+    std::mt19937 pool2_rng_;
+    std::mt19937 talent_rng_;
+    std::mt19937 random_card_rng_;
+    std::mt19937 battle_rng_;
+    std::mt19937 selection_order_rng_;
     std::string seed_str_;
 
     // Battle state
@@ -566,7 +588,7 @@ class RoundStage : public SubGameStage<>
             return StageErrCode::FAILED;
         }
         if (Main().player_out_[pid] != 0) {
-            reply() << "您已被淘汰";
+            reply() << "[错误] 您已被淘汰";
             return StageErrCode::FAILED;
         }
 
@@ -674,7 +696,7 @@ class SelectStage : public SubGameStage<>
                 current_players_.push_back(pid);
             }
         }
-        SeededShuffle(current_players_.begin(), current_players_.end(), Main().g_);
+        SeededShuffle(current_players_.begin(), current_players_.end(), Main().selection_order_rng_);
         std::sort(current_players_.begin(), current_players_.end(), [this](const PlayerID& p1, const PlayerID& p2) {
             auto& player1 = Main().players_[p1];
             auto& player2 = Main().players_[p2];
@@ -1400,7 +1422,7 @@ class TalentStage : public SubGameStage<>
             // Check cascading talent qualification (WANT_ALL was removed so won't re-trigger)
             uint32_t line_count = player.comb_->LineCount();
             if (player.talent_selection_count_ < line_count / 3) {
-                player.GenerateTalentPool(Main().g_);
+                player.GenerateTalentPool(Main().talent_rng_);
                 // Will go through normal selection flow below
             }
         }
@@ -1462,7 +1484,7 @@ class TalentStage : public SubGameStage<>
                     if (t != Talent::潘多拉魔盒) avail.push_back(t);
                 }
                 if (!avail.empty()) {
-                    SeededShuffle(avail.begin(), avail.end(), Main().g_);
+                    SeededShuffle(avail.begin(), avail.end(), Main().talent_rng_);
                     Talent result = avail[0];
                     // Replace SLOT_MACHINE with the drawn talent in talents_
                     auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::摇奖机);
@@ -1484,7 +1506,7 @@ class TalentStage : public SubGameStage<>
                     if (t != Talent::摇奖机) avail.push_back(t);
                 }
                 if (avail.size() >= 2) {
-                    SeededShuffle(avail.begin(), avail.end(), Main().g_);
+                    SeededShuffle(avail.begin(), avail.end(), Main().talent_rng_);
                     Talent t1 = avail[0], t2 = avail[1];
                     // Replace PANDORA_BOX with first talent
                     auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::潘多拉魔盒);
@@ -1574,7 +1596,7 @@ class TalentStage : public SubGameStage<>
         // Check if player qualifies for another talent immediately
         uint32_t line_count = player.comb_->LineCount();
         if (player.talent_selection_count_ < line_count / 3) {
-            player.GenerateTalentPool(Main().g_);
+            player.GenerateTalentPool(Main().talent_rng_);
             auto sender = reply();
             sender << "再次达成天赋选择条件，请继续选择：\n";
             // 多维抉择：5 选 1 提示

@@ -14,6 +14,7 @@ inline int32_t TalentBase::TempBattleScore(const Player& player) const { return 
 inline int32_t TalentBase::ModifyHealAmount(const Player& player, int32_t amount) const { return amount; }
 inline int32_t TalentBase::PermanentExtraScorePass() const { return 0; }
 inline int32_t TalentBase::PermanentExtraScore(Player& player, int32_t current_extra) { return 0; }
+inline bool TalentBase::IsCompatibleWithSpecialEvent(SpecialEvent event) const { return true; }
 inline std::string TalentBase::OnAcquire(Player& player, const TalentAcquireContext& context) { return ""; }
 inline std::string TalentBase::OnBeforePlaceCard(Player& player, AreaCard& card, bool is_normal_round) { return ""; }
 inline std::string TalentBase::OnRoundStart(Player& player, const TalentRoundContext& context) { return ""; }
@@ -59,6 +60,11 @@ class PerfectBlockTalent : public TalentBase
 {
   public:
     PerfectBlockTalent() : TalentBase({"A", Talent::完美块, "完美块", "你的312视为万能牌"}) {}
+
+    bool IsCompatibleWithSpecialEvent(SpecialEvent event) const override
+    {
+        return event != SpecialEvent::大的要来了;
+    }
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
@@ -516,6 +522,11 @@ class NineMysteryTalent : public TalentBase
   public:
     NineMysteryTalent() : TalentBase({"A", Talent::九转玄机, "九转玄机", "你的9视为癞子线"}) {}
 
+    bool IsCompatibleWithSpecialEvent(SpecialEvent event) const override
+    {
+        return event != SpecialEvent::大的没了;
+    }
+
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
         player.comb_->ApplyNineAsWild();
@@ -704,7 +715,7 @@ class SomethingRealTalent : public TalentBase
 class OffensiveFormTalent : public TalentBase
 {
   public:
-    OffensiveFormTalent() : TalentBase({"B", Talent::攻击形态, "攻击形态", "造成的伤害增加15%，受到的伤害增加5%"}) {}
+    OffensiveFormTalent() : TalentBase({"B", Talent::攻击形态, "攻击形态", "造成的伤害增加15%，受到的伤害增加5%"}, false) {}
 
     TalentDamageEffect AttackDamageDelta(Player& attacker, Player& defender, int32_t damage, std::mt19937& rng) override
     {
@@ -720,7 +731,7 @@ class OffensiveFormTalent : public TalentBase
 class DefensiveFormTalent : public TalentBase
 {
   public:
-    DefensiveFormTalent() : TalentBase({"B", Talent::防御形态, "防御形态", "受到的伤害减少15%，造成的伤害减少5%"}) {}
+    DefensiveFormTalent() : TalentBase({"B", Talent::防御形态, "防御形态", "受到的伤害减少15%，造成的伤害减少5%"}, false) {}
 
     TalentDamageEffect AttackDamageDelta(Player& attacker, Player& defender, int32_t damage, std::mt19937& rng) override
     {
@@ -990,6 +1001,11 @@ class DigitReverseTalent : public TalentBase
 {
   public:
     DigitReverseTalent() : TalentBase({"B", Talent::两级反转, "两级反转", "你的1视为9，你的9视为1"}) {}
+
+    bool IsCompatibleWithSpecialEvent(SpecialEvent event) const override
+    {
+        return event != SpecialEvent::大的要来了 && event != SpecialEvent::大的没了;
+    }
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
