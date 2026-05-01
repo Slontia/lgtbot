@@ -116,6 +116,10 @@ class MainStage : public MainGameStage<StartStage, RoundStage>
             Global().Boardcast() << Markdown(board.GetUI(false));
             return;
         }
+        if (player_scores_[0] != 0 || player_scores_[1] != 0) {
+            Global().Boardcast() << Markdown(board.GetUI(false));
+            return;
+        }
         currentPlayer = 1- currentPlayer;
         if ((++round_) <= (GAME_OPTION(棋子) - 2) * 2) {
             setter.Emplace<StartStage>(*this, round_);
@@ -195,10 +199,17 @@ class StartStage : public SubGameStage<>
     {
         if (pid == Main().currentPlayer) {
             string result;
-            while (result != "OK") {
-                int X = rand() % Main().board.size + 1;
-                int Y = rand() % Main().board.size + 1;
+            const int cell_count = Main().board.size * Main().board.size;
+            const int start = rand() % cell_count;
+            for (int k = 0; k < cell_count && result != "OK"; ++k) {
+                const int cell = (start + k) % cell_count;
+                int X = cell / Main().board.size + 1;
+                int Y = cell % Main().board.size + 1;
                 result = Main().board.PlaceChess(string(1, 'A' + X - 1) + to_string(Y), 1 - Main().currentPlayer);
+            }
+            if (result != "OK") {
+                Main().player_scores_[pid] = -1;
+                return StageErrCode::CHECKOUT;
             }
             return StageErrCode::READY;
         }
@@ -355,7 +366,11 @@ class RoundStage : public SubGameStage<>
                         }
                     }
                 }
-                int c = rand() % GAME_OPTION(棋子);
+                if (pieces.empty()) {
+                    Main().player_scores_[pid] = -1;
+                    return StageErrCode::CHECKOUT;
+                }
+                int c = rand() % pieces.size();
                 X = pieces[c].first;
                 Y = pieces[c].second;
                 addx = addy = 0;
@@ -367,6 +382,10 @@ class RoundStage : public SubGameStage<>
                 string start_pos = string(1, 'A' + X - 1) + to_string(Y);
                 string end_pos = string(1, 'A' + X + addx - 1) + to_string(Y + addy);
                 result = Main().board.RecordChessMove(start_pos, end_pos, pid);
+            }
+            if (result != "OK") {
+                Main().player_scores_[pid] = -1;
+                return StageErrCode::CHECKOUT;
             }
         } else {
             guess_ = rand() % 4 + 1;

@@ -332,14 +332,14 @@ public:
 			{
 				if (c[i][j] == 0) continue;
 
-				if ((c[i][j] == c[i + 1][j] && c[i][j] == c[i + 2][j]) ||
-					(c[i][j] == c[i][j + 1] && c[i][j] == c[i][j + 2]) ||
-					(c[i][j] == c[i + 1][j + 1] && c[i][j] == c[i + 2][j + 2]))
+				if ((i + 2 <= size && c[i][j] == c[i + 1][j] && c[i][j] == c[i + 2][j]) ||
+					(j + 2 <= size && c[i][j] == c[i][j + 1] && c[i][j] == c[i][j + 2]) ||
+					(i + 2 <= size && j + 2 <= size && c[i][j] == c[i + 1][j + 1] && c[i][j] == c[i + 2][j + 2]))
 				{
 					winner = c[i][j] - 1; 
 				}
 				// 特判，不然可能访问到负数位置 
-				if (j >= 3)
+				if (i + 2 <= size && j >= 3)
 				{
 					if (c[i][j] == c[i + 1][j - 1] && c[i][j] == c[i + 2][j - 2])
 					{
