@@ -2,10 +2,42 @@
 
 #include <algorithm>
 #include <ranges>
+#include <string_view>
 
 #include "bot_core/bot_core.h"
 #include "match_process/child_session.h"
 #include "utility/log.h"
+
+namespace {
+
+std::string ResizeAvatarHtml(std::string html, const int32_t size)
+{
+    if (size <= 0) {
+        return html;
+    }
+    const std::string size_px = std::to_string(size) + "px";
+    const auto replace_px_value = [&](const std::string_view key)
+    {
+        const auto key_pos = html.find(key);
+        if (key_pos == std::string::npos) {
+            return;
+        }
+        const auto value_pos = html.find_first_not_of(" \t", key_pos + key.size());
+        if (value_pos == std::string::npos) {
+            return;
+        }
+        const auto end_pos = html.find("px", value_pos);
+        if (end_pos == std::string::npos) {
+            return;
+        }
+        html.replace(value_pos, end_pos - value_pos + 2, size_px);
+    };
+    replace_px_value("width:");
+    replace_px_value("height:");
+    return html;
+}
+
+} // namespace
 
 IpcMatchEnv::IpcMatchEnv(ChildGameSession& session)
     : session_(session)
@@ -44,11 +76,12 @@ const char* IpcMatchEnv::PlayerName(const PlayerID& pid)
     return buf.c_str();
 }
 
-const char* IpcMatchEnv::PlayerAvatar(const PlayerID& pid, const int32_t /*size*/)
+const char* IpcMatchEnv::PlayerAvatar(const PlayerID& pid, const int32_t size)
 {
+    thread_local static std::string buf;
     const auto i = pid.Get();
     if (i < player_avatars_.size()) {
-        return player_avatars_[i].c_str();
+        return (buf = ResizeAvatarHtml(player_avatars_[i], size)).c_str();
     }
     return "";
 }
