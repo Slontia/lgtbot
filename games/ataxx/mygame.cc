@@ -371,6 +371,9 @@ class RoundStage : public SubGameStage<>
         Main().player_scores_[pid] = 0;
         Main().player_eliminated_[pid] = true;
         Global().Boardcast() << At(pid) << "（" << k_player_color_names[pid] << "）强退认负，分数清零";
+        if (Main().CountAlivePlayers() <= 1 || pid == Main().CurrentPlayer()) {
+            return StageErrCode::CHECKOUT;
+        }
         return StageErrCode::CONTINUE;
     }
 
