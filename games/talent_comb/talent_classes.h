@@ -28,6 +28,16 @@ inline std::string TalentBase::OnDefeat(Player& player, const TalentDefeatContex
 inline std::string TalentBase::OnVictory(Player& player, const TalentVictoryContext& context) { return ""; }
 inline std::string TalentBase::OnPreBattleExtraCards(Player& player, const TalentPreBattleExtraContext& context) { return ""; }
 inline std::string TalentBase::OnExtraCardActionEnd(Player& player) { return ""; }
+inline bool TalentBase::HasPendingActiveChoice(const Player& player) const { return false; }
+inline std::string TalentBase::ActivePrompt(const Player& player) const { return ""; }
+inline std::string TalentBase::ActiveImageHtml(const Player& player) const { return ""; }
+inline std::string TalentBase::OnActivePass(Player& player) { return ""; }
+inline bool TalentBase::OnActiveCommand(Player& player, std::string_view command, const std::vector<uint32_t>& args,
+                                        const TalentActiveContext& context, ScoreResult& result, std::string& message)
+{
+    message = "当前没有可发动的主动天赋指令";
+    return false;
+}
 inline TalentDamageEffect TalentBase::AttackDamageDelta(Player& attacker, Player& defender, int32_t damage, std::mt19937& rng) { return {}; }
 inline int32_t TalentBase::DefenseDamageDelta(Player& defender, int32_t damage) { return 0; }
 
@@ -524,7 +534,7 @@ class NineMysteryTalent : public TalentBase
 
     bool IsCompatibleWithSpecialEvent(SpecialEvent event) const override
     {
-        return event != SpecialEvent::大的没了;
+        return event != SpecialEvent::大的要来了 && event != SpecialEvent::大的没了;
     }
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
@@ -541,6 +551,183 @@ class NineMysteryTalent : public TalentBase
         if (card == before) return "";
         return "\n触发天赋「九转玄机」，9变为癞子线！";
     }
+};
+
+class QiankunMoveTalent : public TalentBase
+{
+  public:
+    QiankunMoveTalent() : TalentBase({"A", Talent::乾坤大挪移, "乾坤大挪移", "你可以立刻交换盘面上的两个砖块"}) {}
+
+    std::string BoardDisplay(const Player& player) const override
+    {
+        if (!pending) return TalentInactiveText(Name());
+        return Name() + TalentProgressText("[待发动]");
+    }
+
+    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
+    {
+        pending = true;
+        return "，请在对战前的主动天赋阶段选择两个位置交换";
+    }
+
+    bool HasPendingActiveChoice(const Player& player) const override
+    {
+        return pending;
+    }
+
+    std::string ActivePrompt(const Player& player) const override
+    {
+        return "「乾坤大挪移」：输入“位置1 位置2”交换两个位置，或输入“pass”放弃";
+    }
+
+    std::string OnActivePass(Player& player) override
+    {
+        if (!pending) return "";
+        pending = false;
+        return "放弃发动天赋「乾坤大挪移」，天赋失效";
+    }
+
+    bool OnActiveCommand(Player& player, std::string_view command, const std::vector<uint32_t>& args,
+                         const TalentActiveContext& context, ScoreResult& result, std::string& message) override
+    {
+        if (command != Name()) {
+            message = "指令不属于「乾坤大挪移」";
+            return false;
+        }
+        if (!player.HasTalent(Talent::乾坤大挪移) || !pending) {
+            message = "当前没有可发动的「乾坤大挪移」";
+            return false;
+        }
+        if (args.size() != 2) {
+            message = "「乾坤大挪移」需要输入两个位置";
+            return false;
+        }
+        const uint32_t lhs = args[0];
+        const uint32_t rhs = args[1];
+        if (!player.comb_->IsFilled(lhs) && !player.comb_->IsFilled(rhs)) {
+            message = "「乾坤大挪移」发动失败：位置 " + std::to_string(lhs) + " 与位置 " + std::to_string(rhs) + " 均为空";
+            return false;
+        }
+
+        const int32_t old_score = player.TotalScore();
+        result = player.comb_->SwapCards(lhs, rhs);
+        player.UpdateScore(result, context.has_valuable_one);
+        const int32_t delta = player.TotalScore() - old_score;
+        pending = false;
+
+        message = "发动天赋「乾坤大挪移」，交换位置 " + std::to_string(lhs) + " 与 " + std::to_string(rhs);
+        if (delta > 0) {
+            message += "，获得 " + std::to_string(delta) + " 点积分";
+        } else if (delta < 0) {
+            message += "，损失 " + std::to_string(-delta) + " 点积分";
+        }
+        return true;
+    }
+
+    bool pending = false;
+};
+
+class KeyChoiceTalent : public TalentBase
+{
+  public:
+    KeyChoiceTalent() : TalentBase({"A", Talent::关键选择, "关键选择", "从未获得的B级天赋中任选一个获得"}) {}
+
+    std::string BoardDisplay(const Player& player) const override
+    {
+        if (!pending) return TalentInactiveText(Name());
+        return Name() + TalentProgressText("[待选择]");
+    }
+
+    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
+    {
+        if (player.available_b_.empty()) {
+            pending = false;
+            return "，但已没有可选择的B级天赋";
+        }
+        pending = true;
+        return "，请在主动天赋阶段选择一个未获得的B级天赋";
+    }
+
+    bool HasPendingActiveChoice(const Player& player) const override
+    {
+        return pending;
+    }
+
+    std::string ActivePrompt(const Player& player) const override
+    {
+        return "「关键选择」：输入一个可选B级天赋的完整名称，或输入“pass”放弃";
+    }
+
+    std::string ActiveImageHtml(const Player& player) const override
+    {
+        if (!pending) return "";
+        std::string html = "<div style=\"font-family: sans-serif; padding: 20px;\">";
+        html += "<h2 style=\"text-align:center; margin: 0 0 16px 0;\">「关键选择」：可选B级天赋</h2>";
+        html += "<table style=\"border-collapse: collapse; width: 100%; font-size: 18px;\">";
+        html += "<tr><th style=\"border:1px solid #999; padding:8px; width:24%;\">天赋</th>"
+                "<th style=\"border:1px solid #999; padding:8px;\">效果</th></tr>";
+        for (const auto talent : player.available_b_) {
+            html += "<tr><td style=\"border:1px solid #bbb; padding:8px; font-weight:bold;\">"
+                    + std::string(TalentName(talent)) + "</td><td style=\"border:1px solid #bbb; padding:8px;\">"
+                    + std::string(TalentDescription(talent)) + "</td></tr>";
+        }
+        html += "</table></div>";
+        return html;
+    }
+
+    std::string OnActivePass(Player& player) override
+    {
+        if (!pending) return "";
+        pending = false;
+        return "放弃发动天赋「关键选择」，天赋失效";
+    }
+
+    bool OnActiveCommand(Player& player, std::string_view command, const std::vector<uint32_t>& args,
+                         const TalentActiveContext& context, ScoreResult& result, std::string& message) override
+    {
+        if (command != Name()) {
+            message = "指令不属于「关键选择」";
+            return false;
+        }
+        if (!player.HasTalent(Talent::关键选择) || !pending) {
+            message = "当前没有可发动的「关键选择」";
+            return false;
+        }
+        if (args.size() != 1) {
+            message = "「关键选择」需要输入一个B级天赋名称";
+            return false;
+        }
+        const Talent selected = static_cast<Talent>(args[0]);
+        if (!IsGradeB(selected)) {
+            message = "「" + std::string(TalentName(selected)) + "」不是B级天赋";
+            return false;
+        }
+        if (player.available_b_.find(selected) == player.available_b_.end()) {
+            message = "「" + std::string(TalentName(selected)) + "」不是当前可选择的B级天赋";
+            return false;
+        }
+
+        auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::关键选择);
+        if (it != player.talents_.end()) {
+            *it = selected;
+        } else {
+            player.talents_.push_back(selected);
+        }
+        player.available_a_.erase(selected);
+        player.available_b_.erase(selected);
+        pending = false;
+
+        std::string extra;
+        if (context.apply_immediate_talent_effects) {
+            extra = context.apply_immediate_talent_effects(selected);
+        } else {
+            extra = player.talent_states_.at(selected)->OnAcquire(player, TalentAcquireContext{context.has_valuable_one});
+        }
+        message = "触发天赋「关键选择」，获得B级天赋「" + std::string(TalentName(selected)) + "」" + extra;
+        return true;
+    }
+
+    bool pending = false;
 };
 
 class BloodlustTalent : public TalentBase
@@ -1351,7 +1538,7 @@ class VoidHeartTalent : public TalentBase
 class PerformancePersonalityTalent : public TalentBase
 {
   public:
-    PerformancePersonalityTalent() : TalentBase({"B", Talent::表演型人格, "表演型人格", "此后，常规回合得分时总分-0.5%；选秀回合/额外卡牌放置得分时总分+2%"}) {}
+    PerformancePersonalityTalent() : TalentBase({"B", Talent::表演型人格, "表演型人格", "此后，常规回合得分时总分-0.5%；选秀回合/额外卡牌放置得分时总分+3%"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
@@ -1411,7 +1598,7 @@ class PerformancePersonalityTalent : public TalentBase
 
     int32_t PercentDeltaFor(TalentCardPlacementSource source) const
     {
-        return source == TalentCardPlacementSource::RegularRound ? -5 : 20;
+        return source == TalentCardPlacementSource::RegularRound ? -5 : 30;
     }
 
     int32_t percent_permille = 0;
@@ -1582,6 +1769,8 @@ inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
         case Talent::冥想: return std::make_unique<MeditationTalent>();
         case Talent::光波干涉: return std::make_unique<LightInterferenceTalent>();
         case Talent::九转玄机: return std::make_unique<NineMysteryTalent>();
+        case Talent::乾坤大挪移: return std::make_unique<QiankunMoveTalent>();
+        case Talent::关键选择: return std::make_unique<KeyChoiceTalent>();
         case Talent::嗜血: return std::make_unique<BloodlustTalent>();
         case Talent::还是有用的: return std::make_unique<StillUsefulTalent>();
         case Talent::快攻: return std::make_unique<SwiftAttackTalent>();
@@ -1683,6 +1872,15 @@ inline std::map<std::string, int> MakeTalentOptionMap()
     std::map<std::string, int> m;
     for (int i = 0; i < static_cast<int>(Talent::COUNT); ++i) {
         const auto talent = static_cast<Talent>(i);
+        m.emplace(TalentName(talent), static_cast<int>(talent));
+    }
+    return m;
+}
+
+inline std::map<std::string, int> MakeGradeBTalentOptionMap()
+{
+    std::map<std::string, int> m;
+    for (const auto talent : GradeBTalents()) {
         m.emplace(TalentName(talent), static_cast<int>(talent));
     }
     return m;

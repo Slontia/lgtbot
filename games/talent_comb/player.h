@@ -159,6 +159,11 @@ struct Player
     // ZERO_RISK floor adjustment (how much the floor added)
     int32_t ZeroRiskFloor() const;
 
+    int32_t ZeroRiskBaseFloor() const;
+
+    // Update ZERO_RISK history with the current score that can actually be compared.
+    void UpdateZeroRiskMaxScore();
+
     // DYSON_SPHERE bonus (how much the 6% adds)
     int32_t DysonSphereBonus() const;
 
@@ -221,6 +226,8 @@ struct Player
 
     // Calculate temporary battle score from talents
     int32_t TempBattleScore() const;
+
+    int32_t EffectiveTempBattleScore() const;
 
     // Update base score from board rescore result
     void UpdateScore(const ScoreResult& result, bool has_valuable_one);
@@ -411,7 +418,7 @@ inline int32_t Player::TotalScore() const
 {
     int32_t total = RawTotalScore();
     if (HasTalent(Talent::零风险投资)) {
-        total = std::max(total, ZeroRisk().max_total_score);
+        total += ZeroRiskBaseFloor();
     }
     if (HasTalent(Talent::戴森球) && CountCompletedLength3Lines_() >= 6) {
         total = static_cast<int32_t>(std::ceil(total * 1.06));
@@ -423,15 +430,23 @@ inline int32_t Player::TotalScore() const
 inline int32_t Player::ZeroRiskFloor() const
 {
     if (!HasTalent(Talent::零风险投资)) return 0;
-    int32_t raw = RawTotalScore();
-    int32_t floored = std::max(raw, ZeroRisk().max_total_score);
-    return floored - raw;
+    const int32_t current = RawTotalScore() + TempBattleScore();
+    if (current >= ZeroRisk().max_total_score) return 0;
+    return ZeroRisk().max_total_score - current;
+}
+
+inline int32_t Player::ZeroRiskBaseFloor() const
+{
+    if (!HasTalent(Talent::零风险投资)) return 0;
+    const int32_t raw = RawTotalScore();
+    if (raw >= ZeroRisk().max_total_score) return 0;
+    return ZeroRisk().max_total_score - raw;
 }
 
 inline int32_t Player::DysonSphereBonus() const
 {
     if (!HasTalent(Talent::戴森球) || CountCompletedLength3Lines_() < 6) return 0;
-    int32_t before_dyson = RawTotalScore() + ZeroRiskFloor();
+    int32_t before_dyson = RawTotalScore() + ZeroRiskBaseFloor();
     int32_t after_dyson = static_cast<int32_t>(std::ceil(before_dyson * 1.06));
     return after_dyson - before_dyson;
 }
@@ -443,6 +458,24 @@ inline int32_t Player::TempBattleScore() const
         temp += talent_states_.at(talent)->TempBattleScore(*this);
     }
     return temp;
+}
+
+inline int32_t Player::EffectiveTempBattleScore() const
+{
+    const int32_t temp = TempBattleScore();
+    if (!HasTalent(Talent::零风险投资) || temp <= 0) return temp;
+    const int32_t raw = RawTotalScore();
+    const int32_t floored_without_temp = std::max(raw, ZeroRisk().max_total_score);
+    return std::max<int32_t>(0, raw + temp - floored_without_temp);
+}
+
+inline void Player::UpdateZeroRiskMaxScore()
+{
+    if (!HasTalent(Talent::零风险投资)) return;
+    const int32_t current = RawTotalScore() + TempBattleScore();
+    if (current > ZeroRisk().max_total_score) {
+        ZeroRisk().max_total_score = current;
+    }
 }
 
 inline int32_t Player::Heal(int32_t amount, bool can_double)
@@ -462,10 +495,7 @@ inline void Player::UpdateScore(const ScoreResult& result, bool has_valuable_one
     base_score_ = result.base_score;
     permanent_extra_ = RecalcPermanentExtra_();
     valuable_one_bonus_ = has_valuable_one ? ValuableOneBonus() : 0;
-    int32_t total = base_score_ + permanent_extra_ + valuable_one_bonus_;
-    if (HasTalent(Talent::零风险投资)) {
-        ZeroRisk().max_total_score = std::max(ZeroRisk().max_total_score, total);
-    }
+    UpdateZeroRiskMaxScore();
 }
 
 inline void Player::InitTalentPools(SpecialEvent event)

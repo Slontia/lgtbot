@@ -92,7 +92,7 @@ AUTO_PLAY_TEST(talent_turing_test,     "图灵测试",   6, 15)
 AUTO_PLAY_TEST(talent_counterattack,   "绝地反击",   6, 15)
 AUTO_PLAY_TEST(talent_seize,           "占得先机",   6, 15)
 AUTO_PLAY_TEST(talent_iron_body,       "钢铁之躯",   6, 15)
-AUTO_PLAY_TEST_FINAL(talent_retreat_advance, "以退为进",   24, 42)
+AUTO_PLAY_TEST_FINAL(talent_retreat_advance, "以退为进",   24, 69)
 AUTO_PLAY_TEST(talent_deadly_magic,    "致命魔术",   6, 15)
 AUTO_PLAY_TEST(talent_zero_risk,       "零风险投资", 6, 15)
 
@@ -124,7 +124,7 @@ AUTO_PLAY_TEST(combo_offensive_defensive,         "攻击形态 防御形态",  
 AUTO_PLAY_TEST(combo_pairs_independent,           "成双成对 特立独行",     6, 15)
 
 // Triple combo: 以退为进(45/36) + 来点实在的(+4) + 垃圾回收(+94) = 143/134
-AUTO_PLAY_TEST_FINAL(combo_triple_retreat_real_recycle,  "以退为进 来点实在的 垃圾回收", 48, 93)
+AUTO_PLAY_TEST_FINAL(combo_triple_retreat_real_recycle,  "以退为进 来点实在的 垃圾回收", 72, 90)
 
 // ============================================================================
 // 4. Strategic placement tests
@@ -162,7 +162,8 @@ GAME_TEST(2, strategic_vert_line) {
 }
 
 // Strategic with 以退为进: transforms card values, creating different line compositions.
-// P1's auto-played cards benefit more from the 4→3, 7→6 transforms.
+// P1's auto-played cards benefit from transforms; the later A-tier lottery can pick an active
+// talent that is passed on timeout, so the final score follows the current random pool.
 GAME_TEST(2, strategic_retreat_advance) {
     ASSERT_PUB_MSG(OK, 0, "种子 test");
     ASSERT_PUB_MSG(OK, 0, "事件 无");
@@ -177,7 +178,7 @@ GAME_TEST(2, strategic_retreat_advance) {
     ASSERT_PUB_MSG(OK, 0, "16");  ASSERT_PUB_MSG(CHECKOUT, 1, "0");
     ASSERT_PUB_MSG(OK, 0, "3");   ASSERT_PUB_MSG(CHECKOUT, 1, "0");
     for (int i = 0; i < 200 && !this->main_stage_->IsOver(); ++i) this->TimeoutRequest_();
-    ASSERT_FINAL_SCORE(0, 45);
+    ASSERT_FINAL_SCORE(0, 65);
 }
 
 // Strategic with 垃圾回收: P1 discards 7 cards → 14 bonus points from recycle.

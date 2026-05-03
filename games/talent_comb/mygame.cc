@@ -142,6 +142,7 @@ class RoundStage;
 class SelectStage;
 class ExtraCardStage;
 class TalentStage;
+class ActiveTalentStage;
 
 // ==================== Round Phase ====================
 
@@ -149,13 +150,14 @@ enum class RoundPhase {
     放置,
     战前额外,
     天赋选择,
+    主动天赋,
     对战,
     战后额外,
 };
 
 // ==================== MainStage ====================
 
-class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, TalentStage>
+class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, TalentStage, ActiveTalentStage>
 {
   public:
     MainStage(StageUtility&& utility)
@@ -248,6 +250,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     virtual void NextStageFsm(SelectStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
     virtual void NextStageFsm(ExtraCardStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
     virtual void NextStageFsm(TalentStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
+    virtual void NextStageFsm(ActiveTalentStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
 
     int64_t PlayerScore(const PlayerID pid) const override
     {
@@ -256,7 +259,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
 
     int64_t PlayerBattleScore(const PlayerID pid) const
     {
-        return players_[pid].TotalScore() + players_[pid].TempBattleScore();
+        return players_[pid].TotalScore() + players_[pid].EffectiveTempBattleScore();
     }
 
     // 盘面天赋原分（不含终局血量奖惩），供单元测试作确定性断言使用。
@@ -367,6 +370,18 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
         return false;
     }
 
+    bool AnyPendingActiveTalent_() const
+    {
+        for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
+            if (player_out_[pid] != 0) continue;
+            const auto& player = players_[pid];
+            for (const auto talent : player.talents_) {
+                if (player.talent_states_.at(talent)->HasPendingActiveChoice(player)) return true;
+            }
+        }
+        return false;
+    }
+
     // Advance the round phase state machine
     void AdvancePhase_(SubStageFsmSetter& setter);
 
@@ -417,6 +432,8 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     // Game over
     void DoGameOver_();
 
+    std::string ApplyImmediateTalentEffects_(PlayerID pid, Talent talent);
+
   private:
     CompReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
@@ -433,6 +450,74 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
 
 // Include talent effects, UI rendering, and battle settlement implementations
 #include "talent_impl.h"
+
+std::string MainStage::ApplyImmediateTalentEffects_(PlayerID pid, Talent talent)
+{
+    auto& player = players_[pid];
+    std::string extra_msg;
+    switch (talent) {
+        case Talent::摇奖机: {
+            // Randomly draw an A-tier talent (excluding PANDORA_BOX which cannot be obtained via random talents)
+            std::vector<Talent> avail;
+            for (auto t : player.available_a_) {
+                if (t != Talent::潘多拉魔盒) avail.push_back(t);
+            }
+            if (!avail.empty()) {
+                SeededShuffle(avail.begin(), avail.end(), talent_rng_);
+                Talent result = avail[0];
+                // Replace SLOT_MACHINE with the drawn talent in talents_
+                auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::摇奖机);
+                if (it != player.talents_.end()) *it = result;
+                player.available_a_.erase(result);
+                player.available_b_.erase(result);
+                // Apply the drawn talent's immediate effects
+                ApplyImmediateTalentEffects_(pid, result);
+                extra_msg = "，摇到了A级天赋「" + std::string(TalentName(result)) + "」——" + std::string(TalentDescription(result));
+            } else {
+                extra_msg = "，但已没有可用的A级天赋！";
+            }
+            break;
+        }
+        case Talent::潘多拉魔盒: {
+            // Randomly obtain 2 B-tier talents (exclude random-type talents like SLOT_MACHINE)
+            std::vector<Talent> avail;
+            for (auto t : player.available_b_) {
+                if (t != Talent::摇奖机) avail.push_back(t);
+            }
+            if (avail.size() >= 2) {
+                SeededShuffle(avail.begin(), avail.end(), talent_rng_);
+                Talent t1 = avail[0], t2 = avail[1];
+                // Replace PANDORA_BOX with first talent
+                auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::潘多拉魔盒);
+                if (it != player.talents_.end()) *it = t1;
+                player.talents_.push_back(t2);
+                player.available_a_.erase(t1); player.available_b_.erase(t1);
+                player.available_a_.erase(t2); player.available_b_.erase(t2);
+                std::string extra1 = ApplyImmediateTalentEffects_(pid, t1);
+                std::string extra2 = ApplyImmediateTalentEffects_(pid, t2);
+                extra_msg = "，开启潘多拉魔盒！获得B级天赋「" + std::string(TalentName(t1)) + "」" + extra1
+                          + " 和「" + std::string(TalentName(t2)) + "」" + extra2;
+            } else if (avail.size() == 1) {
+                Talent t1 = avail[0];
+                auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::潘多拉魔盒);
+                if (it != player.talents_.end()) *it = t1;
+                player.available_a_.erase(t1); player.available_b_.erase(t1);
+                std::string extra1 = ApplyImmediateTalentEffects_(pid, t1);
+                extra_msg = "，开启潘多拉魔盒！但B级天赋已不足，仅获得B级天赋「" + std::string(TalentName(t1)) + "」" + extra1;
+            } else {
+                extra_msg = "，但已没有可用的B级天赋！";
+            }
+            break;
+        }
+        default:
+            extra_msg = player.talent_states_.at(talent)->OnAcquire(player, TalentAcquireContext{HasValuableOne(special_event_)});
+            break;
+    }
+
+    // Re-check score (talents like 还是有用的 may change scoring)
+    player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, HasValuableOne(special_event_));
+    return extra_msg;
+}
 
 // ==================== RoundStage ====================
 
@@ -1415,7 +1500,7 @@ class TalentStage : public SubGameStage<>
             for (size_t i = 0; i < acquired.size(); ++i) {
                 msg += "\n「" + std::string(TalentName(acquired[i])) + "」——" + std::string(TalentDescription(acquired[i]));
                 // Apply talent's immediate effects
-                ApplyImmediateTalentEffects_(pid, acquired[i]);
+                Main().ApplyImmediateTalentEffects_(pid, acquired[i]);
             }
             Global().Boardcast() << At(pid) << msg;
 
@@ -1465,79 +1550,10 @@ class TalentStage : public SubGameStage<>
             // Auto-choose first talent
             Talent chosen = player.talent_pool_[0];
             player.AcquireTalent(0);
-            std::string extra = ApplyImmediateTalentEffects_(pid, chosen);
+            std::string extra = Main().ApplyImmediateTalentEffects_(pid, chosen);
             Global().Boardcast() << At(pid) << " 超时，自动选择天赋「" << TalentName(chosen) << "」" << extra;
         }
         Global().HookUnreadyPlayers();
-    }
-
-    // Returns additional message to append after "成功选择天赋「X」" (empty if no extra info)
-    std::string ApplyImmediateTalentEffects_(PlayerID pid, Talent talent)
-    {
-        auto& player = Main().players_[pid];
-        std::string extra_msg;
-        switch (talent) {
-            case Talent::摇奖机: {
-                // Randomly draw an A-tier talent (excluding PANDORA_BOX which cannot be obtained via random talents)
-                std::vector<Talent> avail;
-                for (auto t : player.available_a_) {
-                    if (t != Talent::潘多拉魔盒) avail.push_back(t);
-                }
-                if (!avail.empty()) {
-                    SeededShuffle(avail.begin(), avail.end(), Main().talent_rng_);
-                    Talent result = avail[0];
-                    // Replace SLOT_MACHINE with the drawn talent in talents_
-                    auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::摇奖机);
-                    if (it != player.talents_.end()) *it = result;
-                    player.available_a_.erase(result);
-                    player.available_b_.erase(result);
-                    // Apply the drawn talent's immediate effects
-                    ApplyImmediateTalentEffects_(pid, result);
-                    extra_msg = "，摇到了A级天赋「" + std::string(TalentName(result)) + "」——" + std::string(TalentDescription(result));
-                } else {
-                    extra_msg = "，但已没有可用的A级天赋！";
-                }
-                break;
-            }
-            case Talent::潘多拉魔盒: {
-                // Randomly obtain 2 B-tier talents (exclude random-type talents like SLOT_MACHINE)
-                std::vector<Talent> avail;
-                for (auto t : player.available_b_) {
-                    if (t != Talent::摇奖机) avail.push_back(t);
-                }
-                if (avail.size() >= 2) {
-                    SeededShuffle(avail.begin(), avail.end(), Main().talent_rng_);
-                    Talent t1 = avail[0], t2 = avail[1];
-                    // Replace PANDORA_BOX with first talent
-                    auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::潘多拉魔盒);
-                    if (it != player.talents_.end()) *it = t1;
-                    player.talents_.push_back(t2);
-                    player.available_a_.erase(t1); player.available_b_.erase(t1);
-                    player.available_a_.erase(t2); player.available_b_.erase(t2);
-                    std::string extra1 = ApplyImmediateTalentEffects_(pid, t1);
-                    std::string extra2 = ApplyImmediateTalentEffects_(pid, t2);
-                    extra_msg = "，开启潘多拉魔盒！获得B级天赋「" + std::string(TalentName(t1)) + "」" + extra1
-                              + " 和「" + std::string(TalentName(t2)) + "」" + extra2;
-                } else if (avail.size() == 1) {
-                    Talent t1 = avail[0];
-                    auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::潘多拉魔盒);
-                    if (it != player.talents_.end()) *it = t1;
-                    player.available_a_.erase(t1); player.available_b_.erase(t1);
-                    std::string extra1 = ApplyImmediateTalentEffects_(pid, t1);
-                    extra_msg = "，开启潘多拉魔盒！但B级天赋已不足，仅获得B级天赋「" + std::string(TalentName(t1)) + "」" + extra1;
-                } else {
-                    extra_msg = "，但已没有可用的B级天赋！";
-                }
-                break;
-            }
-            default:
-                extra_msg = player.talent_states_.at(talent)->OnAcquire(player, TalentAcquireContext{HasValuableOne(Main().special_event_)});
-                break;
-        }
-
-        // Re-check score (talents like 还是有用的 may change scoring)
-        player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, HasValuableOne(Main().special_event_));
-        return extra_msg;
     }
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
@@ -1565,7 +1581,7 @@ class TalentStage : public SubGameStage<>
         if (player.talent_pool_.empty()) return StageErrCode::READY;
         Talent chosen = player.talent_pool_[0];
         player.AcquireTalent(0);
-        std::string extra = ApplyImmediateTalentEffects_(pid, chosen);
+        std::string extra = Main().ApplyImmediateTalentEffects_(pid, chosen);
         return StageErrCode::READY;
     }
 
@@ -1590,7 +1606,7 @@ class TalentStage : public SubGameStage<>
         if (player.first_talent_round_ == 0) {
             player.first_talent_round_ = Main().round_;
         }
-        std::string extra = ApplyImmediateTalentEffects_(pid, chosen);
+        std::string extra = Main().ApplyImmediateTalentEffects_(pid, chosen);
         reply() << "成功选择天赋「" << TalentName(chosen) << "」" << extra;
 
         // Check if player qualifies for another talent immediately
@@ -1614,6 +1630,175 @@ class TalentStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
+};
+
+// ==================== ActiveTalentStage ====================
+
+class ActiveTalentStage : public SubGameStage<>
+{
+  public:
+    ActiveTalentStage(MainStage& main_stage)
+            : StageFsm(main_stage, "主动天赋阶段",
+                MakeStageCommand(*this, "「乾坤大挪移」：立刻交换盘面上的两个砖块", &ActiveTalentStage::QiankunMove_,
+                    ArithChecker<uint32_t>(1, 19, "位置1"), ArithChecker<uint32_t>(1, 19, "位置2")),
+                MakeStageCommand(*this, "「关键选择」：选择一个未获得的B级天赋", &ActiveTalentStage::KeyChoice_,
+                    AlterChecker<int>(MakeGradeBTalentOptionMap())),
+                MakeStageCommand(*this, "跳过主动天赋发动", &ActiveTalentStage::Pass_, VoidChecker("pass")))
+    {
+    }
+
+    virtual void OnStageBegin() override
+    {
+        Global().Boardcast() << Markdown{Main().CombHtml("## 主动天赋阶段")};
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            if (!PlayerNeedsAction_(pid)) {
+                Global().SetReady(pid);
+                continue;
+            }
+            auto sender = Global().Boardcast();
+            sender << At(pid) << " 可发动主动天赋：\n";
+            const auto& player = Main().players_[pid];
+            for (const auto talent : player.talents_) {
+                const auto& state = player.talent_states_.at(talent);
+                if (!state->HasPendingActiveChoice(player)) continue;
+                sender << state->ActivePrompt(player) << "\n";
+                const std::string image_html = state->ActiveImageHtml(player);
+                if (!image_html.empty()) {
+                    Global().Boardcast() << Markdown(image_html, 600);
+                }
+            }
+        }
+        Global().StartTimer(GAME_OPTION(局时));
+    }
+
+  private:
+    bool PlayerNeedsAction_(PlayerID pid) const
+    {
+        if (Main().player_out_[pid] != 0) return false;
+        const auto& player = Main().players_[pid];
+        for (const auto talent : player.talents_) {
+            if (player.talent_states_.at(talent)->HasPendingActiveChoice(player)) return true;
+        }
+        return false;
+    }
+
+    void PassPlayer_(PlayerID pid, MsgSenderBase& sender)
+    {
+        auto& player = Main().players_[pid];
+        bool any = false;
+        for (const auto talent : player.talents_) {
+            auto& state = player.talent_states_.at(talent);
+            if (!state->HasPendingActiveChoice(player)) continue;
+            const std::string message = state->OnActivePass(player);
+            if (!message.empty()) {
+                sender() << At(pid) << " " << message;
+            }
+            any = true;
+        }
+        if (!any) {
+            sender() << At(pid) << " 当前没有待发动的主动天赋";
+        }
+    }
+
+    void HandleUnreadyPlayers_()
+    {
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) continue;
+            PassPlayer_(pid, Global().BoardcastMsgSender());
+            Global().SetReady(pid);
+        }
+        Global().HookUnreadyPlayers();
+    }
+
+    virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
+    {
+        Main().player_leave_[pid] = true;
+        return StageErrCode::CONTINUE;
+    }
+
+    virtual CheckoutErrCode OnStageTimeout() override
+    {
+        HandleUnreadyPlayers_();
+        return StageErrCode::CHECKOUT;
+    }
+
+    virtual CheckoutErrCode OnStageOver() override
+    {
+        HandleUnreadyPlayers_();
+        return StageErrCode::CHECKOUT;
+    }
+
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    {
+        if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) return StageErrCode::OK;
+        PassPlayer_(pid, reply);
+        return StageErrCode::READY;
+    }
+
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    {
+        if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) {
+            reply() << "[错误] 当前没有待发动的主动天赋";
+            return StageErrCode::FAILED;
+        }
+        PassPlayer_(pid, reply);
+        return StageErrCode::READY;
+    }
+
+    AtomReqErrCode QiankunMove_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+                                const uint32_t lhs, const uint32_t rhs)
+    {
+        if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) {
+            reply() << "[错误] 当前没有待发动的主动天赋";
+            return StageErrCode::FAILED;
+        }
+        auto& player = Main().players_[pid];
+        if (!player.HasTalent(Talent::乾坤大挪移)) {
+            reply() << "[错误] 你没有天赋「乾坤大挪移」";
+            return StageErrCode::FAILED;
+        }
+        ScoreResult result{player.comb_->BaseScore(), player.comb_->LineCount(), 0};
+        std::string message;
+        const bool ok = player.talent_states_.at(Talent::乾坤大挪移)->OnActiveCommand(
+            player, "乾坤大挪移", std::vector<uint32_t>{lhs, rhs},
+            TalentActiveContext{HasValuableOne(Main().special_event_)}, result, message);
+        if (!ok) {
+            reply() << "[错误] " << message;
+            return StageErrCode::FAILED;
+        }
+        reply() << message;
+        if (PlayerNeedsAction_(pid)) return StageErrCode::OK;
+        return StageErrCode::READY;
+    }
+
+    AtomReqErrCode KeyChoice_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int talent_id)
+    {
+        if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) {
+            reply() << "[错误] 当前没有待发动的主动天赋";
+            return StageErrCode::FAILED;
+        }
+        auto& player = Main().players_[pid];
+        if (!player.HasTalent(Talent::关键选择)) {
+            reply() << "[错误] 你没有天赋「关键选择」";
+            return StageErrCode::FAILED;
+        }
+        ScoreResult result{player.comb_->BaseScore(), player.comb_->LineCount(), 0};
+        std::string message;
+        const bool ok = player.talent_states_.at(Talent::关键选择)->OnActiveCommand(
+            player, "关键选择", std::vector<uint32_t>{static_cast<uint32_t>(talent_id)},
+            TalentActiveContext{
+                HasValuableOne(Main().special_event_),
+                [this, pid](Talent talent) { return Main().ApplyImmediateTalentEffects_(pid, talent); },
+            },
+            result, message);
+        if (!ok) {
+            reply() << "[错误] " << message;
+            return StageErrCode::FAILED;
+        }
+        reply() << message;
+        if (PlayerNeedsAction_(pid)) return StageErrCode::OK;
+        return StageErrCode::READY;
+    }
 };
 
 // ==================== Stage Transitions ====================
@@ -1642,6 +1827,15 @@ void MainStage::AdvancePhase_(SubStageFsmSetter& setter)
             [[fallthrough]];
 
         case RoundPhase::天赋选择: {
+            phase_ = RoundPhase::主动天赋;
+            if (AnyPendingActiveTalent_()) {
+                setter.Emplace<ActiveTalentStage>(*this);
+                return;
+            }
+            [[fallthrough]];
+        }
+
+        case RoundPhase::主动天赋: {
             phase_ = RoundPhase::对战;
 
             // 紧急救援: if any alive player has unused emergency rescue, skip entire battle and trigger SelectStage
@@ -1786,6 +1980,8 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
                     Talent::三年之期,
                     Talent::两级反转,
                     Talent::九转玄机,
+                    Talent::乾坤大挪移,
+                    Talent::关键选择,
                     Talent::临时用品,
                     Talent::包扎,
                     Talent::星河流转,
@@ -1907,6 +2103,11 @@ void MainStage::NextStageFsm(TalentStage& sub_stage, const CheckoutReason reason
     AdvancePhase_(setter);
 }
 
+void MainStage::NextStageFsm(ActiveTalentStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
+{
+    AdvancePhase_(setter);
+}
+
 // ==================== Game Over ====================
 
 void MainStage::DoGameOver_()
@@ -1948,6 +2149,9 @@ void MainStage::DoGameOver_()
             }
             if (players_[pid].first_talent_round_ > 0 && players_[pid].first_talent_round_ < 8) {
                 Global().Achieve(pid, Achievement::先发制人);
+            }
+            if (players_[pid].hp_ > static_cast<int32_t>(GAME_OPTION(血量))) {
+                Global().Achieve(pid, Achievement::生生不息);
             }
             if (players_[pid].HasFullWildLine5()) {
                 Global().Achieve(pid, Achievement::癞子长虹);

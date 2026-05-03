@@ -1,15 +1,9 @@
 // Copyright (c) 2018-present, JiaQi Yu <github.com/tiedanGH>. All rights reserved.
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
-//
-// 游戏选项声明。
-// 下拉选项（"事件" / 测试用"天赋"）直接从 talent.h 中的枚举自动生成，
-// 后续新增 SpecialEvent / Talent 时无需再手动更新本文件。
 
 #ifdef INIT_OPTION_DEPEND
 #include "talent_comb.h"
-// 选项表达式在 namespace lgtbot::game::GAME_MODULE_NAME 内被求值，
-// 因此 Make*OptionMap 可直接按未限定名使用；此处不需要 using。
 #endif
 
 EXTEND_OPTION("每回合最长时间x秒", 局时, (ArithChecker<uint32_t>(10, 3600, "局时（秒）")), 120)

@@ -523,6 +523,16 @@ class TalentComb
         return Rescore_();
     }
 
+    ScoreResult SwapCards(const uint32_t lhs, const uint32_t rhs)
+    {
+        assert(lhs >= 1 && lhs <= 19);
+        assert(rhs >= 1 && rhs <= 19);
+        std::swap(areas_[lhs].card_, areas_[rhs].card_);
+        areas_[lhs].box_.SetContent(areas_[lhs].card_.has_value() ? CardHtml_(*areas_[lhs].card_) : Image_("num_" + std::to_string(lhs)));
+        areas_[rhs].box_.SetContent(areas_[rhs].card_.has_value() ? CardHtml_(*areas_[rhs].card_) : Image_("num_" + std::to_string(rhs)));
+        return Rescore_();
+    }
+
     int32_t BaseScore() const { return base_score_; }
     uint32_t LineCount() const { return line_count_; }
     std::string ToHtml() const { return table_.ToString(); }

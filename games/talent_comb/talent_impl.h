@@ -35,7 +35,7 @@ inline std::pair<std::string, std::string> MainStage::PlayerScoreDetail(const Pl
     int32_t base = player.base_score_;
     int32_t perm = player.permanent_extra_;
     int32_t valuable = player.valuable_one_bonus_;
-    int32_t temp = player.TempBattleScore();
+    int32_t temp = player.EffectiveTempBattleScore();
     int32_t total = player.TotalScore() + temp;
     std::string talent_detail;
     for (const auto talent : player.talents_) {
@@ -250,6 +250,7 @@ inline std::string MainStage::HandleDiscard_(PlayerID pid, const AreaCard& card,
         if (!player.HasTalent(talent)) continue;
         notify += player.talent_states_.at(talent)->OnDiscard(player, card, TalentDiscardContext{HasValuableOne(special_event_), source_talent});
     }
+    player.UpdateZeroRiskMaxScore();
 
     return notify;
 }
@@ -510,6 +511,7 @@ inline void MainStage::ApplyDefeatTalents_(PlayerID loser, bool mirror, int32_t&
             result += GetName(Global().PlayerName(loser)) + " " + notify + "\n";
         }
     }
+    players_[loser].UpdateZeroRiskMaxScore();
 }
 
 inline void MainStage::ApplyVictoryTalents_(PlayerID winner, bool mirror, std::string& result)

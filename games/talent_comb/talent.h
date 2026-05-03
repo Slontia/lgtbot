@@ -98,6 +98,8 @@ enum class Talent
     冥想,
     光波干涉,
     九转玄机,
+    乾坤大挪移,
+    关键选择,
 
     // ========== B 级天赋 ==========
     嗜血,
@@ -157,6 +159,7 @@ const std::vector<Talent>& TalentsOfGrade(std::string_view grade);
 const std::vector<Talent>& GradeATalents();
 const std::vector<Talent>& GradeBTalents();
 std::map<std::string, int> MakeTalentOptionMap();
+std::map<std::string, int> MakeGradeBTalentOptionMap();
 
 // ==================== Option Map Builders ====================
 // 由 options.h 调用，根据枚举自动生成下拉选项的 {名称 -> 整数值} 映射。

@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -87,6 +88,12 @@ struct TalentPreBattleExtraContext
     SpecialEvent special_event = SpecialEvent::无;
     std::mt19937& rng;
     const AreaCard* offered_card = nullptr;
+};
+
+struct TalentActiveContext
+{
+    bool has_valuable_one = false;
+    std::function<std::string(Talent)> apply_immediate_talent_effects;
 };
 
 struct TalentDamageEffect
@@ -201,6 +208,28 @@ class TalentBase
     // 返回文本会立即播报。
     virtual std::string OnExtraCardActionEnd(Player& player);
 
+    // 主动天赋阶段开始前检查是否需要等待玩家操作。
+    // 返回 true 时，该玩家会进入主动天赋阶段并可以选择发动或 pass。
+    virtual bool HasPendingActiveChoice(const Player& player) const;
+
+    // 主动天赋阶段展示提示时调用。
+    virtual std::string ActivePrompt(const Player& player) const;
+
+    // 主动天赋阶段需要展示图片时调用。
+    // 返回空字符串时阶段不会播报图片；返回值会作为 Markdown 图片内容发送。
+    virtual std::string ActiveImageHtml(const Player& player) const;
+
+    // 主动天赋阶段玩家选择 pass 时调用。
+    // 返回提示文本；天赋可在这里将待发动效果标记为失效。
+    virtual std::string OnActivePass(Player& player);
+
+    // 主动天赋阶段指令调用。
+    // 阶段负责解析指令文本和基础参数范围，并把参数按顺序放入 args。
+    // 天赋类负责判断指令是否属于自己、玩家是否满足发动条件，以及执行具体效果。
+    // 返回 false 表示指令不可执行；message 会作为错误或成功提示。
+    virtual bool OnActiveCommand(Player& player, std::string_view command, const std::vector<uint32_t>& args,
+                                 const TalentActiveContext& context, ScoreResult& result, std::string& message);
+
     // 计算胜者造成的额外伤害时，对攻击方天赋调用。
     // 返回的 `delta` 会加到伤害上；正数增加伤害，负数降低伤害。
     // `message` 非空时会立即播报。
@@ -234,6 +263,8 @@ class GalaxyFlowTalent;
 class MeditationTalent;
 class LightInterferenceTalent;
 class NineMysteryTalent;
+class QiankunMoveTalent;
+class KeyChoiceTalent;
 
 class BloodlustTalent;
 class StillUsefulTalent;
