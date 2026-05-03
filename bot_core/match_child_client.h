@@ -5,6 +5,7 @@
 #pragma once
 
 #include <condition_variable>
+#include <deque>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -89,8 +90,8 @@ struct IMatchChildCallbacks {
 //     game_child_.reset();
 //
 // Concurrency:
-//   SendExecute / SendLeave / FetchHelp write stdin and then block in
-//   WaitForResponse_(). They must be called WITHOUT holding any lock that the
+//   SendExecute / SendLeave / FetchHelp are serialized internally, then write
+//   stdin and block in WaitForResponse_(). They must be called WITHOUT holding any lock that the
 //   push-frame callbacks also need (otherwise deadlock: the callback blocks on
 //   the mutex while the caller blocks in WaitForResponse_).
 // ---------------------------------------------------------------------------
@@ -157,9 +158,9 @@ class MatchChildClient
     FILE* child_in_{nullptr};
     FILE* child_out_{nullptr};
 
+    std::mutex request_mutex_;
     std::mutex pending_mutex_;
     std::condition_variable pending_cv_;
-    std::optional<ResponseFrame> pending_frame_;
-    bool pending_ready_{false};
+    std::deque<ResponseFrame> pending_frames_;
     bool stopped_{false};
 };

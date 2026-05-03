@@ -159,10 +159,6 @@ void MatchChildClient::RunReadLoop(IMatchChildCallbacks& cbs)
                 std::lock_guard<std::mutex> lk(pending_mutex_);
                 unexpected = !stopped_; // stopped_ == true means SignalStop() was called first
                 stopped_ = true;
-                if (!pending_ready_) {
-                    pending_frame_ = std::nullopt;
-                    pending_ready_ = true;
-                }
                 pending_cv_.notify_all();
             }
             cbs.OnEof(unexpected);
@@ -193,10 +189,6 @@ void MatchChildClient::SignalStop()
     {
         std::lock_guard<std::mutex> lk(pending_mutex_);
         stopped_ = true;
-        if (!pending_ready_) {
-            pending_frame_ = std::nullopt;
-            pending_ready_ = true;
-        }
     }
     pending_cv_.notify_all();
     // Kill the child so the pipe EOF unblocks ReadFrame in the read thread.
@@ -209,8 +201,7 @@ void MatchChildClient::SetPendingFrame_(ResponseFrame frame)
 {
     {
         std::lock_guard<std::mutex> lk(pending_mutex_);
-        pending_frame_ = std::move(frame);
-        pending_ready_ = true;
+        pending_frames_.push_back(std::move(frame));
     }
     pending_cv_.notify_one();
 }
@@ -218,15 +209,20 @@ void MatchChildClient::SetPendingFrame_(ResponseFrame frame)
 std::optional<ResponseFrame> MatchChildClient::WaitForResponse_()
 {
     std::unique_lock<std::mutex> lk(pending_mutex_);
-    pending_cv_.wait(lk, [this] { return pending_ready_; });
-    pending_ready_ = false;
-    return std::move(pending_frame_);
+    pending_cv_.wait(lk, [this] { return stopped_ || !pending_frames_.empty(); });
+    if (pending_frames_.empty()) {
+        return std::nullopt;
+    }
+    ResponseFrame frame = std::move(pending_frames_.front());
+    pending_frames_.pop_front();
+    return frame;
 }
 
 ErrCode MatchChildClient::SendExecute(const PlayerID player_id, const bool is_public,
                                       const std::string& text,
                                       std::function<void(const lgtbot::ipc::ReplyResp&)> reply_cb)
 {
+    const std::lock_guard request_lock(request_mutex_);
     lgtbot::ipc::GameRequest req;
     auto* exec = req.mutable_execute();
     exec->set_text(text);
@@ -250,6 +246,7 @@ ErrCode MatchChildClient::SendExecute(const PlayerID player_id, const bool is_pu
 
 bool MatchChildClient::SendLeave(const PlayerID player_id)
 {
+    const std::lock_guard request_lock(request_mutex_);
     lgtbot::ipc::GameRequest req;
     req.mutable_leave()->set_player_id(player_id.Get());
     std::string buf;
@@ -266,6 +263,7 @@ bool MatchChildClient::SendLeave(const PlayerID player_id)
 
 bool MatchChildClient::FetchHelp(const bool text_mode, std::string& text_out)
 {
+    const std::lock_guard request_lock(request_mutex_);
     lgtbot::ipc::GameRequest req;
     req.mutable_help()->set_text_mode(text_mode);
     std::string buf;
