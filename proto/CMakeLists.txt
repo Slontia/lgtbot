@@ -83,7 +83,7 @@ else()
     VERBATIM)
 endif()
 
-add_library(lgtbot_command_args STATIC ${LGTBOT_PB_CC_SOURCES})
+add_library(lgtbot_command_args SHARED ${LGTBOT_PB_CC_SOURCES})
 set_target_properties(lgtbot_command_args PROPERTIES CXX_STANDARD 20)
 set_source_files_properties(${LGTBOT_PB_OUTPUTS} PROPERTIES GENERATED TRUE)
 target_include_directories(lgtbot_command_args PUBLIC ${LGTBOT_PROTO_GEN})
