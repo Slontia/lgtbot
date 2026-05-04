@@ -32,9 +32,15 @@ inline bool match_is_valid(MatchID id) { return id != INVALID_MATCH; }
 typedef enum { PRIVATE_MATCH, GROUP_MATCH, DISCUSS_MATCH } MatchType;
 
 struct RecordedMessage {
-    std::string recipient_id_;
-    bool is_to_user_{false};
-    int64_t timestamp_sec_{0};
+    struct Bot {};
+    struct Public {};
+
+    using Participant = std::variant<Bot, UserID>;
+    using Receiver = std::variant<Bot, UserID, Public>;
+
+    Participant sender_{Bot{}};
+    Receiver receiver_{Bot{}};
+    std::chrono::system_clock::time_point at_;
     std::vector<RecordedMsgItem> items_;
 };
 
@@ -122,8 +128,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     void ReleaseGameChildIfOver();
 
-    void RecordMessages(const std::string& recipient_id, bool is_to_user, std::chrono::system_clock::time_point t,
-            std::vector<RecordedMsgItem> items);
+    void RecordMessages(RecordedMessage::Participant sender, RecordedMessage::Receiver receiver,
+            std::chrono::system_clock::time_point at, std::vector<RecordedMsgItem> items);
 
     friend class MatchChildClient;
 

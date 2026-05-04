@@ -17,6 +17,7 @@
 #include <utility> // g++12 has a bug which will cause 'exchange' is not a member of 'std'
 #include <ranges>
 #include <random>
+#include <variant>
 
 #include "utility/msg_checker.h"
 #include "utility/log.h"
@@ -65,6 +66,25 @@ std::pair<std::string, std::string> ArchiveYearMonth(const std::chrono::system_c
     std::snprintf(ybuf, sizeof(ybuf), "%04d", tm.tm_year + 1900);
     std::snprintf(mbuf, sizeof(mbuf), "%02d", tm.tm_mon + 1);
     return {std::string(ybuf), std::string(mbuf)};
+}
+
+nlohmann::json ArchivedParticipantJson(const RecordedMessage::Participant& p)
+{
+    if (std::holds_alternative<RecordedMessage::Bot>(p)) {
+        return {{"kind", "bot"}};
+    }
+    return {{"kind", "user"}, {"user_id", std::get<UserID>(p).GetStr()}};
+}
+
+nlohmann::json ArchivedReceiverJson(const RecordedMessage::Receiver& r)
+{
+    if (std::holds_alternative<RecordedMessage::Bot>(r)) {
+        return {{"kind", "bot"}};
+    }
+    if (std::holds_alternative<RecordedMessage::Public>(r)) {
+        return {{"kind", "public"}};
+    }
+    return {{"kind", "user"}, {"user_id", std::get<UserID>(r).GetStr()}};
 }
 
 std::filesystem::path ResolveRunnerExe()
@@ -748,16 +768,16 @@ std::string Match::OptionInfo_() const
     return game_handle_.ConfigClient().QueryOptionInfo(true /* text_mode */);
 }
 
-void Match::RecordMessages(const std::string& recipient_id, const bool is_to_user,
-        const std::chrono::system_clock::time_point t, std::vector<RecordedMsgItem> items)
+void Match::RecordMessages(RecordedMessage::Participant sender, RecordedMessage::Receiver receiver,
+        const std::chrono::system_clock::time_point at, std::vector<RecordedMsgItem> items)
 {
     if (items.empty()) {
         return;
     }
     RecordedMessage entry;
-    entry.recipient_id_ = recipient_id;
-    entry.is_to_user_ = is_to_user;
-    entry.timestamp_sec_ = std::chrono::duration_cast<std::chrono::seconds>(t.time_since_epoch()).count();
+    entry.sender_ = std::move(sender);
+    entry.receiver_ = std::move(receiver);
+    entry.at_ = at;
     entry.items_ = std::move(items);
     std::lock_guard<std::recursive_mutex> lk(mutex_);
     message_log_.push_back(std::move(entry));
@@ -833,9 +853,9 @@ void Match::WriteArchive_(const uint64_t db_match_id, const std::vector<std::pai
     j["messages"] = nlohmann::json::array();
     for (const auto& rm : log) {
         nlohmann::json mj;
-        mj["t"] = rm.timestamp_sec_;
-        mj["recipient_id"] = rm.recipient_id_;
-        mj["is_to_user"] = rm.is_to_user_;
+        mj["t"] = static_cast<int64_t>(std::chrono::duration_cast<std::chrono::seconds>(rm.at_.time_since_epoch()).count());
+        mj["sender"] = ArchivedParticipantJson(rm.sender_);
+        mj["receiver"] = ArchivedReceiverJson(rm.receiver_);
         mj["items"] = nlohmann::json::array();
         for (const auto& it : rm.items_) {
             if (it.type_ == LGTBOT_MSG_TEXT || it.type_ == LGTBOT_MSG_USER_NAME) {

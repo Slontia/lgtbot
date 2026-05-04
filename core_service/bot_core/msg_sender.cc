@@ -60,7 +60,10 @@ void MsgSender::Flush()
         for (const auto& message : messages_) {
             recorded.push_back(RecordedMsgItem{message.type_, message.str_});
         }
-        match_->RecordMessages(id_, is_to_user_, std::chrono::system_clock::now(), std::move(recorded));
+        const RecordedMessage::Participant sender{RecordedMessage::Bot{}};
+        const RecordedMessage::Receiver receiver =
+                is_to_user_ ? RecordedMessage::Receiver{UserID{id_}} : RecordedMessage::Receiver{RecordedMessage::Public{}};
+        match_->RecordMessages(sender, receiver, std::chrono::system_clock::now(), std::move(recorded));
     }
     for (const auto& message : messages_) {
         if (message.delete_after_send_) {
