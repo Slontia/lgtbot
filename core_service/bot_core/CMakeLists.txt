@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 
 set(CMAKE_CXX_STANDARD 20)
 
-# protobuf: find_package in parent ../CMakeLists.txt (config and/or module).
+# protobuf: find_package + shared codegen in src/proto (see core_service/CMakeLists.txt).
 
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -latomic")
@@ -63,7 +63,7 @@ find_package(gflags REQUIRED)
 list(APPEND THIRD_PARTIES gflags)
 
 add_library(bot_core_static STATIC ${SOURCE_FILES})
-target_link_libraries(bot_core_static ${THIRD_PARTIES})
+target_link_libraries(bot_core_static PRIVATE lgtbot_command_args ${THIRD_PARTIES})
 target_include_directories(bot_core_static PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}
   ${MATCH_PROCESS_PROTO_GEN_DIR}/..)
@@ -74,7 +74,7 @@ target_compile_definitions(bot_core_static PRIVATE
 )
 
 add_library(bot_core SHARED ${SOURCE_FILES})
-target_link_libraries(bot_core ${THIRD_PARTIES})
+target_link_libraries(bot_core PRIVATE lgtbot_command_args ${THIRD_PARTIES})
 target_include_directories(bot_core PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}
   ${MATCH_PROCESS_PROTO_GEN_DIR}/..)
@@ -125,10 +125,12 @@ if (WITH_TEST)
         ${CMAKE_CURRENT_SOURCE_DIR}/test_game/rule.md ${TEST_GAME_PLUGIN_DIR}/rule.md)
   add_library(test_game_plugin SHARED ${TEST_GAME_SOURCE_FILES})
   add_dependencies(test_game_plugin make_test_game_plugin_dir)
+  set(_test_game_plugin_link_libs lgtbot_command_args)
   if (CMAKE_SYSTEM_NAME MATCHES "Linux")
     add_dependencies(test_game_plugin test_game_rule_binary)
-    target_link_libraries(test_game_plugin ${TEST_GAME_RULE_BINARY})
+    list(APPEND _test_game_plugin_link_libs ${TEST_GAME_RULE_BINARY})
   endif()
+  target_link_libraries(test_game_plugin ${_test_game_plugin_link_libs})
   target_compile_definitions(test_game_plugin PUBLIC
     GAME_ACHIEVEMENT_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test_game/achievements.h"
     GAME_OPTION_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test_game/options.h"
@@ -159,7 +161,7 @@ if (WITH_TEST)
   add_executable(test_bot
     test_bot.cc
     ${SOURCE_FILES})
-  target_link_libraries(test_bot ${THIRD_PARTIES})
+  target_link_libraries(test_bot PRIVATE lgtbot_command_args ${THIRD_PARTIES})
   target_include_directories(test_bot PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}
@@ -184,9 +186,11 @@ if (WITH_TEST)
   target_include_directories(test_game_for_test_lib PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/test_game
     ${CMAKE_CURRENT_SOURCE_DIR}/..)
+  set(_test_game_for_test_lib_link_libs lgtbot_command_args)
   if (WITH_GLOG)
-    target_link_libraries(test_game_for_test_lib glog::glog)
+    list(APPEND _test_game_for_test_lib_link_libs glog::glog)
   endif()
+  target_link_libraries(test_game_for_test_lib ${_test_game_for_test_lib_link_libs})
   if (CMAKE_SYSTEM_NAME MATCHES "Linux")
     add_dependencies(test_game_for_test_lib test_game_rule_binary)
   endif()
@@ -202,13 +206,14 @@ if (WITH_TEST)
   target_include_directories(test_test_game PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/test_game
     ${CMAKE_CURRENT_SOURCE_DIR}/..)
-  target_link_libraries(test_test_game GTest::GTest GTest::Main gflags)
+  set(_test_test_game_link_libs lgtbot_command_args GTest::GTest GTest::Main gflags)
   if (WITH_GLOG)
-    target_link_libraries(test_test_game glog::glog)
+    list(APPEND _test_test_game_link_libs glog::glog)
   endif()
+  target_link_libraries(test_test_game PRIVATE ${_test_test_game_link_libs})
   if (CMAKE_SYSTEM_NAME MATCHES "Linux")
     add_dependencies(test_test_game test_game_rule_binary)
-    target_link_libraries(test_test_game ${TEST_GAME_RULE_BINARY})
+    target_link_libraries(test_test_game PRIVATE ${TEST_GAME_RULE_BINARY})
   endif()
   add_test(NAME test_test_game COMMAND test_test_game --resource_dir "${CMAKE_CURRENT_SOURCE_DIR}/test_game")
 

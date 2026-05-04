@@ -1,0 +1,51 @@
+syntax = "proto3";
+package lgtbot;
+
+option go_package = "lgtbot/proto/pb;pb";
+
+// Command argument metadata (imported by lgtbot_service.proto).
+
+message VoidArg {
+  string keyword = 1;
+}
+message BoolArg {
+  string true_str = 1;
+  string false_str = 2;
+}
+message AlternativesArg {
+  repeated string options = 1;
+}
+message IntegerArg {
+  int64 min = 1;
+  int64 max = 2;
+  string meaning = 3;
+}
+message TextArg {
+  string meaning = 1;
+}
+message OptionalArg {
+  ArgDef inner = 1;
+}
+message RepeatableArg {
+  ArgDef inner = 1;
+}
+
+message ArgDef {
+  string format_info = 1;
+  string example = 2;
+  oneof arg {
+    VoidArg void_arg = 3;
+    BoolArg bool_arg = 4;
+    AlternativesArg alternatives_arg = 5;
+    IntegerArg integer_arg = 6;
+    TextArg text_arg = 7;
+    OptionalArg optional_arg = 8;
+    RepeatableArg repeatable_arg = 9;
+  }
+}
+
+message CommandDef {
+  string description = 1;
+  repeated ArgDef args = 2;
+  bool is_visible = 3;
+}

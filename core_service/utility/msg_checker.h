@@ -20,7 +20,20 @@
 #include <variant>
 
 #include "html.h"
-#include "utility/arg_def.h"
+#include "command_args.pb.h"
+
+namespace {
+
+inline lgtbot::ArgDef MsgCheckerTextFallback(const std::string& format_info, const std::string& example)
+{
+    lgtbot::ArgDef d;
+    d.set_format_info(format_info);
+    d.set_example(example);
+    d.mutable_text_arg()->set_meaning("?");
+    return d;
+}
+
+} // namespace
 
 // TODO: check callback parameters
 
@@ -68,7 +81,7 @@ class MsgArgCheckerBase
     virtual std::string EscapedFormatInfo() const = 0;
     virtual std::string ColoredFormatInfo() const = 0;
     virtual std::string ExampleInfo() const = 0;
-    virtual std::vector<ArgDef> ToArgDefs() const = 0;
+    virtual std::vector<lgtbot::ArgDef> ToArgDefs() const = 0;
 };
 
 template <typename T>
@@ -107,13 +120,13 @@ class AnyArg : public MsgArgChecker<std::string>
     }
     virtual std::string ArgString(const std::string& value) const override { return value; }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
-        ArgDef d;
-        d.format_info = FormatInfo();
-        d.example = ExampleInfo();
-        d.arg = TextArgDef{example_};
-        return std::vector<ArgDef>{std::move(d)};
+        lgtbot::ArgDef d;
+        d.set_format_info(FormatInfo());
+        d.set_example(ExampleInfo());
+        d.mutable_text_arg()->set_meaning(example_);
+        return {std::move(d)};
     }
 
    private:
@@ -156,13 +169,15 @@ class BoolChecker : public MsgArgChecker<bool>
     }
     virtual std::string ArgString(const bool& value) const override { return value ? true_str_ : false_str_; }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
-        ArgDef d;
-        d.format_info = FormatInfo();
-        d.example = ExampleInfo();
-        d.arg = BoolArgDef{true_str_, false_str_};
-        return std::vector<ArgDef>{std::move(d)};
+        lgtbot::ArgDef d;
+        d.set_format_info(FormatInfo());
+        d.set_example(ExampleInfo());
+        auto* b = d.mutable_bool_arg();
+        b->set_true_str(true_str_);
+        b->set_false_str(false_str_);
+        return {std::move(d)};
     }
 
    private:
@@ -211,17 +226,16 @@ class AlterChecker : public MsgArgChecker<T>
         return "(错误，非预期的值)";
     }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
-        ArgDef d;
-        d.format_info = FormatInfo();
-        d.example = ExampleInfo();
-        AltArgDef alt;
+        lgtbot::ArgDef d;
+        d.set_format_info(FormatInfo());
+        d.set_example(ExampleInfo());
+        auto* alt = d.mutable_alternatives_arg();
         for (const auto& [k, _] : arg_map_) {
-            alt.options.push_back(k);
+            alt->add_options(k);
         }
-        d.arg = std::move(alt);
-        return std::vector<ArgDef>{std::move(d)};
+        return {std::move(d)};
     }
 
   private:
@@ -286,13 +300,16 @@ class ArithChecker : public MsgArgChecker<T>
     }
     virtual std::string ArgString(const T& value) const override { return std::to_string(value); }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
-        ArgDef d;
-        d.format_info = FormatInfo();
-        d.example = ExampleInfo();
-        d.arg = IntArgDef{static_cast<int64_t>(min_), static_cast<int64_t>(max_), meaning_str_};
-        return std::vector<ArgDef>{std::move(d)};
+        lgtbot::ArgDef d;
+        d.set_format_info(FormatInfo());
+        d.set_example(ExampleInfo());
+        auto* ia = d.mutable_integer_arg();
+        ia->set_min(static_cast<int64_t>(min_));
+        ia->set_max(static_cast<int64_t>(max_));
+        ia->set_meaning(meaning_str_);
+        return {std::move(d)};
     }
 
   private:
@@ -350,13 +367,13 @@ class BasicChecker : public MsgArgChecker<T>
         return ss.str();
     }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
-        ArgDef d;
-        d.format_info = FormatInfo();
-        d.example = ExampleInfo();
-        d.arg = TextArgDef{meaning_};
-        return std::vector<ArgDef>{std::move(d)};
+        lgtbot::ArgDef d;
+        d.set_format_info(FormatInfo());
+        d.set_example(ExampleInfo());
+        d.mutable_text_arg()->set_meaning(meaning_);
+        return {std::move(d)};
     }
 
    private:
@@ -397,13 +414,13 @@ class MsgArgChecker<void> final : public MsgArgCheckerBase
     std::string ColoredFormatInfo() const override { return format_info_; };
     std::string ExampleInfo() const override { return optional_strs_.front(); };
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
-        ArgDef d;
-        d.format_info = FormatInfo();
-        d.example = ExampleInfo();
-        d.arg = VoidArgDef{optional_strs_.front()};
-        return std::vector<ArgDef>{std::move(d)};
+        lgtbot::ArgDef d;
+        d.set_format_info(FormatInfo());
+        d.set_example(ExampleInfo());
+        d.mutable_void_arg()->set_keyword(optional_strs_.front());
+        return {std::move(d)};
     }
 
    private:
@@ -473,19 +490,20 @@ class RepeatableChecker : public RepeatableCheckerBase<Checker>
         return RepeatableCheckerBase<Checker>::InnerChecker().ExampleInfo();
     }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
         const auto& inner_checker = RepeatableCheckerBase<Checker>::InnerChecker();
         const auto inner_parts = inner_checker.ToArgDefs();
-        ArgDef outer;
-        outer.format_info = FormatInfo();
-        outer.example = ExampleInfo();
-        auto rep = std::make_unique<RepArgDef>();
-        rep->inner = std::make_unique<ArgDef>(
-                inner_parts.empty() ? ArgDef::TextFallback(inner_checker.FormatInfo(), inner_checker.ExampleInfo())
-                                    : inner_parts.front());
-        outer.arg = std::move(rep);
-        return std::vector<ArgDef>{std::move(outer)};
+        lgtbot::ArgDef outer;
+        outer.set_format_info(FormatInfo());
+        outer.set_example(ExampleInfo());
+        auto* rep = outer.mutable_repeatable_arg();
+        if (inner_parts.empty()) {
+            *rep->mutable_inner() = MsgCheckerTextFallback(inner_checker.FormatInfo(), inner_checker.ExampleInfo());
+        } else {
+            *rep->mutable_inner() = inner_parts.front();
+        }
+        return {std::move(outer)};
     }
 
   protected:
@@ -525,13 +543,14 @@ class FixedSizeRepeatableChecker : public RepeatableCheckerBase<Checker>
         return ret.has_value() && ret->size() == size_ ? ret : std::nullopt;
     }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
         const auto& inner_checker = RepeatableCheckerBase<Checker>::InnerChecker();
         const auto inner_parts = inner_checker.ToArgDefs();
-        ArgDef slot = inner_parts.empty() ? ArgDef::TextFallback(inner_checker.FormatInfo(), inner_checker.ExampleInfo())
-                                          : inner_parts.front();
-        std::vector<ArgDef> out;
+        lgtbot::ArgDef slot = inner_parts.empty()
+                ? MsgCheckerTextFallback(inner_checker.FormatInfo(), inner_checker.ExampleInfo())
+                : inner_parts.front();
+        std::vector<lgtbot::ArgDef> out;
         out.reserve(size_);
         for (size_t i = 0; i < size_; ++i) {
             out.push_back(slot);
@@ -576,18 +595,19 @@ class OptionalChecker : public MsgArgChecker<std::optional<typename Checker::arg
         return value.has_value() ? checker_.ArgString(*value) : "";
     }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
         const auto inner_parts = checker_.ToArgDefs();
-        ArgDef outer;
-        outer.format_info = FormatInfo();
-        outer.example = ExampleInfo();
-        auto opt = std::make_unique<OptArgDef>();
-        opt->inner = std::make_unique<ArgDef>(
-                inner_parts.empty() ? ArgDef::TextFallback(checker_.FormatInfo(), checker_.ExampleInfo())
-                                      : inner_parts.front());
-        outer.arg = std::move(opt);
-        return std::vector<ArgDef>{std::move(outer)};
+        lgtbot::ArgDef outer;
+        outer.set_format_info(FormatInfo());
+        outer.set_example(ExampleInfo());
+        auto* oa = outer.mutable_optional_arg();
+        if (inner_parts.empty()) {
+            *oa->mutable_inner() = MsgCheckerTextFallback(checker_.FormatInfo(), checker_.ExampleInfo());
+        } else {
+            *oa->mutable_inner() = inner_parts.front();
+        }
+        return {std::move(outer)};
     }
 
   private:
@@ -625,18 +645,19 @@ class OptionalDefaultChecker : public MsgArgChecker<typename Checker::arg_type>
     }
     virtual std::string ArgString(const Checker::arg_type& value) const override { return checker_.ArgString(value); }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
         const auto inner_parts = checker_.ToArgDefs();
-        ArgDef outer;
-        outer.format_info = FormatInfo();
-        outer.example = ExampleInfo();
-        auto opt = std::make_unique<OptArgDef>();
-        opt->inner = std::make_unique<ArgDef>(
-                inner_parts.empty() ? ArgDef::TextFallback(checker_.FormatInfo(), checker_.ExampleInfo())
-                                      : inner_parts.front());
-        outer.arg = std::move(opt);
-        return std::vector<ArgDef>{std::move(outer)};
+        lgtbot::ArgDef outer;
+        outer.set_format_info(FormatInfo());
+        outer.set_example(ExampleInfo());
+        auto* oa = outer.mutable_optional_arg();
+        if (inner_parts.empty()) {
+            *oa->mutable_inner() = MsgCheckerTextFallback(checker_.FormatInfo(), checker_.ExampleInfo());
+        } else {
+            *oa->mutable_inner() = inner_parts.front();
+        }
+        return {std::move(outer)};
     }
 
   private:
@@ -672,9 +693,9 @@ class BatchChecker : public MsgArgChecker<std::tuple<typename Checkers::arg_type
         return ArgString_(value);
     }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
-        std::vector<ArgDef> out;
+        std::vector<lgtbot::ArgDef> out;
         std::apply(
                 [&](const Checkers&... cs)
                 {
@@ -751,17 +772,16 @@ class EnumChecker : public MsgArgChecker<Enum>
     virtual std::optional<Enum> Check(const std::string& str) const { return Enum::Parse(str); }
     virtual std::string ArgString(const Enum& value) const override { return value.ToString(); }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
-        ArgDef d;
-        d.format_info = FormatInfo();
-        d.example = ExampleInfo();
-        AltArgDef alt;
+        lgtbot::ArgDef d;
+        d.set_format_info(FormatInfo());
+        d.set_example(ExampleInfo());
+        auto* alt = d.mutable_alternatives_arg();
         for (const auto& m : Enum::Members()) {
-            alt.options.push_back(m.ToString());
+            alt->add_options(m.ToString());
         }
-        d.arg = std::move(alt);
-        return std::vector<ArgDef>{std::move(d)};
+        return {std::move(d)};
     }
 
   private:
@@ -829,17 +849,16 @@ class FlagsChecker : public MsgArgChecker<typename Enum::BitSet>
         return result.empty() ? "" : result.substr(0, result.size() - 1);
     }
 
-    std::vector<ArgDef> ToArgDefs() const override
+    std::vector<lgtbot::ArgDef> ToArgDefs() const override
     {
-        ArgDef d;
-        d.format_info = FormatInfo();
-        d.example = ExampleInfo();
-        AltArgDef alt;
+        lgtbot::ArgDef d;
+        d.set_format_info(FormatInfo());
+        d.set_example(ExampleInfo());
+        auto* alt = d.mutable_alternatives_arg();
         for (const auto& m : Enum::Members()) {
-            alt.options.push_back(m.ToString());
+            alt->add_options(m.ToString());
         }
-        d.arg = std::move(alt);
-        return std::vector<ArgDef>{std::move(d)};
+        return {std::move(d)};
     }
 
   private:
@@ -880,7 +899,7 @@ class Command<UserResult(UserArgs...)>
         virtual ~Base_() {}
         virtual CommandResult CallIfValid(MsgReader& msg_reader, UserArgs... user_args) const = 0;
         virtual std::string Info(const bool with_example, const bool with_html_color, const std::string& prefix) const = 0;
-        virtual std::vector<ArgDef> AllArgDefs() const = 0;
+        virtual std::vector<lgtbot::ArgDef> AllArgDefs() const = 0;
         virtual const char* RawDescription() const = 0;
     };
 
@@ -965,9 +984,9 @@ class Command<UserResult(UserArgs...)>
             return outstr;
         }
 
-        std::vector<ArgDef> AllArgDefs() const override
+        std::vector<lgtbot::ArgDef> AllArgDefs() const override
         {
-            std::vector<ArgDef> out;
+            std::vector<lgtbot::ArgDef> out;
             std::apply(
                     [&](const auto&... checkers)
                     {
@@ -1003,14 +1022,16 @@ class Command<UserResult(UserArgs...)>
         return cmd_->Info(with_example, with_html_color, prefix);
     }
 
-    std::vector<ArgDef> ArgDefs() const { return cmd_->AllArgDefs(); }
+    std::vector<lgtbot::ArgDef> ArgDefs() const { return cmd_->AllArgDefs(); }
 
-    CommandDefEntry ToCommandDef(const bool is_visible = true) const
+    lgtbot::CommandDef ToCommandDef(const bool is_visible = true) const
     {
-        CommandDefEntry e;
-        e.description = cmd_->RawDescription();
-        e.args = cmd_->AllArgDefs();
-        e.is_visible = is_visible;
+        lgtbot::CommandDef e;
+        e.set_description(cmd_->RawDescription());
+        e.set_is_visible(is_visible);
+        for (const auto& a : cmd_->AllArgDefs()) {
+            *e.add_args() = a;
+        }
         return e;
     }
 

@@ -181,6 +181,8 @@ if (WITH_TEST)
   enable_testing()
 endif()
 
+option(WITH_GRPC_SERVER "Build lgtbot_grpc_server (requires gRPC C++)" ON)
+
 if (WITH_CORE)
   # Prefer protobuf's CMake package (config mode): protobuf >= 22 pulls abseil and
   # the bundled FindProtobuf module does not model that, which can break linking.
@@ -200,8 +202,31 @@ if (WITH_CORE)
       "Could not find protobuf (no protobuf::libprotobuf). Install a build with "
       "protobuf-config.cmake, or system protobuf-devel for CMake FindProtobuf.")
   endif()
+
+  # Shared .proto codegen (src/proto); gRPC stubs only when server will be built.
+  set(LGTBOT_PROTO_GENERATE_GRPC OFF)
+  set(_lgtbot_have_grpc FALSE)
+  if (WITH_GRPC_SERVER)
+    if (APPLE AND EXISTS "/opt/homebrew/opt/grpc/lib/cmake/grpc")
+      set(gRPC_DIR "/opt/homebrew/opt/grpc/lib/cmake/grpc" CACHE PATH "gRPC CMake package dir" FORCE)
+      list(PREPEND CMAKE_PREFIX_PATH "/opt/homebrew/opt/grpc")
+    elseif (APPLE AND EXISTS "/usr/local/opt/grpc/lib/cmake/grpc")
+      list(APPEND CMAKE_PREFIX_PATH "/usr/local/opt/grpc")
+    endif()
+    find_package(gRPC CONFIG QUIET)
+    if (gRPC_FOUND)
+      set(_lgtbot_have_grpc TRUE)
+      set(LGTBOT_PROTO_GENERATE_GRPC ON)
+    else()
+      message(STATUS "gRPC not found — skipping lgtbot_grpc_server (install grpc or set WITH_GRPC_SERVER=OFF)")
+    endif()
+  endif()
+  add_subdirectory(${CMAKE_SOURCE_DIR}/proto ${CMAKE_CURRENT_BINARY_DIR}/lgtbot_proto)
   add_subdirectory(match_process)
   add_subdirectory(bot_core)
+  if (WITH_GRPC_SERVER AND _lgtbot_have_grpc)
+    add_subdirectory(server)
+  endif()
 endif()
 
 if (WITH_TOOLS)

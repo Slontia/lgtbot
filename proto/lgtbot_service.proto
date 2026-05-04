@@ -1,0 +1,139 @@
+syntax = "proto3";
+package lgtbot;
+
+option go_package = "lgtbot/proto/pb;pb";
+
+import "command_args.proto";
+
+// ===== Common =====
+message ImageMsg {
+  string url = 1;
+  bool delete_after_send = 2;
+}
+
+message MsgItem {
+  oneof msg {
+    string text = 1;
+    ImageMsg image = 2;
+    string at_platform_user_id = 3;
+    string html = 4;
+  }
+}
+
+message Message {
+  repeated MsgItem items = 1;
+}
+
+// ===== HandlePrivateRequest =====
+message PrivateRequest {
+  string platform = 1;
+  string platform_user_id = 2;
+  string text = 3;
+}
+message PrivateResponse {
+  int32 err_code = 1;
+  string err_msg = 2;
+}
+
+// ===== Subscribe =====
+message SubscribeRequest {
+  string platform = 1;
+}
+
+message MatchStartEvent {
+  string platform_group_id = 1;
+  repeated string platform_user_ids = 2;
+}
+message MatchEndEvent {
+  string platform_group_id = 1;
+}
+message CommandsUpdateEvent {
+  repeated CommandDef commands = 1;
+}
+
+message PushEvent {
+  uint64 event_sign = 1;
+  oneof target {
+    string platform_user_id = 2;
+    string platform_group_id = 3;
+  }
+  oneof event {
+    Message message = 4;
+    MatchStartEvent match_start = 5;
+    MatchEndEvent match_end = 6;
+    CommandsUpdateEvent commands_update = 7;
+  }
+}
+
+message GetCommandsRequest {
+  string platform = 1;
+  string platform_user_id = 2;
+}
+message GetCommandsResponse {
+  repeated CommandDef commands = 1;
+}
+
+message GetUserInfoRequest {
+  string platform = 1;
+  string platform_user_id = 2;
+}
+message GetUserInfoResponse {
+  string display_name = 1;
+  string avatar_url = 2;
+}
+
+message GetMatchHistoryRequest {
+  string platform = 1;
+  string platform_user_id = 2;
+}
+
+message UpdateUserInfoRequest {
+  string platform = 1;
+  string platform_user_id = 2;
+  string display_name = 3;
+  bytes avatar_png = 4;
+}
+message UpdateUserInfoResponse {}
+
+message RecordChatMessageRequest {
+  string platform = 1;
+  string from_platform_user_id = 2;
+  string text = 3;
+  string to_platform_user_id = 4;
+}
+message RecordChatMessageResponse {}
+
+message GetGameListRequest {}
+message GameInfo {
+  string name = 1;
+  string developer = 2;
+  string description = 3;
+  uint32 min_players = 4;
+  uint32 max_players = 5;
+}
+message GetGameListResponse {
+  repeated GameInfo games = 1;
+}
+
+message StartGameRequest {
+  string platform = 1;
+  string platform_user_id = 2;
+  string game_name = 3;
+  bool solo = 4;
+}
+message StartGameResponse {
+  int32 err_code = 1;
+  string err_msg = 2;
+}
+
+service LGTBotService {
+  rpc HandlePrivateRequest(PrivateRequest) returns (PrivateResponse);
+  rpc Subscribe(SubscribeRequest) returns (stream PushEvent);
+  rpc GetCommands(GetCommandsRequest) returns (GetCommandsResponse);
+  rpc GetUserInfo(GetUserInfoRequest) returns (GetUserInfoResponse);
+  rpc GetMatchHistory(GetMatchHistoryRequest) returns (stream Message);
+  rpc UpdateUserInfo(UpdateUserInfoRequest) returns (UpdateUserInfoResponse);
+  rpc RecordChatMessage(RecordChatMessageRequest) returns (RecordChatMessageResponse);
+  rpc GetGameList(GetGameListRequest) returns (GetGameListResponse);
+  rpc StartGame(StartGameRequest) returns (StartGameResponse);
+}

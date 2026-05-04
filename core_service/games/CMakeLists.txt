@@ -94,12 +94,16 @@ foreach (GAME_DIR ${GAME_DIRS})
 
     # Make game library
     add_library(${GAME} SHARED ${SOURCE_FILES})
+    set(_game_link_libs ${GAME_THIRD_PARTIES})
+    if (TARGET lgtbot_command_args)
+      list(INSERT _game_link_libs 0 lgtbot_command_args)
+    endif()
     target_compile_definitions(${GAME} PUBLIC
       GAME_ACHIEVEMENT_FILENAME="achievements.h"
       GAME_OPTION_FILENAME="options.h"
       GAME_MODULE_NAME=${GAME})
     target_include_directories(${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
-    target_link_libraries(${GAME} ${GAME_THIRD_PARTIES})
+    target_link_libraries(${GAME} ${_game_link_libs})
     set_target_properties(${GAME} PROPERTIES
       RUNTIME_OUTPUT_DIRECTORY ${GAME_OUTPUT_PATH}
       LIBRARY_OUTPUT_DIRECTORY ${GAME_OUTPUT_PATH}
@@ -123,13 +127,17 @@ foreach (GAME_DIR ${GAME_DIRS})
 
       # Make library for tests
       add_library(${GAME}_for_test_lib OBJECT ${SOURCE_FILES})
+      set(_game_test_obj_libs ${GAME_THIRD_PARTIES})
+      if (TARGET lgtbot_command_args)
+        list(INSERT _game_test_obj_libs 0 lgtbot_command_args)
+      endif()
       target_compile_definitions(${GAME}_for_test_lib PUBLIC
         GAME_ACHIEVEMENT_FILENAME="achievements.h"
         GAME_OPTION_FILENAME="options.h"
         GAME_MODULE_NAME=${GAME}
         TEST_BOT)
       target_include_directories(${GAME}_for_test_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
-      target_link_libraries(${GAME}_for_test_lib ${GAME_THIRD_PARTIES})
+      target_link_libraries(${GAME}_for_test_lib ${_game_test_obj_libs})
 
       # Make unit test
       add_executable(test_game_${GAME} ${GAME_DIR}/unittest.cc $<TARGET_OBJECTS:${GAME}_for_test_lib>)
@@ -139,10 +147,14 @@ foreach (GAME_DIR ${GAME_DIRS})
         GAME_MODULE_NAME=${GAME}
         TEST_BOT)
       target_include_directories(test_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
-      target_link_libraries(test_game_${GAME} gflags GTest::GTest GTest::Main ${GAME_THIRD_PARTIES})
-      if (WITH_GLOG)
-        target_link_libraries(test_game_${GAME} glog::glog)
+      set(_test_game_exe_libs gflags GTest::GTest GTest::Main ${GAME_THIRD_PARTIES})
+      if (TARGET lgtbot_command_args)
+        list(INSERT _test_game_exe_libs 0 lgtbot_command_args)
       endif()
+      if (WITH_GLOG)
+        list(APPEND _test_game_exe_libs glog::glog)
+      endif()
+      target_link_libraries(test_game_${GAME} ${_test_game_exe_libs})
       target_compile_definitions(test_game_${GAME} PUBLIC TEST_BOT)
       add_test(NAME test_game_${GAME} COMMAND test_game_${GAME} --resource_dir "${GAME_RESOURCE_PATH}")
 
@@ -154,10 +166,14 @@ foreach (GAME_DIR ${GAME_DIRS})
         GAME_MODULE_NAME=${GAME}
         TEST_BOT)
       target_include_directories(run_game_${GAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/${GAME})
-      target_link_libraries(run_game_${GAME} gflags ${GAME_THIRD_PARTIES})
-      if (WITH_GLOG)
-        target_link_libraries(run_game_${GAME} glog::glog)
+      set(_run_game_exe_libs gflags ${GAME_THIRD_PARTIES})
+      if (TARGET lgtbot_command_args)
+        list(INSERT _run_game_exe_libs 0 lgtbot_command_args)
       endif()
+      if (WITH_GLOG)
+        list(APPEND _run_game_exe_libs glog::glog)
+      endif()
+      target_link_libraries(run_game_${GAME} ${_run_game_exe_libs})
       target_compile_definitions(run_game_${GAME} PUBLIC TEST_BOT)
       set(_run_game_repeat 6)
       if ("${GAME}" STREQUAL "sync_mahjong")
