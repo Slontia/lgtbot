@@ -1,0 +1,11 @@
+/* 与 Element Plus 变量同步整页背景（含暗色） */
+html,
+body {
+  margin: 0;
+  background-color: var(--el-bg-color-page, var(--el-bg-color));
+  color: var(--el-text-color-primary);
+}
+
+#app {
+  min-height: 100vh;
+}

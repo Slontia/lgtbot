@@ -42,6 +42,7 @@ class GameHandle
             , description_owned_(other.description_owned_)
             , module_name_(other.module_name_)
             , rule_(other.rule_)
+            , pure_rule_(other.pure_rule_)
             , achievements_(other.achievements_)
         {
             name_ = name_owned_.c_str();
@@ -55,6 +56,7 @@ class GameHandle
             , description_owned_(std::move(other.description_owned_))
             , module_name_(std::move(other.module_name_))
             , rule_(std::move(other.rule_))
+            , pure_rule_(std::move(other.pure_rule_))
             , achievements_(std::move(other.achievements_))
         {
             name_ = name_owned_.c_str();
@@ -69,6 +71,8 @@ class GameHandle
         std::string description_owned_;
         std::string module_name_;
         std::string rule_;
+        /** Same as GameInfo.pure_rule_: rule.md only, excludes #规则 preset / variant command hints. */
+        std::string pure_rule_;
 
         struct Achievement
         {

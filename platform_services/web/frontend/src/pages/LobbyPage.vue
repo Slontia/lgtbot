@@ -10,6 +10,7 @@ interface GameRow {
   description?: string
   min_players?: number
   max_players?: number
+  icon_url?: string
 }
 
 const auth = useAuthStore()
@@ -61,6 +62,12 @@ async function startSolo(row: GameRow) {
     <template #header>游戏列表（来自 core gRPC）</template>
     <el-alert v-if="err" type="warning" :title="err" show-icon />
     <el-table v-else :data="games" stripe empty-text="暂无数据（请先启动 lgtbot_grpc_server）">
+      <el-table-column label="" width="56">
+        <template #default="{ row }">
+          <el-avatar v-if="row.icon_url" :size="36" shape="square" :src="row.icon_url" />
+          <el-avatar v-else :size="36" shape="square">{{ row.name.slice(0, 1).toUpperCase() }}</el-avatar>
+        </template>
+      </el-table-column>
       <el-table-column prop="name" label="名称" width="180" />
       <el-table-column prop="description" label="说明" />
       <el-table-column prop="min_players" label="最少人数" width="100" />

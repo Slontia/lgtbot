@@ -126,6 +126,19 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     void BriefInfo(std::string& out) const;
 
+    /** Web API: room creation time (match object), unix seconds */
+    int64_t RoomCreatedUnixSec() const;
+    /** Web API: unix timestamp when the match started successfully; 0 if not started */
+    int64_t GameStartedUnixSec() const;
+    /** Text from OptionInfo_(); same content as the config section in the game-info output */
+    std::string ConfigSummaryText() const;
+    struct WebPlayerRow
+    {
+        std::string platform_user_id;
+        std::string display_name;
+    };
+    void ListPlayersForWeb(BotCtx& bot, std::vector<WebPlayerRow>& out) const;
+
     void ReleaseGameChildIfOver();
 
     void RecordMessages(RecordedMessage::Participant sender, RecordedMessage::Receiver receiver,
@@ -272,6 +285,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     bool is_in_deduction_{false};
 
     std::chrono::system_clock::time_point started_at_;
+    std::optional<std::chrono::system_clock::time_point> game_started_at_;
     std::vector<RecordedMessage> message_log_;
     std::optional<uint64_t> pending_archive_db_match_id_;
     std::vector<std::pair<UserID, int64_t>> pending_archive_scores_;

@@ -393,6 +393,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         return EC_OK;
     }
     state_ = State::IS_STARTED;
+    game_started_at_ = std::chrono::system_clock::now();
     StartReadThread_();
     BoardcastAtAll() << "游戏开始，您可以使用「帮助」命令（不带" META_COMMAND_SIGN "号），查看可执行命令";
     {
@@ -1173,5 +1174,60 @@ void Match::Unbind_()
     match_manager().UnbindMatch(mid_);
     if (gid_.has_value()) {
         match_manager().UnbindMatch(*gid_);
+    }
+}
+
+int64_t Match::RoomCreatedUnixSec() const
+{
+    std::lock_guard<std::recursive_mutex> l(mutex_);
+    return std::chrono::duration_cast<std::chrono::seconds>(started_at_.time_since_epoch()).count();
+}
+
+int64_t Match::GameStartedUnixSec() const
+{
+    std::lock_guard<std::recursive_mutex> l(mutex_);
+    if (!game_started_at_.has_value()) {
+        return 0;
+    }
+    return std::chrono::duration_cast<std::chrono::seconds>(game_started_at_->time_since_epoch()).count();
+}
+
+std::string Match::ConfigSummaryText() const
+{
+    std::lock_guard<std::recursive_mutex> l(mutex_);
+    return OptionInfo_();
+}
+
+void Match::ListPlayersForWeb(BotCtx& bot, std::vector<WebPlayerRow>& out) const
+{
+    std::lock_guard<std::recursive_mutex> l(mutex_);
+    out.clear();
+    if (state_ == State::IS_STARTED) {
+        const auto num = static_cast<uint32_t>(players_.size());
+        for (uint32_t pid = 0; pid < num; ++pid) {
+            const auto& vid = ConvertPid(PlayerID{pid});
+            if (const auto pval = std::get_if<ComputerID>(&vid)) {
+                WebPlayerRow row;
+                row.platform_user_id = std::string("computer:") + std::to_string(pval->Get());
+                row.display_name = "机器人" + std::to_string(pval->Get()) + "号";
+                out.push_back(std::move(row));
+            } else {
+                const auto& uid = std::get<UserID>(vid);
+                WebPlayerRow row;
+                row.platform_user_id = uid.GetStr();
+                row.display_name = bot.GetUserName(uid.GetCStr(), gid_.has_value() ? gid_->GetCStr() : nullptr);
+                out.push_back(std::move(row));
+            }
+        }
+    } else {
+        for (const auto& [uid, pu] : users_) {
+            if (pu.state_ == ParticipantUser::State::LEFT) {
+                continue;
+            }
+            WebPlayerRow row;
+            row.platform_user_id = uid.GetStr();
+            row.display_name = bot.GetUserName(uid.GetCStr(), gid_.has_value() ? gid_->GetCStr() : nullptr);
+            out.push_back(std::move(row));
+        }
     }
 }

@@ -104,6 +104,12 @@ func (c *BotClient) GetGameList(ctx context.Context) ([]*pb.GameInfo, error) {
 	return resp.Games, nil
 }
 
+func (c *BotClient) GetUserInfo(ctx context.Context, platform, platformUserID string) (*pb.GetUserInfoResponse, error) {
+	return c.client.GetUserInfo(ctx, &pb.GetUserInfoRequest{
+		Platform: platform, PlatformUserId: platformUserID,
+	})
+}
+
 func (c *BotClient) StartGame(ctx context.Context, platform, uid, game string, solo bool) error {
 	resp, err := c.client.StartGame(ctx, &pb.StartGameRequest{
 		Platform: platform, PlatformUserId: uid, GameName: game, Solo: solo,
@@ -115,4 +121,32 @@ func (c *BotClient) StartGame(ctx context.Context, platform, uid, game string, s
 		return errors.New(resp.ErrMsg)
 	}
 	return nil
+}
+
+func (c *BotClient) WebListGameMatches(ctx context.Context, platform, gameName string, offset, limit uint32) (*pb.WebListGameMatchesResponse, error) {
+	return c.client.WebListGameMatches(ctx, &pb.WebListGameMatchesRequest{
+		Platform: platform, GameName: gameName, Offset: offset, Limit: limit,
+	})
+}
+
+func (c *BotClient) WebGetGameRule(ctx context.Context, gameName string) (*pb.WebGetGameRuleResponse, error) {
+	return c.client.WebGetGameRule(ctx, &pb.WebGetGameRuleRequest{GameName: gameName})
+}
+
+func (c *BotClient) WebGetGameAchievements(ctx context.Context, gameName, viewerPlatformUserID string) (*pb.WebGetGameAchievementsResponse, error) {
+	return c.client.WebGetGameAchievements(ctx, &pb.WebGetGameAchievementsRequest{
+		GameName: gameName, ViewerPlatformUserId: viewerPlatformUserID,
+	})
+}
+
+func (c *BotClient) WebGetGameRankings(ctx context.Context, platform, gameName string, timeRange pb.WebTimeRange, topN uint32) (*pb.WebGetGameRankingsResponse, error) {
+	return c.client.WebGetGameRankings(ctx, &pb.WebGetGameRankingsRequest{
+		Platform: platform, GameName: gameName, TimeRange: timeRange, TopN: topN,
+	})
+}
+
+func (c *BotClient) WebUserProfile(ctx context.Context, platform, platformUserID string, timeRange pb.WebTimeRange) (*pb.WebUserProfileResponse, error) {
+	return c.client.WebUserProfile(ctx, &pb.WebUserProfileRequest{
+		Platform: platform, PlatformUserId: platformUserID, TimeRange: timeRange,
+	})
 }

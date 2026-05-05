@@ -110,9 +110,136 @@ message GameInfo {
   string description = 3;
   uint32 min_players = 4;
   uint32 max_players = 5;
+  // Game directory name under games path (ASCII), for stable URLs — e.g. "opencomb".
+  string module_name = 6;
+  // Current live matches in core (same as #赛事列表 granularity).
+  uint32 live_not_started = 7;
+  uint32 live_in_progress = 8;
+  // Browser URL served by platform web (same path shape as `/api/game-modules/{module}/icon`).
+  string icon_url = 9;
 }
 message GetGameListResponse {
   repeated GameInfo games = 1;
+}
+
+// ----- Web data (JSON-friendly; aligns with #战绩 / #排行 / #规则 / #成就 / #赛事列表) -----
+
+enum WebTimeRange {
+  WEB_TIME_RANGE_MONTH = 0;
+  WEB_TIME_RANGE_YEAR = 1;
+  WEB_TIME_RANGE_ALL = 2;
+}
+
+message WebMatchPlayer {
+  string platform_user_id = 1;
+  string display_name = 2;
+  string avatar_url = 3;
+}
+
+message WebMatchBrief {
+  uint64 match_id = 1;
+  int32 state = 2;
+  string room_label = 3;
+  string config_text = 4;
+  int64 room_created_unix = 5;
+  int64 game_started_unix = 6;
+  repeated WebMatchPlayer players = 7;
+}
+
+message WebListGameMatchesRequest {
+  string platform = 1;
+  string game_name = 2;
+  uint32 offset = 3;
+  uint32 limit = 4;
+}
+message WebListGameMatchesResponse {
+  repeated WebMatchBrief matches = 1;
+  uint32 total = 2;
+}
+
+message WebGetGameRuleRequest {
+  string game_name = 1;
+}
+message WebGetGameRuleResponse {
+  string pure_rule_markdown = 1;
+}
+
+message WebAchievementItem {
+  string name = 1;
+  string description = 2;
+  uint64 achieved_user_count = 3;
+}
+message WebGetGameAchievementsRequest {
+  string game_name = 1;
+  // Used for personal统计字段；可为空则内部用占位 UID 仅取全局达成人数
+  string viewer_platform_user_id = 2;
+}
+message WebGetGameAchievementsResponse {
+  repeated WebAchievementItem items = 1;
+}
+
+message WebRankEntry {
+  string platform_user_id = 1;
+  string display_name = 2;
+  string avatar_url = 3;
+  double score_value = 4;
+  int64 match_count_value = 5;
+}
+
+message WebGetGameRankingsRequest {
+  string platform = 1;
+  string game_name = 2;
+  WebTimeRange time_range = 3;
+  uint32 top_n = 4;
+}
+message WebGetGameRankingsResponse {
+  repeated WebRankEntry level_score = 1;
+  repeated WebRankEntry weighted_level_score = 2;
+  repeated WebRankEntry match_count = 3;
+}
+
+message WebGameLevelRow {
+  string game_name = 1;
+  uint64 count = 2;
+  double total_level_score = 3;
+}
+message WebRecentMatchRow {
+  string game_name = 1;
+  string finish_time = 2;
+  int64 user_count = 3;
+  uint32 multiple = 4;
+  int64 game_score = 5;
+  int64 zero_sum_score = 6;
+  int64 top_score = 7;
+  double level_score = 8;
+  int64 rank_score = 9;
+}
+message WebRecentHonorRow {
+  int32 id = 1;
+  string description = 2;
+  string time = 3;
+}
+message WebRecentAchievementRow {
+  string game_name = 1;
+  string achievement_name = 2;
+  string achievement_description = 3;
+  string time = 4;
+}
+
+message WebUserProfileRequest {
+  string platform = 1;
+  string platform_user_id = 2;
+  WebTimeRange time_range = 3;
+}
+message WebUserProfileResponse {
+  int64 total_zero_sum_score = 1;
+  int64 total_top_score = 2;
+  int64 match_count = 3;
+  string birth_time = 4;
+  repeated WebGameLevelRow game_levels = 5;
+  repeated WebRecentMatchRow recent_matches = 6;
+  repeated WebRecentHonorRow recent_honors = 7;
+  repeated WebRecentAchievementRow recent_achievements = 8;
 }
 
 message StartGameRequest {
@@ -136,4 +263,10 @@ service LGTBotService {
   rpc RecordChatMessage(RecordChatMessageRequest) returns (RecordChatMessageResponse);
   rpc GetGameList(GetGameListRequest) returns (GetGameListResponse);
   rpc StartGame(StartGameRequest) returns (StartGameResponse);
+
+  rpc WebListGameMatches(WebListGameMatchesRequest) returns (WebListGameMatchesResponse);
+  rpc WebGetGameRule(WebGetGameRuleRequest) returns (WebGetGameRuleResponse);
+  rpc WebGetGameAchievements(WebGetGameAchievementsRequest) returns (WebGetGameAchievementsResponse);
+  rpc WebGetGameRankings(WebGetGameRankingsRequest) returns (WebGetGameRankingsResponse);
+  rpc WebUserProfile(WebUserProfileRequest) returns (WebUserProfileResponse);
 }

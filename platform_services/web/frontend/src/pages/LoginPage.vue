@@ -24,7 +24,7 @@ async function doLogin() {
     if (!res.ok) throw new Error(await res.text())
     const data = (await res.json()) as { token: string; username: string }
     auth.setSession(data.token, data.username)
-    const redir = typeof route.query.redirect === 'string' ? route.query.redirect : '/lobby'
+    const redir = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
     router.push(redir)
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'login failed'
@@ -45,7 +45,7 @@ async function doRegister() {
     if (!res.ok) throw new Error(await res.text())
     const data = (await res.json()) as { token: string; username: string }
     auth.setSession(data.token, data.username)
-    router.push('/lobby')
+    router.push('/')
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : 'register failed'
   } finally {

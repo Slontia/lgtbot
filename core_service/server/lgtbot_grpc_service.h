@@ -56,6 +56,17 @@ class LgtbotGrpcService final : public lgtbot::LGTBotService::Service {
     grpc::Status StartGame(grpc::ServerContext* ctx, const lgtbot::StartGameRequest* req,
             lgtbot::StartGameResponse* resp) override;
 
+    grpc::Status WebListGameMatches(grpc::ServerContext* ctx, const lgtbot::WebListGameMatchesRequest* req,
+            lgtbot::WebListGameMatchesResponse* resp) override;
+    grpc::Status WebGetGameRule(grpc::ServerContext* ctx, const lgtbot::WebGetGameRuleRequest* req,
+            lgtbot::WebGetGameRuleResponse* resp) override;
+    grpc::Status WebGetGameAchievements(grpc::ServerContext* ctx, const lgtbot::WebGetGameAchievementsRequest* req,
+            lgtbot::WebGetGameAchievementsResponse* resp) override;
+    grpc::Status WebGetGameRankings(grpc::ServerContext* ctx, const lgtbot::WebGetGameRankingsRequest* req,
+            lgtbot::WebGetGameRankingsResponse* resp) override;
+    grpc::Status WebUserProfile(grpc::ServerContext* ctx, const lgtbot::WebUserProfileRequest* req,
+            lgtbot::WebUserProfileResponse* resp) override;
+
     void OnGetUserName(char* buffer, size_t size, const char* user_id);
     void OnGetUserNameInGroup(char* buffer, size_t size, const char* group_id, const char* user_id);
     int OnDownloadUserAvatar(const char* user_id, const char* dest_filename);
@@ -64,6 +75,7 @@ class LgtbotGrpcService final : public lgtbot::LGTBotService::Service {
   private:
     PushQueue* QueueForPlatform(const std::string& platform);
     std::string CacheKey(const std::string& platform, const std::string& uid) const;
+    std::string AvatarRelUrlForUser(const std::string& platform, const std::string& uid) const;
 
     void* bot_{nullptr};
     std::string image_root_;
@@ -72,7 +84,7 @@ class LgtbotGrpcService final : public lgtbot::LGTBotService::Service {
     std::mutex queues_mu_;
     std::unordered_map<std::string, std::unique_ptr<PushQueue>> push_queues_;
 
-    std::mutex cache_mu_;
+    mutable std::mutex cache_mu_;
     std::unordered_map<std::string, UserCacheEntry> user_cache_;
 
     std::atomic<uint64_t> event_seq_{0};

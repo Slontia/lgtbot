@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -25,6 +28,13 @@ func getenv(key, def string) string {
 }
 
 func main() {
+	gamePathFlag := flag.String("game-path", "",
+		"Directory that contains game plugin folders (same as lgtbot_grpc_server — use absolute path when possible); overrides LGTBOT_GAME_PATH if set.")
+	imagePathFlag := flag.String("image-path", "",
+		"Avatar / core image filesystem root (same as lgtbot_grpc_server LGTBOT_IMAGE_PATH / --image-path); overrides LGTBOT_IMAGE_PATH if set.")
+
+	flag.Parse()
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -33,6 +43,31 @@ func main() {
 	jwtSecret := getenv("JWT_SECRET", "dev-change-me")
 	platform := getenv("LGTBOT_PLATFORM", "web")
 	dbPath := getenv("WEB_SQLITE_PATH", "./data/web_users.db")
+
+	gamePathRaw := strings.TrimSpace(*gamePathFlag)
+	if gamePathRaw == "" {
+		gamePathRaw = getenv("LGTBOT_GAME_PATH", "plugins")
+	}
+	gamePluginsAbs, err := filepath.Abs(filepath.Clean(gamePathRaw))
+	if err != nil {
+		log.Fatalf("game path: resolve absolute path: %v", err)
+	}
+	fi, err := os.Stat(gamePluginsAbs)
+	if err != nil {
+		log.Fatalf("game plugins path not accessible (%s): %v", gamePluginsAbs, err)
+	}
+	if !fi.IsDir() {
+		log.Fatalf("game plugins path is not a directory: %s", gamePluginsAbs)
+	}
+
+	imagePathRaw := strings.TrimSpace(*imagePathFlag)
+	if imagePathRaw == "" {
+		imagePathRaw = getenv("LGTBOT_IMAGE_PATH", "/tmp/lgtbot_images")
+	}
+	imageRootAbs, err := filepath.Abs(filepath.Clean(imagePathRaw))
+	if err != nil {
+		log.Fatalf("image path: resolve absolute path: %v", err)
+	}
 
 	if err := os.MkdirAll("./data", 0755); err != nil {
 		log.Fatal(err)
@@ -57,7 +92,7 @@ func main() {
 	waitCtx, waitCancel := context.WithTimeout(ctx, time.Duration(waitSec)*time.Second)
 	if err := bot.WaitForCore(waitCtx, bc); err != nil {
 		waitCancel()
-		log.Fatalf("core_service 未就绪（请在另一终端启动 lgtbot_grpc_server，且 UDS/TCP 地址与 LGTBOT_GRPC_ADDR 一致）: %v", err)
+		log.Fatalf("core_service not ready (start lgtbot_grpc_server in another terminal; LGTBOT_GRPC_ADDR must match socket/TCP address): %v", err)
 	}
 	waitCancel()
 
@@ -68,9 +103,9 @@ func main() {
 	h := hub.NewHub(bc, platform, pushCh)
 	go h.Run(ctx)
 
-	apiSrv := api.New(store, bc, h, jwtSecret, platform)
+	apiSrv := api.New(store, bc, h, jwtSecret, platform, gamePluginsAbs, imageRootAbs)
 
-	log.Printf("listening HTTP %s (grpc %s platform=%s)", httpAddr, grpcAddr, platform)
+	log.Printf("listening HTTP %s (grpc %s platform=%s game_plugins=%s image_root=%s)", httpAddr, grpcAddr, platform, gamePluginsAbs, imageRootAbs)
 	srv := &http.Server{
 		Addr:              httpAddr,
 		Handler:           cors(apiSrv.Router),

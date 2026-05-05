@@ -108,7 +108,7 @@ static bool LoadGame(const std::string& lib_path, const std::string& config_runn
     } guard{mod};
 
     try {
-        lgtbot::game::GameInfo game_info;
+        lgtbot::game::GameInfo game_info{};
         reinterpret_cast<void(*)(lgtbot::game::GameInfo*)>(load_proc("GetGameInfo"))(&game_info);
 
         // Get default max_player and multiple from a temporary options object
@@ -124,6 +124,7 @@ static bool LoadGame(const std::string& lib_path, const std::string& config_runn
         GameHandle::BasicInfo basic_info = *game_info.properties_;
         basic_info.module_name_ = game_info.module_name_;
         basic_info.rule_ = game_info.rule_;
+        basic_info.pure_rule_ = game_info.pure_rule_ ? game_info.pure_rule_ : "";
         basic_info.achievements_ = FillAchievements(std::span(game_info.achievements_.data_, game_info.achievements_.size_));
 
         game_handles.emplace(std::piecewise_construct,

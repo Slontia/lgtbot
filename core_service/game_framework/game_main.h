@@ -98,6 +98,7 @@ struct GameInfo
     const GameProperties* properties_{nullptr};
     const char* module_name_{nullptr};
     const char* rule_{nullptr};
+    const char* pure_rule_{nullptr}; // rule.md content only, without appended command hints
     struct {
         const GameAchievement* data_{nullptr};
         uint32_t size_{0};
