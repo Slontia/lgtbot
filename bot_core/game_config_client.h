@@ -42,6 +42,13 @@ class GameConfigClient
     // Returns empty string on failure.
     std::string QueryOptionInfo(bool text_mode);
 
+    // Returns the option info text for a match with its own applied_options_log
+    // and init_options_args applied on top of fresh defaults. Used by Match::Help_
+    // and Match::OptionInfo_ in the lobby state.
+    std::string QueryMatchOptionInfo(bool text_mode,
+                                     const std::vector<std::string>& applied_options_log,
+                                     const std::string& init_options_args);
+
     // Sets a default option. Updates max_player/multiple on success.
     // Returns false on failure.
     bool SetDefaultOption(const std::string& text, uint64_t& max_player, uint32_t& multiple);

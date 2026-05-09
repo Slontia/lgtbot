@@ -111,6 +111,17 @@ bool MatchChildClient::SendSetOption(const std::string& text)
     return resp.ParseFromString(raw) && resp.has_ack() && resp.ack().ok();
 }
 
+bool MatchChildClient::SendApplyInitOptions(const std::string& args)
+{
+    lgtbot::ipc::GameRequest req;
+    req.mutable_apply_init_options()->set_args(args);
+    if (!WriteProto(req)) return false;
+    std::string raw;
+    if (!ReadFrame(child_out_, raw)) return false;
+    lgtbot::ipc::GameResponse resp;
+    return resp.ParseFromString(raw) && resp.has_ack() && resp.ack().ok();
+}
+
 bool MatchChildClient::SendStart(const uint64_t match_id, const uint32_t user_num,
                                  const std::vector<lgtbot::ipc::PlayerInfo>& players,
                                  std::vector<PushFrame>& push_frames_out)

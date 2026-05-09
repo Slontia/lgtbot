@@ -141,6 +141,33 @@ bool ChildConfigSession::HandleQueryOptionInfo(const lgtbot::ipc::QueryOptionInf
     return true;
 }
 
+bool ChildConfigSession::HandleQueryMatchOptionInfo(const lgtbot::ipc::QueryMatchOptionInfoReq& req)
+{
+    lgtbot::ipc::ConfigResponse resp;
+    auto* info = resp.mutable_option_info();
+    game_options_ptr opts(module_.alloc_opt_(), module_.del_opt_);
+    if (!opts) {
+        info->set_ok(false);
+        SendProto(resp);
+        return true;
+    }
+    for (const auto& opt : req.applied_options_log()) {
+        opts->SetOption(opt.c_str());
+    }
+    if (!req.init_options_args().empty() && module_.init_options_) {
+        lgtbot::game::MutableGenericOptions generic_options{};
+        generic_options.is_formal_ = default_is_formal_;
+        // The result is intentionally ignored: invalid init args were already
+        // rejected at NewMatch time, so anything we receive here was previously
+        // accepted and is safe to re-apply.
+        module_.init_options_(req.init_options_args().c_str(), opts.get(), &generic_options);
+    }
+    info->set_ok(true);
+    info->set_text(opts->Info(true, !req.text_mode()));
+    SendProto(resp);
+    return true;
+}
+
 bool ChildConfigSession::HandleSetDefaultOption(const lgtbot::ipc::SetDefaultOptionReq& req)
 {
     const bool ok = default_options_ && default_options_->SetOption(req.text().c_str());
@@ -254,6 +281,9 @@ int ChildConfigSession::RunLoop()
             return 0;
         case lgtbot::ipc::ConfigRequest::kQueryOptionInfo:
             HandleQueryOptionInfo(req.query_option_info());
+            break;
+        case lgtbot::ipc::ConfigRequest::kQueryMatchOptionInfo:
+            HandleQueryMatchOptionInfo(req.query_match_option_info());
             break;
         case lgtbot::ipc::ConfigRequest::kSetDefaultOption:
             HandleSetDefaultOption(req.set_default_option());
