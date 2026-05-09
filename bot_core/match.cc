@@ -76,6 +76,7 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, InitOption
         , host_uid_(host_uid)
         , gid_(gid)
         , applied_options_log_(std::move(init_options.applied_options_log_))
+        , init_options_args_(std::move(init_options.init_options_args_))
         , group_sender_(gid.has_value() ? std::optional<MsgSender>(bot.MakeMsgSender(*gid_, this)) : std::nullopt)
 {
     options_.resource_holder_.resource_dir_ =
@@ -232,6 +233,12 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         }
         return rc;
     }
+    {
+        MsgReader reader(msg);
+        if (help_cmd_.CallIfValid(reader, reply)) {
+            return EC_GAME_REQUEST_OK;
+        }
+    }
     if (uid != host_uid_) {
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_();
         return EC_MATCH_NOT_HOST;
@@ -306,6 +313,11 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
             game_child_.reset();
             return EC_MATCH_UNEXPECTED_CONFIG;
         }
+    }
+    if (!init_options_args_.empty() && !game_child_->SendApplyInitOptions(init_options_args_)) {
+        reply() << "[错误] 开始失败：无法同步预设指令到子进程";
+        game_child_.reset();
+        return EC_MATCH_UNEXPECTED_CONFIG;
     }
     std::vector<lgtbot::ipc::PlayerInfo> players_for_child;
     players_for_child.reserve(players_.size());
@@ -723,7 +735,8 @@ void Match::BriefInfo_(std::string& out) const
 
 std::string Match::OptionInfo_() const
 {
-    return game_handle_.ConfigClient().QueryOptionInfo(true /* text_mode */);
+    return game_handle_.ConfigClient().QueryMatchOptionInfo(true /* text_mode */,
+            applied_options_log_, init_options_args_);
 }
 
 void Match::ApplyChildPlayerState(const PlayerID pid, const std::string& state)
@@ -840,7 +853,8 @@ void Match::Help_(MsgSenderBase& reply, const bool text_mode)
         }
         return;
     }
-    const std::string remote_opts = game_handle_.ConfigClient().QueryOptionInfo(text_mode);
+    const std::string remote_opts = game_handle_.ConfigClient().QueryMatchOptionInfo(text_mode,
+            applied_options_log_, init_options_args_);
     std::string outstr = "## 当前可使用的游戏命令";
     outstr += "\n\n### 查看信息";
     outstr += "\n1. " + help_cmd_.Info(true /* with_example */, !text_mode /* with_html_color */);

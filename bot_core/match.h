@@ -51,6 +51,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         uint32_t bench_computers_to_player_num_{0};
         bool is_formal_{true};
         std::vector<std::string> applied_options_log_;
+        std::string init_options_args_;
     };
 
     Match(BotCtx& bot, const MatchID id, GameHandle& game_handle, InitOptions init_options,
@@ -203,6 +204,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     std::unique_ptr<MatchChildClient> game_child_;
     std::thread read_thread_;
     std::vector<std::string> applied_options_log_;
+    std::string init_options_args_;
 
     // user info
     std::map<UserID, ParticipantUser> users_;

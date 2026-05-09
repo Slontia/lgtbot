@@ -146,6 +146,34 @@ std::string GameConfigClient::QueryOptionInfo(const bool text_mode)
     return {};
 }
 
+std::string GameConfigClient::QueryMatchOptionInfo(const bool text_mode,
+                                                   const std::vector<std::string>& applied_options_log,
+                                                   const std::string& init_options_args)
+{
+    std::lock_guard<std::mutex> lk(mutex_);
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        if (!EnsureRunning_()) {
+            return {};
+        }
+        lgtbot::ipc::ConfigRequest req;
+        auto* q = req.mutable_query_match_option_info();
+        q->set_text_mode(text_mode);
+        for (const auto& line : applied_options_log) {
+            q->add_applied_options_log(line);
+        }
+        q->set_init_options_args(init_options_args);
+        lgtbot::ipc::ConfigResponse resp;
+        std::string req_bytes, resp_bytes;
+        if (!req.SerializeToString(&req_bytes)) return {};
+        if (!SendRecv_(req_bytes, resp_bytes)) continue;
+        if (!resp.ParseFromString(resp_bytes)) { Stop_(); continue; }
+        if (resp.has_option_info()) {
+            return resp.option_info().text();
+        }
+    }
+    return {};
+}
+
 bool GameConfigClient::SetDefaultOption(const std::string& text, uint64_t& max_player, uint32_t& multiple)
 {
     std::lock_guard<std::mutex> lk(mutex_);

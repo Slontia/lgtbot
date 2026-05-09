@@ -171,6 +171,10 @@ bool ChildGameSession::LoadModule(const std::string& lib_path, std::string& erro
     if (!error_out.empty()) {
         return false;
     }
+    module_.init_options_ = reinterpret_cast<init_options_command_handler>(sym("HandleInitOptionsCommand"));
+    if (!error_out.empty()) {
+        return false;
+    }
     const auto get_info = reinterpret_cast<void (*)(lgtbot::game::GameInfo*)>(sym("GetGameInfo"));
     if (!error_out.empty() || !get_info) {
         return false;
@@ -283,6 +287,30 @@ bool ChildGameSession::HandleInit(const lgtbot::ipc::InitReq& req, std::string& 
 bool ChildGameSession::HandleSetOption(const lgtbot::ipc::SetOptionReq& req, std::string& /*err*/)
 {
     const bool ok = game_options_ && game_options_->SetOption(req.text().c_str());
+    lgtbot::ipc::GameResponse resp;
+    resp.mutable_ack()->set_ok(ok);
+    SendProto(resp);
+    return true;
+}
+
+bool ChildGameSession::HandleApplyInitOptions(const lgtbot::ipc::ApplyInitOptionsReq& req, std::string& /*err*/)
+{
+    bool ok = false;
+    if (game_options_ && module_.init_options_) {
+        lgtbot::game::MutableGenericOptions mut{};
+        mut.bench_computers_to_player_num_ = generic_options_.bench_computers_to_player_num_;
+        mut.is_formal_ = generic_options_.is_formal_;
+        const auto result = module_.init_options_(req.args().c_str(), game_options_.get(), &mut);
+        if (result != lgtbot::game::INVALID_INIT_OPTIONS_COMMAND) {
+            ok = true;
+            lgtbot::game::ImmutableGenericOptions imm{};
+            imm.public_timer_alert_ = generic_options_.public_timer_alert_;
+            imm.user_num_ = generic_options_.user_num_;
+            imm.resource_dir_ = resource_dir_.c_str();
+            imm.saved_image_dir_ = saved_image_dir_.c_str();
+            generic_options_ = lgtbot::game::GenericOptions(imm, mut);
+        }
+    }
     lgtbot::ipc::GameResponse resp;
     resp.mutable_ack()->set_ok(ok);
     SendProto(resp);
@@ -425,6 +453,9 @@ int ChildGameSession::RunLoop()
             break;
         case lgtbot::ipc::GameRequest::kSetOption:
             HandleSetOption(req.set_option(), err);
+            break;
+        case lgtbot::ipc::GameRequest::kApplyInitOptions:
+            HandleApplyInitOptions(req.apply_init_options(), err);
             break;
         case lgtbot::ipc::GameRequest::kStart:
             HandleStart(req.start(), err);

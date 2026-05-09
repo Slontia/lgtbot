@@ -57,15 +57,18 @@ message LeaveReq { uint32 player_id = 1; }
 
 message HelpReq { bool text_mode = 1; }
 
+message ApplyInitOptionsReq { string args = 1; }
+
 message GameRequest {
   oneof req {
-    InitReq      init       = 1;
-    SetOptionReq set_option = 2;
-    StartReq     start      = 3;
-    ExecuteReq   execute    = 4;
-    LeaveReq     leave      = 5;
-    HelpReq      help       = 6;
-    bool         shutdown   = 7;  // true = terminate
+    InitReq             init               = 1;
+    SetOptionReq        set_option         = 2;
+    StartReq            start              = 3;
+    ExecuteReq          execute            = 4;
+    LeaveReq            leave              = 5;
+    HelpReq             help               = 6;
+    bool                shutdown           = 7;  // true = terminate
+    ApplyInitOptionsReq apply_init_options = 8;
   }
 }
 
@@ -129,16 +132,26 @@ message SetFormalReq        { bool value = 1; }
 message InitOptionsReq      { string args = 1; }
 message HandleRuleCommandReq { string args = 1; }
 
+// Compute option info as if a match started with the given log + init args.
+// Used by Match::Help_ / Match::OptionInfo_ in lobby state, where the match
+// has its own (potentially diverged) view of the options state.
+message QueryMatchOptionInfoReq {
+  bool            text_mode           = 1;
+  repeated string applied_options_log = 2;
+  string          init_options_args   = 3;
+}
+
 message ConfigRequest {
   oneof req {
-    QueryOptionInfoReq   query_option_info   = 1;
-    SetDefaultOptionReq  set_default_option  = 2;
-    SetFormalReq         set_formal          = 3;
-    bool                 query_formal        = 4;  // true = request
-    bool                 get_applied_log     = 5;  // true = request
-    InitOptionsReq       init_options        = 6;
-    bool                 shutdown            = 7;  // true = terminate
-    HandleRuleCommandReq handle_rule_command = 8;
+    QueryOptionInfoReq      query_option_info       = 1;
+    SetDefaultOptionReq     set_default_option      = 2;
+    SetFormalReq            set_formal              = 3;
+    bool                    query_formal            = 4;  // true = request
+    bool                    get_applied_log         = 5;  // true = request
+    InitOptionsReq          init_options            = 6;
+    bool                    shutdown                = 7;  // true = terminate
+    HandleRuleCommandReq    handle_rule_command     = 8;
+    QueryMatchOptionInfoReq query_match_option_info = 9;
   }
 }
 

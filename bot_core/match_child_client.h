@@ -113,6 +113,10 @@ class MatchChildClient
 
     [[nodiscard]] bool SendSetOption(const std::string& text);
 
+    // Apply preset commands (init_options) to the subprocess game options.
+    // Returns true if the args matched a preset command.
+    [[nodiscard]] bool SendApplyInitOptions(const std::string& args);
+
     // Sends "start", reads until "ack".  Push frames collected during start are
     // returned in push_frames_out for the caller to dispatch while it still holds
     // its own lock.  Call RunReadLoop() in a separate thread after this returns true.

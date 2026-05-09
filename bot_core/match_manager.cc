@@ -73,6 +73,7 @@ ErrCode MatchManager::NewMatch(GameHandle& game_handle, const std::string_view i
         options.bench_computers_to_player_num_ = bench;
         options.is_formal_ = is_formal;
         options.applied_options_log_ = game_handle.ConfigClient().GetAppliedLog();
+        options.init_options_args_ = std::string(init_options_args);
         new_match = std::make_shared<Match>(bot_, mid, game_handle, std::move(options), uid, gid);
         BindMatch_(mid, new_match);
         BindMatch_(uid, new_match);
