@@ -153,11 +153,7 @@ struct Player
     }
 
     // Calculate total score (base + permanent extra + valuable_one, with ZERO_RISK floor and DYSON_SPHERE bonus)
-    // counterattack extra is added AFTER floor/dyson so it doesn't inflate those calculations
     int32_t TotalScore() const;
-
-    // ZERO_RISK floor adjustment (how much the floor added)
-    int32_t ZeroRiskFloor() const;
 
     int32_t ZeroRiskBaseFloor() const;
 
@@ -232,6 +228,9 @@ struct Player
     // Update base score from board rescore result
     void UpdateScore(const ScoreResult& result, bool has_valuable_one);
 
+    // 仅刷新 permanent_extra_（保留 base_score_ / valuable_one_bonus_ 不动）。
+    void RefreshPermanentExtra();
+
     // Generate talent pool based on Python logic
     void GenerateTalentPool(std::mt19937& rng)
     {
@@ -253,10 +252,9 @@ struct Player
         } else {
             a_pick = 3;
         }
-        // 多维抉择：每次天赋候选额外提供 1 个 A 级 + 1 个 B 级（共 5 选 1）
-        if (HasTalent(Talent::多维抉择)) {
-            a_pick += 1;
-            b_pick += 1;
+        // 由各天赋通过 ModifyTalentPoolPicks 修改名额（如多维抉择 +1A+1B）。
+        for (const auto talent : talents_) {
+            talent_states_.at(talent)->ModifyTalentPoolPicks(*this, a_pick, b_pick);
         }
 
         std::vector<Talent> selected;
@@ -423,16 +421,7 @@ inline int32_t Player::TotalScore() const
     if (HasTalent(Talent::戴森球) && CountCompletedLength3Lines_() >= 6) {
         total = static_cast<int32_t>(std::ceil(total * 1.06));
     }
-    total += Counterattack().extra_score;
     return total;
-}
-
-inline int32_t Player::ZeroRiskFloor() const
-{
-    if (!HasTalent(Talent::零风险投资)) return 0;
-    const int32_t current = RawTotalScore() + TempBattleScore();
-    if (current >= ZeroRisk().max_total_score) return 0;
-    return ZeroRisk().max_total_score - current;
 }
 
 inline int32_t Player::ZeroRiskBaseFloor() const
@@ -462,6 +451,8 @@ inline int32_t Player::TempBattleScore() const
 
 inline int32_t Player::EffectiveTempBattleScore() const
 {
+    // 零风险投资的保底使 TotalScore 永远不低于 max_total_score；在保底已经把"消失的临时分"
+    // 顶上时，此处把当前临时分压制到不会与保底重复计入的程度，避免 PlayerBattleScore 双计。
     const int32_t temp = TempBattleScore();
     if (!HasTalent(Talent::零风险投资) || temp <= 0) return temp;
     const int32_t raw = RawTotalScore();
@@ -472,6 +463,7 @@ inline int32_t Player::EffectiveTempBattleScore() const
 inline void Player::UpdateZeroRiskMaxScore()
 {
     if (!HasTalent(Talent::零风险投资)) return;
+    // 跟踪 RawTotalScore + TempBattleScore 的历史峰值：含临时分的总分一旦达到，就不应再下降。
     const int32_t current = RawTotalScore() + TempBattleScore();
     if (current > ZeroRisk().max_total_score) {
         ZeroRisk().max_total_score = current;
@@ -487,6 +479,11 @@ inline int32_t Player::Heal(int32_t amount, bool can_double)
         }
     }
     hp_ += amount;
+    // 通知所有天赋此次最终的回血量。遍历 talent_states_ 而非 talents_：
+    // 「生命游戏」等需要从开局累计回血量的天赋，在被玩家获取之前也能记账。
+    for (auto& [talent, state] : talent_states_) {
+        state->OnHealApplied(*this, amount);
+    }
     return amount;
 }
 
@@ -495,6 +492,15 @@ inline void Player::UpdateScore(const ScoreResult& result, bool has_valuable_one
     base_score_ = result.base_score;
     permanent_extra_ = RecalcPermanentExtra_();
     valuable_one_bonus_ = has_valuable_one ? ValuableOneBonus() : 0;
+    UpdateZeroRiskMaxScore();
+}
+
+// 只刷新 permanent_extra_（与零风险上限），保留当前的 base_score_ 和 valuable_one_bonus_。
+// 适用于在没有 has_valuable_one 上下文的 hook（如 OnDamageReceived / OnHealApplied）
+// 内部累计了影响 PermanentExtraScore 的天赋状态后，需要立即让 permanent_extra_ 反映新值的情况。
+inline void Player::RefreshPermanentExtra()
+{
+    permanent_extra_ = RecalcPermanentExtra_();
     UpdateZeroRiskMaxScore();
 }
 

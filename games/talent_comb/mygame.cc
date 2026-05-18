@@ -7,6 +7,7 @@
 #include <array>
 #include <map>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <vector>
 #include <random>
@@ -167,7 +168,9 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
         , round_(0)
         , alive_(Global().PlayerNum())
         , player_out_(Global().PlayerNum(), 0)
+        , player_out_phase_(Global().PlayerNum(), 0)
         , player_leave_(Global().PlayerNum(), false)
+        , player_final_score_(Global().PlayerNum(), 0)
         , phase_(RoundPhase::放置)
         , fought_round_(0)
         , last_mirror_(-1)
@@ -187,6 +190,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
         random_card_rng_ = MakeSubRng(seed_generator);
         battle_rng_ = MakeSubRng(seed_generator);
         selection_order_rng_ = MakeSubRng(seed_generator);
+        random_talent_rng_ = MakeSubRng(seed_generator);
 
         // Special event
         int event_opt = GAME_OPTION(事件);
@@ -252,9 +256,17 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     virtual void NextStageFsm(TalentStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
     virtual void NextStageFsm(ActiveTalentStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
 
+    // 框架仅在游戏结束时取一次作为入库 game_score。
+    // 生产构建：返回按淘汰名次结算的 player_final_score_（DoGameOver_ 已写入）。
+    // 测试构建（TEST_BOT）：返回盘面+天赋原分，让历史 AUTO_PLAY_TEST 的固定期望值
+    //   不受新名次计分影响；名次计分的逻辑通过手算验证 + 框架级集成测试覆盖。
     int64_t PlayerScore(const PlayerID pid) const override
     {
+#ifdef TEST_BOT
         return players_[pid].TotalScore();
+#else
+        return player_final_score_[pid];
+#endif
     }
 
     int64_t PlayerBattleScore(const PlayerID pid) const
@@ -286,28 +298,33 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     }
 
     // ===== Battle System (implemented in talent_impl.h) =====
-    bool DoBattle_();
-    void ApplyDamage_(PlayerID pid, int32_t damage);
-    void ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror, std::string& result);
+    // sender 由调用方持有，DoBattle_ 与 DoEliminationAfterBattle_ 共用，使对战结果与玩家淘汰播报合并为一条消息。
+    bool DoBattle_(MsgSenderBase::MsgSenderGuard& sender);
+    // 返回 OnLethalDamage 触发的播报文本
+    std::string ApplyDamage_(PlayerID pid, int32_t damage);
+    void ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror, std::string& result,
+                        std::optional<int64_t> mirror_battle_score = std::nullopt,
+                        std::optional<int32_t> mirror_base_score = std::nullopt);
     int32_t ApplyAttackTalents_(PlayerID attacker, PlayerID defender, int32_t damage);
     int32_t ApplyDefenseTalents_(PlayerID defender, int32_t damage);
-    void ApplyDefeatTalents_(PlayerID loser, bool mirror, int32_t& damage, std::string& result);
-    void ApplyVictoryTalents_(PlayerID winner, bool mirror, std::string& result);
-    void DoEliminationAfterBattle_();
+    void ApplyDefeatTalents_(PlayerID loser, bool mirror, int32_t& damage,
+                             int64_t my_battle_score, int64_t opp_battle_score, std::string& result);
+    void ApplyVictoryTalents_(PlayerID winner, bool mirror,
+                              int64_t my_battle_score, int64_t opp_battle_score, std::string& result);
+    void DoEliminationAfterBattle_(MsgSenderBase::MsgSenderGuard& sender);
+    std::optional<PlayerID> FindKillerFromFightMap_(PlayerID victim) const;
     void DoPoison_();
 
-    // Clear 绝地反击 extra for players who carried it into this real battle.
-    // Newly triggered extra must survive until the next real battle ends; skipped
-    // battle phases such as selection rounds do not consume it.
-    void ClearCounterattackAfterRound_()
+    // 真实对战阶段结束（DoBattle_ 确实发生了对战）后逐 alive 玩家分发 OnBattlePhaseEnd hook。
+    // 例如「绝地反击」会在 trigger_round < round_ 时清空 extra_score。
+    // 跳过对战的阶段（选牌轮 / 紧急救援）不会触发本调用，所以相关状态会继续保留到下一次真实对战。
+    void OnBattlePhaseEnd_()
     {
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             if (player_out_[pid] != 0) continue;
             auto& p = players_[pid];
-            if (p.Counterattack().triggered && p.Counterattack().trigger_round < round_) {
-                p.Counterattack().triggered = false;
-                p.Counterattack().extra_score = 0;
-                p.Counterattack().trigger_round = 0;
+            for (const auto talent : p.talents_) {
+                p.talent_states_.at(talent)->OnBattlePhaseEnd(p, round_);
             }
         }
     }
@@ -333,6 +350,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     // Check if any player needs talent choice
     bool AnyPendingTalentChoice_() const
     {
+        if (IsTestMode_()) return false;
         for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
             if (player_out_[pid] != 0) continue;
             // Player already has a filled talent pool (ready to choose)
@@ -349,6 +367,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     // Generate talent pools for qualifying players
     void PrepareNewTalentChoices_()
     {
+        if (IsTestMode_()) return;
         for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
             if (player_out_[pid] != 0) continue;
             auto& player = players_[pid];
@@ -358,6 +377,15 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
                 player.GenerateTalentPool(talent_rng_);
             }
         }
+    }
+
+    bool IsTestMode_() const
+    {
+#ifdef TEST_BOT
+        return !GAME_OPTION(天赋).empty();
+#else
+        return false;
+#endif
     }
 
     // Check if any player has extra cards to place or choices to make
@@ -398,7 +426,12 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     int32_t alive_;
     std::vector<Player> players_;
     std::vector<int32_t> player_out_;
+    // 与 player_out_ 平行：记录该玩家淘汰发生在本回合的哪个阶段，用于排名差别。
+    // 0=存活，1=对战阶段淘汰，2=中毒阶段淘汰（中毒结算在对战之后，因此排名更优）。
+    std::vector<int32_t> player_out_phase_;
     std::vector<bool> player_leave_;
+    // DoGameOver_ 中由 ComputeRankScores_ 填入；提交给框架作 game_score 的最终名次分。
+    std::vector<int64_t> player_final_score_;
     SpecialEvent special_event_;
     RoundPhase phase_;
 
@@ -414,6 +447,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     std::mt19937 random_card_rng_;
     std::mt19937 battle_rng_;
     std::mt19937 selection_order_rng_;
+    std::mt19937 random_talent_rng_;
     std::string seed_str_;
 
     // Battle state
@@ -431,6 +465,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
 
     // Game over
     void DoGameOver_();
+    void ComputeRankScores_();
 
     std::string ApplyImmediateTalentEffects_(PlayerID pid, Talent talent);
 
@@ -463,7 +498,7 @@ std::string MainStage::ApplyImmediateTalentEffects_(PlayerID pid, Talent talent)
                 if (t != Talent::潘多拉魔盒) avail.push_back(t);
             }
             if (!avail.empty()) {
-                SeededShuffle(avail.begin(), avail.end(), talent_rng_);
+                SeededShuffle(avail.begin(), avail.end(), random_talent_rng_);
                 Talent result = avail[0];
                 // Replace SLOT_MACHINE with the drawn talent in talents_
                 auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::摇奖机);
@@ -485,7 +520,7 @@ std::string MainStage::ApplyImmediateTalentEffects_(PlayerID pid, Talent talent)
                 if (t != Talent::摇奖机) avail.push_back(t);
             }
             if (avail.size() >= 2) {
-                SeededShuffle(avail.begin(), avail.end(), talent_rng_);
+                SeededShuffle(avail.begin(), avail.end(), random_talent_rng_);
                 Talent t1 = avail[0], t2 = avail[1];
                 // Replace PANDORA_BOX with first talent
                 auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::潘多拉魔盒);
@@ -782,21 +817,22 @@ class SelectStage : public SubGameStage<>
             }
         }
         SeededShuffle(current_players_.begin(), current_players_.end(), Main().selection_order_rng_);
-        std::sort(current_players_.begin(), current_players_.end(), [this](const PlayerID& p1, const PlayerID& p2) {
+        auto priority = [this](PlayerID p) -> int32_t {
+            int32_t best = INT32_MAX;
+            auto& player = Main().players_[p];
+            for (const auto talent : player.talents_) {
+                best = std::min(best, player.talent_states_.at(talent)->SelectionPriority(player));
+            }
+            return best;
+        };
+        std::sort(current_players_.begin(), current_players_.end(), [this, &priority](const PlayerID& p1, const PlayerID& p2) {
+            const int32_t pr1 = priority(p1), pr2 = priority(p2);
+            if (pr1 != pr2) return pr1 < pr2;
             auto& player1 = Main().players_[p1];
             auto& player2 = Main().players_[p2];
-            // 紧急救援 (unused): highest priority
-            bool er1 = player1.HasTalent(Talent::紧急救援) && !player1.EmergencyRescue().used;
-            bool er2 = player2.HasTalent(Talent::紧急救援) && !player2.EmergencyRescue().used;
-            if (er1 != er2) return er1;
-            // 占得先机 priority next
-            if (player1.Seize().selection_priority != player2.Seize().selection_priority) {
-                return player1.Seize().selection_priority < player2.Seize().selection_priority;
-            }
-            if (player1.hp_ != player2.hp_) {
-                return player1.hp_ < player2.hp_;
-            }
-            return Main().PlayerScore(p1) < Main().PlayerScore(p2);
+            if (player1.hp_ != player2.hp_) return player1.hp_ < player2.hp_;
+            // 用盘面总分 PlayerRawTotalScore 不能用 PlayerScore：它现在返回名次分，游戏中固定为 0
+            return Main().PlayerRawTotalScore(p1) < Main().PlayerRawTotalScore(p2);
         });
 
         // Draw n+1 cards from pool2
@@ -958,28 +994,28 @@ class SelectStage : public SubGameStage<>
         avatar_table.SetTableStyle("cellpadding=\"0\" cellspacing=\"5\"");
         avatar_table.Get(0, 0).SetContent("　<b>选卡顺序：</b>");
         for (size_t i = 0; i < current_players_.size(); ++i) {
-            std::string avatar = Global().PlayerAvatar(current_players_[i], 40);
-            if (Main().is_emergency_select_
-                       && Main().players_[current_players_[i]].HasTalent(Talent::紧急救援)
-                       && !Main().players_[current_players_[i]].EmergencyRescue().used) {
-                // 紧急救援 triggered: rainbow border (gold + thick border as fallback)
+            const PlayerID pid = current_players_[i];
+            auto& player = Main().players_[pid];
+            const bool is_last = (i == current_players_.size() - 1);
+            // 通用 dispatch：取所有已获取天赋的非空 SelectionBorderStyle，按 SelectionPriority 升序选最优先的。
+            std::string best_style;
+            int32_t best_pri = INT32_MAX;
+            for (const auto talent : player.talents_) {
+                auto& state = player.talent_states_.at(talent);
+                std::string s = state->SelectionBorderStyle(player, is_last);
+                if (s.empty()) continue;
+                const int32_t pri = state->SelectionPriority(player);
+                if (pri < best_pri) {
+                    best_pri = pri;
+                    best_style = std::move(s);
+                }
+            }
+            std::string avatar = Global().PlayerAvatar(pid, 40);
+            if (!best_style.empty()) {
                 avatar = "<div style=\"position:relative;display:inline-block;width:40px;height:40px;\">"
                          + avatar +
                          "<div style=\"position:absolute;top:0;left:0;width:36px;height:36px;"
-                         "border:2px solid #FFD700;border-radius:50%;pointer-events:none;"
-                         "box-shadow:0 0 4px #FF6347,0 0 8px #FFD700;\"></div></div>";
-            } else if (Main().players_[current_players_[i]].HasTalent(Talent::占得先机)) {
-                avatar = "<div style=\"position:relative;display:inline-block;width:40px;height:40px;\">"
-                         + avatar +
-                         "<div style=\"position:absolute;top:0;left:0;width:36px;height:36px;"
-                         "border:2px solid red;border-radius:50%;pointer-events:none;\"></div></div>";
-            } else if (i == current_players_.size() - 1
-                       && Main().players_[current_players_[i]].HasTalent(Talent::尾货处理)) {
-                // Last player with 尾货处理: bright cyan border
-                avatar = "<div style=\"position:relative;display:inline-block;width:40px;height:40px;\">"
-                         + avatar +
-                         "<div style=\"position:absolute;top:0;left:0;width:36px;height:36px;"
-                         "border:2px solid #00E5FF;border-radius:50%;pointer-events:none;\"></div></div>";
+                         + best_style + "border-radius:50%;pointer-events:none;\"></div></div>";
             }
             avatar_table.Get(0, i + 1).SetContent(avatar);
         }
@@ -1029,7 +1065,7 @@ class ExtraCardStage : public SubGameStage<>
     {
         if (pending_players_.empty()) return;
         // Show board status
-        Global().Boardcast() << Markdown{Main().CombHtml("## 额外砖块选择阶段")};
+        Global().Boardcast() << Markdown{Main().CombHtml("## 第 " + std::to_string(Main().round_) + " 回合[额外砖块选择阶段]")};
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             Global().SetReady(pid);
         }
@@ -1091,7 +1127,7 @@ class ExtraCardStage : public SubGameStage<>
         auto& player = Main().players_[pid];
         if (player.extra_card_queue_.empty()) return;
         // Re-broadcast board
-        Global().Boardcast() << Markdown{Main().CombHtml("## 额外砖块选择阶段")};
+        Global().Boardcast() << Markdown{Main().CombHtml("## 第 " + std::to_string(Main().round_) + " 回合[额外砖块选择阶段]")};
         const auto& entry = CurrentEntry_(player);
         if (IsMultiCard_(entry)) {
             auto sender = Global().Boardcast();
@@ -1116,7 +1152,7 @@ class ExtraCardStage : public SubGameStage<>
         if (entry.cards.empty()) return;
 
         // Re-broadcast board status after placement
-        Global().Boardcast() << Markdown{Main().CombHtml("## 额外砖块选择阶段")};
+        Global().Boardcast() << Markdown{Main().CombHtml("## 第 " + std::to_string(Main().round_) + " 回合[额外砖块选择阶段]")};
 
         auto sender = Global().Boardcast();
         sender << At(pid) << " 请继续选择（剩余 " << entry.cards.size() << " 张）：";
@@ -1267,7 +1303,7 @@ class ExtraCardStage : public SubGameStage<>
             pending_players_.erase(pending_players_.begin());
             if (pending_players_.empty()) return StageErrCode::CHECKOUT;
             // Re-broadcast board when switching to next player
-            Global().Boardcast() << Markdown{Main().CombHtml("## 额外砖块选择阶段")};
+            Global().Boardcast() << Markdown{Main().CombHtml("## 第 " + std::to_string(Main().round_) + " 回合[额外砖块选择阶段]")};
         }
 
         StartNextPlayer_();
@@ -1474,42 +1510,28 @@ class TalentStage : public SubGameStage<>
     virtual void OnStageBegin() override
     {
         // Boardcast player boards before choosing talents
-        Global().Boardcast() << Markdown{Main().CombHtml("## 天赋选择阶段")};
+        Global().Boardcast() << Markdown{Main().CombHtml("## 第 " + std::to_string(Main().round_) + " 回合[天赋选择阶段]")};
 
-        // Pre-process: handle 我全都要 for qualifying players
+        // 时间锚：在玩家进入"下一次"天赋选择前恢复 HP。仅对持有非空候选池的玩家生效，
+        // 避免本回合根本不参与天赋选择的玩家被错误触发。
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             if (Main().player_out_[pid] != 0) continue;
             auto& player = Main().players_[pid];
-            if (player.talent_pool_.empty() || !player.HasTalent(Talent::我全都要)) continue;
-
-            // Remove WANT_ALL from talents
-            auto wit = std::find(player.talents_.begin(), player.talents_.end(), Talent::我全都要);
-            if (wit != player.talents_.end()) player.talents_.erase(wit);
-
-            // Acquire all talents in pool (counts as one selection)
-            std::vector<Talent> acquired(player.talent_pool_.begin(), player.talent_pool_.end());
-            for (auto t : acquired) {
-                player.talents_.push_back(t);
-                player.available_a_.erase(t);
-                player.available_b_.erase(t);
+            if (player.talent_pool_.empty()) continue;
+            if (!player.HasTalent(Talent::时间锚)) continue;
+            auto& anchor = player.TalentStateAs<TimeAnchorTalent>(Talent::时间锚);
+            const int32_t old_hp = player.hp_;
+            if (anchor.Restore(player)) {
+                Global().Boardcast() << At(pid) << " 触发天赋「时间锚」，血量从 " << old_hp
+                                     << " 重置为 " << player.hp_;
             }
-            player.talent_pool_.clear();
-            ++player.talent_selection_count_;
+        }
 
-            std::string msg = " 触发天赋「我全都要」！获得全部天赋：";
-            for (size_t i = 0; i < acquired.size(); ++i) {
-                msg += "\n「" + std::string(TalentName(acquired[i])) + "」——" + std::string(TalentDescription(acquired[i]));
-                // Apply talent's immediate effects
-                Main().ApplyImmediateTalentEffects_(pid, acquired[i]);
-            }
-            Global().Boardcast() << At(pid) << msg;
-
-            // Check cascading talent qualification (WANT_ALL was removed so won't re-trigger)
-            uint32_t line_count = player.comb_->LineCount();
-            if (player.talent_selection_count_ < line_count / 3) {
-                player.GenerateTalentPool(Main().talent_rng_);
-                // Will go through normal selection flow below
-            }
+        // 玩家若以"已拥有我全都要"的状态进入本回合 TalentStage（上一轮选中后存到 talents_），
+        // 本次候选池就是"下次选择"——直接触发吞噬。
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            if (Main().player_out_[pid] != 0) continue;
+            TriggerWantAllIfHeld_(pid);
         }
 
         // Set ready for players who don't need to choose
@@ -1540,6 +1562,47 @@ class TalentStage : public SubGameStage<>
     }
 
   private:
+    // 玩家拥有「我全都要」 + 候选池非空时，立刻把池内全部天赋发给玩家、移除「我全都要」、
+    // talent_selection_count_ +1、依次走 ApplyImmediateTalentEffects_、播报"获得全部天赋"，
+    // 并在仍满足下一次选择资格时补一个新候选池供玩家手动选择。
+    // 「我全都要」每局唯一，吞噬后即被移除，因此至多触发一次，不需要循环。
+    // 调用方需保证不在玩家"刚刚选中我全都要那一刻"调用 —— 实际只有两处：
+    //   1) OnStageBegin：玩家以已拥有的状态进入本回合 TalentStage
+    //   2) Choose_ 的级联：玩家选完一张天赋、产生新候选池之后
+    void TriggerWantAllIfHeld_(PlayerID pid)
+    {
+        auto& player = Main().players_[pid];
+        if (player.talent_pool_.empty()) return;
+        if (!player.HasTalent(Talent::我全都要)) return;
+
+        auto it = std::find(player.talents_.begin(), player.talents_.end(), Talent::我全都要);
+        if (it != player.talents_.end()) player.talents_.erase(it);
+
+        std::vector<Talent> acquired(player.talent_pool_.begin(), player.talent_pool_.end());
+        for (auto t : acquired) {
+            player.talents_.push_back(t);
+            player.available_a_.erase(t);
+            player.available_b_.erase(t);
+        }
+        player.talent_pool_.clear();
+        ++player.talent_selection_count_;
+        if (player.first_talent_round_ == 0) {
+            player.first_talent_round_ = Main().round_;
+        }
+
+        std::string msg = " 触发天赋「我全都要」！获得全部天赋：";
+        for (auto t : acquired) {
+            msg += "\n「" + std::string(TalentName(t)) + "」——" + std::string(TalentDescription(t));
+            Main().ApplyImmediateTalentEffects_(pid, t);
+        }
+        Global().Boardcast() << At(pid) << msg;
+
+        // 若吞噬后仍满足下一轮选择资格，补一个手动选择用的新候选池。
+        if (player.talent_selection_count_ < player.comb_->LineCount() / 3) {
+            player.GenerateTalentPool(Main().talent_rng_);
+        }
+    }
+
     void HandleUnreadyPlayers_()
     {
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
@@ -1613,18 +1676,22 @@ class TalentStage : public SubGameStage<>
         uint32_t line_count = player.comb_->LineCount();
         if (player.talent_selection_count_ < line_count / 3) {
             player.GenerateTalentPool(Main().talent_rng_);
-            auto sender = reply();
-            sender << "再次达成天赋选择条件，请继续选择：\n";
-            // 多维抉择：5 选 1 提示
-            if (player.HasTalent(Talent::多维抉择) && player.talent_pool_.size() > 3) {
-                sender << "触发天赋「多维抉择」，额外提供 2 个选项\n";
+            // 若本次刚选到「我全都要」，新生成的级联候选池就是它的触发时机。
+            TriggerWantAllIfHeld_(pid);
+            if (!player.talent_pool_.empty()) {
+                auto sender = reply();
+                sender << "再次达成天赋选择条件，请继续选择：\n";
+                // 多维抉择：5 选 1 提示
+                if (player.HasTalent(Talent::多维抉择) && player.talent_pool_.size() > 3) {
+                    sender << "触发天赋「多维抉择」，额外提供 2 个选项\n";
+                }
+                for (size_t i = 0; i < player.talent_pool_.size(); ++i) {
+                    sender << (i + 1) << ". " << TalentName(player.talent_pool_[i])
+                           << "（" << (IsGradeA(player.talent_pool_[i]) ? "A级" : "B级") << "）——"
+                           << TalentDescription(player.talent_pool_[i]) << "\n";
+                }
+                return StageErrCode::OK; // Not ready yet, need to choose again
             }
-            for (size_t i = 0; i < player.talent_pool_.size(); ++i) {
-                sender << (i + 1) << ". " << TalentName(player.talent_pool_[i])
-                       << "（" << (IsGradeA(player.talent_pool_[i]) ? "A级" : "B级") << "）——"
-                       << TalentDescription(player.talent_pool_[i]) << "\n";
-            }
-            return StageErrCode::OK; // Not ready yet, need to choose again
         }
 
         return StageErrCode::READY;
@@ -1640,16 +1707,16 @@ class ActiveTalentStage : public SubGameStage<>
     ActiveTalentStage(MainStage& main_stage)
             : StageFsm(main_stage, "主动天赋阶段",
                 MakeStageCommand(*this, "「乾坤大挪移」：立刻交换盘面上的两个砖块", &ActiveTalentStage::QiankunMove_,
-                    ArithChecker<uint32_t>(1, 19, "位置1"), ArithChecker<uint32_t>(1, 19, "位置2")),
+                    VoidChecker("乾坤大挪移"), ArithChecker<uint32_t>(1, 19, "位置1"), ArithChecker<uint32_t>(1, 19, "位置2")),
                 MakeStageCommand(*this, "「关键选择」：选择一个未获得的B级天赋", &ActiveTalentStage::KeyChoice_,
-                    AlterChecker<int>(MakeGradeBTalentOptionMap())),
+                    VoidChecker("关键选择"), AlterChecker<int>(MakeGradeBTalentOptionMap())),
                 MakeStageCommand(*this, "跳过主动天赋发动", &ActiveTalentStage::Pass_, VoidChecker("pass")))
     {
     }
 
     virtual void OnStageBegin() override
     {
-        Global().Boardcast() << Markdown{Main().CombHtml("## 主动天赋阶段")};
+        Global().Boardcast() << Markdown{Main().CombHtml("## 第 " + std::to_string(Main().round_) + " 回合[主动天赋阶段]")};
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             if (!PlayerNeedsAction_(pid)) {
                 Global().SetReady(pid);
@@ -1664,7 +1731,7 @@ class ActiveTalentStage : public SubGameStage<>
                 sender << state->ActivePrompt(player) << "\n";
                 const std::string image_html = state->ActiveImageHtml(player);
                 if (!image_html.empty()) {
-                    Global().Boardcast() << Markdown(image_html, 600);
+                    Global().Boardcast() << Markdown(image_html, 1000);
                 }
             }
         }
@@ -1857,20 +1924,24 @@ void MainStage::AdvancePhase_(SubStageFsmSetter& setter)
                 return;
             }
 
-            // Normal: Do battle (automatic)
-            const bool battle_happened = DoBattle_();
-            DoEliminationAfterBattle_();
+            // Normal: Do battle (automatic). 对战结果与玩家淘汰共用同一个 sender，合并为一条播报。
+            bool battle_happened;
+            {
+                auto sender = Global().Boardcast();
+                battle_happened = DoBattle_(sender);
+                DoEliminationAfterBattle_(sender);
+            }
             DoPoison_();
 
-            if (CheckGameOver()) {
-                // 游戏结束：保留本轮触发的「绝地反击」额外分，使其计入终局结算。
-                DoGameOver_();
-                return;
+            // 真实对战发生后，分发 OnBattlePhaseEnd hook 给所有 alive 玩家的天赋
+            //（绝地反击 等会在此清掉 trigger_round 之后的临时分）。
+            if (battle_happened) {
+                OnBattlePhaseEnd_();
             }
 
-            // 游戏继续：仅在真实发生对战后，清除已经参与过这次对战的「绝地反击」额外分。
-            if (battle_happened) {
-                ClearCounterattackAfterRound_();
+            if (CheckGameOver()) {
+                DoGameOver_();
+                return;
             }
 
             // Collect post-battle extras (三年之期, 劫掠, etc.)
@@ -1976,9 +2047,8 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
                 Talent talent = static_cast<Talent>(t);
                 if (!player.HasTalent(talent)) continue;
                 static constexpr Talent k_initial_effect_talents[] = {
-                    Talent::占得先机,
                     Talent::三年之期,
-                    Talent::两级反转,
+                    Talent::两极反转,
                     Talent::九转玄机,
                     Talent::乾坤大挪移,
                     Talent::关键选择,
@@ -2110,12 +2180,45 @@ void MainStage::NextStageFsm(ActiveTalentStage& sub_stage, const CheckoutReason 
 
 // ==================== Game Over ====================
 
+// 按淘汰名次结算每位玩家的最终 game_score。
+// rank_value = round * 10 + phase；存活玩家用 INT64_MAX 视为最佳（并列）。
+// 对玩家 X：worse = 比 X 淘汰早的玩家数，better = 比 X 淘汰晚或仍存活的玩家数。
+// player_final_score_[X] = (worse - better) * 100。同回合同阶段淘汰自然并列同分；
+// 中毒淘汰（phase=2）名次优于同回合对战淘汰（phase=1）；卡池耗尽时所有存活并列第一。
+void MainStage::ComputeRankScores_()
+{
+    auto rank_value = [&](PlayerID pid) -> int64_t {
+        if (player_out_[pid] == 0) return std::numeric_limits<int64_t>::max();
+        return static_cast<int64_t>(player_out_[pid]) * 10 + player_out_phase_[pid];
+    };
+    const uint32_t N = Global().PlayerNum();
+    for (PlayerID pid = 0; pid.Get() < N; ++pid) {
+        const int64_t mine = rank_value(pid);
+        int32_t worse = 0, better = 0;
+        for (PlayerID other = 0; other.Get() < N; ++other) {
+            if (other == pid) continue;
+            const int64_t v = rank_value(other);
+            if (v < mine)      ++worse;   // other 淘汰更早 → 我比 ta 名次好
+            else if (v > mine) ++better;  // other 淘汰更晚 / 存活 → 我比 ta 名次差
+            // 相等：并列名次，不计入两边
+        }
+        player_final_score_[pid] = (worse - better) * 100;
+    }
+}
+
 void MainStage::DoGameOver_()
 {
-    // Find the winner
-    for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
-        if (player_out_[pid] == 0) {
-            Global().Boardcast() << "游戏结束，恭喜胜者：" << At(pid) << "！";
+    ComputeRankScores_();
+
+    // 单一存活者（正常淘汰流程）→ 公告获胜玩家。
+    // 多名存活者（卡池耗尽路径，alive_ > 1）→ 不再逐个公告；调用方已经播报过
+    // "卡池耗尽，游戏结束！"，多名共同获胜在最终图与名次分中体现。
+    if (alive_ == 1) {
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            if (player_out_[pid] == 0) {
+                Global().Boardcast() << "游戏结束，恭喜胜者：" << At(pid) << "！";
+                break;
+            }
         }
     }
 

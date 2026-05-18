@@ -75,11 +75,18 @@ struct TalentDefeatContext
 {
     bool has_valuable_one = false;
     bool is_mirror = false;
+    // 对战时双方用于比较的分数（含临时分；坦诚相见仅是 base_score）。
+    // 由 ProcessBattle_ 填充，供「以战代练」等需要根据分差判断的天赋使用。
+    int64_t my_battle_score = 0;
+    int64_t opponent_battle_score = 0;
 };
 
 struct TalentVictoryContext
 {
     bool is_mirror = false;
+    bool has_valuable_one = false;
+    int64_t my_battle_score = 0;
+    int64_t opponent_battle_score = 0;
 };
 
 struct TalentPreBattleExtraContext
@@ -87,7 +94,9 @@ struct TalentPreBattleExtraContext
     bool has_valuable_one = false;
     SpecialEvent special_event = SpecialEvent::无;
     std::mt19937& rng;
-    const AreaCard* offered_card = nullptr;
+    // 由产出方（CollectPreBattleExtras_）按天赋需要预先生成的备选砖块。
+    // 单张时（如 锻造）由天赋自行解释；多张时（如 有舍有得 的 3 选 1）通常 push 为多卡 ExtraCardEntry。
+    const std::vector<AreaCard>* offered_cards = nullptr;
 };
 
 struct TalentActiveContext
@@ -140,6 +149,35 @@ class TalentBase
     // 玩家即将获得生命值时调用。
     // 返回实际获得的生命值，适合回血强化类天赋统一修改回血量。
     virtual int32_t ModifyHealAmount(const Player& player, int32_t amount) const;
+
+    // 玩家实际生命值已加成（hp_ 已写入）后调用，actual_heal 为已经过 ModifyHealAmount 后的最终回血量。
+    // 适合需要按累计回血量结算的天赋（例如「生命游戏」）。
+    virtual void OnHealApplied(Player& player, int32_t actual_heal);
+
+    // MainStage::ApplyDamage_ 把伤害写入玩家 hp_ 后调用。
+    // 适合需要按累计受到伤害结算的天赋（例如「三年之期」累计存储期间伤害、「生命游戏」记账）。
+    virtual void OnDamageReceived(Player& player, int32_t damage);
+
+    // 玩家受到致死伤害时，ApplyDamage_ 真正扣血前调用。
+    // 返回非空字符串时由调用方追加到当前对战/中毒播报 sender 中。
+    virtual std::string OnLethalDamage(Player& player, int32_t& damage, int32_t current_round);
+
+    // 本回合"真实对战阶段"完整结束后（DoBattle_ 真正发生过对战）逐 alive 玩家调用。
+    // 区别于 OnDefeat/OnVictory与 OnRoundStart：对战阶段已结算完，但还未进入战后额外/下回合
+    virtual void OnBattlePhaseEnd(Player& player, int32_t current_round);
+
+    // DoEliminationAfterBattle_ 中，victim 在对战阶段被淘汰、且 killer 是同对对战中存活的赢家时，
+    // 对 killer 的每个天赋调用。返回非空字符串时由调用方追加到当前 sender。
+    virtual std::string OnDefeatedOpponent(Player& killer, Player& victim, std::mt19937& rng);
+
+    // SelectStage 排序候选玩家时调用，返回该天赋希望玩家获得的选牌优先级（值越小越靠前）。
+    // 默认返回 INT32_MAX（不影响排序）；SelectStage 取玩家所有天赋的最小值作为最终优先级。
+    virtual int32_t SelectionPriority(const Player& player) const;
+
+    // SelectStage 渲染玩家头像边框时调用，返回该天赋希望显示的内联 CSS 片段。
+    // 多个天赋返回非空时，按 SelectionPriority 升序取第一个非空作为最终边框。
+    // is_last_selector 标识当前玩家是不是排序后的最后一位选牌者。
+    virtual std::string SelectionBorderStyle(const Player& player, bool is_last_selector) const;
 
     // 重算玩家永久额外分时调用；数字较大的阶段会在较小的阶段之后计算。
     // 适合需要依赖其它永久额外分结果的天赋调整计算顺序。
@@ -239,6 +277,11 @@ class TalentBase
     // 返回值会加到受到的伤害上；负数减少伤害，正数增加伤害。
     virtual int32_t DefenseDamageDelta(Player& defender, int32_t damage);
 
+    // Player::GenerateTalentPool 在确定 A/B 名额后、抽签前调用。
+    // 「多维抉择」等需要扩展候选池规模的天赋通过此 hook 增/减名额。
+    // 修改 a_pick / b_pick 会直接影响本次候选池的抽签数量。
+    virtual void ModifyTalentPoolPicks(const Player& player, uint32_t& a_pick, uint32_t& b_pick) const;
+
   private:
     TalentInfo info_;
     bool enabled_;
@@ -247,7 +290,6 @@ class TalentBase
 class PerfectBlockTalent;
 class CounterattackTalent;
 class SeizeTalent;
-class ZeroRiskInvestmentTalent;
 class IronBodyTalent;
 class RetreatAdvanceTalent;
 class DeadlyMagicTalent;
@@ -265,6 +307,8 @@ class LightInterferenceTalent;
 class NineMysteryTalent;
 class QiankunMoveTalent;
 class KeyChoiceTalent;
+class LifeGameTalent;
+class YZoneTalent;
 
 class BloodlustTalent;
 class StillUsefulTalent;
@@ -300,6 +344,11 @@ class InnerRingTalent;
 class ChestnutTalent;
 class VitalityTalent;
 class OneWayTalent;
+class ZeroRiskInvestmentTalent;
+class BattleHardenedTalent;
+class FatalRhythmTalent;
+class TimeAnchorTalent;
+class RhythmRemnantTalent;
 
 std::unique_ptr<TalentBase> CreateTalentState(Talent talent);
 

@@ -35,8 +35,11 @@ inline std::pair<std::string, std::string> MainStage::PlayerScoreDetail(const Pl
     int32_t base = player.base_score_;
     int32_t perm = player.permanent_extra_;
     int32_t valuable = player.valuable_one_bonus_;
-    int32_t temp = player.EffectiveTempBattleScore();
-    int32_t total = player.TotalScore() + temp;
+    // 顶部总分仍走数学层（EffectiveTempBattleScore 经过零风险压制，避免与保底重复计入）；
+    // 括号内的临时分直接显示玩家"当前"持有的临时分。零风险天赋的 ScoreDetail 也已经把
+    // 临时分占用的部分从「保底+X」里扣除，于是断点：raw + 保底_visible + 临时分 = 总分。
+    int32_t display_temp = player.TempBattleScore();
+    int32_t total = player.TotalScore() + player.EffectiveTempBattleScore();
     std::string talent_detail;
     for (const auto talent : player.talents_) {
         const auto& state = player.talent_states_.at(talent);
@@ -47,7 +50,7 @@ inline std::pair<std::string, std::string> MainStage::PlayerScoreDetail(const Pl
     std::string score_line = std::to_string(total);
     std::string detail_line;
 
-    bool has_detail = (perm != 0 || valuable != 0 || temp != 0 || !talent_detail.empty());
+    bool has_detail = (perm != 0 || valuable != 0 || display_temp != 0 || !talent_detail.empty());
     if (has_detail) {
         detail_line += "（";
         detail_line += std::to_string(base);
@@ -58,8 +61,8 @@ inline std::pair<std::string, std::string> MainStage::PlayerScoreDetail(const Pl
             detail_line += (perm > 0 ? "+" : "") + std::to_string(perm);
         }
         detail_line += talent_detail;
-        if (temp != 0) {
-            detail_line += "+" HTML_COLOR_FONT_HEADER(#FF6347) "[" + std::to_string(temp) + "]" HTML_FONT_TAIL;
+        if (display_temp != 0) {
+            detail_line += "+" HTML_COLOR_FONT_HEADER(#FF6347) "[" + std::to_string(display_temp) + "]" HTML_FONT_TAIL;
         }
         detail_line += "）";
     } else {
@@ -146,11 +149,13 @@ inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(PlayerID pid, ui
 
     ScoreResult effective_result = result;
     static constexpr Talent k_card_placed_order[] = {
+        Talent::临时用品,
         Talent::星河流转,
         Talent::张三来袭,
         Talent::贪婪宝藏,
         Talent::零的力量,
         Talent::虚空之心,
+        Talent::致命节奏,
     };
     for (const auto talent : k_card_placed_order) {
         if (!player.HasTalent(talent)) continue;
@@ -178,16 +183,6 @@ inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(PlayerID pid, ui
         }
     }
 
-    // Permanent extra changes are reported as a generic talent effect notification.
-    {
-        int32_t perm_delta = player.permanent_extra_ - old_perm;
-        if (perm_delta > 0) {
-            notify += "\n触发天赋效果，额外获得 " + std::to_string(perm_delta) + " 点积分";
-        } else if (perm_delta < 0) {
-            notify += "\n天赋效果变动，减少 " + std::to_string(-perm_delta) + " 点额外积分";
-        }
-    }
-
     static constexpr Talent k_after_score_order[] = {
         Talent::戴森球,
         Talent::冥想,
@@ -200,6 +195,18 @@ inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(PlayerID pid, ui
         notify += player.talent_states_.at(talent)->AfterScoreUpdatedOnCardPlaced(
             player, idx, effective_result,
             TalentCardPlacedContext{HasValuableOne(special_event_), placement_source, source_talent, previous_card}, old_perm);
+    }
+
+    // Permanent extra changes are reported as a generic talent effect notification.
+    // 放在 after-score hooks 之后：例如表演型人格在 AfterScoreUpdatedOnCardPlaced 内修改百分比并触发
+    // UpdateScore，此时 permanent_extra_ 才是最终值；提早比较会显示与玩家实际拿到的额外分不符的数值。
+    {
+        int32_t perm_delta = player.permanent_extra_ - old_perm;
+        if (perm_delta > 0) {
+            notify += "\n触发天赋效果，额外获得 " + std::to_string(perm_delta) + " 点积分";
+        } else if (perm_delta < 0) {
+            notify += "\n天赋效果变动，减少 " + std::to_string(-perm_delta) + " 点额外积分";
+        }
     }
 
     // Return score delta:
@@ -220,7 +227,7 @@ inline std::pair<AreaCard, std::string> MainStage::TransformCardForPlacement_(Pl
 
     static constexpr Talent k_transform_order[] = {
         Talent::三相之力,
-        Talent::两级反转,
+        Talent::两极反转,
         Talent::九转玄机,
         Talent::零的力量,
         Talent::以退为进,
@@ -245,6 +252,7 @@ inline std::string MainStage::HandleDiscard_(PlayerID pid, const AreaCard& card,
         Talent::零号位,
         Talent::锻造,
         Talent::贪婪宝藏,
+        Talent::致命节奏,
     };
     for (const auto talent : k_discard_order) {
         if (!player.HasTalent(talent)) continue;
@@ -274,13 +282,13 @@ inline bool MainStage::HandleThreeYearStore_(PlayerID pid, const AreaCard& card)
 
 // ===== Battle System =====
 
-inline bool MainStage::DoBattle_()
+inline bool MainStage::DoBattle_(MsgSenderBase::MsgSenderGuard& sender)
 {
     if (alive_ <= 1) return false;
 
     // Skip battle for rounds 1, 2, and selection rounds
     if (round_ <= 2 || IsSelectionRound(round_)) {
-        Global().Boardcast() << "本轮不进行玩家对战";
+        sender << "本轮不进行玩家对战";
         return false;
     }
 
@@ -305,6 +313,14 @@ inline bool MainStage::DoBattle_()
         if (temp != 0) {
             temp_scores[pid] = temp;
         }
+    }
+
+    // Snapshot pre-battle scores for mirror battles, so mid-round mutations
+    // (e.g. 贪婪宝藏 transforming 000→wild after a real defeat) do not leak
+    // into the mirror opponent's score this same battle round.
+    std::unordered_map<int32_t, std::pair<int64_t, int32_t>> pre_battle_scores;
+    for (PlayerID pid : alive_players) {
+        pre_battle_scores[pid.Get()] = {PlayerBattleScore(pid), players_[pid].base_score_};
     }
 
     // Generate fight pairs (avoid recent repeats)
@@ -355,14 +371,16 @@ inline bool MainStage::DoBattle_()
             mirror = list[RandInt(battle_rng_, 0, static_cast<uint32_t>(list.size() - 2))];
         } while (mirror == last_mirror_ && ++attempts < 20);
         last_mirror_ = mirror;
-        ProcessBattle_(solo, mirror, true, result);
+        const auto snap_it = pre_battle_scores.find(mirror.Get());
+        std::optional<int64_t> mirror_battle_score;
+        std::optional<int32_t> mirror_base_score;
+        if (snap_it != pre_battle_scores.end()) {
+            mirror_battle_score = snap_it->second.first;
+            mirror_base_score = snap_it->second.second;
+        }
+        ProcessBattle_(solo, mirror, true, result, mirror_battle_score, mirror_base_score);
     }
 
-    // 绝地反击 的触发/清除时机说明（终局计分规则相关）：
-    //   本轮触发的 Counterattack().extra_score 要保留到下一次真实对战结束后清除；
-    //   若中间遇到选牌轮或其他跳过对战的阶段，则继续保留。若那次对战后游戏
-    //   即时结束，则保留 extra 以计入最终结算。清理由外层在确认本轮真实发生
-    //   对战且 CheckGameOver()==false 后调用 ClearCounterattackAfterRound_()。
 
     // Update damage rate
     fought_round_++;
@@ -376,26 +394,48 @@ inline bool MainStage::DoBattle_()
     // Store fight map for 劫掠 talent
     current_fight_map_ = fight_map;
 
-    Global().Boardcast() << result;
+    sender << result;
     return true;
 }
 
-// Apply damage to a player, tracking 三年之期 damage if active
-inline void MainStage::ApplyDamage_(PlayerID pid, int32_t damage)
+// 应用伤害到玩家。若 (hp_ - damage <= 0) 先给玩家"已获取"的天赋一次 OnLethalDamage 机会
+// （救援/吸收类动作型 hook，必须玩家持有该天赋才能生效），然后再扣血。
+// 之后分发 OnDamageReceived：遍历 talent_states_ 而非 talents_，
+// 让「生命游戏」等需要从游戏开局就累计的"记账型 hook"在被玩家获取之前也能记账。
+// 返回 OnLethalDamage 累计的播报文本（不含玩家名/前缀），调用方负责拼前缀并写入 sender/result。
+inline std::string MainStage::ApplyDamage_(PlayerID pid, int32_t damage)
 {
-    players_[pid].hp_ -= damage;
-    if (players_[pid].ThreeYear().active) {
-        players_[pid].ThreeYear().damage_stored += damage;
+    auto& player = players_[pid];
+    std::string notify;
+    if (damage > 0 && player.hp_ - damage <= 0) {
+        for (const auto talent : player.talents_) {
+            const std::string n = player.talent_states_.at(talent)->OnLethalDamage(player, damage, round_);
+            if (!n.empty()) {
+                if (!notify.empty()) notify += "\n";
+                notify += n;
+            }
+            if (damage <= 0) break;
+        }
     }
+    player.hp_ -= damage;
+    for (auto& [talent, state] : player.talent_states_) {
+        state->OnDamageReceived(player, damage);
+    }
+    return notify;
 }
 
-inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror, std::string& result)
+inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror, std::string& result,
+                                     std::optional<int64_t> mirror_battle_score,
+                                     std::optional<int32_t> mirror_base_score)
 {
     // 坦诚相见: if either player has this talent, only compare base_score_ (ignores all extras)
     const bool sincere = players_[pid1].HasTalent(Talent::坦诚相见) ||
                          (!mirror && players_[pid2].HasTalent(Talent::坦诚相见));
     const int64_t score1 = sincere ? players_[pid1].base_score_ : PlayerBattleScore(pid1);
-    const int64_t score2 = sincere ? players_[pid2].base_score_ : PlayerBattleScore(pid2);
+    // 镜像对战时使用 pid2 的战前快照分数，避免 pid2 在本轮其他对战中的得分变动影响镜像。
+    const int64_t score2 = sincere
+        ? (mirror && mirror_base_score.has_value() ? static_cast<int64_t>(*mirror_base_score) : players_[pid2].base_score_)
+        : (mirror && mirror_battle_score.has_value() ? *mirror_battle_score : PlayerBattleScore(pid2));
     const std::string name1 = GetName(Global().PlayerName(pid1));
     const std::string name2 = GetName(Global().PlayerName(pid2));
 
@@ -411,7 +451,7 @@ inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror,
         if (!mirror) players_[pid2].never_lost_ = false;
         extra_damage = ApplyAttackTalents_(pid1, pid2, base_damage);
         int32_t total = base_damage + extra_damage;
-        ApplyVictoryTalents_(pid1, mirror, result);
+        ApplyVictoryTalents_(pid1, mirror, score1, score2, result);
 
         // Apply defense talents for pid2 (injured party)
         int32_t defense = ApplyDefenseTalents_(pid2, total);
@@ -419,8 +459,11 @@ inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror,
         if (total < 0) total = 0;
 
         if (!mirror) {
-            ApplyDefeatTalents_(pid2, mirror, total, result);
-            ApplyDamage_(pid2, total);
+            ApplyDefeatTalents_(pid2, mirror, total, score2, score1, result);
+            const std::string lethal_notify = ApplyDamage_(pid2, total);
+            if (!lethal_notify.empty()) {
+                result += GetName(Global().PlayerName(pid2)) + " " + lethal_notify + "\n";
+            }
             p2_info = "(" + std::to_string(-total) + ")";
         }
     } else if (score_cmp < 0) {
@@ -435,9 +478,12 @@ inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror,
             total += defense;
             if (total < 0) total = 0;
 
-            ApplyVictoryTalents_(pid2, mirror, result);
-            ApplyDefeatTalents_(pid1, mirror, total, result);
-            ApplyDamage_(pid1, total);
+            ApplyVictoryTalents_(pid2, mirror, score2, score1, result);
+            ApplyDefeatTalents_(pid1, mirror, total, score1, score2, result);
+            const std::string lethal_notify = ApplyDamage_(pid1, total);
+            if (!lethal_notify.empty()) {
+                result += GetName(Global().PlayerName(pid1)) + " " + lethal_notify + "\n";
+            }
             p1_info = "(" + std::to_string(-total) + ")";
         } else {
             extra_damage = ApplyAttackTalents_(pid2, pid1, base_damage);
@@ -446,8 +492,11 @@ inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror,
             total += defense;
             if (total < 0) total = 0;
 
-            ApplyDefeatTalents_(pid1, mirror, total, result);
-            ApplyDamage_(pid1, total);
+            ApplyDefeatTalents_(pid1, mirror, total, score1, score2, result);
+            const std::string lethal_notify = ApplyDamage_(pid1, total);
+            if (!lethal_notify.empty()) {
+                result += GetName(Global().PlayerName(pid1)) + " " + lethal_notify + "\n";
+            }
             p1_info = "(" + std::to_string(-total) + ")";
         }
     } else {
@@ -494,19 +543,23 @@ inline int32_t MainStage::ApplyDefenseTalents_(PlayerID defender, int32_t damage
     return reduction;
 }
 
-inline void MainStage::ApplyDefeatTalents_(PlayerID loser, bool mirror, int32_t& damage, std::string& result)
+inline void MainStage::ApplyDefeatTalents_(PlayerID loser, bool mirror, int32_t& damage,
+                                            int64_t my_battle_score, int64_t opp_battle_score, std::string& result)
 {
+    // 律动残余 排在最前：先把伤害封顶在 25，再交给后续 hook 进一步调整（如 事不过三 归零）。
     static constexpr Talent k_defeat_order[] = {
+        Talent::律动残余,
         Talent::图灵测试,
         Talent::事不过三,
         Talent::有舍有得,
         Talent::败者之刃,
         Talent::贪婪宝藏,
+        Talent::以战代练,
     };
     for (const auto talent : k_defeat_order) {
         if (!players_[loser].HasTalent(talent)) continue;
         const auto notify = players_[loser].talent_states_.at(talent)->OnDefeat(
-            players_[loser], TalentDefeatContext{HasValuableOne(special_event_), mirror}, damage);
+            players_[loser], TalentDefeatContext{HasValuableOne(special_event_), mirror, my_battle_score, opp_battle_score}, damage);
         if (!notify.empty()) {
             result += GetName(Global().PlayerName(loser)) + " " + notify + "\n";
         }
@@ -514,117 +567,106 @@ inline void MainStage::ApplyDefeatTalents_(PlayerID loser, bool mirror, int32_t&
     players_[loser].UpdateZeroRiskMaxScore();
 }
 
-inline void MainStage::ApplyVictoryTalents_(PlayerID winner, bool mirror, std::string& result)
+inline void MainStage::ApplyVictoryTalents_(PlayerID winner, bool mirror,
+                                             int64_t my_battle_score, int64_t opp_battle_score, std::string& result)
 {
     static constexpr Talent k_victory_order[] = {
         Talent::嗜血,
         Talent::败者之刃,
+        Talent::以战代练,
     };
     for (const auto talent : k_victory_order) {
         if (!players_[winner].HasTalent(talent)) continue;
-        const auto notify = players_[winner].talent_states_.at(talent)->OnVictory(players_[winner], TalentVictoryContext{mirror});
+        const auto notify = players_[winner].talent_states_.at(talent)->OnVictory(
+            players_[winner], TalentVictoryContext{mirror, HasValuableOne(special_event_), my_battle_score, opp_battle_score});
         if (!notify.empty()) {
             result += GetName(Global().PlayerName(winner)) + " " + notify + "\n";
         }
     }
 }
 
-// Process deaths and eliminations after battle
-inline void MainStage::DoEliminationAfterBattle_()
+// Process deaths and eliminations after battle. 共用 sender，将淘汰播报与击杀触发型天赋（如劫掠）合并播报。
+// 注：致死救援（绝地反击 等 OnLethalDamage）已在 ApplyDamage_ 内处理，到达这里的玩家是真正死亡的。
+inline void MainStage::DoEliminationAfterBattle_(MsgSenderBase::MsgSenderGuard& sender)
 {
     for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0 || players_[pid].hp_ > 0) continue;
 
-        // Check 绝地反击
-        if (players_[pid].HasTalent(Talent::绝地反击) && !players_[pid].Counterattack().used) {
-            players_[pid].hp_ = 1;
-            players_[pid].Counterattack().triggered = true;
-            players_[pid].Counterattack().used = true;
-            players_[pid].Counterattack().extra_score = static_cast<int32_t>(std::ceil(players_[pid].TotalScore() * 0.15));
-            players_[pid].Counterattack().trigger_round = round_;
-            Global().Boardcast() << At(pid) << " 触发天赋「绝地反击」，血量降为1，获得 "
-                                 << players_[pid].Counterattack().extra_score << " 点反击加成！";
-            continue;
-        }
-
-        // Player dies
+        // Player dies in battle phase. phase=1 排名差于同回合中毒淘汰（phase=2）。
         alive_--;
         player_out_[pid] = round_;
-        Global().Boardcast() << At(pid) << " 已被淘汰！";
+        player_out_phase_[pid] = 1;
+        sender << At(pid) << " 已被淘汰！\n";
         Global().Eliminate(pid);
 
-        // Check 劫掠: find the opponent from current fight map
-        std::optional<PlayerID> killer;
-        for (const auto& [p1, p2] : current_fight_map_) {
-            if (PlayerID(p1) == pid && player_out_[PlayerID(p2)] == 0 && players_[PlayerID(p2)].HasTalent(Talent::劫掠)) {
-                killer = PlayerID(p2);
-                break;
-            } else if (PlayerID(p2) == pid && player_out_[PlayerID(p1)] == 0 && players_[PlayerID(p1)].HasTalent(Talent::劫掠)) {
-                killer = PlayerID(p1);
-                break;
-            }
-        }
+        // 通用 dispatch：让 killer（同对对战中存活的对手）已获取的天赋有机会响应"击杀对手"。
+        std::optional<PlayerID> killer = FindKillerFromFightMap_(pid);
         if (killer.has_value()) {
-            // Pick up to 5 random filled positions from dead player's board
-            auto filled = players_[pid].comb_->GetFilledPositions();
-            SeededShuffle(filled.begin(), filled.end(), random_card_rng_);
-            size_t pick_count = std::min<size_t>(5, filled.size());
-            std::vector<AreaCard> loot_cards;
-            for (size_t i = 0; i < pick_count; ++i) {
-                const auto& card = players_[pid].comb_->GetCard(filled[i]);
-                if (card.has_value()) {
-                    loot_cards.push_back(*card);
+            auto& k_player = players_[*killer];
+            for (const auto talent : k_player.talents_) {
+                const std::string notify = k_player.talent_states_.at(talent)->OnDefeatedOpponent(k_player, players_[pid], random_card_rng_);
+                if (!notify.empty()) {
+                    sender << At(*killer) << " " << notify << "\n";
                 }
-            }
-            if (!loot_cards.empty()) {
-                players_[*killer].extra_card_queue_.push_back({std::move(loot_cards), "劫掠"});
-                Global().Boardcast() << At(*killer) << " 触发天赋「劫掠」，从被淘汰玩家处获得 "
-                                     << players_[*killer].extra_card_queue_.back().cards.size() << " 枚砖块供选择！";
             }
         }
     }
+}
+
+// 从当前对战 fight_map 中查找击杀 victim 的存活对手；若 victim 是镜像对战/无配对则返回空。
+inline std::optional<PlayerID> MainStage::FindKillerFromFightMap_(PlayerID victim) const
+{
+    for (const auto& [p1, p2] : current_fight_map_) {
+        if (PlayerID(p1) == victim && player_out_[PlayerID(p2)] == 0) {
+            return PlayerID(p2);
+        }
+        if (PlayerID(p2) == victim && player_out_[PlayerID(p1)] == 0) {
+            return PlayerID(p1);
+        }
+    }
+    return std::nullopt;
 }
 
 inline void MainStage::DoPoison_()
 {
     bool any_poisoned = false;
     std::string poison_msg;
+    std::string lethal_msg;  // 中毒致死时 OnLethalDamage 的累积播报，在 sender 创建后一并输出
     for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0) continue;
         if (players_[pid].poison_layers_ > 0) {
-            int32_t damage = players_[pid].poison_layers_;
-            ApplyDamage_(pid, damage);
-            poison_msg += GetName(Global().PlayerName(pid)) + "（" + std::to_string(-damage) + "）";
-            // 百味草: gain 1 score per 1 HP lost to poison
-            if (players_[pid].HasTalent(Talent::百味草)) {
+            const int32_t original_damage = players_[pid].poison_layers_;
+            int32_t damage = original_damage;
+            const std::string lethal_notify = ApplyDamage_(pid, damage);
+            poison_msg += GetName(Global().PlayerName(pid)) + "（" + std::to_string(-original_damage) + "）";
+            // 百味草: gain 1 score per 1 HP lost to poison（用实际扣血量结算，被吸收时为 0）
+            if (players_[pid].HasTalent(Talent::百味草) && damage > 0) {
                 players_[pid].HerbalGrowth().poison_score += damage;
                 players_[pid].UpdateScore(ScoreResult{players_[pid].comb_->BaseScore(), players_[pid].comb_->LineCount(), 0}, HasValuableOne(special_event_));
                 poison_msg += "，触发「百味草」+" + std::to_string(damage) + "分";
             }
             poison_msg += "\n";
+            if (!lethal_notify.empty()) {
+                // 用 placeholder 暂存（带 pid 信息），等到 sender 创建后再 @-mention 输出。
+                lethal_msg += GetName(Global().PlayerName(pid)) + " " + lethal_notify + "\n";
+            }
             any_poisoned = true;
         }
     }
-    if (any_poisoned) {
-        Global().Boardcast() << "中毒结算：\n" << poison_msg;
-        // Check deaths from poison
-        for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
-            if (player_out_[pid] != 0 || players_[pid].hp_ > 0) continue;
-            if (players_[pid].HasTalent(Talent::绝地反击) && !players_[pid].Counterattack().used) {
-                players_[pid].hp_ = 1;
-                players_[pid].Counterattack().triggered = true;
-                players_[pid].Counterattack().used = true;
-                players_[pid].Counterattack().extra_score = static_cast<int32_t>(std::ceil(players_[pid].TotalScore() * 0.15));
-                players_[pid].Counterattack().trigger_round = round_;
-                Global().Boardcast() << At(pid) << " 触发天赋「绝地反击」，获得 "
-                                     << players_[pid].Counterattack().extra_score << " 点反击加成！";
-                continue;
-            }
-            alive_--;
-            player_out_[pid] = round_;
-            Global().Boardcast() << At(pid) << " 因中毒被淘汰！";
-            Global().Eliminate(pid);
-        }
+    if (!any_poisoned) return;
+
+    // 中毒结算与中毒淘汰共用同一个 sender，合并为一条播报。
+    auto sender = Global().Boardcast();
+    sender << "中毒结算：\n" << poison_msg;
+    if (!lethal_msg.empty()) sender << lethal_msg;
+    for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
+        if (player_out_[pid] != 0 || players_[pid].hp_ > 0) continue;
+        // 中毒淘汰：phase=2 在同回合内排名优于对战阶段淘汰（phase=1），因结算时序更晚。
+        alive_--;
+        player_out_[pid] = round_;
+        player_out_phase_[pid] = 2;
+        sender << At(pid) << " 因中毒被淘汰！\n";
+        Global().Eliminate(pid);
     }
 }
 
@@ -641,7 +683,7 @@ inline void MainStage::CollectPreBattleExtras_()
         };
         for (const auto talent : k_pre_battle_extra_order) {
             if (!player.HasTalent(talent)) continue;
-            std::optional<AreaCard> offered_card;
+            std::vector<AreaCard> offered_cards;
             if (talent == Talent::有舍有得) {
                 std::vector<uint32_t> pool_mid;
                 for (uint32_t v : k_points[1]) {
@@ -653,14 +695,17 @@ inline void MainStage::CollectPreBattleExtras_()
                 if (pool_mid.empty()) {
                     pool_mid.assign(k_points[1].begin(), k_points[1].end());
                 }
-                offered_card.emplace(
-                    k_points[0][RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[0].size() - 1))],
-                    pool_mid[RandInt(random_card_rng_, 0, static_cast<uint32_t>(pool_mid.size() - 1))],
-                    k_points[2][RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[2].size() - 1))]);
+                // 3 选 1：生成 3 张备选随机砖块
+                for (int i = 0; i < 3; ++i) {
+                    offered_cards.emplace_back(
+                        k_points[0][RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[0].size() - 1))],
+                        pool_mid[RandInt(random_card_rng_, 0, static_cast<uint32_t>(pool_mid.size() - 1))],
+                        k_points[2][RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[2].size() - 1))]);
+                }
             }
             const auto notify = player.talent_states_.at(talent)->OnPreBattleExtraCards(
                 player, TalentPreBattleExtraContext{HasValuableOne(special_event_), special_event_, random_card_rng_,
-                                                    offered_card.has_value() ? &*offered_card : nullptr});
+                                                    offered_cards.empty() ? nullptr : &offered_cards});
             if (!notify.empty()) {
                 Global().Boardcast() << At(pid) << " " << notify;
             }
