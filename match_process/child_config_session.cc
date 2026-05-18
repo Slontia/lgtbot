@@ -78,11 +78,22 @@ bool ChildConfigSession::LoadModule(const std::string& lib_path, const std::stri
     if (!error_out.empty()) { return false; }
     module_.handle_rule_command_ = reinterpret_cast<rule_command_handler>(sym("HandleRuleCommand"));
     if (!error_out.empty()) { return false; }
+    module_.get_game_info_ = reinterpret_cast<get_game_info_handler>(sym("GetGameInfo"));
+    if (!error_out.empty()) { return false; }
 
     default_options_ = game_options_ptr(module_.alloc_opt_(), module_.del_opt_);
     if (!default_options_) {
         error_out = "NewGameOptions returned null";
         return false;
+    }
+
+    // Seed default_is_formal_ from the game's compile-time k_default_generic_options
+    // (mygame.cc declares e.g. `.is_formal_ = false`). Without this, the static
+    // declaration was silently ignored and matches always defaulted to formal.
+    {
+        lgtbot::game::GameInfo game_info{};
+        module_.get_game_info_(&game_info);
+        default_is_formal_ = game_info.default_generic_options_.is_formal_;
     }
 
     // Restore persisted default options from config file
