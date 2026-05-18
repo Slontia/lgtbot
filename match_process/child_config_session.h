@@ -52,6 +52,7 @@ class ChildConfigSession
     using multiple_handler = uint32_t(*)(const lgtbot::game::GameOptionsBase*);
     using init_options_command_handler = lgtbot::game::InitOptionsResult(*)(const char*, lgtbot::game::GameOptionsBase*, lgtbot::game::MutableGenericOptions*);
     using rule_command_handler = const char*(*)(const char*);
+    using get_game_info_handler = void(*)(lgtbot::game::GameInfo*);
 
     struct ModuleFns
     {
@@ -62,6 +63,7 @@ class ChildConfigSession
         multiple_handler multiple_{};
         init_options_command_handler init_options_{};
         rule_command_handler handle_rule_command_{};
+        get_game_info_handler get_game_info_{};
     };
 
     using game_options_ptr = std::unique_ptr<lgtbot::game::GameOptionsBase,
