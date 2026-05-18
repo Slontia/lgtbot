@@ -106,6 +106,11 @@ class MainStage : public MainGameStage<RoundStage>
         }
 
         seed_str = GAME_OPTION(种子);
+        if (seed_str.empty()) {
+            std::random_device rd;
+            std::uniform_int_distribution<unsigned long long> dis;
+            seed_str = std::to_string(dis(rd));
+        }
         auto g = MakeRng(seed_str);
         SeededShuffle(cards_.begin(), cards_.end(), g);
 
