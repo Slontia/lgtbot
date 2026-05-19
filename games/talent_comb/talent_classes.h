@@ -26,6 +26,7 @@ inline std::string TalentBase::AfterScoreUpdatedOnCardPlaced(Player& player, uin
                                                              const TalentCardPlacedContext& context, int32_t old_permanent_extra) { return ""; }
 inline std::string TalentBase::OnDefeat(Player& player, const TalentDefeatContext& context, int32_t& damage) { return ""; }
 inline std::string TalentBase::OnVictory(Player& player, const TalentVictoryContext& context) { return ""; }
+inline std::string TalentBase::OnBattleEnd(Player& player, const TalentBattleEndContext& context) { return ""; }
 inline std::string TalentBase::OnPreBattleExtraCards(Player& player, const TalentPreBattleExtraContext& context) { return ""; }
 inline std::string TalentBase::OnExtraCardActionEnd(Player& player) { return ""; }
 inline bool TalentBase::HasPendingActiveChoice(const Player& player) const { return false; }
@@ -280,12 +281,6 @@ class WantAllTalent : public TalentBase
     // 我全都要：玩家拥有该天赋后，"下次选择天赋"——也就是下一次出现非空候选池时——直接获得池中全部天赋，同时把"我全都要"从 talents_ 移除。
     // 需要注意"刚选到我全都要的那一次选择"本身不算"下次"，触发要等到再次选择天赋（同回合的级联池，或下一回合的天赋阶段）。
     // 该效果由 TalentStage::TriggerWantAllIfHeld_ 处理；当前是唯一的整池吞噬天赋，不引入基类通用 hook，避免为单例特例增加 API 噪音。
-};
-
-class PandoraBoxTalent : public TalentBase
-{
-  public:
-    PandoraBoxTalent() : TalentBase({"A", Talent::潘多拉魔盒, "潘多拉魔盒", "随机获得两个B级天赋"}) {}
 };
 
 class CompoundInterestTalent : public TalentBase
@@ -589,7 +584,7 @@ class QiankunMoveTalent : public TalentBase
 
     std::string ActivePrompt(const Player& player) const override
     {
-        return "「乾坤大挪移」：输入“乾坤大挪移 位置1 位置2”交换两个位置，或输入“pass”放弃";
+        return "「乾坤大挪移」：输入“乾坤大挪移 <位置1> <位置2>”交换两个位置，或输入“pass”放弃";
     }
 
     std::string OnActivePass(Player& player) override
@@ -663,7 +658,7 @@ class KeyChoiceTalent : public TalentBase
 
     std::string ActivePrompt(const Player& player) const override
     {
-        return "「关键选择」：输入“关键选择 B级天赋完整名称”选择一个可选B级天赋，或输入“pass”放弃";
+        return "「关键选择」：输入“关键选择 <天赋名称>”选择一个未获得的B级天赋，或输入“pass”放弃";
     }
 
     std::string ActiveImageHtml(const Player& player) const override
@@ -844,6 +839,60 @@ class YZoneTalent : public TalentBase
     }
 
     int32_t current_bonus = 0;
+};
+
+class TempWildTalent : public TalentBase
+{
+  public:
+    TempWildTalent() : TalentBase({"A", Talent::临时用品, "临时用品", "获得一个仅三回合可用的癞子"}) {}
+
+    std::string BoardDisplay(const Player& player) const override
+    {
+        if (position <= 0) {
+            return TalentInactiveText(Name());
+        }
+        return Name() + TalentTempScoreText("[" + std::to_string(rounds_left) + "回合]");
+    }
+
+    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
+    {
+        AreaCard wild_card;
+        if (context.initial_test_mode && player.comb_->HasEmptyPosition()) {
+            const auto [idx, result] = player.comb_->SeqFill(wild_card);
+            position = idx;
+            rounds_left = 3;
+            return "，获得一张临时癞子砖块";
+        }
+        player.extra_card_queue_.push_back({{wild_card}, Name(), false, Talent::临时用品});
+        return "，请在额外放置阶段选择位置放置临时癞子（3回合后到期）";
+    }
+
+    std::string OnCardPlaced(Player& player, uint32_t idx, const ScoreResult& original_result, ScoreResult& effective_result,
+                             const TalentCardPlacedContext& context) override
+    {
+        if (position <= 0 || idx != position || context.previous_card == nullptr || !context.previous_card->IsWild()) return "";
+        if (context.source_talent == Talent::临时用品) return "";
+        position = 0;
+        rounds_left = 0;
+        return "\n「临时用品」已被覆盖，天赋不再生效";
+    }
+
+    std::string OnRoundStart(Player& player, const TalentRoundContext& context) override
+    {
+        if (position <= 0 || context.is_selection_round) return "";
+        rounds_left--;
+        if (rounds_left > 0) return "";
+        const uint32_t expired_position = position;
+        const auto& card = player.comb_->GetCard(expired_position);
+        if (!card.has_value() || !card->IsWild()) return "";
+        auto result = player.comb_->RemoveCard(expired_position);
+        player.UpdateScore(result, context.has_valuable_one);
+        position = 0;
+        return " 的「临时用品」癞子到期，已从位置 " + std::to_string(expired_position) + " 移除";
+    }
+
+    uint32_t position = 0;
+    int32_t rounds_left = 0;
 };
 
 class BloodlustTalent : public TalentBase
@@ -1377,60 +1426,6 @@ class LoserBladeTalent : public TalentBase
     int32_t temp_score = 0;
 };
 
-class TempWildTalent : public TalentBase
-{
-  public:
-    TempWildTalent() : TalentBase({"B", Talent::临时用品, "临时用品", "获得一个仅三回合可用的癞子"}) {}
-
-    std::string BoardDisplay(const Player& player) const override
-    {
-        if (position <= 0) {
-            return TalentInactiveText(Name());
-        }
-        return Name() + TalentTempScoreText("[" + std::to_string(rounds_left) + "回合]");
-    }
-
-    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
-    {
-        AreaCard wild_card;
-        if (context.initial_test_mode && player.comb_->HasEmptyPosition()) {
-            const auto [idx, result] = player.comb_->SeqFill(wild_card);
-            position = idx;
-            rounds_left = 3;
-            return "，获得一张临时癞子砖块";
-        }
-        player.extra_card_queue_.push_back({{wild_card}, Name(), false, Talent::临时用品});
-        return "，请在额外放置阶段选择位置放置临时癞子（3回合后到期）";
-    }
-
-    std::string OnCardPlaced(Player& player, uint32_t idx, const ScoreResult& original_result, ScoreResult& effective_result,
-                             const TalentCardPlacedContext& context) override
-    {
-        if (position <= 0 || idx != position || context.previous_card == nullptr || !context.previous_card->IsWild()) return "";
-        if (context.source_talent == Talent::临时用品) return "";
-        position = 0;
-        rounds_left = 0;
-        return "\n「临时用品」已被覆盖，天赋不再生效";
-    }
-
-    std::string OnRoundStart(Player& player, const TalentRoundContext& context) override
-    {
-        if (position <= 0 || context.is_selection_round) return "";
-        rounds_left--;
-        if (rounds_left > 0) return "";
-        const uint32_t expired_position = position;
-        const auto& card = player.comb_->GetCard(expired_position);
-        if (!card.has_value() || !card->IsWild()) return "";
-        auto result = player.comb_->RemoveCard(expired_position);
-        player.UpdateScore(result, context.has_valuable_one);
-        position = 0;
-        return " 的「临时用品」癞子到期，已从位置 " + std::to_string(expired_position) + " 移除";
-    }
-
-    uint32_t position = 0;
-    int32_t rounds_left = 0;
-};
-
 class BandageTalent : public TalentBase
 {
   public:
@@ -1961,24 +1956,14 @@ class BattleHardenedTalent : public TalentBase
 
     int32_t PermanentExtraScore(Player& player, int32_t current_extra) override { return accumulated; }
 
-    std::string OnVictory(Player& player, const TalentVictoryContext& context) override
+    // 走 OnBattleEnd 而非 OnVictory/OnDefeat，平局也应记账。
+    std::string OnBattleEnd(Player& player, const TalentBattleEndContext& context) override
     {
-        Accrue(player, context.my_battle_score, context.opponent_battle_score, context.has_valuable_one);
-        return "";
-    }
-
-    std::string OnDefeat(Player& player, const TalentDefeatContext& context, int32_t& damage) override
-    {
-        Accrue(player, context.my_battle_score, context.opponent_battle_score, context.has_valuable_one);
-        return "";
-    }
-
-    // 命中条件即时记账 +3，并立刻刷新 permanent_extra_，避免分数详情/总分滞后到下次 UpdateScore。
-    void Accrue(Player& player, int64_t my_score, int64_t opp_score, bool has_valuable_one)
-    {
-        if (std::abs(my_score - opp_score) > 5) return;
+        if (std::abs(context.my_battle_score - context.opponent_battle_score) > 5) return "";
         accumulated += 3;
-        player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, has_valuable_one);
+        // 命中条件即时刷新 permanent_extra_，避免分数详情/总分滞后到下次 UpdateScore。
+        player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, context.has_valuable_one);
+        return "";
     }
 
     int32_t accumulated = 0;
@@ -2066,6 +2051,12 @@ class RhythmRemnantTalent : public TalentBase
     }
 };
 
+class PandoraBoxTalent : public TalentBase
+{
+  public:
+    PandoraBoxTalent() : TalentBase({"B", Talent::潘多拉魔盒, "潘多拉魔盒", "随机获得两个B级天赋"}) {}
+};
+
 inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
 {
     switch (talent) {
@@ -2078,7 +2069,6 @@ inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
         case Talent::三相之力: return std::make_unique<TriForceTalent>();
         case Talent::紧急救援: return std::make_unique<EmergencyRescueTalent>();
         case Talent::我全都要: return std::make_unique<WantAllTalent>();
-        case Talent::潘多拉魔盒: return std::make_unique<PandoraBoxTalent>();
         case Talent::利滚利: return std::make_unique<CompoundInterestTalent>();
         case Talent::戴森球: return std::make_unique<DysonSphereTalent>();
         case Talent::零号位: return std::make_unique<DiscardScorerTalent>();
@@ -2091,6 +2081,7 @@ inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
         case Talent::关键选择: return std::make_unique<KeyChoiceTalent>();
         case Talent::生命游戏: return std::make_unique<LifeGameTalent>();
         case Talent::Y区域: return std::make_unique<YZoneTalent>();
+        case Talent::临时用品: return std::make_unique<TempWildTalent>();
         case Talent::嗜血: return std::make_unique<BloodlustTalent>();
         case Talent::还是有用的: return std::make_unique<StillUsefulTalent>();
         case Talent::快攻: return std::make_unique<SwiftAttackTalent>();
@@ -2110,7 +2101,6 @@ inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
         case Talent::摇奖机: return std::make_unique<SlotMachineTalent>();
         case Talent::两极反转: return std::make_unique<DigitReverseTalent>();
         case Talent::败者之刃: return std::make_unique<LoserBladeTalent>();
-        case Talent::临时用品: return std::make_unique<TempWildTalent>();
         case Talent::包扎: return std::make_unique<BandageTalent>();
         case Talent::百味草: return std::make_unique<HerbalGrowthTalent>();
         case Talent::天使轮: return std::make_unique<AngelRoundTalent>();
@@ -2130,6 +2120,7 @@ inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
         case Talent::致命节奏: return std::make_unique<FatalRhythmTalent>();
         case Talent::时间锚: return std::make_unique<TimeAnchorTalent>();
         case Talent::律动残余: return std::make_unique<RhythmRemnantTalent>();
+        case Talent::潘多拉魔盒: return std::make_unique<PandoraBoxTalent>();
         case Talent::COUNT: break;
     }
     return std::make_unique<WantAllTalent>();
