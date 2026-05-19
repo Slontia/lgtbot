@@ -148,15 +148,6 @@ inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(PlayerID pid, ui
     std::string notify;
 
     ScoreResult effective_result = result;
-    static constexpr Talent k_card_placed_order[] = {
-        Talent::临时用品,
-        Talent::星河流转,
-        Talent::张三来袭,
-        Talent::贪婪宝藏,
-        Talent::零的力量,
-        Talent::虚空之心,
-        Talent::致命节奏,
-    };
     for (const auto talent : k_card_placed_order) {
         if (!player.HasTalent(talent)) continue;
         notify += player.talent_states_.at(talent)->OnCardPlaced(
@@ -183,13 +174,6 @@ inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(PlayerID pid, ui
         }
     }
 
-    static constexpr Talent k_after_score_order[] = {
-        Talent::戴森球,
-        Talent::冥想,
-        Talent::天使轮,
-        Talent::表演型人格,
-        Talent::二环里,
-    };
     for (const auto talent : k_after_score_order) {
         if (!player.HasTalent(talent)) continue;
         notify += player.talent_states_.at(talent)->AfterScoreUpdatedOnCardPlaced(
@@ -225,14 +209,6 @@ inline std::pair<AreaCard, std::string> MainStage::TransformCardForPlacement_(Pl
     AreaCard actual = card;
     std::string notify;
 
-    static constexpr Talent k_transform_order[] = {
-        Talent::三相之力,
-        Talent::两极反转,
-        Talent::九转玄机,
-        Talent::零的力量,
-        Talent::以退为进,
-        Talent::完美块,
-    };
     for (const auto talent : k_transform_order) {
         if (!player.HasTalent(talent)) continue;
         notify += player.talent_states_.at(talent)->OnBeforePlaceCard(player, actual, is_normal_round);
@@ -247,13 +223,6 @@ inline std::string MainStage::HandleDiscard_(PlayerID pid, const AreaCard& card,
     auto& player = players_[pid];
     std::string notify;
 
-    static constexpr Talent k_discard_order[] = {
-        Talent::垃圾回收,
-        Talent::零号位,
-        Talent::锻造,
-        Talent::贪婪宝藏,
-        Talent::致命节奏,
-    };
     for (const auto talent : k_discard_order) {
         if (!player.HasTalent(talent)) continue;
         notify += player.talent_states_.at(talent)->OnDiscard(player, card, TalentDiscardContext{HasValuableOne(special_event_), source_talent});
@@ -503,19 +472,34 @@ inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror,
         if (!mirror) p2_info = "(0)";
     }
 
+    // 通用 OnBattleEnd dispatch：对真实参与者触发（含平局；镜像只通知真实玩家一侧）。
+    // outcome：从 pid1 视角的胜负标记，pid2 视角符号相反。
+    ApplyBattleEndTalents_(pid1, mirror, score1, score2, score_cmp, result);
+    if (!mirror) {
+        ApplyBattleEndTalents_(pid2, mirror, score2, score1, -score_cmp, result);
+    }
+
     result += name1 + p1_info + " vs " + name2 + p2_info + "\n";
+}
+
+// 对该玩家所有已获取天赋分发 OnBattleEnd。任何 hook 返回的文本会以 "玩家名 文本" 形式追加到 result。
+inline void MainStage::ApplyBattleEndTalents_(PlayerID pid, bool mirror, int64_t my_score, int64_t opp_score,
+                                              int32_t outcome, std::string& result)
+{
+    const TalentBattleEndContext context{mirror, HasValuableOne(special_event_), my_score, opp_score, outcome};
+    auto& player = players_[pid];
+    for (const auto talent : player.talents_) {
+        const std::string notify = player.talent_states_.at(talent)->OnBattleEnd(player, context);
+        if (!notify.empty()) {
+            result += GetName(Global().PlayerName(pid)) + " " + notify + "\n";
+        }
+    }
 }
 
 // Returns extra damage from attacker's talents
 inline int32_t MainStage::ApplyAttackTalents_(PlayerID attacker, PlayerID defender, int32_t damage)
 {
     int32_t extra = 0;
-    static constexpr Talent k_attack_order[] = {
-        Talent::快攻,
-        Talent::致命魔术,
-        Talent::攻击形态,
-        Talent::防御形态,
-    };
     for (const auto talent : k_attack_order) {
         if (!players_[attacker].HasTalent(talent)) continue;
         auto effect = players_[attacker].talent_states_.at(talent)->AttackDamageDelta(players_[attacker], players_[defender], damage, battle_rng_);
@@ -531,11 +515,6 @@ inline int32_t MainStage::ApplyAttackTalents_(PlayerID attacker, PlayerID defend
 inline int32_t MainStage::ApplyDefenseTalents_(PlayerID defender, int32_t damage)
 {
     int32_t reduction = 0;
-    static constexpr Talent k_defense_order[] = {
-        Talent::钢铁之躯,
-        Talent::防御形态,
-        Talent::攻击形态,
-    };
     for (const auto talent : k_defense_order) {
         if (!players_[defender].HasTalent(talent)) continue;
         reduction += players_[defender].talent_states_.at(talent)->DefenseDamageDelta(players_[defender], damage);
@@ -546,16 +525,8 @@ inline int32_t MainStage::ApplyDefenseTalents_(PlayerID defender, int32_t damage
 inline void MainStage::ApplyDefeatTalents_(PlayerID loser, bool mirror, int32_t& damage,
                                             int64_t my_battle_score, int64_t opp_battle_score, std::string& result)
 {
-    // 律动残余 排在最前：先把伤害封顶在 25，再交给后续 hook 进一步调整（如 事不过三 归零）。
-    static constexpr Talent k_defeat_order[] = {
-        Talent::律动残余,
-        Talent::图灵测试,
-        Talent::事不过三,
-        Talent::有舍有得,
-        Talent::败者之刃,
-        Talent::贪婪宝藏,
-        Talent::以战代练,
-    };
+    // 顺序定义在 talent_order.h 的 k_defeat_order；
+    // 律动残余 在最前：先把伤害封顶在 25，再交给后续 hook 进一步调整（如 事不过三 归零）。
     for (const auto talent : k_defeat_order) {
         if (!players_[loser].HasTalent(talent)) continue;
         const auto notify = players_[loser].talent_states_.at(talent)->OnDefeat(
@@ -570,11 +541,6 @@ inline void MainStage::ApplyDefeatTalents_(PlayerID loser, bool mirror, int32_t&
 inline void MainStage::ApplyVictoryTalents_(PlayerID winner, bool mirror,
                                              int64_t my_battle_score, int64_t opp_battle_score, std::string& result)
 {
-    static constexpr Talent k_victory_order[] = {
-        Talent::嗜血,
-        Talent::败者之刃,
-        Talent::以战代练,
-    };
     for (const auto talent : k_victory_order) {
         if (!players_[winner].HasTalent(talent)) continue;
         const auto notify = players_[winner].talent_states_.at(talent)->OnVictory(
@@ -677,10 +643,6 @@ inline void MainStage::CollectPreBattleExtras_()
         if (player_out_[pid] != 0) continue;
         auto& player = players_[pid];
 
-        static constexpr Talent k_pre_battle_extra_order[] = {
-            Talent::锻造,
-            Talent::有舍有得,
-        };
         for (const auto talent : k_pre_battle_extra_order) {
             if (!player.HasTalent(talent)) continue;
             std::vector<AreaCard> offered_cards;

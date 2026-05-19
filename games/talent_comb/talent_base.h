@@ -89,6 +89,18 @@ struct TalentVictoryContext
     int64_t opponent_battle_score = 0;
 };
 
+// ProcessBattle_ 结算后对每个对战参与者触发（含平局），不区分胜负。
+// outcome：1 = 玩家胜利，-1 = 玩家战败，0 = 平局。
+// 适合"按对战触发"且不关心胜负的天赋（如「以战代练」）。
+struct TalentBattleEndContext
+{
+    bool is_mirror = false;
+    bool has_valuable_one = false;
+    int64_t my_battle_score = 0;
+    int64_t opponent_battle_score = 0;
+    int32_t outcome = 0;
+};
+
 struct TalentPreBattleExtraContext
 {
     bool has_valuable_one = false;
@@ -236,6 +248,11 @@ class TalentBase
     // 返回文本会追加到对战结果消息中。
     virtual std::string OnVictory(Player& player, const TalentVictoryContext& context);
 
+    // 对战结算后，对每个对战参与者触发（含平局；镜像对战仅触发真实玩家一侧）。
+    // 与 OnVictory / OnDefeat 区别：本 hook 不区分胜负，平局也会触发。
+    // 返回文本会追加到对战结果消息中。
+    virtual std::string OnBattleEnd(Player& player, const TalentBattleEndContext& context);
+
     // 战前额外砖块阶段收集额外砖块时调用。
     // 适合处理由战斗计数触发、但需要延后到战前额外阶段发放砖块的效果。
     // 返回文本会追加到战前额外砖块提示中。
@@ -296,7 +313,6 @@ class DeadlyMagicTalent;
 class TriForceTalent;
 class EmergencyRescueTalent;
 class WantAllTalent;
-class PandoraBoxTalent;
 class CompoundInterestTalent;
 class DysonSphereTalent;
 class DiscardScorerTalent;
@@ -309,6 +325,7 @@ class QiankunMoveTalent;
 class KeyChoiceTalent;
 class LifeGameTalent;
 class YZoneTalent;
+class TempWildTalent;
 
 class BloodlustTalent;
 class StillUsefulTalent;
@@ -329,7 +346,6 @@ class NoMoreThanThreeTalent;
 class SlotMachineTalent;
 class DigitReverseTalent;
 class LoserBladeTalent;
-class TempWildTalent;
 class BandageTalent;
 class HerbalGrowthTalent;
 class AngelRoundTalent;
@@ -349,6 +365,7 @@ class BattleHardenedTalent;
 class FatalRhythmTalent;
 class TimeAnchorTalent;
 class RhythmRemnantTalent;
+class PandoraBoxTalent;
 
 std::unique_ptr<TalentBase> CreateTalentState(Talent talent);
 
