@@ -733,38 +733,40 @@ class SelectStage : public SubGameStage<>
             return;
         }
         PlayerID pid = current_players[0];
-        if (!Global().IsReady(pid) || Main().player_leave_[pid]) {
-            auto& player = Main().players_[pid];
-            auto sender = Global().Boardcast();
-            const AreaCard card_ = tmp_cards_[0];
-            Selected(1);
-            if (card_.Type() == "") {
-                if (player.comb_->IsAllFilled()) {
-                    // 云顶模式盘面已满，放入位置1
-                    const auto [point, extra_point] = player.comb_->Fill(1, card_);
-                    sender << At(pid) << "因为超时未做选择，自动选择 1 号卡牌，因盘面已满填入位置 1";
-                    if (point > 0) sender << "，意外收获 " + std::to_string(point) + " 点积分";
-                    else if (point < 0) sender << "，损失 " + std::to_string(-point) + " 点积分";
-                    if (GAME_OPTION(连线奖励)) {
-                        if (extra_point > 0) sender << "和连线额外奖励 " + std::to_string(extra_point) + " 点积分";
-                        else if (extra_point < 0) sender << "，损失奖励得分 " + std::to_string(-extra_point) + " 点积分";
-                    }
-                } else {
-                    // 超时自动放入第一个空位
-                    const auto [num, result] = player.comb_->SeqFill(card_);
-                    sender << At(pid) << "因为超时未做选择，自动选择 1 号卡牌，并填入空位置 " << num;
-                    if (result.score_ > 0) {
-                        sender << "，意外收获 " << result.score_ << " 点积分";
-                    }
-                    if (GAME_OPTION(连线奖励) && result.extra_score_ > 0) {
-                        sender << "和连线奖励分数 " << result.extra_score_ << " 点积分";
-                    }
+        if (Global().IsReady(pid) && !Main().player_leave_[pid]) return;
+
+        auto& player = Main().players_[pid];
+        auto sender = Global().Boardcast();
+        const AreaCard card_ = tmp_cards_[0];
+        Selected(1);
+        if (card_.Type() == "") {
+            if (player.comb_->IsAllFilled()) {
+                // 云顶模式盘面已满，放入位置1
+                const auto [point, extra_point] = player.comb_->Fill(1, card_);
+                sender << At(pid) << "因为超时未做选择，自动选择 1 号卡牌，因盘面已满填入位置 1";
+                if (point > 0) sender << "，意外收获 " + std::to_string(point) + " 点积分";
+                else if (point < 0) sender << "，损失 " + std::to_string(-point) + " 点积分";
+                if (GAME_OPTION(连线奖励)) {
+                    if (extra_point > 0) sender << "和连线额外奖励 " + std::to_string(extra_point) + " 点积分";
+                    else if (extra_point < 0) sender << "，损失奖励得分 " + std::to_string(-extra_point) + " 点积分";
                 }
             } else {
-                sender << At(pid) << "因为超时未做选择，自动选择并跳过特殊道具";
+                // 超时自动放入第一个空位
+                const auto [num, result] = player.comb_->SeqFill(card_);
+                sender << At(pid) << "因为超时未做选择，自动选择 1 号卡牌，并填入空位置 " << num;
+                if (result.score_ > 0) {
+                    sender << "，意外收获 " << result.score_ << " 点积分";
+                }
+                if (GAME_OPTION(连线奖励) && result.extra_score_ > 0) {
+                    sender << "和连线奖励分数 " << result.extra_score_ << " 点积分";
+                }
             }
-            Global().HookUnreadyPlayers();
+        } else {
+            sender << At(pid) << "因为超时未做选择，自动选择并跳过特殊道具";
         }
+
+        Global().SetReady(pid);
+        Global().HookUnreadyPlayers();
     }
 
     virtual CheckoutErrCode OnPlayerLeave(const PlayerID pid) override
