@@ -658,11 +658,13 @@ inline void MainStage::CollectPreBattleExtras_()
                     pool_mid.assign(k_points[1].begin(), k_points[1].end());
                 }
                 // 3 选 1：生成 3 张备选随机砖块
+                // 注：必须把三次 RandInt 拆成有序语句——C++ 函数实参之间是"不确定顺序"，
+                // 直接写在 emplace_back 的实参里会让 GCC(libstdc++) 与 Clang(libc++) 以不同顺序消耗 random_card_rng_，造成跨平台 RNG 序列分叉。
                 for (int i = 0; i < 3; ++i) {
-                    offered_cards.emplace_back(
-                        k_points[0][RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[0].size() - 1))],
-                        pool_mid[RandInt(random_card_rng_, 0, static_cast<uint32_t>(pool_mid.size() - 1))],
-                        k_points[2][RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[2].size() - 1))]);
+                    const uint32_t left  = RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[0].size() - 1));
+                    const uint32_t mid   = RandInt(random_card_rng_, 0, static_cast<uint32_t>(pool_mid.size() - 1));
+                    const uint32_t right = RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[2].size() - 1));
+                    offered_cards.emplace_back(k_points[0][left], pool_mid[mid], k_points[2][right]);
                 }
             }
             const auto notify = player.talent_states_.at(talent)->OnPreBattleExtraCards(
