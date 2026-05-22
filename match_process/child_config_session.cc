@@ -189,6 +189,29 @@ bool ChildConfigSession::HandleSetDefaultOption(const lgtbot::ipc::SetDefaultOpt
     return true;
 }
 
+bool ChildConfigSession::HandleTryMatchOption(const lgtbot::ipc::TryMatchOptionReq& req)
+{
+    lgtbot::ipc::ConfigResponse resp;
+    auto* upd = resp.mutable_option_update();
+    game_options_ptr opts(module_.alloc_opt_(), module_.del_opt_);
+    if (!opts) {
+        upd->set_ok(false);
+        SendProto(resp);
+        return true;
+    }
+    for (const auto& opt : req.applied_options_log()) {
+        opts->SetOption(opt.c_str());
+    }
+    const bool ok = opts->SetOption(req.text().c_str());
+    upd->set_ok(ok);
+    if (ok) {
+        upd->set_max_player(module_.max_player_num_(opts.get()));
+        upd->set_multiple(module_.multiple_(opts.get()));
+    }
+    SendProto(resp);
+    return true;
+}
+
 bool ChildConfigSession::HandleSetFormal(const lgtbot::ipc::SetFormalReq& req)
 {
     default_is_formal_ = req.value();
@@ -298,6 +321,9 @@ int ChildConfigSession::RunLoop()
             break;
         case lgtbot::ipc::ConfigRequest::kSetDefaultOption:
             HandleSetDefaultOption(req.set_default_option());
+            break;
+        case lgtbot::ipc::ConfigRequest::kTryMatchOption:
+            HandleTryMatchOption(req.try_match_option());
             break;
         case lgtbot::ipc::ConfigRequest::kSetFormal:
             HandleSetFormal(req.set_formal());

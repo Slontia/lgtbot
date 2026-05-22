@@ -74,6 +74,7 @@ class ChildConfigSession
     bool HandleQueryOptionInfo(const lgtbot::ipc::QueryOptionInfoReq& req);
     bool HandleQueryMatchOptionInfo(const lgtbot::ipc::QueryMatchOptionInfoReq& req);
     bool HandleSetDefaultOption(const lgtbot::ipc::SetDefaultOptionReq& req);
+    bool HandleTryMatchOption(const lgtbot::ipc::TryMatchOptionReq& req);
     bool HandleSetFormal(const lgtbot::ipc::SetFormalReq& req);
     bool HandleQueryFormal();
     bool HandleGetAppliedLog();

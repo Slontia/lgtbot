@@ -133,12 +133,18 @@ message InitOptionsReq      { string args = 1; }
 message HandleRuleCommandReq { string args = 1; }
 
 // Compute option info as if a match started with the given log + init args.
-// Used by Match::Help_ / Match::OptionInfo_ in lobby state, where the match
-// has its own (potentially diverged) view of the options state.
+// Used in lobby state, where the match has its own view of the options state.
 message QueryMatchOptionInfoReq {
   bool            text_mode           = 1;
   repeated string applied_options_log = 2;
   string          init_options_args   = 3;
+}
+
+// Validate an option string against [applied_options_log + text].
+// Returns ok + max_player/multiple without mutating global defaults.
+message TryMatchOptionReq {
+  repeated string applied_options_log = 1;
+  string          text                = 2;
 }
 
 message ConfigRequest {
@@ -152,6 +158,7 @@ message ConfigRequest {
     bool                    shutdown                = 7;  // true = terminate
     HandleRuleCommandReq    handle_rule_command     = 8;
     QueryMatchOptionInfoReq query_match_option_info = 9;
+    TryMatchOptionReq       try_match_option        = 10;
   }
 }
 
