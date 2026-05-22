@@ -77,6 +77,8 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, InitOption
         , gid_(gid)
         , applied_options_log_(std::move(init_options.applied_options_log_))
         , init_options_args_(std::move(init_options.init_options_args_))
+        , max_player_(init_options.max_player_)
+        , multiple_(init_options.multiple_)
         , group_sender_(gid.has_value() ? std::optional<MsgSender>(bot.MakeMsgSender(*gid_, this)) : std::nullopt)
 {
     options_.resource_holder_.resource_dir_ =
@@ -245,12 +247,16 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
     }
     uint64_t max_player = 0;
     uint32_t multiple = 0;
-    if (!game_handle_.ConfigClient().SetDefaultOption(msg, max_player, multiple)) {
+    // Use TryMatchOption (not SetDefaultOption) so the change stays local to this match
+    // SetDefaultOption mutates the config_runner's shared default_options_ and applied_options_log_, which then leaks into every subsequent match.
+    // Global defaults are only changed via %配置.
+    if (!game_handle_.ConfigClient().TryMatchOption(applied_options_log_, msg, max_player, multiple)) {
         reply() << "[错误] 未预料的游戏设置，您可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置\n"
                     "若您想执行元指令，请尝试在请求前加「" META_COMMAND_SIGN "」，或通过「" META_COMMAND_SIGN "帮助」查看所有支持的元指令";
         return EC_GAME_REQUEST_NOT_FOUND;
     }
-    game_handle_.UpdateCachedLimits(max_player, multiple);
+    max_player_ = max_player;
+    multiple_ = multiple;
     applied_options_log_.push_back(msg);
     KickForConfigChange_();
     { std::string brief; BriefInfo_(brief); reply() << "设置成功！\n\n" << brief; }

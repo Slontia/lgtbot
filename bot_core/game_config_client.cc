@@ -198,6 +198,37 @@ bool GameConfigClient::SetDefaultOption(const std::string& text, uint64_t& max_p
     return false;
 }
 
+bool GameConfigClient::TryMatchOption(const std::vector<std::string>& applied_options_log,
+                                      const std::string& text,
+                                      uint64_t& max_player,
+                                      uint32_t& multiple)
+{
+    std::lock_guard<std::mutex> lk(mutex_);
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        if (!EnsureRunning_()) {
+            return false;
+        }
+        lgtbot::ipc::ConfigRequest req;
+        auto* q = req.mutable_try_match_option();
+        for (const auto& line : applied_options_log) {
+            q->add_applied_options_log(line);
+        }
+        q->set_text(text);
+        lgtbot::ipc::ConfigResponse resp;
+        std::string req_bytes, resp_bytes;
+        if (!req.SerializeToString(&req_bytes)) return false;
+        if (!SendRecv_(req_bytes, resp_bytes)) continue;
+        if (!resp.ParseFromString(resp_bytes)) { Stop_(); continue; }
+        if (!resp.has_option_update() || !resp.option_update().ok()) {
+            return false;
+        }
+        max_player = resp.option_update().max_player();
+        multiple = resp.option_update().multiple();
+        return true;
+    }
+    return false;
+}
+
 bool GameConfigClient::SetDefaultFormal(const bool is_formal)
 {
     std::lock_guard<std::mutex> lk(mutex_);

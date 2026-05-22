@@ -50,6 +50,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     {
         uint32_t bench_computers_to_player_num_{0};
         bool is_formal_{true};
+        uint64_t max_player_{0};
+        uint32_t multiple_{0};
         std::vector<std::string> applied_options_log_;
         std::string init_options_args_;
     };
@@ -133,8 +135,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         bool want_interrupt_{false};
     };
 
-    uint64_t MaxPlayerNum_() const { return game_handle_.CachedMaxPlayer(); }
-    uint32_t Multiple_() const { return game_handle_.CachedMultiple(); }
+    uint64_t MaxPlayerNum_() const { return max_player_; }
+    uint32_t Multiple_() const { return multiple_; }
 
     template <typename Logger>
     Logger& MatchLog_(Logger&& logger) const
@@ -205,6 +207,10 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     std::thread read_thread_;
     std::vector<std::string> applied_options_log_;
     std::string init_options_args_;
+    // Per-match snapshot of MaxPlayerNum(options)/Multiple(options).
+    // Initialized from the global default at match creation (plus any init_options result) and updated by per-match host config commands.
+    uint64_t max_player_{0};
+    uint32_t multiple_{0};
 
     // user info
     std::map<UserID, ParticipantUser> users_;
