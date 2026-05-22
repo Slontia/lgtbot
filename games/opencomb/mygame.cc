@@ -33,7 +33,7 @@ const GameProperties k_properties {
     .description_ = "使用特殊道具改变经典地图，体验不一样的数字蜂巢玩法",
 };
 uint64_t MaxPlayerNum(const CustomOptions& options) { return 10; }
-uint32_t Multiple(const CustomOptions& options) { return GET_OPTION_VALUE(options, 种子).empty() ? 2 : 0; }
+uint32_t Multiple(const CustomOptions& options) { return (GET_OPTION_VALUE(options, 种子).empty() && GET_OPTION_VALUE(options, 道具)) ? 2 : 0; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
