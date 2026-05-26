@@ -967,7 +967,7 @@ static ErrCode set_bot_option(BotCtx& bot, const UserID uid, const std::optional
         MsgSenderBase& reply, const std::string& option_name, const std::vector<std::string>& option_args)
 {
     MsgReader reader(option_args);
-    auto locked_option = bot.option().Lock(); // lock until updated config to ensure atomic write
+    auto locked_option = bot.option().lock(); // lock until updated config to ensure atomic write
     if (!locked_option->SetOption(option_name, reader)) {
         reply() << "[错误] 设置配置项失败，请通过「" ADMIN_COMMAND_SIGN "全局配置」确认配置项是否存在";
         return EC_INVALID_ARGUMENT;
@@ -1005,7 +1005,7 @@ static ErrCode set_game_option(BotCtx& bot, const UserID uid, const std::optiona
 static ErrCode show_bot_options(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
         MsgSenderBase& reply, const bool text_mode)
 {
-    const std::string outstr = "### 全局配置选项" + bot.option().Lock()->Info(true, !text_mode, ADMIN_COMMAND_SIGN "全局配置 ");
+    const std::string outstr = "### 全局配置选项" + bot.option().lock()->Info(true, !text_mode, ADMIN_COMMAND_SIGN "全局配置 ");
     if (text_mode) {
         reply() << outstr;
     } else {

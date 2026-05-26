@@ -116,8 +116,8 @@ class BotCtx
 #ifdef WITH_SQLITE
     std::unique_ptr<DBManagerBase> db_manager_;
 #endif
-    LockWrapper<MutableBotOption> mutable_bot_options_;
-    LockWrapper<nlohmann::json> config_json_;
+    mutex_protect_wrapper<MutableBotOption> mutable_bot_options_;
+    mutex_protect_wrapper<nlohmann::json> config_json_;
     void* const handler_;
 
     MatchManager match_manager_;

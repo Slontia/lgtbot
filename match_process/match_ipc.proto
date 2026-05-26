@@ -58,6 +58,7 @@ message LeaveReq { uint32 player_id = 1; }
 message HelpReq { bool text_mode = 1; }
 
 message GameRequest {
+  uint64 ipc_id = 8;
   oneof req {
     InitReq      init       = 1;
     SetOptionReq set_option = 2;
@@ -111,8 +112,9 @@ message ScoreEntry {
 message GameOverResp { repeated ScoreEntry scores = 1; }
 
 message GameResponse {
+  uint64 ipc_id = 7;
+  reserved 1;
   oneof resp {
-    AckResp         ack          = 1;
     ReplyResp       reply        = 2;
     ResultResp      result       = 3;
     PostResp        post         = 4;

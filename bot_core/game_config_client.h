@@ -90,8 +90,6 @@ class GameConfigClient
 
     std::mutex mutex_;
     std::unique_ptr<Subprocess> proc_;
-    FILE* child_in_{nullptr};
-    FILE* child_out_{nullptr};
 
     // Idle-timeout tracking
     std::chrono::steady_clock::time_point last_use_;
