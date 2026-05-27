@@ -41,7 +41,7 @@ const GameProperties k_properties {
     .description_ = "云顶之巢 + 天赋系统，在战斗中获得天赋强化，成为最后的胜者",
 };
 uint64_t MaxPlayerNum(const CustomOptions& options) { return 8; }
-uint32_t Multiple(const CustomOptions& options) { return 2; }
+uint32_t Multiple(const CustomOptions& options) { return GET_OPTION_VALUE(options, 种子).empty() ? 2 : 0; }
 const MutableGenericOptions k_default_generic_options;
 
 static std::string TalentRuleText(const int talent_id)
@@ -81,7 +81,7 @@ static constexpr const char* k_event_rule = R"EOF(### 特殊事件
 // 改动顺序只需更新 talent_order.h，本展示自动同步。
 static std::string MakeTalentOrderRuleText()
 {
-    std::string text = "### 天赋结算顺序\n";
+    std::string text = "### 天赋结算顺序\n```\n";
     for (const auto& entry : k_talent_order_table) {
         text += "\n【";
         text += entry.label;
@@ -91,6 +91,7 @@ static std::string MakeTalentOrderRuleText()
             text += TalentName(entry.begin[i]);
         }
     }
+    text += "\n```";
     return text;
 }
 
