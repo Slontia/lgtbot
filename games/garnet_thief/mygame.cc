@@ -160,40 +160,41 @@ class RoundStage : public SubGameStage<DeclareStage, SelectStage>
 {
    public:
     RoundStage(MainStage& main_stage, const uint64_t round)
-        : StageFsm(main_stage, "第" + std::to_string(round) + "回合",
-            MakeStageCommand(*this, "【测试功能】向其他玩家发送私信消息", &RoundStage::SendMsg_,
-                ArithChecker<uint32_t>(1, main_stage.player_scores_.size(), "序号"), RepeatableChecker<BasicChecker<string>>("私信内容", "私信内容")))
+        : StageFsm(main_stage, "第" + std::to_string(round) + "回合"
+            // , MakeStageCommand(*this, "【测试功能】向其他玩家发送私信消息", &RoundStage::SendMsg_,
+            //     ArithChecker<uint32_t>(1, main_stage.player_scores_.size(), "序号"), RepeatableChecker<BasicChecker<string>>("私信内容", "私信内容"))
+            )
     {}
 
     void calc();
 
   private:
-    CompReqErrCode SendMsg_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t target, const vector<string> messages)
-    {
-        if (pid == target - 1) {
-            reply() << "[错误] 不能向自己发送私信。";
-            return StageErrCode::FAILED;
-        }
-        if (Main().player_chips_[target - 1] <= 0) {
-            reply() << "[错误] 不能向淘汰的玩家发送私信。";
-            return StageErrCode::FAILED;
-        }
-        if (is_public) {
-            reply() << "[错误] 请私信执行此行动。";
-            return StageErrCode::FAILED;
-        }
-        ostringstream oss;
-        for (size_t i = 0; i < messages.size(); ++i) {
-            if (i > 0) oss << " ";
-            oss << messages[i];
-        }
-        string msg = oss.str();
-        Global().Tell(PlayerID(target - 1)) << "【游戏消息《石榴石窃贼》】\n"
-                                            << "收到来自 [" << (pid + 1) << "号]" << Global().PlayerName(pid) << " 的私信，内容：\n"
-                                            << msg;
-        reply() << "向 [" << target << "号]" << Global().PlayerName(target - 1) << " 发送私信成功";
-        return StageErrCode::OK;
-    }
+    // CompReqErrCode SendMsg_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t target, const vector<string> messages)
+    // {
+    //     if (pid == target - 1) {
+    //         reply() << "[错误] 不能向自己发送私信。";
+    //         return StageErrCode::FAILED;
+    //     }
+    //     if (Main().player_chips_[target - 1] <= 0) {
+    //         reply() << "[错误] 不能向淘汰的玩家发送私信。";
+    //         return StageErrCode::FAILED;
+    //     }
+    //     if (is_public) {
+    //         reply() << "[错误] 请私信执行此行动。";
+    //         return StageErrCode::FAILED;
+    //     }
+    //     ostringstream oss;
+    //     for (size_t i = 0; i < messages.size(); ++i) {
+    //         if (i > 0) oss << " ";
+    //         oss << messages[i];
+    //     }
+    //     string msg = oss.str();
+    //     Global().Tell(PlayerID(target - 1)) << "【游戏消息《石榴石窃贼》】\n"
+    //                                         << "收到来自 [" << (pid + 1) << "号]" << Global().PlayerName(pid) << " 的私信，内容：\n"
+    //                                         << msg;
+    //     reply() << "向 [" << target << "号]" << Global().PlayerName(target - 1) << " 发送私信成功";
+    //     return StageErrCode::OK;
+    // }
 
     void FirstStageFsm(SubStageFsmSetter setter) override
     {
@@ -247,8 +248,7 @@ class DeclareStage : public SubGameStage<>
         Global().Boardcast() << "请所有玩家私信选择【声明】的身份，时限 " << GAME_OPTION(时限) << " 秒：\n"
                              << "黑手党(M) / 卡特尔(C) / 警察(P) / 乞丐(B)";
         if (Main().round_ == 1) {
-            Global().Boardcast() << "【允许私信】此游戏允许在进行中和其他玩家进行私信沟通，进行合作或协商策略\n"
-                                 << "- 测试指令：「<序号> <私信内容>」直接向其他玩家发送私信消息";
+            Global().Boardcast() << "【允许私信】此游戏允许在进行中和其他玩家进行私信沟通，进行合作或协商策略";
         }
         Global().StartTimer(GAME_OPTION(时限));
     }
