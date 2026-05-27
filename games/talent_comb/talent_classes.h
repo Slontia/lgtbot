@@ -560,10 +560,15 @@ class NineMysteryTalent : public TalentBase
     }
 };
 
+// 乾坤大挪移交换后同步位置追踪类天赋的状态。
+// 因引用了 TempWild()/GreedyTreasure()/ZeroPower()/VoidHeart() 等定义在下方的类，
+// 函数体延后到 VoidHeartTalent 之后；这里仅做前向声明供 QiankunMoveTalent 内联调用。
+inline void ApplyQiankunSwapFixup(Player& player, uint32_t lhs, uint32_t rhs, ScoreResult& result);
+
 class QiankunMoveTalent : public TalentBase
 {
   public:
-    QiankunMoveTalent() : TalentBase({"A", Talent::乾坤大挪移, "乾坤大挪移", "你可以立刻交换盘面上的两个砖块"}, false) {}
+    QiankunMoveTalent() : TalentBase({"A", Talent::乾坤大挪移, "乾坤大挪移", "你可以立刻交换盘面上的两个砖块"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
@@ -614,6 +619,7 @@ class QiankunMoveTalent : public TalentBase
 
         const int32_t old_score = player.TotalScore();
         result = player.comb_->SwapCards(lhs, rhs);
+        ApplyQiankunSwapFixup(player, lhs, rhs, result);
         player.UpdateScore(result, context.has_valuable_one);
         const int32_t delta = player.TotalScore() - old_score;
         pending = false;
@@ -1245,7 +1251,7 @@ class ThreeYearTalent : public TalentBase
 class ForgeTalent : public TalentBase
 {
   public:
-    ForgeTalent() : TalentBase({"B", Talent::锻造, "锻造", "弃牌时，按顺序获得砖块三个方向数字的碎片，集齐三个方向的碎片合成一枚砖块放置"}) {}
+    ForgeTalent() : TalentBase({"B", Talent::锻造, "锻造", "弃牌时，按顺序获得砖块三个方向数字的碎片，集齐三个方向的碎片合成一枚砖块放置"}, false) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
@@ -1365,7 +1371,7 @@ class SlotMachineTalent : public TalentBase
 class DigitReverseTalent : public TalentBase
 {
   public:
-    DigitReverseTalent() : TalentBase({"B", Talent::两极反转, "两极反转", "你的1视为9，你的9视为1"}) {}
+    DigitReverseTalent() : TalentBase({"B", Talent::两极反转, "两极反转", "你的1视为9，你的9视为1"}, false) {}
 
     bool IsCompatibleWithSpecialEvent(SpecialEvent event) const override
     {
@@ -1693,6 +1699,35 @@ class VoidHeartTalent : public TalentBase
 
     bool disabled = false;
 };
+
+// 「乾坤大挪移」交换 lhs / rhs 之后，同步关联天赋的盘面位置状态。
+// 前向声明位于 QiankunMoveTalent 之前；此处函数体放在所有受影响天赋类完整定义之后。
+inline void ApplyQiankunSwapFixup(Player& player, uint32_t lhs, uint32_t rhs, ScoreResult& result)
+{
+    // 1. 星河流转：lhs / rhs 落在 {2,4,7,13,16,18} 时重新对该位置应用单线癞子。
+    //    ApplyGalaxyFlowAt 自带「位置不在集合 / 已有该方向癞子」短路，安全幂等。
+    //    返回的 ScoreResult 覆盖外层 result，让 UpdateScore 拿到最新分数。
+    if (player.HasTalent(Talent::星河流转)) {
+        if (auto r = player.comb_->ApplyGalaxyFlowAt(lhs); r.has_value()) result = r->second;
+        if (auto r = player.comb_->ApplyGalaxyFlowAt(rhs); r.has_value()) result = r->second;
+    }
+
+    // 2. 临时用品 / 贪婪宝藏 / 0的力量：position 字段跟随卡牌迁移。
+    auto swap_position = [&](uint32_t& pos) {
+        if (pos == lhs) pos = rhs;
+        else if (pos == rhs) pos = lhs;
+    };
+    if (player.HasTalent(Talent::临时用品)) swap_position(player.TempWild().position);
+    if (player.HasTalent(Talent::贪婪宝藏)) swap_position(player.GreedyTreasure().position);
+    if (player.HasTalent(Talent::零的力量)) swap_position(player.ZeroPower().position);
+
+    // 3. 虚空之心：交换让原本空置的 10 号位被填上时，按"放置到 10"语义永久 disable。
+    //    反向（把 10 号位的卡换出）不主动恢复 disabled，与 OnCardPlaced 的「永久失效」语义一致。
+    if (player.HasTalent(Talent::虚空之心) && (lhs == 10 || rhs == 10)) {
+        auto& vh = player.VoidHeart();
+        if (!vh.disabled && player.comb_->IsFilled(10)) vh.disabled = true;
+    }
+}
 
 class PerformancePersonalityTalent : public TalentBase
 {

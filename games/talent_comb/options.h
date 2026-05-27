@@ -7,7 +7,7 @@
 #endif
 
 EXTEND_OPTION("每回合最长时间x秒", 局时, (ArithChecker<uint32_t>(10, 3600, "局时（秒）")), 120)
-EXTEND_OPTION("初始血量", 血量, (ArithChecker<uint32_t>(50, 500, "血量")), 150)
+EXTEND_OPTION("初始血量", 血量, (ArithChecker<uint32_t>(50, 1000, "血量")), 150)
 EXTEND_OPTION("随机种子", 种子, (OptionalDefaultChecker<AnyArg>("", "种子", "我是随便输入的一个字符串")), "")
 EXTEND_OPTION("特殊事件", 事件, AlterChecker<int>(MakeSpecialEventOptionMap()), 0)
 #ifdef TEST_BOT

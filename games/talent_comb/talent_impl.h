@@ -398,8 +398,9 @@ inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror,
                                      std::optional<int32_t> mirror_base_score)
 {
     // 坦诚相见: if either player has this talent, only compare base_score_ (ignores all extras)
+    // 镜像对战时 pid2 仍是真实玩家（仅分数取战前快照），其坦诚相见效果同样生效。
     const bool sincere = players_[pid1].HasTalent(Talent::坦诚相见) ||
-                         (!mirror && players_[pid2].HasTalent(Talent::坦诚相见));
+                         players_[pid2].HasTalent(Talent::坦诚相见);
     const int64_t score1 = sincere ? players_[pid1].base_score_ : PlayerBattleScore(pid1);
     // 镜像对战时使用 pid2 的战前快照分数，避免 pid2 在本轮其他对战中的得分变动影响镜像。
     const int64_t score2 = sincere
@@ -657,14 +658,29 @@ inline void MainStage::CollectPreBattleExtras_()
                 if (pool_mid.empty()) {
                     pool_mid.assign(k_points[1].begin(), k_points[1].end());
                 }
-                // 3 选 1：生成 3 张备选随机砖块
+                // 3 选 1：生成 3 张备选随机砖块，尽量保证 3 张互不相同。
+                // 种子稳定性：固定消耗 18 次 RandInt（6 候选 × 3 维度），不论是否触发去重。
                 // 注：必须把三次 RandInt 拆成有序语句——C++ 函数实参之间是"不确定顺序"，
                 // 直接写在 emplace_back 的实参里会让 GCC(libstdc++) 与 Clang(libc++) 以不同顺序消耗 random_card_rng_，造成跨平台 RNG 序列分叉。
-                for (int i = 0; i < 3; ++i) {
+                constexpr int kCandidatePool = 6;
+                std::vector<AreaCard> candidate_pool;
+                candidate_pool.reserve(kCandidatePool);
+                for (int i = 0; i < kCandidatePool; ++i) {
                     const uint32_t left  = RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[0].size() - 1));
                     const uint32_t mid   = RandInt(random_card_rng_, 0, static_cast<uint32_t>(pool_mid.size() - 1));
                     const uint32_t right = RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[2].size() - 1));
-                    offered_cards.emplace_back(k_points[0][left], pool_mid[mid], k_points[2][right]);
+                    candidate_pool.emplace_back(k_points[0][left], pool_mid[mid], k_points[2][right]);
+                }
+                // 依序挑选 3 张互不相同的牌；候选池足够时几乎总能凑齐。
+                for (const auto& card : candidate_pool) {
+                    if (offered_cards.size() >= 3) break;
+                    if (std::find(offered_cards.begin(), offered_cards.end(), card) == offered_cards.end()) {
+                        offered_cards.push_back(card);
+                    }
+                }
+                // 兜底：极端情况下 6 张候选都无法凑齐 3 张唯一牌，按池序补齐（允许重复）。
+                for (size_t i = 0; offered_cards.size() < 3 && i < candidate_pool.size(); ++i) {
+                    offered_cards.push_back(candidate_pool[i]);
                 }
             }
             const auto notify = player.talent_states_.at(talent)->OnPreBattleExtraCards(

@@ -19,8 +19,8 @@
 #include <vector>
 
 #include "utility/random.h"
-#include "games/talent_comb/talent.h"
-#include "games/talent_comb/talent_base.h"
+#include "talent.h"
+#include "talent_base.h"
 
 namespace lgtbot {
 
