@@ -6,9 +6,11 @@
 
 #include <memory>
 #include <optional>
+#include <sstream>
 
 #include "bot_core/match_base.h"
 #include "bot_core/msg_sender.h"
+#include "utility/utils.h"
 
 class MockMsgSender : public MsgSenderBase
 {
@@ -26,54 +28,39 @@ class MockMsgSender : public MsgSenderBase
     {
     }
 
-    virtual MsgSenderGuard operator()() override
+    MsgSenderBase::MsgSenderGuard operator()() const override
     {
-        if (is_public_ && pid_.has_value())
-        {
-            SavePlayer(*pid_, true);
-            SaveText(" ", 1);
+        MsgSenderBase::MsgSenderGuard guard(*this);
+        if (is_public_ && pid_.has_value()) {
+            guard << At(*pid_) << " ";
         }
-        return MsgSenderGuard(*this);
+        return guard;
     }
 
-  protected:
-    virtual void SaveText(const char* const data, const uint64_t len) override
+  private:
+    void Flush(std::vector<MsgFragment>&& messages) const override
     {
-        ss_ << std::string_view(data, len);
-    }
-
-    virtual void SaveUser(const UserID& pid, const bool is_at) override
-    {
-        throw std::runtime_error("user should not appear in game");
-    }
-
-    virtual void SavePlayer(const PlayerID& pid, const bool is_at) override
-    {
-        if (is_at) {
-            ss_ << "@" << pid;
-        } else {
-            ss_ << "[PLAYER_" << pid << "]";
-        }
-    }
-
-    virtual void SaveImage(const char* const path) override
-    {
-        std::basic_string<char> path_str(path);
-            ss_ << "[image=" << std::string(path_str.begin(), path_str.end()) << "]";
-    }
-
-    virtual void SaveMarkdown(const char* const markdown, const uint32_t width) override
-    {
-        if (image_dir_.empty()) {
+        if (messages.empty()) {
             return;
         }
-        const std::string path = (image_dir_ / std::to_string(++image_no_) += ".png").string();
-        MarkdownToImage(markdown, path, width);
-        SaveImage(path.c_str());
-    }
-
-    virtual void Flush() override
-    {
+        std::stringstream ss;
+        for (auto& frag : messages) {
+            std::visit(Overload{
+                [&](const std::string& text) { ss << text; },
+                [&](const At<PlayerID>& at) { ss << "@" << at.id_.Get(); },
+                [&](const Name<PlayerID>& name) { ss << "[PLAYER_" << name.id_.Get() << "]"; },
+                [&](const Image& image) { ss << "[image=" << image.path_ << "]"; },
+                [&](const Markdown& markdown) {
+                    if (!image_dir_.empty()) {
+                        const std::string path = (image_dir_ / std::to_string(++image_no_) += ".png").string();
+                        MarkdownToImage(markdown.content_.c_str(), path.c_str(), markdown.width_);
+                        ss << "[image=" << path << "]";
+                    }
+                },
+                [&](const At<UserID>&) { throw std::runtime_error("user should not appear in game"); },
+                [&](const Name<UserID>&) { throw std::runtime_error("user should not appear in game"); },
+            }, frag);
+        }
         if (is_public_) {
             std::cout << "[BOT -> GROUP]";
         } else if (pid_.has_value()) {
@@ -81,18 +68,15 @@ class MockMsgSender : public MsgSenderBase
         } else {
             throw std::runtime_error("invalid msg_sender");
         }
-        std::cout << std::endl << ss_.str() << std::endl;
-        ss_.str("");
+        std::cout << std::endl << ss.str() << std::endl;
     }
 
-    virtual void SetMatch(const Match* const) override {}
+    void SetMatch(std::weak_ptr<const Match>) override {}
 
-  private:
-    static inline std::atomic<uint64_t> image_no_ = 0;
+    mutable uint64_t image_no_{0};
     const std::filesystem::path image_dir_;
     const std::optional<PlayerID> pid_;
     const bool is_public_;
-    std::stringstream ss_;
 };
 
 class MockMatch : public MatchBase

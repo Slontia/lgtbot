@@ -74,6 +74,7 @@ ErrCode MatchManager::NewMatch(GameHandle& game_handle, const std::string_view i
         options.is_formal_ = is_formal;
         options.applied_options_log_ = game_handle.ConfigClient().GetAppliedLog();
         new_match = std::make_shared<Match>(bot_, mid, game_handle, std::move(options), uid, gid);
+        new_match->BindMsgSenderMatch_();
         BindMatch_(mid, new_match);
         BindMatch_(uid, new_match);
         if (gid.has_value()) {

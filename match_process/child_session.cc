@@ -4,6 +4,7 @@
 
 #include "match_process/ipc_frame.h"
 #include "match_process/match_ipc.pb.h"
+#include "match_process/msg_fragment_ipc.h"
 #include "utility/log.h"
 
 #ifdef _WIN32
@@ -17,18 +18,19 @@ namespace {
 class ErrCollector final : public MsgSenderBase
 {
   public:
-    void SetMatch(const Match* const) override {}
+    mutable std::string text_;
 
-  protected:
-    void SaveText(const char* const data, const uint64_t len) override { text_.append(data, data + len); }
-    void SaveUser(const UserID&, const bool) override {}
-    void SavePlayer(const PlayerID&, const bool) override {}
-    void SaveImage(const char* const) override {}
-    void SaveMarkdown(const char* const, const uint32_t) override {}
-    void Flush() override {}
+  private:
+    void SetMatch(std::weak_ptr<const Match>) override {}
 
-  public:
-    std::string text_;
+    void Flush(std::vector<MsgFragment>&& messages) const override
+    {
+        for (const auto& frag : messages) {
+            if (const auto* text = std::get_if<std::string>(&frag)) {
+                text_.append(*text);
+            }
+        }
+    }
 };
 
 class ReplySender final : public MsgSenderBase
@@ -38,58 +40,24 @@ class ReplySender final : public MsgSenderBase
         : session_(session)
     {}
 
-    void SetMatch(const Match* const) override {}
+  private:
+    void SetMatch(std::weak_ptr<const Match>) override {}
 
-  protected:
-    void SaveText(const char* const data, const uint64_t len) override
+    void Flush(std::vector<MsgFragment>&& messages) const override
     {
-        auto* item = reply_.add_items();
-        item->set_text(std::string(data, data + len));
-    }
-
-    void SaveUser(const UserID& id, const bool /*is_at*/) override
-    {
-        auto* item = reply_.add_items();
-        item->set_user_id(id.GetStr());
-    }
-
-    void SavePlayer(const PlayerID& id, const bool /*is_at*/) override
-    {
-        auto* item = reply_.add_items();
-        item->set_at_player_id(id.Get());
-    }
-
-    void SaveImage(const char* const path) override
-    {
-        auto* item = reply_.add_items();
-        item->set_image_path(path);
-    }
-
-    void SaveMarkdown(const char* const markdown, const uint32_t width) override
-    {
-        auto* item = reply_.add_items();
-        auto* md = item->mutable_markdown();
-        md->set_text(markdown);
-        md->set_width(width);
-    }
-
-    void Flush() override
-    {
-        if (reply_.items_size() == 0) {
+        if (messages.empty()) {
             return;
         }
+        lgtbot::ipc::ReplyResp reply;
+        for (auto& item : lgtbot::ipc::MsgFragmentsToItems(std::move(messages))) {
+            *reply.add_items() = std::move(item);
+        }
         lgtbot::ipc::GameResponse resp;
-        *resp.mutable_reply() = reply_;
+        *resp.mutable_reply() = reply;
         session_.SendProto(resp);
-        reply_.Clear();
     }
 
-  public:
-    void flush_out() { Flush(); }
-
-  private:
     ChildGameSession& session_;
-    lgtbot::ipc::ReplyResp reply_;
 };
 
 static lgtbot::ipc::ResultResp::Stage StageErrToProto(const StageErrCode rc)
@@ -353,7 +321,6 @@ bool ChildGameSession::HandleExecute(const lgtbot::ipc::ExecuteReq& req, std::st
             req.player_id(),
             req.is_public(),
             rep);
-    rep.flush_out();
     Routine();
     lgtbot::ipc::GameResponse resp;
     resp.mutable_result()->set_stage(StageErrToProto(stage_rc));

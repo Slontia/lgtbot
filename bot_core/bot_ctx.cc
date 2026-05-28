@@ -407,12 +407,12 @@ std::string BotCtx::GetUserAvatar(const char* const user_id, const int32_t size)
         std::to_string(size) + "px; border-radius:50%; vertical-align: middle;\"/>";
 }
 
-MsgSender BotCtx::MakeMsgSender(const UserID& user_id, Match* const match) const
+MsgSender BotCtx::MakeMsgSender(const UserID& user_id) const
 {
-    return MsgSender(handler_, image_path_, callbacks_, user_id, match);
+    return MsgSender(handler_, image_path_, callbacks_, user_id);
 }
 
-MsgSender BotCtx::MakeMsgSender(const GroupID& group_id, Match* const match) const
+MsgSender BotCtx::MakeMsgSender(const GroupID& group_id) const
 {
-    return MsgSender(handler_, image_path_, callbacks_, group_id, match);
+    return MsgSender(handler_, image_path_, callbacks_, group_id);
 }

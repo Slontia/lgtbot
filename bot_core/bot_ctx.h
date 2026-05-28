@@ -83,8 +83,8 @@ class BotCtx
 
     std::string GetUserAvatar(const char* const user_id, const int32_t size) const;
 
-    MsgSender MakeMsgSender(const UserID& user_id, Match* const match = nullptr) const;
-    MsgSender MakeMsgSender(const GroupID& user_id, Match* const match = nullptr) const;
+    MsgSender MakeMsgSender(const UserID& user_id) const;
+    MsgSender MakeMsgSender(const GroupID& group_id) const;
 
     static std::variant<GameHandleMap, const char*> LoadGameModules(const char* games_path,
                                                                     const char* config_runner_path = nullptr,

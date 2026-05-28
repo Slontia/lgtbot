@@ -92,21 +92,13 @@ class IpcMatchEnv final : public MatchBase
             , target_pid_(target_pid)
         {}
 
-        void SetMatch(const Match* const) override {}
-
-      protected:
-        void SaveText(const char* const data, const uint64_t len) override;
-        void SaveUser(const UserID& id, const bool is_at) override;
-        void SavePlayer(const PlayerID& id, const bool is_at) override;
-        void SaveImage(const char* const path) override;
-        void SaveMarkdown(const char* const markdown, const uint32_t width) override;
-        void Flush() override;
-
       private:
+        void SetMatch(std::weak_ptr<const Match> /*match*/) override {}
+        void Flush(std::vector<MsgFragment>&& messages) const override;
+
         IpcMatchEnv& env_;
         lgtbot::ipc::PostResp::Channel channel_;
         uint32_t target_pid_;
-        std::vector<lgtbot::ipc::MsgItem> items_;
     };
 
     std::unique_ptr<IpcMsgSender> broadcast_sender_;

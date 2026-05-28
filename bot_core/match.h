@@ -110,6 +110,8 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     void ReleaseGameChildIfOver();
 
+    void BindMsgSenderMatch_();
+
    private:
     struct ParticipantUser
     {
@@ -117,7 +119,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         explicit ParticipantUser(Match& match, const UserID uid, const bool is_ai)
             : uid_(uid)
             , is_ai_(is_ai)
-            , sender_(match.bot_.MakeMsgSender(uid, &match))
+            , sender_(match.bot_.MakeMsgSender(uid))
         {}
         UserID uid_{""};
         bool is_ai_{false};
@@ -228,7 +230,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         MsgSenderBatchHandler(Match& match, const bool ai_only) : match_(match), ai_only_(ai_only) {}
 
         template <typename Fn>
-        void operator()(Fn&& fn)
+        void operator()(Fn&& fn) const
         {
             auto st = match_.sync_.lock();
             for (auto& [_, user_info] : st->users_) {

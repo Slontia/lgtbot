@@ -59,25 +59,23 @@ class HelpTextCollector final : public MsgSenderBase
   public:
     explicit HelpTextCollector(std::string& out) : out_(out) {}
 
-    void SetMatch(const Match* const) override {}
+  private:
+    void SetMatch(std::weak_ptr<const Match> /*match*/) override {}
 
-  protected:
-    void SaveText(const char* const data, const uint64_t len) override
+    void Flush(std::vector<MsgFragment>&& messages) const override
     {
-        if (!captured_) {
-            out_.assign(data, len);
-            captured_ = true;
+        if (!out_.empty()) {
+            return;
+        }
+        for (const auto& frag : messages) {
+            if (const auto* text = std::get_if<std::string>(&frag)) {
+                out_ = *text;
+                return;
+            }
         }
     }
-    void SaveUser(const UserID&, const bool) override {}
-    void SavePlayer(const PlayerID&, const bool) override {}
-    void SaveImage(const char* const) override {}
-    void SaveMarkdown(const char* const, const uint32_t) override {}
-    void Flush() override {}
 
-  private:
     std::string& out_;
-    bool captured_{false};
 };
 
 std::filesystem::path GameLibraryPath(const BotCtx& bot, const GameHandle& gh)
@@ -105,7 +103,7 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, InitOption
     st->host_uid_ = host_uid;
     st->applied_options_log_ = std::move(init_options.applied_options_log_);
     if (gid.has_value()) {
-        st->group_sender_.emplace(bot.MakeMsgSender(*gid_, this));
+        st->group_sender_.emplace(bot.MakeMsgSender(*gid_));
     } else {
         st->group_sender_.reset();
     }
@@ -154,7 +152,23 @@ uint32_t Match::ComputerNum_(const MatchLockedState& st) const
 void Match::EmplaceUser_(MatchLockedState& st, const UserID uid)
 {
     const auto& ai_list = GET_OPTION_VALUE(*bot_.option().lock(), AI列表);
-    st.users_.emplace(uid, ParticipantUser(*this, uid, std::ranges::find(ai_list, uid.GetStr()) != std::end(ai_list)));
+    const auto [it, inserted] =
+        st.users_.emplace(uid, ParticipantUser(*this, uid, std::ranges::find(ai_list, uid.GetStr()) != std::end(ai_list)));
+    if (inserted) {
+        it->second.sender_.SetMatch(weak_from_this());
+    }
+}
+
+void Match::BindMsgSenderMatch_()
+{
+    const auto wk = weak_from_this();
+    auto st = sync_.lock();
+    for (auto& [_, user_info] : st->users_) {
+        user_info.sender_.SetMatch(wk);
+    }
+    if (st->group_sender_.has_value()) {
+        st->group_sender_->SetMatch(wk);
+    }
 }
 
 bool Match::IsInDeduction() const
@@ -257,7 +271,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
             reply() << "[错误] 游戏正在开始，请稍候再试";
             return EC_MATCH_ALREADY_BEGIN;
         }
-        reply.SetMatch(this);
+        reply.SetMatch(weak_from_this());
         if (st->state_ == State::IS_STARTED) {
             pid = it->second.pid_;
             is_eliminated = st->players_[pid].state_ == Player::State::ELIMINATED;
@@ -337,7 +351,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         st->players_.clear();
         for (auto& [user_id, user_info] : st->users_) {
             st->players_.emplace_back(user_id);
-            user_info.sender_.SetMatch(this);
+            user_info.sender_.SetMatch(weak_from_this());
         }
         for (ComputerID cid = 0; cid < ComputerNum_(*st); ++cid) {
             st->players_.emplace_back(cid);
@@ -811,7 +825,7 @@ void Match::Activate(const PlayerID pid)
 
 void Match::ShowInfo(MsgSenderBase& reply) const
 {
-    reply.SetMatch(this);
+    reply.SetMatch(weak_from_this());
     auto st = sync_.lock_const();
     auto sender = reply();
     sender << "游戏名称：" << game_handle().Info().name_ << "\n";

@@ -136,9 +136,9 @@ class PublicReplyMsgSender : public MsgSender
   public:
     PublicReplyMsgSender(MsgSender&& msg_sender, UserID uid) : MsgSender(std::move(msg_sender)), uid_(std::move(uid)) {}
 
-    virtual MsgSenderGuard operator()() override
+    MsgSenderBase::MsgSenderGuard operator()() const override
     {
-        MsgSenderGuard guard(*this);
+        MsgSenderBase::MsgSenderGuard guard(*this);
         // TODO: quote the message
         guard << At(uid_) << "\n";
         return guard;
