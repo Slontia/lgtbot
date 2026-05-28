@@ -430,7 +430,7 @@ class UnitMaps {
         switch (event) {
             case SpecialEvent::LAZYGARDENER: return "[特殊事件]【怠惰的园丁】树丛将在其区块内随机位置生成（有可能生成在中间）";
             case SpecialEvent::OVERGROWTH:   return "[特殊事件]【营养过剩】树丛和陷阱将额外向随机1个方向再次生成1个树丛（不可隔墙生长）";
-            case SpecialEvent::RAINSTORY:    return "[特殊事件]【雨天小故事】地图中所有树丛变成水洼，陷阱会发出啪啪声";
+            case SpecialEvent::RAINSTORY:    return "[特殊事件]【雨天小故事】地图中所有树丛变成水洼，陷阱会发出" PAPA_STR "声";
             default:                         return "[特殊事件]【无】";
         }
     }

@@ -251,10 +251,10 @@ class RoundMove
         }
 
         if (mv.sound == Sound::SHASHA) { // [沙沙]
-            return is_html ? "<span class=\"move sound-grass\">" + d + "沙沙" + sound_d + "</span>" : "[" + d + "沙沙" + sound_d + "]";
+            return is_html ? "<span class=\"move sound-grass\">" + d + SHASHA_STR + sound_d + "</span>" : "[" + d + SHASHA_STR + sound_d + "]";
         }
         else if (mv.sound == Sound::PAPA) { // [啪啪]
-            return is_html ? "<span class=\"move sound-water\">" + d + "啪啪" + sound_d + "</span>" : "[" + d + "啪啪" + sound_d + "]";
+            return is_html ? "<span class=\"move sound-water\">" + d + PAPA_STR + sound_d + "</span>" : "[" + d + PAPA_STR + sound_d + "]";
         }
         else if (!mv.content.first.empty()) {
             if (is_html) {

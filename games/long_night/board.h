@@ -243,11 +243,11 @@ class Board
             { AttachType::JAMMERBOX, "【屏蔽器】有 3x3 **寂静范围**的箱子，基础推动规则和**箱子**一致。（不会出生在屏蔽器内）<br>玩家位于屏蔽器周围 3x3 范围内时，<font color=teal>**将无法获知所有声响的方向来源**</font>。" },
         };
         const vector<pair<GridType, string>> all_grids_info = {
-            { GridType::GRASS, "【树丛】玩家进入时会发出让其他人听见的<font color=#00af50>**沙沙声**</font>。（出生不算）" },
-            { GridType::WATER, "【水洼】玩家进入时会发出让其他人听见的<font color=#01b0f1>**啪啪声**</font>。（出生不算）" },
-            { GridType::PORTAL, "【传送门】玩家进入时会发出其他人听见的<font color=#01b0f1>**啪啪声**</font>。（出生不算）<br>进入后，再任意 <font color=purple>**2次**</font> 移动后就会传送至同区块另一个传送门。<br>进入后，玩家视作进入亚空间，上述 <font color=purple>**2次**</font> 移动都在亚空间内。" },
-            { GridType::ONEWAYPORTAL, "【传送门出口】玩家进入时会发出其他人听见的<font color=#01b0f1>**啪啪声**</font>。（出生不算）<br>传送门的单向出口，进入时不会触发传送（必须从入口进入才会传送至此处）<br>**玩家在进入同一区块的传送门入口时，传送门会转换方向，入口和出口交换位置**" },
-            { GridType::TRAP, "【陷阱】陷阱隐藏在树丛中：被奇数次进入时，会发出让其他人听见的<font color=#00af50>**沙沙声**</font>（出生不算）<br>被偶数次进入时，不发出声响，并**强制玩家停止**（出生不算）" },
+            { GridType::GRASS, "【树丛】玩家进入时会发出让其他人听见的<font color=#00af50>**" SHASHA_STR "声**</font>。（出生不算）" },
+            { GridType::WATER, "【水洼】玩家进入时会发出让其他人听见的<font color=#01b0f1>**" PAPA_STR "声**</font>。（出生不算）" },
+            { GridType::PORTAL, "【传送门】玩家进入时会发出其他人听见的<font color=#01b0f1>**" PAPA_STR "声**</font>。（出生不算）<br>进入后，再任意 <font color=purple>**2次**</font> 移动后就会传送至同区块另一个传送门。<br>进入后，玩家视作进入亚空间，上述 <font color=purple>**2次**</font> 移动都在亚空间内。" },
+            { GridType::ONEWAYPORTAL, "【传送门出口】玩家进入时会发出其他人听见的<font color=#01b0f1>**" PAPA_STR "声**</font>。（出生不算）<br>传送门的单向出口，进入时不会触发传送（必须从入口进入才会传送至此处）<br>**玩家在进入同一区块的传送门入口时，传送门会转换方向，入口和出口交换位置**" },
+            { GridType::TRAP, "【陷阱】陷阱隐藏在树丛中：被奇数次进入时，会发出让其他人听见的<font color=#00af50>**" SHASHA_STR "声**</font>（出生不算）<br>被偶数次进入时，不发出声响，并**强制玩家停止**（出生不算）" },
             { GridType::HEAT, "【热源】进入热源周围 8 格时，将**私信**收到热浪提示。（只有移动时才能感受到热浪）<br>当进入热源时，将**私信**收到高温烫伤提示（不会出生在热源内）<br><font color=red>在整局游戏中，**当第 2 次或更多次进入热源时，会被强制停止行动**</font>" },
             { GridType::EXIT, "【逃生舱】逃生者使用后，**会消失**。" + (test_mode == BlockMode::CLASSIC ? ("本局逃生舱数量为 **" + to_string(exit_num) + "** 个。") : "") },
         };
