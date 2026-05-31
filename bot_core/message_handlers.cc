@@ -213,6 +213,42 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
     return bot.match_manager().NewMatch(it->second, binded_args, uid, gid, reply);
 }
 
+static ErrCode new_random_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+                        const int32_t mode)
+{
+    using GameEntryPtr = const std::pair<const std::string, GameHandle>*;
+    std::vector<GameEntryPtr> eligible_games;
+
+    for (auto& entry : bot.game_handles()) {
+        const auto& game_handle = entry.second;
+        const auto default_max_player = game_handle.CachedMaxPlayer();
+
+        const bool valid = [mode, default_max_player]() {
+            switch (mode) {
+                case 1: return true;
+                case 2: return default_max_player == 2;
+                case 3: return default_max_player == 0 || default_max_player >= 3;
+                default: return true;
+            }
+        }();
+        if (valid) eligible_games.push_back(&entry);
+    }
+    if (eligible_games.empty()) {
+        reply() << "[错误] 随机失败：没有符合人数要求的游戏";
+        return EC_REQUEST_UNKNOWN_GAME;
+    }
+
+    size_t idx = rand() % eligible_games.size();
+    auto& selected_game = eligible_games[idx]->first;
+    
+    std::vector<std::string> args;
+    if (mode == 1) {
+        reply() << "随机游戏：" << selected_game;
+        args = {"单机"};
+    }
+    return new_game(bot, uid, gid, reply, selected_game, args);
+}
+
 template <typename Fn>
 static auto handle_match_by_user(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
         const Fn& fn, const char* const action_name = "")
@@ -887,6 +923,9 @@ const std::vector<MetaCommandGroup> meta_cmds = {
             make_command("在当前房间建立公开游戏，或私信 bot 以建立私密游戏（游戏名称可以通过「" META_COMMAND_SIGN "游戏列表」查看）",
                         new_game, VoidChecker(META_COMMAND_SIGN "新游戏"), AnyArg("游戏名称", "猜拳游戏"),
                         RepeatableChecker<AnyArg>("预设指令", "某指令")),
+            make_command("根据人数条件建立随机游戏房间",
+                        new_random_game, VoidChecker(META_COMMAND_SIGN "随机游戏"),
+                        OptionalDefaultChecker<AlterChecker<int32_t>>(0, std::map<std::string, int32_t>{{"全部", 0}, {"单机", 1}, {"双人", 2}, {"多人", 3}})),
             make_command("房主设置参与游戏的AI数量，使得玩家不低于一定数量（属于配置变更，会使得全部玩家退出游戏）",
                         set_bench_to, VoidChecker(META_COMMAND_SIGN "替补至"), ArithChecker<uint32_t>(2, 32, "数量")),
             make_command("（已废弃）房主调整分数倍率",
