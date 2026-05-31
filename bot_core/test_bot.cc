@@ -57,13 +57,14 @@ class MockDBManager : public DBManagerBase
 
     virtual bool Suicide(const UserID& uid, const uint32_t required_match_num) override { return true; }
 
-    virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) override
+    virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end,
+            const std::optional<GroupID>& gid = std::nullopt) override
     {
         return {};
     }
 
     virtual GameRankInfo GetLevelScoreRank(const std::string& game_name, const std::string_view& time_range_begin,
-            const std::string_view& time_range_end) override
+            const std::string_view& time_range_end, const std::optional<GroupID>& gid = std::nullopt) override
     {
         return {};
     }

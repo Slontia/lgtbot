@@ -767,17 +767,31 @@ static std::string print_score_in_table(BotCtx& bot, const std::string_view& sco
     return table.ToString();
 };
 
-static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
+static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+        const bool group_only)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 查看失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
+    std::optional<GroupID> query_gid = std::nullopt;
+    if (group_only) {
+        if (!gid.has_value()) {
+            reply() << "[错误] 「本群」选项仅限群内使用，私聊请省略该参数或使用「全部」以查看总榜";
+            return EC_MATCH_NEED_ID;
+        }
+        query_gid = gid;
+    }
     std::string s;
     for (const auto time_range : TimeRange::Members()) {
         const auto info = bot.db_manager()->GetRank(
-                k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()]);
-        s += "\n<h2 align=\"center\">" HTML_COLOR_FONT_HEADER(blue);
+                k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()],
+                query_gid);
+        s += "\n<h2 align=\"center\">";
+        if (group_only) {
+            s += HTML_COLOR_FONT_HEADER(gray) "本群" HTML_FONT_TAIL;
+        }
+        s += HTML_COLOR_FONT_HEADER(blue);
         s += time_range.ToString();
         s += HTML_FONT_TAIL "赛季排行</h2>\n";
         html::Table table(1, 3);
@@ -792,22 +806,32 @@ static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<Grou
 }
 
 static ErrCode show_rank_time_range(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
-        const TimeRange time_range)
+        const TimeRange time_range, const bool group_only)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 查看失败：未连接数据库";
         return EC_DB_NOT_CONNECTED;
     }
+    std::optional<GroupID> query_gid = std::nullopt;
+    if (group_only) {
+        if (!gid.has_value()) {
+            reply() << "[错误] 「本群」选项仅限群内使用，私聊请省略该参数或使用「全部」以查看总榜";
+            return EC_MATCH_NEED_ID;
+        }
+        query_gid = gid;
+    }
     const auto info = bot.db_manager()->GetRank(
-            k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()]);
-    reply() << "## 零和得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.zero_sum_score_rank_, gid);
-    reply() << "## 头名得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.top_score_rank_, gid);
-    reply() << "## 游戏局数排行（" << time_range << "赛季）：\n" << print_score(bot, info.match_count_rank_, gid, "场");
+            k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()],
+            query_gid);
+    const std::string_view scope_prefix = group_only ? "本群" : "";
+    reply() << "## " << scope_prefix << "零和得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.zero_sum_score_rank_, gid);
+    reply() << "## " << scope_prefix << "头名得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.top_score_rank_, gid);
+    reply() << "## " << scope_prefix << "游戏局数排行（" << time_range << "赛季）：\n" << print_score(bot, info.match_count_rank_, gid, "场");
     return EC_OK;
 }
 
 static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
-        const std::string& game_name)
+        const std::string& game_name, const bool group_only)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 查看失败：未连接数据库";
@@ -817,11 +841,24 @@ static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional
         reply() << "[错误] 查看失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
+    std::optional<GroupID> query_gid = std::nullopt;
+    if (group_only) {
+        if (!gid.has_value()) {
+            reply() << "[错误] 「本群」选项仅限群内使用，私聊请省略该参数或使用「全部」以查看总榜";
+            return EC_MATCH_NEED_ID;
+        }
+        query_gid = gid;
+    }
     std::string s;
     for (const auto time_range : TimeRange::Members()) {
         const auto info = bot.db_manager()->GetLevelScoreRank(game_name,
-                k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()]);
-        s += "\n<h2 align=\"center\">" HTML_COLOR_FONT_HEADER(blue);
+                k_time_range_begin_datetimes[time_range.ToUInt()], k_time_range_end_datetimes[time_range.ToUInt()],
+                query_gid);
+        s += "\n<h2 align=\"center\">";
+        if (group_only) {
+            s += HTML_COLOR_FONT_HEADER(gray) "本群" HTML_FONT_TAIL;
+        }
+        s += HTML_COLOR_FONT_HEADER(blue);
         s += time_range.ToString();
         s += HTML_FONT_TAIL "赛季";
         s += HTML_COLOR_FONT_HEADER(blue);
@@ -839,7 +876,7 @@ static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional
 }
 
 static ErrCode show_game_rank_range_time(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
-        const std::string& game_name, const TimeRange time_range)
+        const std::string& game_name, const TimeRange time_range, const bool group_only)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 查看失败：未连接数据库";
@@ -849,11 +886,20 @@ static ErrCode show_game_rank_range_time(BotCtx& bot, const UserID uid, const st
         reply() << "[错误] 查看失败：未知的游戏名，请通过「" META_COMMAND_SIGN "游戏列表」查看游戏名称";
         return EC_REQUEST_UNKNOWN_GAME;
     }
+    std::optional<GroupID> query_gid = std::nullopt;
+    if (group_only) {
+        if (!gid.has_value()) {
+            reply() << "[错误] 「本群」选项仅限群内使用，私聊请省略该参数或使用「全部」以查看总榜";
+            return EC_MATCH_NEED_ID;
+        }
+        query_gid = gid;
+    }
     const auto info = bot.db_manager()->GetLevelScoreRank(game_name, k_time_range_begin_datetimes[time_range.ToUInt()],
-            k_time_range_end_datetimes[time_range.ToUInt()]);
-    reply() << "## 等级得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.level_score_rank_, gid);
-    reply() << "## 加权等级得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.weight_level_score_rank_, gid);
-    reply() << "## 游戏局数排行（" << time_range << "赛季）：\n" << print_score(bot, info.match_count_rank_, gid, "场");
+            k_time_range_end_datetimes[time_range.ToUInt()], query_gid);
+    const std::string_view scope_prefix = group_only ? "本群" : "";
+    reply() << "## " << scope_prefix << "等级得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.level_score_rank_, gid);
+    reply() << "## " << scope_prefix << "加权等级得分排行（" << time_range << "赛季）：\n" << print_score(bot, info.weight_level_score_rank_, gid);
+    reply() << "## " << scope_prefix << "游戏局数排行（" << time_range << "赛季）：\n" << print_score(bot, info.match_count_rank_, gid, "场");
     return EC_OK;
 }
 
@@ -908,13 +954,17 @@ const std::vector<MetaCommandGroup> meta_cmds = {
             make_command("查看个人战绩", show_profile, VoidChecker(META_COMMAND_SIGN "战绩"),
                     OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::总)),
             make_command("清除个人战绩", clear_profile, VoidChecker(META_COMMAND_SIGN "人生重来算了")),
-            make_command("查看排行榜", show_rank, VoidChecker(META_COMMAND_SIGN "排行大图")),
+            make_command("查看排行榜", show_rank, VoidChecker(META_COMMAND_SIGN "排行大图"),
+                    OptionalDefaultChecker<BoolChecker>(false, "本群", "全部")),
             make_command("查看某个赛季粒度排行榜", show_rank_time_range, VoidChecker(META_COMMAND_SIGN "排行"),
-                    OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年)),
+                    OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年),
+                    OptionalDefaultChecker<BoolChecker>(false, "本群", "全部")),
             make_command("查看单个游戏等级积分排行榜", show_game_rank, VoidChecker(META_COMMAND_SIGN "排行大图"),
-                    AnyArg("游戏名称", "猜拳游戏")),
+                    AnyArg("游戏名称", "猜拳游戏"),
+                    OptionalDefaultChecker<BoolChecker>(false, "本群", "全部")),
             make_command("查看单个游戏某个赛季粒度等级积分排行榜", show_game_rank_range_time, VoidChecker(META_COMMAND_SIGN "排行"),
-                    AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年)),
+                    AnyArg("游戏名称", "猜拳游戏"), OptionalDefaultChecker<EnumChecker<TimeRange>>(TimeRange::年),
+                    OptionalDefaultChecker<BoolChecker>(false, "本群", "全部")),
             make_command("查看所有荣誉", show_honors, VoidChecker(META_COMMAND_SIGN "荣誉列表"), OptionalDefaultChecker<AnyArg>("", "关键词")),
         }
     },
