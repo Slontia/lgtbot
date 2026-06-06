@@ -5,14 +5,14 @@
 #include <span>
 
 /* ========== 构建期开关 ========== */
-// 完整文案开关：0 = 仅使用合规文案；1 = 启用完整文案（包含部分敏感内容）
-// 关闭时，受限文案在编译期被剔除，对应 hint 数组的大小自动缩减
-#ifndef LONG_NIGHT_FULL_HINTS
-#define LONG_NIGHT_FULL_HINTS 0
+// 受限内容开关（项目级通用）：0 = 仅使用合规内容；1 = 启用完整内容（包含部分敏感内容）
+// 关闭时，受限条目在编译期被剔除，相应 hint 数组的大小自动缩减
+#ifndef INCLUDE_RESTRICTED_CONTENT
+#define INCLUDE_RESTRICTED_CONTENT 0
 #endif
 
 // 声响名称宏定义
-#if LONG_NIGHT_FULL_HINTS
+#if INCLUDE_RESTRICTED_CONTENT
 #define SHASHA_STR "沙沙"
 #define PAPA_STR   "啪啪"
 #else
@@ -121,6 +121,12 @@ enum class HideMode {
     NONE,   // 无
     TURN,   // 回合隐匿
     STEP,   // 单步隐匿
+};
+
+enum class StopInfo {
+    NONE,       // 无
+    PRIVATE,    // 私信
+    PUBLIC,     // 公开
 };
 
 enum class Texture {
@@ -323,7 +329,7 @@ inline constexpr std::string_view wall_hints[] = {
     "你试图用脸测量墙壁的硬度，恭喜获得物理系荣誉学位！",
     "砰！你与墙壁进行了深入交流，结论是它比你想象的更固执。",
     "砰！脑门和墙壁的亲密接触，证明了你对探索的执着！",     // 小葵
-#if LONG_NIGHT_FULL_HINTS
+#if INCLUDE_RESTRICTED_CONTENT
     "是一面光滑湿软的墙！快趁机误导一下对手！信我的邪，你发出了只能自己听见的" PAPA_STR "声。",   //  大萝卜姬
     "彭！靠北啦，你不看路的吗？拜托~这么大一面墙你就这样撞啊。",
 #endif
@@ -348,7 +354,7 @@ inline constexpr std::string_view grass_hints[] = {
     "你踩到了一根萝卜……等等，树林里怎么会有萝卜？",
     SHASHA_STR "，" SHASHA_STR "，这片丛林的背后，会不会住着小红帽？",
     SHASHA_STR "，你踏入了危险的树丛。这里要是藏着一个老六，可就遭了……",   // Hyacinth
-#if LONG_NIGHT_FULL_HINTS
+#if INCLUDE_RESTRICTED_CONTENT
     "枝叶在你身上扫过，" SHASHA_STR "声中，它刮破了你的蚕丝薄衫和渔网袜。",   // 大萝卜姬
 #endif
 };
@@ -361,7 +367,7 @@ inline constexpr std::string_view papa_hints[] = {
     PAPA_STR "！突如其来的声音让你的动作瞬间冻结；被打破的静谧仿佛被劈开的水，迅速地恢复了无声。你的敏锐好像没有得到回应。",
     PAPA_STR "！你好像踩到了地雷？低头看一看，还好，只是一些液体。",     // 三月七
     "啪！你似乎有什么东西掉了进去，可惜这里并没有河神。",
-#if LONG_NIGHT_FULL_HINTS
+#if INCLUDE_RESTRICTED_CONTENT
     "你向前动了动，下半身传来了" PAPA_STR "声。",   // 大萝卜姬
     PAPA_STR "！是谁那么不讲公德！随地……",
     "啪！尽管你动作已经很轻，但还是发出了很大的声音。啪！你决定不管了。",
@@ -373,7 +379,7 @@ inline constexpr std::string_view trap_hints[] = {
     "犹似魂断垓下道，恨满胸中万古刀。",
     "你想起守株待兔的故事，只是此刻，你成为了那只兔子。",   // 纤光
     "为坠落的人类命名：_________",
-#if LONG_NIGHT_FULL_HINTS
+#if INCLUDE_RESTRICTED_CONTENT
     "恭喜🎉被特斯拉捕获，电击调教一回合",       // 特斯拉
 #endif
 };
@@ -429,7 +435,7 @@ inline constexpr std::string_view exit_hints[] = {
     "逃生舱启动的轰鸣声渐渐平息，取而代之的是轻柔的摇篮曲。透过舷窗，你看见繁星组成的银河缓缓流动——原来迷宫的出口，一直连接着整片宇宙。",
     "当舱门完全关闭的瞬间，你听见系统轻声说：'恭喜，这是第1024次模拟。根据数据，你这次终于选择相信自己了。' 周围突然亮起温暖的阳光，原来真正的逃生舱，一直都在你心里。",
     "逃生舱的显示屏突然亮起一行字：'记住，黑暗只是光明的候车室。' 随着这句话，整个舱体开始散发出柔和的金色光芒，照亮了通往新世界的道路。",
-#if LONG_NIGHT_FULL_HINTS
+#if INCLUDE_RESTRICTED_CONTENT
     "躺在逃生舱内，平日并不虔诚的你颤巍巍地画着十字，双手合十，嘴里念念有词。诸如什么真主阿拉耶稣基督释迦牟利急急如律令之类。前窗仿佛响应了你的号召，一阵白色闪光迅速笼罩了你。正当你诧异得到了哪位神仙的庇佑时，眼前浮现出两个大字。一个振奋人心的声音在你耳边响起：“原神，启动！”",   // 大萝卜姬
     "一阵失重后，舱门终于打开。随着刺眼的白光，在指缝间你看见几个面目可憎的巨人在围观你。很快地你被巨大的餐叉粗暴地刺穿；顾不及对痛觉反应，你便殒命在血盘大口之中。健硕、坚定、智慧、乐观，这些优秀的品质在他们嘴里同样珍贵。",
 #endif
@@ -441,21 +447,21 @@ inline constexpr std::string_view catch_hints[] = {
     "你想触碰一切的真相，但在对方空洞无神的双眼中，你没能找到答案。",
     "你叹了口气，在黑暗森林里，你不得不这样做。",
     "感谢你为了我自愿放弃逃生资格",   // 克里斯丁
-#if LONG_NIGHT_FULL_HINTS
+#if INCLUDE_RESTRICTED_CONTENT
     "我说我杀人不眨眼，你问我眼睛干不干？永别了",   // 克里斯丁
 #endif
 };
 // 同格树丛声响提示
 inline constexpr std::string_view grass_sound_hints[] = {
     "你听见有人进入了你所在的树丛，他从旁边匆匆走过，没有发现你。阴暗的想法在你心里成长起来，是让他帮你探路，还是直接干掉。甚至运气好的话，抢在前面牛了他的逃生舱……（额外探索分只有1分并逃生一事在漫漫长夜中亦有记载）",    // Hyacinth
-#if LONG_NIGHT_FULL_HINTS
+#if INCLUDE_RESTRICTED_CONTENT
     "你听见有人进入了你的小树丛，" SHASHA_STR "声很近很近；一股接一股热气扑向了你的耳朵；呼…哈……呼…哈……他好像很累的样子。积极地想，他也许没有察觉到你",   // 大萝卜姬
 #endif
 };
 // 同格啪啪声响提示
 inline constexpr std::string_view papa_sound_hints[] = {
     "同一片液体里溅起了另一阵" PAPA_STR "声，近得只剩一臂之遥。你屏住呼吸，听那脚步从身旁缓缓掠过——他似乎并未察觉你的存在。",   // 铁蛋
-#if LONG_NIGHT_FULL_HINTS
+#if INCLUDE_RESTRICTED_CONTENT
     "“啪！”你汗毛直立，有人来了。。幸好，你并没有站在中间，多疑多虑的性格给了你久违的回报。你小心翼翼地蹲了下来，尽力减少接触概率。只是黑暗中你低估了脚下液体的深度。“等他走远，再把内裤脱了吧。。”你暗暗地想。",   // 大萝卜姬
     "啪！啪！看来是有人来了。两个人，狭小的隔间，不间断地" PAPA_STR "声……'淫秽的人！'你的脑海回想起了她的声音。是啊。我承认，我确实有点想她了。",
 #endif
@@ -463,7 +469,7 @@ inline constexpr std::string_view papa_sound_hints[] = {
 // 无逃生舱最后生还
 inline constexpr std::string_view withoutE_win_hints[] = {
     "官方简单地公示了那次事件仅有一人生还，只有你知道你都经历了些什么。每当你听到树丛的“" SHASHA_STR "”声和水的“" PAPA_STR "”声，你都不由自主回想起那个时候。幸好，现在的你已经安全了。",     // shiga
-#if LONG_NIGHT_FULL_HINTS
+#if INCLUDE_RESTRICTED_CONTENT
     "我睁开了双眼，眼前的一切既熟悉又陌生。看来这次终于是我赢了。我用力地端详着周遭的一切，试图捕捉错过的几日时光的任何蛛丝马迹。“我真希望他们彻底离开了 ......”说完，我在床脚拿起了本该在枕边的剃须刀；“看来上次赢的是萝卜。”我下意识地抹了抹嘴唇。在指尖晕开的口红证实了我的猜测。我笑了。",     // 大萝卜姬
     "你醒啦？现在已经是第二天了哦。\n明媚的阳光照进迷宫，耳旁传来小鸟的叫声，一切美好的不太真实，唯有眼前冰冷的血迹，无声的诉说着昨晚的那场噩梦，而有些人，永远留在了那场梦中。\n可你，真的从中逃出来了吗？\n“地形参数设置完毕，新的循环正在重启……”",   // 纤光
 #endif

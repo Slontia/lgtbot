@@ -19,7 +19,12 @@ EXTEND_OPTION("[常规] 设置游戏地图边长", 边长, (AlterChecker<int32_t
 EXTEND_OPTION("[常规] 游戏最大回合数限制", 回合数, (ArithChecker<uint32_t>(3, 40, "回合数")), 20)
 EXTEND_OPTION("[常规] 捕捉目标：设置游戏中玩家的捕捉顺序", 捕捉目标, 
     (AlterChecker(std::map<std::string, enum Target>{{"上家", Target::PREVIOUS}, {"下家", Target::NEXT}})), Target::PREVIOUS)
-EXTEND_OPTION("[常规] 停止私信：玩家主动停止或超时，得知私信墙壁信息", 停止私信, (BoolChecker("开启", "关闭")), false)
+EXTEND_OPTION("[常规] 停止信息：玩家主动停止或超时，得知墙壁信息的方式", 停止信息,
+    (AlterChecker(std::map<std::string, enum StopInfo>{
+        {"无", StopInfo::NONE},
+        {"私信", StopInfo::PRIVATE},
+        {"公开", StopInfo::PUBLIC},
+    })), StopInfo::NONE)
 
 EXTEND_OPTION("[事件] 设置游戏特殊事件", 特殊事件, (AlterChecker(std::map<std::string, enum SpecialEvent>{
     {"无", SpecialEvent::NONE},
