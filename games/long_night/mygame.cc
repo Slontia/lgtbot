@@ -192,7 +192,8 @@ enum class InitOption {
     // ===== 其他配置 =====
     TARGET_PREVIOUS,
     TARGET_NEXT,
-    STOP_PRIVATE,
+    STOP_INFO_PRIVATE,
+    STOP_INFO_PUBLIC,
     TEXTURE_RETRO,
 
     // ===== 启动模式 =====
@@ -234,7 +235,8 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
 
                         case InitOption::TARGET_PREVIOUS:   GET_OPTION_VALUE(game_options, 捕捉目标) = Target::PREVIOUS; break;
                         case InitOption::TARGET_NEXT:       GET_OPTION_VALUE(game_options, 捕捉目标) = Target::NEXT; break;
-                        case InitOption::STOP_PRIVATE:      GET_OPTION_VALUE(game_options, 停止私信) = true; break;
+                        case InitOption::STOP_INFO_PRIVATE: GET_OPTION_VALUE(game_options, 停止信息) = StopInfo::PRIVATE; break;
+                        case InitOption::STOP_INFO_PUBLIC:  GET_OPTION_VALUE(game_options, 停止信息) = StopInfo::PUBLIC; break;
                         case InitOption::TEXTURE_RETRO:     GET_OPTION_VALUE(game_options, 纹理) = Texture::RETRO; break;
 
                         case InitOption::SINGLE_USER:       single_user = true; break;
@@ -273,7 +275,8 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
 
                 {"上家", InitOption::TARGET_PREVIOUS},
                 {"下家", InitOption::TARGET_NEXT},
-                {"停止私信", InitOption::STOP_PRIVATE},
+                {"停止私信", InitOption::STOP_INFO_PRIVATE},
+                {"停止公开", InitOption::STOP_INFO_PUBLIC},
                 {"复古", InitOption::TEXTURE_RETRO},
 
                 {"单机", InitOption::SINGLE_USER},
@@ -558,12 +561,16 @@ class RoundStage : public SubGameStage<>
                 SendSoundMessage(Main().board.boss.x, Main().board.boss.y, Sound::BOSS, true);
             }
             // 开局帮助和模式信息播报
+            const char* stop_info_msg;
+            switch (GAME_OPTION(停止信息)) {
+                case StopInfo::NONE:    stop_info_msg = "【无停止信息】主动停止或超时将无法得知四周墙壁信息"; break;
+                case StopInfo::PRIVATE: stop_info_msg = "【私信停止信息】主动停止或超时可以获得私信四周墙壁信息"; break;
+                case StopInfo::PUBLIC:  stop_info_msg = "【公开停止信息】主动停止或超时时将在公屏公开四周墙壁信息"; break;
+            }
             Global().Boardcast() << "指令「预览」可生成自定义地图来记录草稿，格式例如：预览 2 3 0 11 E1 0 E2（E前缀表示逃生舱）\n\n"
                                  << "私信「完整赛况」可查询完整的私信信息汇总，包括其他玩家的声响方向历史记录\n\n"
                                  << (GAME_OPTION(谋定后动) ? "【谋定后动】每回合仅能执行一次移动，可使用多步行动指令\n" : "")
-                                 << (GAME_OPTION(停止私信) 
-                                    ? "【有停止私信】主动停止或超时可以获得私信四周墙壁信息"
-                                    : "【无停止私信】主动停止或超时将无法得知四周墙壁信息");
+                                 << stop_info_msg;
         }
     }
 
@@ -732,8 +739,20 @@ class RoundStage : public SubGameStage<>
         step++;
         active_stop = true;
         if (!hide) player.NewContentRecord("(停止)");
-        reply() << "[第 " << step << " 步] 您选择主动停止行动，本回合结束！"
-                << (GAME_OPTION(停止私信) ? "请留意机器人私信发送的四周墙壁信息" : "主动停止无法获得四周墙壁信息");
+        auto sender = reply();
+        sender << "[第 " << step << " 步] 您选择主动停止行动，本回合结束！";
+        switch (GAME_OPTION(停止信息)) {
+            case StopInfo::NONE:
+                sender << "主动停止无法获得四周墙壁信息";
+                break;
+            case StopInfo::PRIVATE:
+                sender << "请留意机器人私信发送的四周墙壁信息";
+                break;
+            case StopInfo::PUBLIC:
+                sender << "主动停止将公开四周墙壁信息\n\n";
+                AppendSurroundingWalls(player, sender);
+                break;
+        }
         return StageErrCode::READY;
     }
 
@@ -853,20 +872,30 @@ class RoundStage : public SubGameStage<>
     virtual CheckoutErrCode OnStageTimeout() override
     {
         Player& player = Main().board.players[currentPlayer];
-        if (!is_acting) {
-            if (!player.hook_status) {
-                Global().Tell(currentPlayer) << "您已进入挂机状态，等待时间将缩减至 30 秒，执行游戏指令可恢复至原状态";
+        // 使用加时卡延长时限，不结束本回合
+        if (is_acting && player.extra_time_card > 0) {
+            player.extra_time_card--;
+            Global().Boardcast() << "行动超时，自动使用加时卡，剩余时间延长 " + to_string(EXTRATIMECRAD_TIME) + " 秒，剩余 " + to_string(player.extra_time_card) + " 张加时卡";
+            Global().StartTimer(EXTRATIMECRAD_TIME);
+            return StageErrCode::CONTINUE;
+        }
+        // 用块作用域控制 sender 析构时机，保证超时提示先于回合结算播报
+        {
+            auto sender = Global().Boardcast();
+            if (!is_acting) {
+                if (!player.hook_status) {
+                    Global().Tell(currentPlayer) << "您已进入挂机状态，等待时间将缩减至 30 秒，执行游戏指令可恢复至原状态";
+                }
+                player.hook_status = true;
+                sender << "玩家 " << At(PlayerID(currentPlayer)) << " 超时未行动，已进入挂机状态，再次行动前仅有 30 秒等待时间";
+            } else {
+                sender << "玩家 " << At(PlayerID(currentPlayer)) << " 行动超时，切换下一个玩家";
             }
-            player.hook_status = true;
-            Global().Boardcast() << "玩家 " << At(PlayerID(currentPlayer)) << " 超时未行动，已进入挂机状态，再次行动前仅有 30 秒等待时间";
-        } else {
-            if (player.extra_time_card > 0) {
-                player.extra_time_card--;
-                Global().Boardcast() << "行动超时，自动使用加时卡，剩余时间延长 " + to_string(EXTRATIMECRAD_TIME) + " 秒，剩余 " + to_string(player.extra_time_card) + " 张加时卡";
-                Global().StartTimer(EXTRATIMECRAD_TIME);
-                return StageErrCode::CONTINUE;
+            // PUBLIC 模式：与主动停止对齐，把墙壁信息附加到公屏超时提示
+            if (GAME_OPTION(停止信息) == StopInfo::PUBLIC) {
+                sender << "\n\n";
+                AppendSurroundingWalls(player, sender);
             }
-            Global().Boardcast() << "玩家 " << At(PlayerID(currentPlayer)) << " 行动超时，切换下一个玩家";
         }
         player.NewContentRecord("(超时)");
         active_stop = true;
@@ -924,11 +953,10 @@ class RoundStage : public SubGameStage<>
             }
             return StageErrCode::CHECKOUT;
         }
-        // 私信发送四周墙壁信息（主动停止或超时不发送）
-        if (player.out == 0 && (!active_stop || GAME_OPTION(停止私信))) {
-            auto [info, md] = Main().board.GetSurroundingWalls(currentPlayer);
-            player.private_record = "【第 " + to_string(Main().round_) + " 回合】\n您所在位置的四周墙壁信息，按照 上下左右 顺序分别是：\n" + info;
-            Global().Tell(currentPlayer) << player.private_record << "\n" << Markdown(md, (GRID_SIZE + WALL_SIZE * 2) + 40);
+        // 私信发送四周墙壁信息（PUBLIC模式下主动停止/超时已处理，此处跳过）
+        if (player.out == 0 && (!active_stop || GAME_OPTION(停止信息) == StopInfo::PRIVATE)) {
+            auto tell = Global().Tell(currentPlayer);
+            AppendSurroundingWalls(player, tell);
         }
         // 已触发炸弹才能拆除炸弹
         if (grid.Attach() == AttachType::BOMB && player.bomb_trigger) {
@@ -1007,6 +1035,7 @@ class RoundStage : public SubGameStage<>
     bool HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderGuard& sender, const bool multiple_mode);
     bool PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& sender);
     void SendSoundMessage(const int fromX, const int fromY, const Sound sound, const bool to_all, const bool is_first_sound = false);
+    void AppendSurroundingWalls(Player& player, MsgSenderBase::MsgSenderGuard& sender);
     void HandleMinotaurBossAction(Boss& boss, string& boss_record, MsgSenderBase::MsgSenderGuard& sender);
     void HandleBangBangBossAction(Boss& boss, string& boss_record, MsgSenderBase::MsgSenderGuard& sender);
 };
@@ -1242,6 +1271,14 @@ bool RoundStage::PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& send
         if (Main().board.TypeCount(GridType::EXIT) > 0) Main().withE_win_ = true;
     }
     return true;
+}
+
+// 将玩家四周墙壁信息写入私信赛况并以流式输出到 sender
+void RoundStage::AppendSurroundingWalls(Player& player, MsgSenderBase::MsgSenderGuard& sender)
+{
+    auto [info, md] = Main().board.GetSurroundingWalls(player.pid);
+    player.private_record = "【第 " + to_string(Main().round_) + " 回合】\n您所在位置的四周墙壁信息，按照 上下左右 顺序分别是：\n" + info;
+    sender << player.private_record << "\n" << Markdown(md, (GRID_SIZE + WALL_SIZE * 2) + 40);
 }
 
 // 私信其他玩家发送声响信息
