@@ -24,7 +24,7 @@ class mutex_protect_wrapper
     using mutex_type = Mutex;
 
     template <typename... Args>
-    explicit mutex_protect_wrapper(Args&&... args) : obj_{std::forward<Args>(args)...} {}
+    explicit mutex_protect_wrapper(Args&&... args) : obj_(std::forward<Args>(args)...) {}
 
     mutex_protect_wrapper(const mutex_protect_wrapper&) = delete;
     mutex_protect_wrapper(mutex_protect_wrapper&&) = delete;

@@ -155,7 +155,7 @@ class TestBot : public testing::Test
                     std::make_unique<MockDBManager>(),
 #endif
                     MutableBotOption{},
-                    nlohmann::json{},
+                    nlohmann::json::object(),
                     nullptr));
     }
 

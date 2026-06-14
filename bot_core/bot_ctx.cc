@@ -209,8 +209,8 @@ std::variant<GameHandleMap, const char*> BotCtx::LoadGameModules(const char* con
 static std::variant<nlohmann::json, const char*> LoadConfig(const char* const conf_path,
         MutableBotOption& bot_options)
 {
-    if (!conf_path) {
-        return nlohmann::json{};
+    if (!conf_path || conf_path[0] == ''\0') {
+        return nlohmann::json::object();
     }
     if (!std::filesystem::exists(conf_path)) {
         std::ofstream file(conf_path); // create file if not exists
