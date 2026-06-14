@@ -5,7 +5,7 @@
 #pragma once
 
 #include "bot_core/id.h"
-#include "bot_core/match_base.h"
+#include "game_framework/match_base.h"
 #include "game_framework/game_achievements.h"
 #include "game_framework/game_options.h"
 #include "game_framework/player_ready_masker.h"
@@ -42,12 +42,10 @@ class PublicStageUtility
     MsgSenderBase& BoardcastMsgSender() const;
     MsgSenderBase& TellMsgSender(const PlayerID pid) const;
     MsgSenderBase& GroupMsgSender() const;
-    MsgSenderBase& BoardcastAiInfoMsgSender() const;
 
     decltype(auto) Group() const { return GroupMsgSender()(); }
     decltype(auto) Boardcast() const { return BoardcastMsgSender()(); }
     decltype(auto) Tell(const PlayerID pid) const { return TellMsgSender(pid)(); }
-    void BoardcastAiInfo(nlohmann::json j);
 
     int SaveMarkdown(const std::string& markdown, const uint32_t width = 600);
 
@@ -111,7 +109,6 @@ class PublicStageUtility
     MatchBase& match_;
     PlayerReadyMasker masker_;
     std::vector<AchievementCounts> achievement_counts_;
-    int32_t bot_message_id_{0}; // the ID of each bot message
     int32_t saved_image_no_{0};
     std::optional<std::chrono::time_point<std::chrono::steady_clock>> timer_finish_time_;
     bool is_in_deduction_{false};

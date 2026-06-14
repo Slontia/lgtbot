@@ -46,7 +46,7 @@ void AppendNameUser(std::vector<OutMessage>& out, void* const handler, const LGT
 
 void AppendAtPlayer(std::vector<OutMessage>& out, const std::shared_ptr<const Match>& match, const PlayerID& pid)
 {
-    if (!match || match->state() == Match::State::NOT_STARTED) {
+    if (!match || match->state() == Match::NOT_STARTED) {
         AppendText(out, "[" + std::to_string(pid.Get()) + "号玩家]");
         return;
     }
@@ -63,7 +63,7 @@ void AppendAtPlayer(std::vector<OutMessage>& out, const std::shared_ptr<const Ma
 void AppendNamePlayer(std::vector<OutMessage>& out, void* const handler, const LGTBot_Callback& callbacks,
         const bool is_to_user, const std::string& dest_id, const std::shared_ptr<const Match>& match, const PlayerID& pid)
 {
-    if (!match || match->state() == Match::State::NOT_STARTED) {
+    if (!match || match->state() == Match::NOT_STARTED) {
         AppendText(out, "[" + std::to_string(pid.Get()) + "号玩家]");
         return;
     }
@@ -126,7 +126,7 @@ MsgSender::MsgSender(MsgSender&& o) noexcept
     , callbacks_(o.callbacks_)
     , id_(std::move(o.id_))
     , is_to_user_(o.is_to_user_)
-    , match_wk_(std::move(o.match_wk_))
+    , match_wk_(o.match_wk_.Exchange({}))
 {
 }
 
@@ -138,19 +138,14 @@ MsgSender& MsgSender::operator=(MsgSender&& o) noexcept
         callbacks_ = o.callbacks_;
         id_ = std::move(o.id_);
         is_to_user_ = o.is_to_user_;
-        {
-            std::lock_guard lock(match_wk_mutex_);
-            std::lock_guard olock(o.match_wk_mutex_);
-            match_wk_ = std::move(o.match_wk_);
-        }
+        match_wk_.Store(o.match_wk_.Exchange({}));
     }
     return *this;
 }
 
 void MsgSender::SetMatch(std::weak_ptr<const Match> match)
 {
-    std::lock_guard lock(match_wk_mutex_);
-    match_wk_ = std::move(match);
+    match_wk_.Store(std::move(match));
 }
 
 MsgSenderBase::MsgSenderGuard MsgSender::operator()() const
@@ -160,8 +155,7 @@ MsgSenderBase::MsgSenderGuard MsgSender::operator()() const
 
 std::shared_ptr<const Match> MsgSender::LockMatch_() const
 {
-    std::lock_guard lock(match_wk_mutex_);
-    return match_wk_.lock();
+    return match_wk_.Lock();
 }
 
 void MsgSender::Flush(std::vector<MsgFragment>&& messages) const

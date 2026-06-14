@@ -5,7 +5,6 @@
 #pragma once
 
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -19,6 +18,7 @@
 #include "bot_core/id.h"
 #include "bot_core/image.h"
 #include "bot_core/bot_core.h"
+#include "utility/atomic_weak_ptr.h"
 
 class Match;
 
@@ -102,6 +102,10 @@ class MsgSenderBase
     {
       public:
         explicit MsgSenderGuard(const MsgSenderBase& sender) : sender_(&sender) {}
+        explicit MsgSenderGuard(std::unique_ptr<MsgSenderBase> owned)
+            : owned_(std::move(owned))
+            , sender_(owned_.get())
+        {}
         MsgSenderGuard(const MsgSenderGuard&) = delete;
         MsgSenderGuard(MsgSenderGuard&& other) noexcept;
         MsgSenderGuard& operator=(const MsgSenderGuard&) = delete;
@@ -128,6 +132,7 @@ class MsgSenderBase
         MsgSenderGuard& operator<<(Markdown markdown) { messages_.emplace_back(std::move(markdown)); return *this; }
 
       private:
+        std::unique_ptr<MsgSenderBase> owned_;
         const MsgSenderBase* sender_{nullptr};
         std::vector<MsgFragment> messages_;
 
@@ -138,8 +143,7 @@ class MsgSenderBase
     virtual ~MsgSenderBase() = default;
     virtual MsgSenderGuard operator()() const { return MsgSenderGuard(*this); }
     virtual void SetMatch(std::weak_ptr<const Match> match) = 0;
-
-    template <typename> friend class MsgSenderBatch;
+    void DeliverMessages(std::vector<MsgFragment>&& messages) const { Flush(std::move(messages)); }
 
   protected:
     virtual void Flush(std::vector<MsgFragment>&& messages) const = 0;
@@ -192,53 +196,29 @@ class MsgSender : public MsgSenderBase
     const LGTBot_Callback* callbacks_{nullptr};
     std::string id_;
     bool is_to_user_{false};
-    mutable std::mutex match_wk_mutex_;
-    std::weak_ptr<const Match> match_wk_;
+    AtomicWeakPtr<const Match> match_wk_;
 };
-
-template <typename Fn>
-class MsgSenderBatch : public MsgSenderBase
-{
-  public:
-    explicit MsgSenderBatch(Fn&& fn) : fn_(std::forward<Fn>(fn)) {}
-
-  private:
-    void Flush(std::vector<MsgFragment>&& messages) const override;
-    void SetMatch(std::weak_ptr<const Match> match) override;
-
-    Fn fn_;
-};
-
-template <typename Fn>
-void MsgSenderBatch<Fn>::Flush(std::vector<MsgFragment>&& messages) const
-{
-    if (messages.empty()) {
-        return;
-    }
-    fn_([&](MsgSenderBase& sender) {
-        auto copy = messages;
-        sender.Flush(std::move(copy));
-    });
-}
-
-template <typename Fn>
-void MsgSenderBatch<Fn>::SetMatch(std::weak_ptr<const Match> match)
-{
-    fn_([&](MsgSenderBase& sender) { sender.SetMatch(match); });
-}
 
 inline MsgSenderBase::MsgSenderGuard::MsgSenderGuard(MsgSenderGuard&& other) noexcept
-    : sender_(other.sender_)
+    : owned_(std::move(other.owned_))
+    , sender_(other.sender_)
     , messages_(std::move(other.messages_))
 {
+    if (owned_) {
+        sender_ = owned_.get();
+    }
     other.sender_ = nullptr;
 }
 
 inline MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator=(MsgSenderGuard&& other) noexcept
 {
     if (this != &other) {
+        owned_ = std::move(other.owned_);
         sender_ = other.sender_;
         messages_ = std::move(other.messages_);
+        if (owned_) {
+            sender_ = owned_.get();
+        }
         other.sender_ = nullptr;
     }
     return *this;
@@ -253,6 +233,7 @@ inline MsgSenderBase::MsgSenderGuard::~MsgSenderGuard()
 
 inline void MsgSenderBase::MsgSenderGuard::Release()
 {
+    owned_.reset();
     sender_ = nullptr;
     messages_.clear();
 }

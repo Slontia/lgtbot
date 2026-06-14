@@ -19,7 +19,6 @@ class MatchBase
     virtual MsgSenderBase& BoardcastMsgSender() = 0;
     virtual MsgSenderBase& TellMsgSender(const PlayerID pid) = 0;
     virtual MsgSenderBase& GroupMsgSender() = 0;
-    virtual MsgSenderBase& BoardcastAiInfoMsgSender() = 0;
 
     // player info
     virtual const char* PlayerName(const PlayerID& pid) = 0;

@@ -44,9 +44,17 @@ ErrCode MatchManager::NewMatch(GameHandle& game_handle, const std::string_view i
     std::shared_ptr<Match> new_match;
     {
         std::lock_guard<std::mutex> l(mutex_);
-        if (GetMatch_(uid)) {
-            reply() << "[错误] 建立失败：您已加入游戏";
-            return EC_MATCH_USER_ALREADY_IN_MATCH;
+        if (const auto existing = GetMatch_(uid)) {
+            if (existing->state() == Match::IS_OVER) {
+                UnbindMatch_(uid);
+                UnbindMatch_(static_cast<MatchID>(existing->MatchId()));
+                if (const auto existing_gid = existing->gid()) {
+                    UnbindMatch_(*existing_gid);
+                }
+            } else {
+                reply() << "[错误] 建立失败：您已加入游戏";
+                return EC_MATCH_USER_ALREADY_IN_MATCH;
+            }
         }
         if (gid.has_value() && GetMatch_(*gid)) {
             // We has tried terminating the game outside this funciton.

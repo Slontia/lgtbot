@@ -159,15 +159,11 @@ class MainStage : public MainGameStage<>
 
     virtual CheckoutErrCode OnStageOver() override
     {
-        nlohmann::json json_array;
         const auto result = board_.Settlement();
         for (auto pid : {PlayerID{0}, PlayerID{1}}) {
             auto& coor = placed_coors_[pid];
             if (coor.has_value()) {
-                json_array.push_back(std::string(1, 'A' + coor->first) + std::to_string(coor->second));
                 coor.reset();
-            } else {
-                json_array.push_back(nullptr);
             }
             player_scores_[pid] = result[static_cast<uint8_t>(PlayerIDToChessType_(pid))];
             if (!board_.PlacablePositions(PlayerIDToChessType_(pid)).empty()) {
@@ -175,10 +171,6 @@ class MainStage : public MainGameStage<>
             }
         }
         Global().Boardcast() << "双方落子成功";
-        Global().BoardcastAiInfo(nlohmann::json{
-                    { "player_coordinates", std::move(json_array) },
-                    { "board", board_.ToString() }
-                });
         ++round_;
         Global().Group() << Markdown(ToHtml_());
         Global().Tell(0) << Markdown(ToHtml_());

@@ -46,12 +46,9 @@ IpcMatchEnv::IpcMatchEnv(ChildGameSession& session)
     using Ch = lgtbot::ipc::PostResp::Channel;
     broadcast_sender_ = std::make_unique<IpcMsgSender>(*this, Ch::PostResp_Channel_BROADCAST, 0);
     group_sender_     = std::make_unique<IpcMsgSender>(*this, Ch::PostResp_Channel_GROUP, 0);
-    ai_sender_        = std::make_unique<IpcMsgSender>(*this, Ch::PostResp_Channel_AI, 0);
 }
 
 MsgSenderBase& IpcMatchEnv::BoardcastMsgSender() { return *broadcast_sender_; }
-
-MsgSenderBase& IpcMatchEnv::BoardcastAiInfoMsgSender() { return *ai_sender_; }
 
 MsgSenderBase& IpcMatchEnv::GroupMsgSender() { return *group_sender_; }
 

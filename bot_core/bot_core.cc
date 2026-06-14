@@ -109,7 +109,7 @@ int LGTBot_ReleaseIfNoProcessingGames(void* const bot_p)
     }
     BotCtx& bot = *static_cast<BotCtx*>(bot_p);
     const auto matches = bot.match_manager().Matches();
-    if (std::ranges::any_of(matches, [](const auto& match) { return match->state() == Match::State::IS_STARTED; })) {
+    if (std::ranges::any_of(matches, [](const auto& match) { return match->state() == Match::IS_STARTED; })) {
         InfoLog() << "ReleaseIfNoProcessingGames failed because there are processing games";
         return false;
     }

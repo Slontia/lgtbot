@@ -40,6 +40,11 @@ list(APPEND SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/bot_ctx.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/db_manager.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/match.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match_lobby.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match_running.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match_phase_common.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match_env.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match_internal.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/match_manager.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/message_handlers.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cc

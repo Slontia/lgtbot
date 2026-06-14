@@ -43,20 +43,6 @@ MsgSenderBase& PublicStageUtility::GroupMsgSender() const
     return IsInDeduction() ? EmptyMsgSender::Get() : match_.GroupMsgSender();
 }
 
-MsgSenderBase& PublicStageUtility::BoardcastAiInfoMsgSender() const
-{
-    return IsInDeduction() ? EmptyMsgSender::Get() : match_.BoardcastAiInfoMsgSender();
-}
-
-void PublicStageUtility::BoardcastAiInfo(nlohmann::json j)
-{
-    BoardcastAiInfoMsgSender()() << nlohmann::json{
-            { "match_id", match_.MatchId() },
-            { "info_id", bot_message_id_++ },
-            { "info", std::move(j) },
-        }.dump();
-}
-
 int PublicStageUtility::SaveMarkdown(const std::string& markdown, const uint32_t width)
 {
     const std::filesystem::path path = std::filesystem::path(generic_options_.saved_image_dir_) /

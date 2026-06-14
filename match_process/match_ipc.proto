@@ -91,7 +91,6 @@ message PostResp {
     BROADCAST = 0;
     GROUP     = 1;
     TELL      = 2;
-    AI        = 3;
   }
   Channel          channel    = 1;
   uint32           target_pid = 2;  // valid for TELL

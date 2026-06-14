@@ -8,7 +8,7 @@
 #include <optional>
 #include <sstream>
 
-#include "bot_core/match_base.h"
+#include "game_framework/match_base.h"
 #include "bot_core/msg_sender.h"
 #include "utility/utils.h"
 
@@ -101,8 +101,6 @@ class MockMatch : public MatchBase
     }
 
     virtual MockMsgSender& GroupMsgSender() override { return boardcast_sender_; }
-
-    virtual MsgSenderBase& BoardcastAiInfoMsgSender() override { return boardcast_sender_; }
 
     virtual const char* PlayerName(const PlayerID& pid) override
     {

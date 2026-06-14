@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "bot_core/id.h"
-#include "bot_core/match_base.h"
+#include "game_framework/match_base.h"
 #include "bot_core/msg_sender.h"
 #include "bot_core/timer.h"
 #include "game_framework/game_main.h"
@@ -25,7 +25,6 @@ class IpcMatchEnv final : public MatchBase
     explicit IpcMatchEnv(ChildGameSession& session);
 
     MsgSenderBase& BoardcastMsgSender() override;
-    MsgSenderBase& BoardcastAiInfoMsgSender() override;
     MsgSenderBase& TellMsgSender(const PlayerID pid) override;
     MsgSenderBase& GroupMsgSender() override;
 
@@ -103,7 +102,6 @@ class IpcMatchEnv final : public MatchBase
 
     std::unique_ptr<IpcMsgSender> broadcast_sender_;
     std::unique_ptr<IpcMsgSender> group_sender_;
-    std::unique_ptr<IpcMsgSender> ai_sender_;
     std::map<PlayerID, std::unique_ptr<IpcMsgSender>> tell_senders_;
 
     TimerCtl timer_cntl_;
