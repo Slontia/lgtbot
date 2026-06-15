@@ -189,29 +189,69 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
 
 ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply)
 {
-    return PhaseCommon(data_.lock()->phase).Request(uid, gid, msg, reply, weak_from_this());
+    ErrCode err_out = EC_OK;
+    std::optional<std::future<ErrCode>> exec_fut;
+    {
+        auto&& g = data_.lock();
+        if (auto* lobby = std::get_if<Lobby>(&g->phase)) {
+            return lobby->Request(uid, gid, msg, reply, weak_from_this());
+        }
+        exec_fut = std::get<Running>(g->phase).BeginExecuteRequest(uid, gid, msg, reply, err_out, weak_from_this());
+    }
+    if (!exec_fut) {
+        return err_out;
+    }
+    ErrCode rc = std::move(*exec_fut).get();
+    DrainPendingChildIpc_();
+    {
+        auto&& g = data_.lock();
+        if (auto* running = std::get_if<Running>(&g->phase)) {
+            rc = running->FinishExecuteRequest(rc);
+        }
+    }
+    if (rc == EC_GAME_REQUEST_NOT_FOUND) {
+        reply() << "[错误] 未预料的游戏指令，您可以通过「帮助」（不带" META_COMMAND_SIGN
+                   "号）查看所有支持的游戏指令\n"
+                   "若您想执行元指令，请尝试在请求前加「" META_COMMAND_SIGN "」，或通过「" META_COMMAND_SIGN
+                   "帮助」查看所有支持的元指令";
+    }
+    ReleaseGameChildIfOver();
+    return rc;
 }
 
 ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
 {
-    auto&& g = data_.lock();
-    auto rc = PhaseCommon(g->phase).Leave(uid, reply, force);
-    if (rc != EC_OK) {
-        return rc;
+    ErrCode rc = EC_OK;
+    std::optional<std::future<MatchChildClient::IpcStage>> child_leave_out;
+    {
+        auto&& g = data_.lock();
+        if (auto* running = std::get_if<Running>(&g->phase)) {
+            rc = running->LeaveBeforeChild(uid, reply, force, child_leave_out);
+        } else {
+            rc = std::get<Lobby>(g->phase).Leave(uid, reply, force);
+        }
+        if (rc != EC_OK) {
+            return rc;
+        }
+        match_manager().UnbindMatch(uid);
+        std::visit(overloaded{
+            [&](Running& phase) {
+                if (phase.is_over()) {
+                    CleanupRunning_(*g);
+                }
+            },
+            [&](Lobby&) {
+                if (g->users.empty()) {
+                    Unbind_();
+                }
+            },
+        }, g->phase);
     }
-    match_manager().UnbindMatch(uid);
-    std::visit(overloaded{
-        [&](Running& phase) {
-            if (phase.is_over()) {
-                CleanupRunning_(*g);
-            }
-        },
-        [&](Lobby&) {
-            if (g->users.empty()) {
-                Unbind_();
-            }
-        },
-    }, g->phase);
+    if (child_leave_out) {
+        (void)std::move(*child_leave_out).get();
+    }
+    DrainPendingChildIpc_();
+    ReleaseGameChildIfOver();
     return rc;
 }
 
@@ -371,32 +411,44 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
 
     CommitRunning_(std::move(snapshot));
 
+    bool start_ok = false;
+    {
+        MatchChildClient* child_ptr = nullptr;
+        {
+            auto&& g = data_.lock();
+            child_ptr = g->game_child.get();
+        }
+        auto start_fut = child_ptr->SendStart(ctx_.mid.Get(), user_num, players_for_child);
+        start_ok = start_fut && std::move(*start_fut).get() == lgtbot::ipc::ResultResp::STAGE_OK;
+    }
+    DrainPendingChildIpc_();
+    if (!start_ok) {
+        RollbackLobbyStart_();
+        reply() << "[错误] 开始失败：不符合游戏参数的预期";
+        return EC_MATCH_UNEXPECTED_CONFIG;
+    }
+    ReleaseGameChildIfOver();
+
     {
         auto&& g = data_.lock();
-        auto& running = std::get<Running>(g->phase);
+        if (auto* running = std::get_if<Running>(&g->phase)) {
+            if (!running->is_over()) {
+                running->BoardcastAtAll()
+                    << "游戏开始，您可以使用「帮助」命令（不带" META_COMMAND_SIGN "号），查看可执行命令";
 
-        if (!running.SendStart(ctx_.mid, user_num, players_for_child)) {
-            RollbackLobbyStart_();
-            reply() << "[错误] 开始失败：不符合游戏参数的预期";
-            return EC_MATCH_UNEXPECTED_CONFIG;
-        }
-
-        running.BoardcastAtAll()
-            << "游戏开始，您可以使用「帮助」命令（不带" META_COMMAND_SIGN "号），查看可执行命令";
-
-        {
-            nlohmann::json players_json_array = nlohmann::json::array();
-            for (const auto& pi : players_for_child) {
-                if (pi.computer()) {
-                    players_json_array.push_back(nlohmann::json{{"computer_id", pi.computer_id()}});
-                } else {
-                    players_json_array.push_back(nlohmann::json{{"display_name", pi.display_name()}});
+                nlohmann::json players_json_array = nlohmann::json::array();
+                for (const auto& pi : players_for_child) {
+                    if (pi.computer()) {
+                        players_json_array.push_back(nlohmann::json{{"computer_id", pi.computer_id()}});
+                    } else {
+                        players_json_array.push_back(nlohmann::json{{"display_name", pi.display_name()}});
+                    }
                 }
+                running->Boardcast()
+                    << nlohmann::json{{"match_id", ctx_.mid.Get()},
+                                      {"state", "started"},
+                                      {"players", std::move(players_json_array)}}.dump();
             }
-            running.Boardcast()
-                << nlohmann::json{{"match_id", ctx_.mid.Get()},
-                                  {"state", "started"},
-                                  {"players", std::move(players_json_array)}}.dump();
         }
     }
 

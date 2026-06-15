@@ -101,18 +101,21 @@ void Running::Activate(const PlayerID pid)
     }
 }
 
-ErrCode Running::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply,
+std::optional<std::future<ErrCode>> Running::BeginExecuteRequest(const UserID uid, const std::optional<GroupID> gid,
+        const std::string& msg, MsgSender& reply, ErrCode& err_out,
         const std::weak_ptr<const Match>& match_wk)
 {
     const auto it = users_.find(uid);
     if (it == users_.end() || !UserIsActive(it->second)) {
         reply() << "[错误] 您未处于游戏中或已经离开";
-        return EC_MATCH_USER_NOT_IN_MATCH;
+        err_out = EC_MATCH_USER_NOT_IN_MATCH;
+        return std::nullopt;
     }
     if (is_over_.load(std::memory_order_acquire)) {
         LogMatch(WarnLog(), ctx_, host_uid_) << "Match is over but receive request uid=" << uid << " msg=" << msg;
         reply() << "[错误] 游戏已经结束";
-        return EC_MATCH_ALREADY_OVER;
+        err_out = EC_MATCH_ALREADY_OVER;
+        return std::nullopt;
     }
     reply.SetMatch(match_wk);
     const PlayerID pid = it->second.pid_;
@@ -120,21 +123,49 @@ ErrCode Running::Request(const UserID uid, const std::optional<GroupID> gid, con
     {
         MsgReader reader(msg);
         if (help_->try_help_command(reader, reply)) {
-            return EC_GAME_REQUEST_OK;
+            err_out = EC_GAME_REQUEST_OK;
+            return std::nullopt;
         }
     }
     if (is_eliminated) {
         reply() << "[错误] 您已经被淘汰，无法执行游戏请求";
-        return EC_MATCH_ELIMINATED;
+        err_out = EC_MATCH_ELIMINATED;
+        return std::nullopt;
+    }
+    if (!game_child_) {
+        err_out = EC_MATCH_UNEXPECTED_CONFIG;
+        return std::nullopt;
     }
     auto exec_fut = game_child_->SendExecute(pid, gid.has_value(), msg, reply);
     if (!exec_fut) {
-        return EC_MATCH_UNEXPECTED_CONFIG;
+        err_out = EC_MATCH_UNEXPECTED_CONFIG;
+        return std::nullopt;
     }
-    ErrCode rc = std::move(*exec_fut).get();
-    if (rc == EC_GAME_REQUEST_FAILED && is_over_.load(std::memory_order_acquire)) {
-        rc = EC_MATCH_UNEXPECTED_CONFIG;
+    return std::move(*exec_fut);
+}
+
+ErrCode Running::FinishExecuteRequest(const ErrCode rc)
+{
+    ErrCode out = rc;
+    if (out == EC_GAME_REQUEST_FAILED && is_over_.load(std::memory_order_acquire)) {
+        out = EC_MATCH_UNEXPECTED_CONFIG;
     }
+    if (out == EC_GAME_REQUEST_NOT_FOUND) {
+        // Caller must append the error message; we don't have reply here.
+        // Keep rc as NOT_FOUND and let Request handle messaging.
+    }
+    return out;
+}
+
+ErrCode Running::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply,
+        const std::weak_ptr<const Match>& match_wk)
+{
+    ErrCode err_out = EC_OK;
+    auto exec_fut = BeginExecuteRequest(uid, gid, msg, reply, err_out, match_wk);
+    if (!exec_fut) {
+        return err_out;
+    }
+    ErrCode rc = FinishExecuteRequest(std::move(*exec_fut).get());
     if (rc == EC_GAME_REQUEST_NOT_FOUND) {
         reply() << "[错误] 未预料的游戏指令，您可以通过「帮助」（不带" META_COMMAND_SIGN
                    "号）查看所有支持的游戏指令\n"
@@ -144,8 +175,10 @@ ErrCode Running::Request(const UserID uid, const std::optional<GroupID> gid, con
     return rc;
 }
 
-ErrCode Running::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
+ErrCode Running::LeaveBeforeChild(const UserID uid, MsgSenderBase& reply, const bool force,
+        std::optional<std::future<MatchChildClient::IpcStage>>& child_leave_out)
 {
+    child_leave_out.reset();
     const auto it = users_.find(uid);
     if (it == users_.end() || !UserIsActive(it->second)) {
         reply() << "[错误] 退出失败：您未处于游戏中或已经离开";
@@ -173,9 +206,20 @@ ErrCode Running::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
         UnbindMatchSide_();
         return EC_OK;
     }
-    if (auto leave_fut = game_child_->SendLeave(leave_pid); leave_fut) {
-        (void)std::move(*leave_fut).get();
+    if (game_child_) {
+        child_leave_out = game_child_->SendLeave(leave_pid);
     }
+    return EC_OK;
+}
+
+ErrCode Running::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
+{
+    std::optional<std::future<MatchChildClient::IpcStage>> child_leave_out;
+    const auto rc = LeaveBeforeChild(uid, reply, force, child_leave_out);
+    if (rc != EC_OK || !child_leave_out) {
+        return rc;
+    }
+    (void)std::move(*child_leave_out).get();
     return EC_OK;
 }
 
@@ -242,12 +286,19 @@ void Running::ShowInfo(MsgSenderBase& reply, const std::weak_ptr<const Match>& m
     }
 }
 
-void Running::FetchHelp(MsgSenderBase& reply, const bool text_mode)
+std::optional<std::future<MatchChildClient::IpcStage>> Running::BeginFetchHelp(const bool text_mode,
+        MsgSenderBase& reply_collector)
 {
-    std::string remote;
-    HelpTextCollector help_collector(remote);
-    auto help_fut = game_child_->FetchHelp(text_mode, help_collector);
-    if (help_fut && std::move(*help_fut).get() == lgtbot::ipc::ResultResp::STAGE_OK) {
+    if (!game_child_) {
+        return std::nullopt;
+    }
+    return game_child_->FetchHelp(text_mode, reply_collector);
+}
+
+void Running::FinishFetchHelp(MsgSenderBase& reply, const bool text_mode, const std::string& remote,
+        const MatchChildClient::IpcStage stage)
+{
+    if (stage == lgtbot::ipc::ResultResp::STAGE_OK) {
         std::string outstr = "## 当前可使用的游戏命令\n\n### 查看信息\n1. " +
                              help_->help_command_info(true /* with_example */,
                                      !text_mode /* with_html_color */);
@@ -261,6 +312,18 @@ void Running::FetchHelp(MsgSenderBase& reply, const bool text_mode)
         return;
     }
     reply() << "[错误] 无法从游戏进程获取帮助信息";
+}
+
+void Running::FetchHelp(MsgSenderBase& reply, const bool text_mode)
+{
+    std::string remote;
+    HelpTextCollector help_collector(remote);
+    auto help_fut = BeginFetchHelp(text_mode, help_collector);
+    if (!help_fut) {
+        reply() << "[错误] 无法从游戏进程获取帮助信息";
+        return;
+    }
+    FinishFetchHelp(reply, text_mode, remote, std::move(*help_fut).get());
 }
 
 void Running::ApplyChildPost_(const PostFrame& frame)
@@ -388,10 +451,7 @@ void Running::ApplyChildIpcFromReadThread(const PushFrame& frame)
 
 void Running::ApplyChildEofFromReadThread(const bool unexpected)
 {
-    if (!unexpected) {
-        return;
-    }
-    if (is_over_.load(std::memory_order_acquire)) {
+    if (!unexpected || is_over_.load(std::memory_order_acquire)) {
         return;
     }
     BoardcastAtAll() << "[错误] 游戏进程意外终止，游戏已中断";
