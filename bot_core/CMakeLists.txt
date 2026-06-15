@@ -224,6 +224,9 @@ if (WITH_TEST)
 
   add_executable(test_db test_db.cc db_manager.cc score_calculation.cc)
   target_link_libraries(test_db ${THIRD_PARTIES})
+  target_include_directories(test_db PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${MATCH_PROCESS_PROTO_GEN_DIR}/..)
   add_test(NAME test_db COMMAND test_db)
 
   add_executable(test_match_score test_match_score.cc score_calculation.cc)
