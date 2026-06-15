@@ -8,6 +8,7 @@
 #include <map>
 #include <set>
 #include <optional>
+#include <future>
 
 #include "bot_core/match_manager.h"
 #include "bot_core/id.h"
@@ -56,10 +57,10 @@ class BotCtx
     // copy-constructibility requirement.
     // The queue is drained during BotCtx destruction before MatchManager is destroyed.
     template <typename Fn>
-    void PostCleanup(Fn&& fn)
+    auto PostCleanup(Fn&& fn) -> std::future<std::invoke_result_t<Fn>>
     {
         auto shared_fn = std::make_shared<std::decay_t<Fn>>(std::forward<Fn>(fn));
-        match_cleanup_queue_.Post([shared_fn]() mutable { (*shared_fn)(); });
+        return match_cleanup_queue_.Post([shared_fn]() mutable { return (*shared_fn)(); });
     }
 
     bool UpdateGameConfig(const std::string& game_name, const std::string& option_name,
