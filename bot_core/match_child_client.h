@@ -114,6 +114,7 @@ class MatchChildClient
         void Emplace(uint64_t ipc_id, Entry entry);
         void DispatchReply(uint64_t ipc_id, const lgtbot::ipc::ReplyResp& reply);
         void DispatchResult(uint64_t ipc_id, IpcStage stage);
+        void FailAll(IpcStage stage);
 
       private:
         using EntryIt = std::map<uint64_t, Entry>::iterator;

@@ -139,11 +139,16 @@ std::optional<ChildFrame> ParseFrame(const std::string& raw)
 
 MatchChildClient::PendingRequests::~PendingRequests()
 {
+    FailAll(lgtbot::ipc::ResultResp::STAGE_FAILED);
+}
+
+void MatchChildClient::PendingRequests::FailAll(const IpcStage stage)
+{
     const auto game_over = MakeGameOverReply();
     for (auto& [id, entry] : entries_) {
         (void)id;
         ReplyRespToMsgSender(entry.reply_sender, game_over);
-        entry.on_result(lgtbot::ipc::ResultResp::STAGE_FAILED);
+        entry.on_result(stage);
     }
     entries_.clear();
 }
@@ -264,6 +269,9 @@ void MatchChildClient::RunReadLoop_(std::stop_token stop, const ChildIpcPushHand
             const bool unexpected = !stop.stop_requested();
             if (unexpected) {
                 ErrorLog() << "MatchChildClient: Read failed unexpectedly";
+                // The child died or the pipe broke while Start/Execute/Leave/etc. futures
+                // are still waiting on .get(); complete them so the match thread can unwind.
+                pending_.lock()->FailAll(lgtbot::ipc::ResultResp::STAGE_FAILED);
             }
             if (on_eof) {
                 on_eof(unexpected);
