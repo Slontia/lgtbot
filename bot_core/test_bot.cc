@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <thread>
+#include <cstdlib>
 #include <chrono>
 
 #include <gtest/gtest.h>
@@ -137,11 +138,13 @@ class TestBot : public testing::Test
   public:
     virtual void SetUp() override
     {
+        conf_dir_ = "/tmp/lgtbot_test_" + std::to_string(std::rand());
+        std::filesystem::create_directories(conf_dir_);
         auto game_handles = BotCtx::LoadGameModules(TEST_GAME_PLUGIN_DIR);
         ASSERT_TRUE(std::holds_alternative<GameHandleMap>(game_handles)) << "Failed to load test game plugin";
         bot_.reset(new BotCtx(
                     TEST_GAME_PLUGIN_DIR, // game_path
-                    "", // conf_path
+                    conf_dir_ + "/config.json", // conf_path
                     "/tmp/lgtbot_test_bot", // image_path
                     LGTBot_Callback{
                         .get_user_name = GetUserName,
@@ -159,10 +162,19 @@ class TestBot : public testing::Test
                     nullptr));
     }
 
+    virtual void TearDown() override
+    {
+        bot_.reset();
+        if (!conf_dir_.empty()) {
+            std::filesystem::remove_all(conf_dir_);
+        }
+    }
+
     MockDBManager& db_manager() { return *static_cast<MockDBManager*>(bot_->db_manager()); }
 
   protected:
     std::unique_ptr<BotCtx, void(*)(void*)> bot_{nullptr, &LGTBot_Release};
+    std::string conf_dir_;
 
 };
 
