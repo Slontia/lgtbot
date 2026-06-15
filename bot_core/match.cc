@@ -169,9 +169,16 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
         reply() << "[错误] 加入失败：游戏已经开始";
         return EC_MATCH_ALREADY_BEGIN;
     }
-    if (!match_manager().BindMatch(uid, shared_from_this())) {
-        reply() << "[错误] 加入失败：您已加入其他游戏，您可通过私信裁判「" META_COMMAND_SIGN "游戏信息」查看该游戏信息";
-        return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
+    const auto self = shared_from_this();
+    if (!match_manager().BindMatch(uid, self)) {
+        const auto existing = match_manager().GetMatch(uid);
+        if (!existing || existing.get() != this) {
+            reply() << "[错误] 加入失败：您已加入其他游戏，您可通过私信裁判「" META_COMMAND_SIGN
+                       "游戏信息」查看该游戏信息";
+            return EC_MATCH_USER_ALREADY_IN_OTHER_MATCH;
+        }
+        reply() << "[错误] 加入失败：您已加入该游戏";
+        return EC_MATCH_USER_ALREADY_IN_MATCH;
     }
     auto rc = p->Join(uid, reply);
     if (rc != EC_OK) {

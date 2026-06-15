@@ -16,6 +16,7 @@
 #include "bot_core/db_manager.h"
 #include "bot_core/score_calculation.h"
 #include "bot_core/match.h"
+#include "bot_core/match_manager.h"
 #include "utility/process_signals.h"
 
 static_assert(TEST_BOT);
@@ -702,6 +703,30 @@ TEST_F(TestBot, config_game_kick_joined_player)
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
   ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "时限 1");
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
+}
+
+// BindMatch failure must not fall through to Lobby::Join: if the uid is already
+// bound to this match but not in the lobby (stale binding), Join would re-add the
+// player instead of reporting they are already associated with the match.
+TEST_F(TestBot, join_rejects_when_bound_without_lobby_membership)
+{
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%配置 测试游戏 最大玩家数 2");
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "时限 1"); // kicks user 2 and unbinds
+
+  const auto match = bot_->match_manager().GetMatch(MatchID{1});
+  ASSERT_TRUE(match);
+  ASSERT_TRUE(bot_->match_manager().BindMatch(UserID{"2"}, match)); // stale bind, not in lobby
+
+  std::vector<std::string> msgs;
+  g_captured_messages = &msgs;
+  ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, "2", "#加入 1");
+  g_captured_messages = nullptr;
+
+  for (const auto& m : msgs) {
+    EXPECT_EQ(m.find("加入了游戏"), std::string::npos) << m;
+  }
 }
 
 // Player Limit

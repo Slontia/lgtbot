@@ -313,6 +313,7 @@ void Lobby::KickForConfigChange_()
     for (auto it = users_.begin(); it != users_.end(); ) {
         if (it->first != host_uid_ && it->second.leave_when_config_changed_) {
             kicked.push_back(it->first);
+            ctx_.bot.match_manager().UnbindMatch(it->first);
             it = users_.erase(it);
         } else {
             ++it;
