@@ -6,9 +6,12 @@
 
 #include <atomic>
 #include <cassert>
+#include <future>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <variant>
+#include <vector>
 
 #include "utility/msg_checker.h"
 #include "utility/lock_wrapper.h"
@@ -113,6 +116,11 @@ class Match : public std::enable_shared_from_this<Match>
     [[nodiscard]] bool LobbyStartAborted_();
     void RollbackLobbyStart_();
     void CleanupRunning_(MatchData& data);
+    void CleanupRunningUsers_(MatchData& data);
+    void ReleaseGameChild_(MatchData& data);
+    void DrainPendingChildIpc_();
+    void ApplyChildIpcFromReadThreadImpl_(PushFrame frame);
+    void ApplyChildEofFromReadThreadImpl_(bool unexpected);
 
     const Command<void(MsgSenderBase&)> help_cmd_{
         Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"),
@@ -126,6 +134,9 @@ class Match : public std::enable_shared_from_this<Match>
     mutable std::unique_ptr<MsgSenderBase> private_broadcast_scratch_;
 
     mutable mutex_protect_wrapper<MatchData, MatchPhaseMutex> data_;
+
+    std::mutex pending_ipc_mutex_;
+    std::vector<std::future<void>> pending_ipc_futures_;
 
     std::atomic<MatchState> state_{MATCH_NOT_STARTED};
 };

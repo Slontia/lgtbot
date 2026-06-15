@@ -74,14 +74,25 @@ void Match::Unbind_()
     }
 }
 
-void Match::CleanupRunning_(MatchData& data)
+void Match::CleanupRunningUsers_(MatchData& data)
 {
-    data.game_child.reset();
+    state_.store(MATCH_IS_OVER, std::memory_order_release);
     for (auto& [uid, user] : data.users) {
         if (user.presence_.load(std::memory_order_acquire) != UserPresence::LEFT) {
             match_manager().UnbindMatch(uid);
         }
     }
+}
+
+void Match::ReleaseGameChild_(MatchData& data)
+{
+    data.game_child.reset();
+}
+
+void Match::CleanupRunning_(MatchData& data)
+{
+    CleanupRunningUsers_(data);
+    ReleaseGameChild_(data);
 }
 
 MatchManager& Match::match_manager()
@@ -476,39 +487,99 @@ bool Match::LobbyStartAborted_()
     return state_.load(std::memory_order_acquire) != MATCH_IS_STARTING;
 }
 
+void Match::DrainPendingChildIpc_()
+{
+    std::vector<std::future<void>> futs;
+    {
+        std::lock_guard<std::mutex> lk(pending_ipc_mutex_);
+        futs = std::move(pending_ipc_futures_);
+    }
+    for (auto& fut : futs) {
+        fut.wait();
+    }
+}
+
+void Match::ApplyChildIpcFromReadThreadImpl_(const PushFrame frame)
+{
+    bool finalize_over = false;
+    {
+        auto&& g = data_.lock();
+        if (!std::holds_alternative<Running>(g->phase)) {
+            return;
+        }
+        auto& running = std::get<Running>(g->phase);
+        g = {};
+        running.ApplyChildIpcFromReadThread(frame);
+        finalize_over = running.is_over();
+    }
+    if (finalize_over) {
+        auto&& g = data_.lock();
+        CleanupRunningUsers_(*g);
+        g = {};
+        Unbind_();
+    }
+}
+
 void Match::ApplyChildIpcFromReadThread_(const PushFrame& frame)
 {
-    auto&& g = data_.lock();
-    if (auto* r = std::get_if<Running>(&g->phase)) {
-        r->ApplyChildIpcFromReadThread(frame);
-        if (r->is_over()) {
-            CleanupRunning_(*g);
-            g = {};
-            Unbind_();
-        }
-    }
+    const auto self = shared_from_this();
+    auto fut = ctx_.bot.PostCleanup([self, frame] { self->ApplyChildIpcFromReadThreadImpl_(frame); });
+    std::lock_guard<std::mutex> lk(pending_ipc_mutex_);
+    pending_ipc_futures_.push_back(std::move(fut));
 }
 
 void Match::ApplyChildEofFromReadThread_(const bool unexpected)
 {
-    auto&& g = data_.lock();
-    if (auto* r = std::get_if<Running>(&g->phase)) {
-        r->ApplyChildEofFromReadThread(unexpected);
-        if (r->is_over()) {
-            CleanupRunning_(*g);
-            g = {};
-            Unbind_();
+    const auto self = shared_from_this();
+    auto fut = ctx_.bot.PostCleanup([self, unexpected] { self->ApplyChildEofFromReadThreadImpl_(unexpected); });
+    std::lock_guard<std::mutex> lk(pending_ipc_mutex_);
+    pending_ipc_futures_.push_back(std::move(fut));
+}
+
+void Match::ApplyChildEofFromReadThreadImpl_(const bool unexpected)
+{
+    bool finalize_over = false;
+    {
+        auto&& g = data_.lock();
+        if (!std::holds_alternative<Running>(g->phase)) {
+            return;
         }
+        auto& running = std::get<Running>(g->phase);
+        g = {};
+        running.ApplyChildEofFromReadThread(unexpected);
+        finalize_over = running.is_over();
+    }
+    if (finalize_over) {
+        auto&& g = data_.lock();
+        CleanupRunningUsers_(*g);
+        g = {};
+        Unbind_();
     }
 }
 
 void Match::Help_(MsgSenderBase& reply, const bool text_mode)
 {
+    std::string remote;
+    HelpTextCollector help_collector(remote);
+    std::optional<std::future<MatchChildClient::IpcStage>> help_fut;
+    {
+        auto&& g = data_.lock();
+        if (auto* r = std::get_if<Running>(&g->phase)) {
+            help_fut = r->BeginFetchHelp(text_mode, help_collector);
+            if (!help_fut) {
+                reply() << "[错误] 无法从游戏进程获取帮助信息";
+                return;
+            }
+        } else {
+            FetchHelp_(reply, text_mode);
+            return;
+        }
+    }
+    const auto stage = std::move(*help_fut).get();
+    DrainPendingChildIpc_();
     auto&& g = data_.lock();
     if (auto* r = std::get_if<Running>(&g->phase)) {
-        r->FetchHelp(reply, text_mode);
-    } else {
-        FetchHelp_(reply, text_mode);
+        r->FinishFetchHelp(reply, text_mode, remote, stage);
     }
 }
 
@@ -538,6 +609,19 @@ void Match::BindMsgSenderMatch_()
     }
     if (group_sender_.has_value()) {
         group_sender_->SetMatch(wk);
+    }
+}
+
+void Match::ReleaseGameChildIfOver()
+{
+    std::unique_ptr<MatchChildClient> child;
+    {
+        auto&& g = data_.lock();
+        if (auto* r = std::get_if<Running>(&g->phase)) {
+            if (r->is_over()) {
+                child = std::move(g->game_child);
+            }
+        }
     }
 }
 
