@@ -49,9 +49,9 @@ class Lobby : public MatchPhaseCommon
     ErrCode SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_computers_to_player_num);
     ErrCode SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_formal);
     ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply,
-            const std::weak_ptr<const class Match>& match_wk) override;
+            const std::weak_ptr<const class Match>& match_wk);
     ErrCode Join(const UserID uid, MsgSenderBase& reply);
-    ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force) override;
+    ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force);
     ErrCode UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel) override;
 
     void ShowInfo(MsgSenderBase& reply, const std::weak_ptr<const class Match>& match_wk) const override;

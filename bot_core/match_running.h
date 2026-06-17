@@ -42,15 +42,11 @@ class Running : public MatchPhaseCommon
 
     bool IsInDeduction() const;
 
-    ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply,
-            const std::weak_ptr<const class Match>& match_wk) override;
-
     [[nodiscard]] std::optional<std::future<ErrCode>> BeginExecuteRequest(const UserID uid,
             const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply, ErrCode& err_out,
             const std::weak_ptr<const class Match>& match_wk);
     ErrCode FinishExecuteRequest(ErrCode rc);
 
-    ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force) override;
     ErrCode LeaveBeforeChild(const UserID uid, MsgSenderBase& reply, const bool force,
             std::optional<std::future<MatchChildClient::IpcStage>>& child_leave_out);
     ErrCode UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel) override;
@@ -63,14 +59,11 @@ class Running : public MatchPhaseCommon
     UserID HostUserId() const override { return host_uid_; }
     bool is_over() const { return is_over_.load(std::memory_order_acquire); }
 
-    void ReleaseGameChildIfOver();
     using MatchPhaseCommon::BindMsgSenderMatch;
 
     void ApplyChildIpcFromReadThread(const PushFrame& frame);
     void ApplyChildEofFromReadThread(bool unexpected);
 
-    bool SendStart(uint64_t match_id, uint32_t user_num, const std::vector<lgtbot::ipc::PlayerInfo>& players);
-    void FetchHelp(MsgSenderBase& reply, const bool text_mode);
     [[nodiscard]] std::optional<std::future<MatchChildClient::IpcStage>> BeginFetchHelp(const bool text_mode,
             MsgSenderBase& reply_collector);
     void FinishFetchHelp(MsgSenderBase& reply, const bool text_mode, const std::string& remote,

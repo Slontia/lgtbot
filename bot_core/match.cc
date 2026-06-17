@@ -10,6 +10,11 @@
 #include <random>
 #include <utility>
 
+#ifdef TEST_BOT
+#include <functional>
+extern std::function<void()> g_match_test_after_game_child_started;
+#endif
+
 #include "utility/log.h"
 #include "utility/overloaded.h"
 #include "utility/msg_checker.h"
@@ -369,14 +374,25 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         auto&& g = data_.lock();
         g->game_child = std::move(new_child);
 
+#ifdef TEST_BOT
+        if (g_match_test_after_game_child_started) {
+            g = {};
+            g_match_test_after_game_child_started();
+            g = data_.lock();
+        }
+#endif
+
         if (LobbyStartAborted_()) {
-            RollbackLobbyStart_();
+            std::unique_ptr<MatchChildClient> child = std::move(g->game_child);
+            RollbackLobbyStart_(*g);
+            g = {};
             reply() << "[错误] 开始失败：游戏已被中断";
             return EC_MATCH_ALREADY_BEGIN;
         }
 
         if (!g->game_child) {
-            RollbackLobbyStart_();
+            RollbackLobbyStart_(*g);
+            g = {};
             reply() << "[错误] 开始失败：无法启动游戏子进程";
             return EC_MATCH_UNEXPECTED_CONFIG;
         }
@@ -392,7 +408,9 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         {
             auto&& g = data_.lock();
             if (LobbyStartAborted_()) {
-                RollbackLobbyStart_();
+                std::unique_ptr<MatchChildClient> child = std::move(g->game_child);
+                RollbackLobbyStart_(*g);
+                g = {};
                 reply() << "[错误] 开始失败：游戏已被中断";
                 return EC_MATCH_ALREADY_BEGIN;
             }
@@ -410,7 +428,9 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
     {
         auto&& g = data_.lock();
         if (LobbyStartAborted_()) {
-            RollbackLobbyStart_();
+            std::unique_ptr<MatchChildClient> child = std::move(g->game_child);
+            RollbackLobbyStart_(*g);
+            g = {};
             reply() << "[错误] 开始失败：游戏已被中断";
             return EC_MATCH_ALREADY_BEGIN;
         }
@@ -476,10 +496,19 @@ void Match::CommitRunning_(LobbyStartSnapshot snapshot)
     std::get<Running>(g->phase).BindMsgSenderMatch(weak_from_this());
 }
 
+void Match::RollbackLobbyStart_(MatchData& data)
+{
+    std::move(std::get<Lobby>(data.phase)).RollbackPreparedStart();
+    state_.store(MATCH_NOT_STARTED, std::memory_order_release);
+}
+
 void Match::RollbackLobbyStart_()
 {
+    std::unique_ptr<MatchChildClient> child;
     auto&& g = data_.lock();
-    std::move(std::get<Lobby>(g->phase)).RollbackPreparedStart();
+    RollbackLobbyStart_(*g);
+    child = std::move(g->game_child);
+    g = {};
 }
 
 bool Match::LobbyStartAborted_()
@@ -615,13 +644,10 @@ void Match::BindMsgSenderMatch_()
 void Match::ReleaseGameChildIfOver()
 {
     std::unique_ptr<MatchChildClient> child;
-    {
-        auto&& g = data_.lock();
-        if (auto* r = std::get_if<Running>(&g->phase)) {
-            if (r->is_over()) {
-                child = std::move(g->game_child);
-            }
-        }
+    auto&& g = data_.lock();
+    if (const auto* running = std::get_if<Running>(&g->phase); running && running->is_over()) {
+        child = std::move(g->game_child);
     }
+    g = {};
 }
 

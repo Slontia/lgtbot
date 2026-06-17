@@ -6,6 +6,7 @@
 #include <thread>
 #include <cstdlib>
 #include <chrono>
+#include <future>
 
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
@@ -20,6 +21,11 @@
 #include "utility/process_signals.h"
 
 static_assert(TEST_BOT);
+
+#ifdef TEST_BOT
+#include <functional>
+std::function<void()> g_match_test_after_game_child_started;
+#endif
 
 static std::ostream& operator<<(std::ostream& os, const ErrCode e) { return os << errcode2str(e); }
 
@@ -770,6 +776,29 @@ TEST_F(TestBot, interrupt_public_wait)
   ASSERT_PUB_MSG(EC_OK, "1", k_admin_qq, "%中断");
   ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
+}
+
+// Admin %中断 during MATCH_IS_STARTING must not deadlock on RollbackLobbyStart_.
+TEST_F(TestBot, interrupt_during_game_start_rollback)
+{
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%配置 测试游戏 最大玩家数 2");
+  ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
+
+  g_match_test_after_game_child_started = [&]() {
+    ASSERT_PUB_MSG(EC_OK, "1", k_admin_qq, "%中断");
+  };
+
+  std::promise<ErrCode> done;
+  auto fut = done.get_future();
+  std::thread th([&]() {
+    done.set_value(LGTBot_HandlePublicRequest(bot_.get(), "1", "1", "#开始"));
+  });
+  ASSERT_EQ(std::future_status::ready, fut.wait_for(std::chrono::seconds(5)))
+      << "GameStart hung while rolling back after interrupt";
+  ASSERT_EQ(EC_MATCH_ALREADY_BEGIN, fut.get());
+  th.join();
+  g_match_test_after_game_child_started = nullptr;
 }
 
 TEST_F(TestBot, interrupt_public_start)

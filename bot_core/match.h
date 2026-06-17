@@ -114,6 +114,7 @@ class Match : public std::enable_shared_from_this<Match>
     void ApplyChildEofFromReadThread_(bool unexpected);
     void CommitRunning_(LobbyStartSnapshot snapshot);
     [[nodiscard]] bool LobbyStartAborted_();
+    void RollbackLobbyStart_(MatchData& data);
     void RollbackLobbyStart_();
     void CleanupRunning_(MatchData& data);
     void CleanupRunningUsers_(MatchData& data);

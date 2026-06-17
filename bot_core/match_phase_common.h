@@ -32,10 +32,7 @@ class MatchPhaseCommon
     MatchVariantID ConvertPid(const PlayerID pid) const;
     void BriefInfo(std::string& out) const;
 
-    virtual ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force) = 0;
     virtual ErrCode UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel) = 0;
-    virtual ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply,
-            const std::weak_ptr<const class Match>& match_wk) = 0;
     virtual void ShowInfo(MsgSenderBase& reply, const std::weak_ptr<const class Match>& match_wk) const = 0;
     virtual bool SwitchHost() = 0;
     virtual ErrCode Terminate(const bool is_force) = 0;
