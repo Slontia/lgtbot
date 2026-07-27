@@ -411,7 +411,7 @@ class Board
             case GridType::TREASURE:
                 reply = stain
                     ? "你挖到了一坨污渍，污渍下面是……哇，是【宝藏】！"
-                    : "你挖到到了一个【宝藏】！";
+                    : "你挖到了一个【宝藏】！";
                 break;
             case GridType::BOMB:
                 reply = (stain
