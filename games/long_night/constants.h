@@ -13,12 +13,12 @@
 
 // 声响名称宏定义
 #if INCLUDE_RESTRICTED_CONTENT
-#define SHASHA_STR "沙沙"
 #define PAPA_STR   "啪啪"
 #else
-#define SHASHA_STR "沙沙"
 #define PAPA_STR   "啪嗒"
 #endif
+#define SHASHA_STR "沙沙"
+#define PENGPENG_STR "砰砰"
 
 
 /* ========== constants ========== */
@@ -30,7 +30,7 @@ inline constexpr std::string_view dir_cn[4] = {"上", "下", "左", "右"};
 inline constexpr int k_DX_Direct[4] = {-1, 1, 0, 0};
 inline constexpr int k_DY_Direct[4] = {0, 0, -1, 1};
 
-inline constexpr std::string_view mode_str[7] = {"自定义", "经典", "狂野", "幻变", "疯狂", "按钮", "陷阱"};
+inline constexpr std::string_view mode_str[9] = {"自定义", "经典", "狂野", "幻变", "疯狂", "按钮", "陷阱", "空旷", "无声"};
 
 inline constexpr int HIDE_LIMIT = 4;
 
@@ -65,6 +65,8 @@ enum class GridType {
     TRAP,       // 陷阱
     HEAT,       // 热源
     ONEWAYPORTAL,   // 单向传送门
+    BERRY,      // 浆果丛
+    HEART,      // 巨大的心脏
 };
 
 // 附着
@@ -75,12 +77,14 @@ enum class AttachType {
     BOX,        // 箱子
     HEATBOX,    // 小太阳[箱子]
     JAMMERBOX,  // 屏蔽器[箱子]
+    COIN,       // 金币
 };
 
 // 墙壁：优先级从低到高，连通性越好优先级理应越高
 enum class Wall {
     EMPTY,      // 空
     NORMAL,     // 墙壁
+    HEDGE,      // 树篱
     DOOR,       // 门
     DOOROPEN,   // 门 (开)
 };
@@ -102,6 +106,8 @@ enum class BlockMode {
     CRAZY,      // 疯狂
     BUTTON,     // 按钮
     TRAP,       // 陷阱
+    OPEN,       // 空旷
+    SILENT,     // 无声
 };
 
 enum class SpecialEvent {
@@ -155,6 +161,8 @@ inline std::string GetGridImage(const GridType type)
         case GridType::EXIT:    return "exit.png";
         case GridType::TRAP:    return "trap.png";
         case GridType::HEAT:    return "heat.png";
+        case GridType::BERRY:   return "berry.png";
+        case GridType::HEART:   return "heart.png";
         default:                return "unknown.png";
     }
 }
@@ -168,6 +176,7 @@ inline std::string GetAttachImage(const AttachType type)
         case AttachType::BOX:       return "box.png";
         case AttachType::HEATBOX:   return "heat_box.png";
         case AttachType::JAMMERBOX: return "jammer_box.png";
+        case AttachType::COIN:      return "coin.png";
         default:                    return "unknown.png";
     }
 }
@@ -177,6 +186,7 @@ inline std::string GetWallImage(const Wall wall, const std::string& direction)
     switch (wall) {
         case Wall::EMPTY:       return "empty_" + direction + ".png";
         case Wall::NORMAL:      return "wall_" + direction + ".png";
+        case Wall::HEDGE:       return "hedge_" + direction + ".png";
         case Wall::DOOROPEN:    return "dooropen_" + direction + ".png";
         case Wall::DOOR:        return "door_" + direction + ".png";
         default:                return "unknown_" + direction + ".png";
@@ -478,4 +488,18 @@ inline constexpr std::string_view withoutE_win_hints[] = {
 inline constexpr std::string_view withE_win_hints[] = {
     "“已经没事啦~”她温柔地从背后把你抱住，轻轻抚摸着头。“你很勇敢，这一步太不容易了。”你转过身，紧紧埋进她柔软的身体里放肆哭泣。“一切都结束了。不用再害怕了。”她低下头凑近你的耳边，“咱们回家叭…”",     // 大萝卜姬
     "多年以后，在家族背景下你在事业上取得了巨大成就。大家把你的性情大变归功于当年失踪逃生的经历。“之前那个玩世不恭的我已经死了。”你每次都这样认真回答大家。至于细节的提问嘛，失忆这个理由你很喜欢。",
+};
+// 浆果丛私信提示
+inline constexpr std::string_view berry_hints[] = {
+    SHASHA_STR "！不对，这是【浆果丛】！你闻了闻手指刚被荆棘划开的伤口，那丝丝的果甜让你非常确信。",
+    SHASHA_STR "！是【浆果丛】！这微甜和刺痛，像极了与他一起的时光。噢！我想你了，我的浆果丛男孩。",
+    SHASHA_STR "！【浆果丛】？！和树丛一样的" SHASHA_STR "声，但是只有我知道它是浆果丛是吗？好啊，我有了阴暗的想法。",
+#if INCLUDE_RESTRICTED_CONTENT
+    SHASHA_STR "！【浆果丛】熟悉的触觉和气味，让你回想起那个和她一起躲藏其中的下午。紧闭的双眼，潮红的脸颊，笨拙地嘟起的双唇，一幕幕恍如昨日。",
+#endif
+};
+// [巨大的心脏] 屏蔽器范围内心跳提示（每回合仅第一声）
+inline constexpr std::string_view heart_jammer_hints[] = {
+    "是【屏蔽器】？耳朵已经熟悉了这个富有节律的心跳BGM，突然的寂静让你无所适从。",
+    "看来是【屏蔽器】。地面借助脚掌传来了固定节奏的震颤，真是即使身处寂静也无法让人忽视这喷薄而出的生命力。",
 };

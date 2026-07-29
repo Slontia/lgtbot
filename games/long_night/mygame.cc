@@ -54,9 +54,9 @@ const char* const boss_details[1] = {
 2、BOSS每回合结束时下一个[炸弹]，[炸弹]的四墙信息将会公开。
 3、BOSS一定每回合都移动，无视地形，转换目标将公屏显示。)EOF",
 };
-const char* const rule_details[5] = {
+const std::string rule_details[5] = {
     R"EOF(《游戏规则和机制细节》
-可选参数列表，使用「#规则 漫漫长夜 <参数>」查看详情：
+可选参数列表，使用「)EOF" META_COMMAND_SIGN R"EOF(规则 漫漫长夜 <参数>」查看详情：
 【地形】地形&附着&墙壁机制和特殊情况
 【传送】开局随机和随机传送机制
 【成就】成就触发判定和特殊情况
@@ -66,7 +66,9 @@ const char* const rule_details[5] = {
 出生在任何地形都不会触发其效果，所有效果均在移动时触发。
 【墙壁】
 相邻区块组合时，边界墙壁发生冲突则只保留优先级更高的墙壁。
-优先级：门(开) > 门 > 墙壁 > 空
+优先级：门(开) > 门 > 树篱 > 墙壁 > 空
+【树篱】
+亚空间的传送不打断冲刺，比如向左出亚空间可继续向左穿过树篱。当玩家随机传送到树篱边，不能直接穿过。
 【炸弹相关】
 炸弹必须要有[进入]并[离开]两步才能引爆。炸弹下到玩家上因为没有[进入]的过程，[离开]不会引爆。同理，随机传送到炸弹上，[离开]也不会引爆。
 [拆弹]也需要[进入]并[停止行动]，放置炸弹直接撞墙，因为没有[进入]的过程，不会拆弹。同理，随机传送到炸弹上，直接[停止行动]也不会拆弹。
@@ -76,12 +78,17 @@ const char* const rule_details[5] = {
 【传送门】
 如果传送门被四周封闭，对应的传送门将会失效，仅发出啪啪声不会传送（相当于水洼）
 【热源相关】
-玩家出生在热浪区域，如果第1步还在热浪范围会收到提示。如果第1步进入热源，在第2步才会收到热浪提示。)EOF",
+玩家出生在热浪区域，如果第1步还在热浪范围会收到提示。如果第1步进入热源，在第2步才会收到热浪提示。
+【金币】
+经过金币时静默拾取，首轮捕捉成功也会抢夺目标全部金币，然后双方随机传送（首轮保护）。
+完整赛况中昵称旁的金币徽章只显示已公示的数量，本回合新获得（含抢夺）要等回合结束公示后才会显示。
+【巨大的心脏】
+隐匿状态下心跳只私信本人。当位于屏蔽器附近时，遇到心跳声可得知自己位于屏蔽器附近。)EOF",
 
     R"EOF(【玩家随机传送】
 传送至最大联通区域，不会传送至[有效逃生舱、热源周围8格]、[存活玩家周围8格]、[BOSS当前步数可到达的区域]，但可能传送进[失效逃生舱]区块。如果没有有效候选点，直接在最大联通区域内随机。
 【开局玩家随机】
-所有位置均在同一个最大联通区域内，按照顺序依次尝试（BFS会被[墙壁]、[热源]、[箱子]阻挡，但不考虑传送门）：
+所有位置均在同一个最大联通区域内，按照顺序依次尝试（BFS会被[墙壁]、[树篱]、[热源]、[巨大的心脏]、[箱子]阻挡，但不考虑传送门）：
 - 方案1：使用非逃生舱区块，相邻玩家之间的BFS路径距离≥5；每个玩家落点到所有逃生舱的BFS路径距离≥5
 - 方案2：使用非逃生舱区块，仅要求相邻玩家之间的BFS路径距离≥5（不检查逃生舱距离）
 - 方案3：直接使用非逃生舱区块随机分配（不检查距离）
@@ -89,8 +96,9 @@ const char* const rule_details[5] = {
 - 保险方案：直接从最大连通区域中随机选取位置)EOF",
 
     R"EOF(【成就相关】
-[乒铃乓啷]撞箱子不会计数，必须要成功推动箱子，不同的箱子视为同一种地形。引爆/拆弹均会计数，但是算作同一种类型。“单向传送门”和“普通传送门”视为同一种地形。
+[乒铃乓啷]撞箱子不会计数，必须要成功推动箱子，不同的箱子视为同一种地形。引爆/拆弹均会计数，但是算作同一种类型。“单向传送门”和“普通传送门”、“浆果丛”与“树丛”视为同一种地形。
 隐匿状态进入树丛等声响地形，仍可以获得[无声]相关成就。
+巨大的心脏的心跳声不影响[无声]相关成就；但声响被心跳掩盖仍视为发出过声响，无法获得[无声]相关成就。
 [守株待兔]可以直接停止也可以第1步撞墙，[谋定后动模式]走1步抓不会触发此成就。)EOF",
 
     R"EOF(【开局区块随机】
@@ -108,8 +116,8 @@ const std::vector<RuleCommand> k_rule_commands = {
     RuleCommand("查看所有 BOSS 的规则和技能",
             []() { return boss_details[0]; },
             VoidChecker("BOSS")),
-    RuleCommand("游戏部分隐藏机制：「#规则 漫漫长夜 机制」查看可用列表帮助",
-            [](const int type) { return rule_details[type]; },
+    RuleCommand("游戏部分隐藏机制：「" META_COMMAND_SIGN "规则 漫漫长夜 机制」查看可用列表帮助",
+            [](const int type) { return rule_details[type].c_str(); },
             AlterChecker<int>({{"机制", 0}, {"地形", 1}, {"传送", 2}, {"成就", 3}, {"区块", 4}})),
 };
 
@@ -165,6 +173,8 @@ enum class InitOption {
     BLOCK_CRAZY,
     BLOCK_BUTTON,
     BLOCK_TRAP,
+    BLOCK_OPEN,
+    BLOCK_SILENT,
 
     // ===== 边长 =====
     BOARD_10,
@@ -213,6 +223,8 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
                         case InitOption::BLOCK_CRAZY:   GET_OPTION_VALUE(game_options, 模式) = BlockMode::CRAZY; break;
                         case InitOption::BLOCK_BUTTON:  GET_OPTION_VALUE(game_options, 模式) = BlockMode::BUTTON; break;
                         case InitOption::BLOCK_TRAP:    GET_OPTION_VALUE(game_options, 模式) = BlockMode::TRAP; break;
+                        case InitOption::BLOCK_OPEN:    GET_OPTION_VALUE(game_options, 模式) = BlockMode::OPEN; break;
+                        case InitOption::BLOCK_SILENT:  GET_OPTION_VALUE(game_options, 模式) = BlockMode::SILENT; break;
 
                         case InitOption::BOARD_10:  GET_OPTION_VALUE(game_options, 边长) = 10; break;
                         case InitOption::BOARD_12:  GET_OPTION_VALUE(game_options, 边长) = 12; break;
@@ -253,6 +265,8 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
                 {"疯狂", InitOption::BLOCK_CRAZY},
                 {"按钮", InitOption::BLOCK_BUTTON},
                 {"陷阱", InitOption::BLOCK_TRAP},
+                {"空旷", InitOption::BLOCK_OPEN},
+                {"无声", InitOption::BLOCK_SILENT},
 
                 {"10*10", InitOption::BOARD_10},
                 {"12*12", InitOption::BOARD_12},
@@ -353,6 +367,10 @@ class MainStage : public MainGameStage<RoundStage>
         // Global().SaveMarkdown(board.GetAllBlocksInfo(SpecialEvent::NONE, true, BlockMode::BUTTON), ((GRID_SIZE + WALL_SIZE) * 16 + 40));
         // board.unitMaps.SampleBlockPoolsFromIds(board.unitMaps.trap_mode_ids);   // [陷阱]模式
         // Global().SaveMarkdown(board.GetAllBlocksInfo(SpecialEvent::NONE, true, BlockMode::TRAP), ((GRID_SIZE + WALL_SIZE) * 16 + 40));
+        // board.unitMaps.SampleBlockPoolsFromIds(board.unitMaps.open_mode_ids);   // [空旷]模式
+        // Global().SaveMarkdown(board.GetAllBlocksInfo(SpecialEvent::NONE, true, BlockMode::OPEN), ((GRID_SIZE + WALL_SIZE) * 16 + 40));
+        // board.unitMaps.SampleBlockPoolsFromIds(board.unitMaps.silent_mode_ids);   // [无声]模式
+        // Global().SaveMarkdown(board.GetAllBlocksInfo(SpecialEvent::NONE, true, BlockMode::SILENT), ((GRID_SIZE + WALL_SIZE) * 16 + 40));
 
         auto sender = Global().Boardcast();
         if (GAME_OPTION(捕捉目标) == Target::NEXT) {
@@ -452,6 +470,7 @@ class MainStage : public MainGameStage<RoundStage>
 
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             player_scores_[pid] = board.players[pid].score.FinalScore();
+            board.players[pid].coins_public = board.players[pid].coins;  // 终局公开全部金币持有量
         }
 
         if (game_end) {
@@ -514,7 +533,9 @@ class RoundStage : public SubGameStage<>
         hide = false;
         active_stop = false;
         is_acting = false;
+        last_direct = -1;
         door_modified = 0;
+        heart_jammer_notified.assign(Global().PlayerNum(), false);
     }
 
     // 当前行动玩家
@@ -524,9 +545,12 @@ class RoundStage : public SubGameStage<>
     bool hide;          // 隐匿状态
     bool active_stop;   // 主动停止或超时
     bool is_acting;     // 玩家是否开始行动（时限/挂机判定）
-    
+    int last_direct;    // 本回合上一次成功移动方向（-1 无，用于树篱冲刺）
+
     // 记录门的状态发生改变的次数
     int door_modified;
+    // [巨大的心脏] 屏蔽器范围玩家本回合是否已收到心跳提示
+    vector<bool> heart_jammer_notified;
 
     virtual void OnStageBegin() override
     {
@@ -626,7 +650,7 @@ class RoundStage : public SubGameStage<>
             }
         }
         
-        bool success = Main().board.MakeMove(pid, direction, hide);
+        bool success = Main().board.MakeMove(pid, direction, hide, last_direct);
         step++;
 
         // 撞墙直接切换下一个玩家
@@ -685,7 +709,7 @@ class RoundStage : public SubGameStage<>
 
         for (auto it = directions.begin(); it != directions.end(); ++it) {
             const Direct& direct = *it;
-            bool success = Main().board.MakeMove(pid, direct, hide);
+            bool success = Main().board.MakeMove(pid, direct, hide, last_direct);
             step++;
             // 中途撞墙直接停止行动
             if (!success) {
@@ -945,6 +969,7 @@ class RoundStage : public SubGameStage<>
         if (!active_stop) Main().all_active_stop = false;
         // 仅剩1玩家，游戏结束
         if ((Main().Alive_() == 1 && Global().PlayerNum() > 1) || (Main().Alive_() == 0 && Global().PlayerNum() == 1)) {
+            AnnounceCoinGains();    // 提前结束也公示本回合金币
             if (Main().withoutE_win_) {     // 无逃生舱最后生还胜利
                 Global().Boardcast() << At(currentPlayer) << "\n" << GetRandomHint(withoutE_win_hints);
             }
@@ -970,6 +995,7 @@ class RoundStage : public SubGameStage<>
         hide = false;
         active_stop = false;
         is_acting = false;
+        last_direct = -1;
         // 下一个玩家行动
         do {
             currentPlayer = (currentPlayer + 1) % Global().PlayerNum();
@@ -988,6 +1014,8 @@ class RoundStage : public SubGameStage<>
         }
 
         // [回合结束] 所有玩家都行动后结束本回合
+        // 金币获得公示
+        AnnounceCoinGains();
         // 门变更过进行提示
         if (door_modified > 0) {
             Global().Boardcast() << "【注意】在本回合内，门曾被按钮触发，共发生 " + to_string(door_modified) + " 次变化";
@@ -1034,6 +1062,8 @@ class RoundStage : public SubGameStage<>
     // ========== 成员函数 ==========
     bool HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderGuard& sender, const bool multiple_mode);
     bool PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& sender);
+    bool HandleHeartBeat(Player& player, MsgSenderBase::MsgSenderGuard& sender);
+    void AnnounceCoinGains();
     void SendSoundMessage(const int fromX, const int fromY, const Sound sound, const bool to_all, const bool is_first_sound = false);
     void AppendSurroundingWalls(Player& player, MsgSenderBase::MsgSenderGuard& sender);
     void HandleMinotaurBossAction(Boss& boss, string& boss_record, MsgSenderBase::MsgSenderGuard& sender);
@@ -1041,15 +1071,42 @@ class RoundStage : public SubGameStage<>
 };
 
 
+// [巨大的心脏] 心跳节拍（返回本步是否发出砰砰声）
+// 第 1/4/7/10/13/16/19 步发出全图无方向心跳，共 7 次；不计入 trigger_sound
+bool RoundStage::HandleHeartBeat(Player& player, MsgSenderBase::MsgSenderGuard& sender)
+{
+    if (!Main().board.has_heart || step % 3 != 1 || step > 19) return false;
+
+    const string beat_text = "❤️" PENGPENG_STR "——巨大的心跳声响彻了整个迷宫！";
+    if (hide) {
+        Global().Tell(player.pid) << "[第 " << step << " 步] " << beat_text << "（隐匿中，心跳不会在公屏显示）";
+    } else {
+        // 所有心跳步的箭头一律标红：无论本步是否掩盖了声响，避免红箭头本身泄露"这步有声音"
+        player.MarkHeartMasked();
+        sender << "\n" << beat_text;
+    }
+    // 屏蔽器范围内的玩家：每回合仅第一声心跳私信提醒
+    for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+        if (Main().board.players[pid].out == 0 && !heart_jammer_notified[pid] && Main().board.IsNearJammer(pid)) {
+            heart_jammer_notified[pid] = true;
+            Global().Tell(pid) << GetRandomHint(heart_jammer_hints) << "\n（本回合只提醒第一声" PENGPENG_STR "，后续省略）";
+        }
+    }
+    return true;
+}
+
 // 处理区块效果（返回玩家回合是否结束）
 bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderGuard& sender, const bool multiple_mode)
 {
     const string prefix = "\n";
 
+    // [巨大的心脏] 心跳节拍 * 先于亚空间判定：亚空间内的步数也计入节拍 *
+    const bool heart_beat = HandleHeartBeat(player, sender);
+
     // [亚空间] * 优先级必须最高 *
     Grid& former_grid = Main().board.grid_map[player.x][player.y];
     // 亚空间内不影响地图
-    if (player.InSubspace()) return false;  
+    if (player.InSubspace()) return false;
     // 离开亚空间，传送门传送
     bool this_move_teleport = false;
     if (player.subspace == 0) {
@@ -1103,6 +1160,13 @@ bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderG
     }
     if (grid.Attach() == AttachType::BOMB) {
         player.bomb_trigger = true;
+    }
+    // [金币] 静默拾取：本人也不会收到提示，回合结束统一公示
+    if (grid.Attach() == AttachType::COIN) {
+        grid.SetAttach(AttachType::EMPTY);
+        player.coins++;
+        player.coins_this_round++;
+        player.score.coin_score += Score::COIN_SCORE;
     }
     /* ========== GridType ========== */
     // [逃生舱]
@@ -1165,6 +1229,12 @@ bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderG
 
         if (hide) {
             sender << prefix << action_verb << terrain_label << "（隐匿中，不会向其他人发出声响）";
+        } else if (heart_beat) {
+            // [巨大的心脏] 心跳完全掩盖本步声响：公屏文本无痕迹，仅私信本人掩盖详情（箭头标红已由 HandleHeartBeat 处理）
+            Global().Tell(player.pid) << "[第 " << step << " 步] " << action_verb << terrain_label
+                                      << "，声响被巨大的心跳声掩盖，其他玩家未能察觉";
+            player.UpdateExtraPriContent(string("掩盖[") + (is_shasha ? SHASHA_STR : PAPA_STR) + "]", "masked");
+            player.achievement.trigger_sound = true;
         } else {
             const bool is_first_sound = !player.achievement.trigger_sound;
             player.UpdateSoundRecord(sound);
@@ -1179,6 +1249,14 @@ bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderG
             }
             SendSoundMessage(player.x, player.y, sound, false, is_first_sound);
             player.achievement.trigger_sound = true;
+        }
+        // [浆果丛] 私信告知踩入玩家
+        if (grid.Type() == GridType::BERRY) {
+            Global().Tell(player.pid) << GetRandomHint(berry_hints);
+            if (!hide) {
+                if (heart_beat) player.NewExtraPriContent("浆果丛", "berry");   // 掩盖步：浆果丛独立显示
+                else player.UpdateExtraPriContent("浆果丛", "berry");
+            }
         }
     }
     // [热源]
@@ -1242,6 +1320,17 @@ bool RoundStage::PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& send
             target.all_record.back() = target.move_record;
         }
 
+        // [金币] 首轮保护不淘汰玩家，但金币照常被抢夺
+        if (target.coins > 0) {
+            player.coins += target.coins;
+            player.coins_this_round += target.coins;
+            player.score.coin_score += target.score.coin_score;
+            sender << "\n" << At(player.pid) << " 抢夺了 " << At(t) << " 持有的 " << target.coins << " 枚【金币】！";
+            target.coins = 0;
+            target.coins_this_round = 0;    // 被抢后不再计入本回合公示
+            target.score.coin_score = 0;
+        }
+
         Main().board.TeleportPlayer(t);     // 随机传送被捉方
         Main().board.TeleportPlayer(player.pid);    // 随机传送捕捉方
         player.achievement.catch_first_round = true;    // 成就【饥渴难耐】
@@ -1255,6 +1344,18 @@ bool RoundStage::PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& send
     player.score.catch_score += 100;        // 抓人分
     Main().board.players[t].score.catch_score -= 100;
     player.achievement.recordCatch(Global().PlayerNum());   // 成就[嗜杀成性]辅助
+
+    // [金币] 抢夺目标持有的全部金币
+    Player& caught = Main().board.players[t];
+    if (caught.coins > 0) {
+        player.coins += caught.coins;
+        player.coins_this_round += caught.coins;
+        player.score.coin_score += caught.score.coin_score;
+        sender << "\n" << At(player.pid) << " 抢夺了 " << At(t) << " 持有的 " << caught.coins << " 枚【金币】！";
+        caught.coins = 0;
+        caught.coins_this_round = 0;    // 被抢后不再计入本回合公示
+        caught.score.coin_score = 0;
+    }
 
     if (Main().Alive_() > 1) {
         player.NewContentRecord("[传送]", "teleport");
@@ -1271,6 +1372,33 @@ bool RoundStage::PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& send
         if (Main().board.TypeCount(GridType::EXIT) > 0) Main().withE_win_ = true;
     }
     return true;
+}
+
+// [金币] 回合结束公示本回合获得金币的玩家（含捕捉抢夺所得）
+void RoundStage::AnnounceCoinGains()
+{
+    bool any = false;
+    for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+        if (Main().board.players[pid].coins_this_round > 0) { any = true; break; }
+    }
+    if (any) {
+        string extra_record = "<br>【第 " + to_string(Main().round_) + " 回合】金币公示：";
+        auto sender = Global().Boardcast();
+        sender << "【金币公示】";
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            Player& p = Main().board.players[pid];
+            if (p.coins_this_round > 0) {
+                sender << "\n" << At(pid) << " 获得了 " << p.coins_this_round << " 枚金币（当前共持有 " << p.coins << " 枚）";
+                extra_record += "[" + to_string(pid) + "号]+" + to_string(p.coins_this_round) + "枚 ";
+                p.coins_this_round = 0;
+            }
+        }
+        Main().board.all_extra_record += extra_record;
+    }
+    // 公示完成后同步已公示数量：赛况徽章此后才展示最新持有量
+    for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+        Main().board.players[pid].coins_public = Main().board.players[pid].coins;
+    }
 }
 
 // 将玩家四周墙壁信息写入私信赛况并以流式输出到 sender
@@ -1426,6 +1554,12 @@ void RoundStage::HandleBangBangBossAction(Boss& boss, string& boss_record, MsgSe
     }
     // 放置炸弹
     Grid& grid = Main().board.grid_map[boss.x][boss.y];
+    // [巨大的心脏] BOSS无视地形可站上心脏格：跳过放置炸弹与墙壁播报
+    if (grid.Type() == GridType::HEART) {
+        boss_record += "站上了巨大的心脏，未放置炸弹";
+        sender << "\n\n【邦邦】这个巨大的东西是什么？算了，这回合不放炸弹了~";
+        return;
+    }
     if (grid.Attach() == AttachType::EMPTY) grid.SetAttach(AttachType::BOMB);
     // 公屏展示炸弹墙壁信息
     auto [info, md] = Main().board.GetBangBangSurroundingWalls(boss.x, boss.y);

@@ -3,6 +3,7 @@ struct GetBoardOptions {
     bool with_player = true;
     bool with_content = false;
     bool with_ground = true;
+    bool with_frame = true;     // 是否绘制盘面外侧虚线边框
 };
 
 class Board
@@ -36,6 +37,8 @@ class Board
     Boss boss{size, players};
     // 完整赛况额外信息
     string all_extra_record;
+    // [巨大的心脏] 地图中是否存在心脏
+    bool has_heart = false;
     // 特殊区块位置（暂不使用）
     // pair<int, int> special_pos = {12, 12};
 
@@ -53,6 +56,7 @@ class Board
         FixAdjacentWalls(grid_map);     // 相邻墙面修复
         FixInvalidPortals(grid_map);    // 封闭传送门替换为水洼
         RandomizePlayers();             // 随机生成玩家
+        has_heart = TypeCount(GridType::HEART) > 0;     // [巨大的心脏] 存在判定
 
         // 成就辅助：记录玩家初始位置
         for (PlayerID pid = 0; pid < playerNum; ++pid) {
@@ -71,7 +75,8 @@ class Board
     {
         size_t size = grid_map.size();
         html::Table map(size * 2 + 1, size * 2 + 1);
-        map.SetTableStyle("align=\"center\" cellpadding=\"0\" cellspacing=\"0\" style=\"border: 2px dashed black;\"");
+        map.SetTableStyle(string("align=\"center\" cellpadding=\"0\" cellspacing=\"0\"")
+                + (options.with_frame ? " style=\"border: 2px dashed black;\"" : ""));
         // 方格信息（包括玩家）
         for (int x = 1; x < size * 2; x = x + 2) {
             for (int y = 1; y < size * 2; y = y + 2) {
@@ -189,6 +194,8 @@ class Board
             case BlockMode::CRAZY:  title = HTML_SIZE_FONT_HEADER(6) "<b>《漫漫长夜》「狂野」+「疯狂」模式全部区块</b>" HTML_FONT_TAIL; break;
             case BlockMode::BUTTON: title = HTML_SIZE_FONT_HEADER(6) "<b>《漫漫长夜》「按钮」模式主题区块</b>" HTML_FONT_TAIL; break;
             case BlockMode::TRAP:   title = HTML_SIZE_FONT_HEADER(6) "<b>《漫漫长夜》「陷阱」模式主题区块</b>" HTML_FONT_TAIL; break;
+            case BlockMode::OPEN:   title = HTML_SIZE_FONT_HEADER(6) "<b>《漫漫长夜》「空旷」模式主题区块</b>" HTML_FONT_TAIL; break;
+            case BlockMode::SILENT: title = HTML_SIZE_FONT_HEADER(6) "<b>《漫漫长夜》「无声」模式主题区块</b>" HTML_FONT_TAIL; break;
             default:;
         }
 
@@ -234,6 +241,7 @@ class Board
         const vector<pair<Wall, string>> all_walls_info = {
             { Wall::DOOR, "【门】初始关闭状态的门，关闭时视为墙壁。当关联的按钮被按下时会切换开关状态<br><b>如果门发生过变化，在回合结束会进行提示。</b>关闭的门在私信墙壁信息会显示为**普通墙壁**" },
             { Wall::DOOROPEN, "【门 (开)】初始打开状态的门，玩家可移动穿过打开的门。在私信墙壁信息会显示为**无墙壁**" },
+            { Wall::HEDGE, "【树篱】若**上一步移动与本步在同一回合内且方向一致**，则冲刺穿过树篱；否则视为**撞墙**。<br>树篱在私信墙壁信息会显示为**无墙壁**。**箱子不可穿过树篱**。<br>玩家出生或被传送在树篱旁，不能立即穿过树篱（亚空间传送后行动方向需一致）" },
         };
         const vector<pair<AttachType, string>> all_attachs_info = {
             { AttachType::BUTTON, "【按钮】玩家进入时会触发区块内按钮相关事件。（出生不算）<br>进入按钮格**没有任何额外信息提示**，且仅在进入时才会触发按钮" },
@@ -241,6 +249,7 @@ class Board
             { AttachType::BOX, "【箱子】玩家相邻箱子且向箱子移动时，箱子可被推动。（不会出生在箱子内）<br>**箱子不可移动到本区块外，其后方有玩家、墙壁或其他附着时，均不可被推动**。<br>若箱子不可被推动，则视为**撞墙**，且**箱子本身不会显示为墙壁**。" },
             { AttachType::HEATBOX, "【小太阳】有 5x5 **热浪范围**的箱子，基础推动规则和**箱子**一致。（不会出生在小太阳内）<br>玩家进入小太阳周围 5x5 范围时，将**私信**收到热浪提示。<br><font color=red>小太阳和其他热源区块**不会同时出现在地图中**</font>（自定义模式区块不足时除外）" },
             { AttachType::JAMMERBOX, "【屏蔽器】有 3x3 **寂静范围**的箱子，基础推动规则和**箱子**一致。（不会出生在屏蔽器内）<br>玩家位于屏蔽器周围 3x3 范围内时，<font color=teal>**将无法获知所有声响的方向来源**</font>。" },
+            { AttachType::COIN, "【金币】玩家经过时**静默拾取**该枚金币（金币移除），每枚金币 <font color=#e0b400>**+30分**</font>。<br>本回合有玩家获得金币时，将在**回合结束时指名公开**获得数量。<br><font color=red>**捕捉成功可抢夺目标持有的全部金币**</font>（首轮捕捉也可抢夺）" },
         };
         const vector<pair<GridType, string>> all_grids_info = {
             { GridType::GRASS, "【树丛】玩家进入时会发出让其他人听见的<font color=#00af50>**" SHASHA_STR "声**</font>。（出生不算）" },
@@ -249,6 +258,8 @@ class Board
             { GridType::ONEWAYPORTAL, "【传送门出口】玩家进入时会发出其他人听见的<font color=#01b0f1>**" PAPA_STR "声**</font>。（出生不算）<br>传送门的单向出口，进入时不会触发传送（必须从入口进入才会传送至此处）<br>**玩家在进入同一区块的传送门入口时，传送门会转换方向，入口和出口交换位置**" },
             { GridType::TRAP, "【陷阱】陷阱隐藏在树丛中：被奇数次进入时，会发出让其他人听见的<font color=#00af50>**" SHASHA_STR "声**</font>（出生不算）<br>被偶数次进入时，不发出声响，并**强制玩家停止**（出生不算）" },
             { GridType::HEAT, "【热源】进入热源周围 8 格时，将**私信**收到热浪提示。（只有移动时才能感受到热浪）<br>当进入热源时，将**私信**收到高温烫伤提示（不会出生在热源内）<br><font color=red>在整局游戏中，**当第 2 次或更多次进入热源时，会被强制停止行动**</font>" },
+            { GridType::BERRY, "【浆果丛】玩家进入时会发出让其他人听见的<font color=#00af50>**" SHASHA_STR "声**</font>，公开为树丛。（出生不算）<br>只有进入的玩家会**私信**得知这里是浆果丛。" },
+            { GridType::HEART, "【巨大的心脏】地图中存在心脏时，每位玩家行动的<font color=#c00000>**第 1/4/7/10/13/16/19 步**</font>会发出全图无方向的" PENGPENG_STR "声（每回合行动最多 7 次）。<br><font color=#c00000>**" PENGPENG_STR "声会完全掩盖同一步发出的其他声响**</font>（他人不会收到方向私信，不显示声响内容）。" },
             { GridType::EXIT, "【逃生舱】逃生者使用后，**会消失**。" + (test_mode == BlockMode::CLASSIC ? ("本局逃生舱数量为 **" + to_string(exit_num) + "** 个。") : "") },
         };
 
@@ -320,6 +331,13 @@ class Board
                 "<b>特殊区块</b></div>";
         }
         return GetBoard(unitMaps.FindBlockById(id, is_exit, event), GetBoardOptions{.with_content = true});
+    }
+
+    // 单区块裸图（工具用）：边界墙壁 + 内部 3x3，不含外侧虚线边框
+    string GetSingleBlockNoBorder(const string& id, const bool is_exit, const SpecialEvent event) const
+    {
+        return GetBoard(unitMaps.FindBlockById(id, is_exit, event),
+                GetBoardOptions{.with_player = false, .with_content = true, .with_frame = false});
     }
 
     // 获取玩家信息
@@ -404,6 +422,18 @@ class Board
     .player-title {
         font-size: 16px;
     }
+    .coin-badge {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 1px 7px;
+        font-size: 14px;
+        font-weight: bold;
+        color: #7a5c00;
+        border: 1px solid #e0b400;
+        border-radius: 9px;
+        background: linear-gradient(135deg, #fff7b0, #ffe75e 45%, #f0d000);
+        box-shadow: 0 1px 2px rgba(224, 180, 0, 0.5);
+    }
     .player-record {}
     .boss {
         margin-top: 12px;
@@ -430,6 +460,10 @@ class Board
 
             record_html += "<div class='player-title'>";
             record_html += "<b>[" + to_string(pid) + "号]" + esc_html(players[pid].name) + "</b>";
+            // [金币] 在玩家名称右侧显示金色徽章（仅显示已公示数量，本回合新获得需等回合结束公示）
+            if (players[pid].coins_public > 0) {
+                record_html += "<span class='coin-badge'>🪙 " + to_string(players[pid].coins_public) + "</span>";
+            }
             record_html += "</div>";
 
             record_html += "<div class='player-record'>";
@@ -466,6 +500,7 @@ class Board
         // 玩家记录
         for (int pid = 0; pid < playerNum; pid++) {
             record_string += "[" + to_string(pid) + "号]" + players[pid].name;
+            if (players[pid].coins_public > 0) record_string += "[🪙" + to_string(players[pid].coins_public) + "]";
             if (players[pid].out == 1) record_string += "【已出局】";
             if (players[pid].out == 2) record_string += "【逃生舱撤离】";
             record_string += "\n" + players[pid].GetAllMoveRecord(query_pid, is_public, false) + "\n";
@@ -485,15 +520,16 @@ class Board
 
     string GetAllScore() const
     {
-        html::Table scoreTable(playerNum + 1, 7);
+        html::Table scoreTable(playerNum + 1, 8);
         scoreTable.SetTableStyle("cellpadding=\"2\" cellspacing=\"0\" border=\"1\"");
         scoreTable.Get(0, 0).SetStyle("style=\"width:50px;\"").SetContent("序号");
         scoreTable.Get(0, 1).SetStyle("style=\"width:250px;\"").SetContent("玩家");
         scoreTable.Get(0, 2).SetStyle("style=\"width:70px;\"").SetContent("抓人分");
         scoreTable.Get(0, 3).SetStyle("style=\"width:70px;\"").SetContent("逃生分");
-        scoreTable.Get(0, 4).SetStyle("style=\"width:70px;\"").SetContent("探索分");
-        scoreTable.Get(0, 5).SetStyle("style=\"width:70px;\"").SetContent("额外<br>探索分");
-        scoreTable.Get(0, 6).SetStyle("style=\"width:100px;\"").SetContent("【最终总分】");
+        scoreTable.Get(0, 4).SetStyle("style=\"width:70px;\"").SetContent("金币分");
+        scoreTable.Get(0, 5).SetStyle("style=\"width:70px;\"").SetContent("探索分");
+        scoreTable.Get(0, 6).SetStyle("style=\"width:70px;\"").SetContent("额外<br>探索分");
+        scoreTable.Get(0, 7).SetStyle("style=\"width:100px;\"").SetContent("【最终总分】");
         for (int pid = 0; pid < playerNum; pid++) {
             Score s = players[pid].score;
             scoreTable.Get(pid + 1, 0).SetContent(to_string(pid) + "号");
@@ -503,16 +539,19 @@ class Board
             scoreTable.Get(pid + 1, 2).SetContent(to_string(s.catch_score));
             if (s.exit_score > 0) scoreTable.Get(pid + 1, 3).SetColor("#FFDB60");
             scoreTable.Get(pid + 1, 3).SetContent(to_string(s.exit_score));
+            if (s.coin_score > 0) scoreTable.Get(pid + 1, 4).SetColor("#FFF3B0");
+            scoreTable.Get(pid + 1, 4).SetContent(to_string(s.coin_score));
             auto [c1, c2] = s.ExploreCount();
-            scoreTable.Get(pid + 1, 4).SetContent(to_string(c1 + c2));
-            scoreTable.Get(pid + 1, 5).SetContent(to_string(c2));
-            scoreTable.Get(pid + 1, 6).SetContent((s.quit_score < 0 ? HTML_COLOR_FONT_HEADER("red") : HTML_COLOR_FONT_HEADER("black")) + to_string(s.FinalScore()) + HTML_FONT_TAIL);
+            scoreTable.Get(pid + 1, 5).SetContent(to_string(c1 + c2));
+            scoreTable.Get(pid + 1, 6).SetContent(to_string(c2));
+            scoreTable.Get(pid + 1, 7).SetContent((s.quit_score < 0 ? HTML_COLOR_FONT_HEADER("red") : HTML_COLOR_FONT_HEADER("black")) + to_string(s.FinalScore()) + HTML_FONT_TAIL);
         }
         return Score::ScoreInfo() + scoreTable.ToString();
     }
 
     // 玩家移动
-    bool MakeMove(const PlayerID pid, const Direct direction, const bool hide)
+    // last_direct：本回合上一次成功移动的方向，-1 表示无，用于树篱冲刺判定
+    bool MakeMove(const PlayerID pid, const Direct direction, const bool hide, int& last_direct)
     {
         int d = static_cast<int>(direction);
         int cx = players[pid].x;
@@ -529,6 +568,10 @@ class Board
                 case Direct::RIGHT: hit_wall = !grid_map[cx][cy].CanPass<Direct::RIGHT>(); break;
                 default: return false;
             }
+            // [树篱] 冲刺穿过：上一步移动在同一回合内且方向一致
+            if (hit_wall && grid_map[cx][cy].GetWall(direction) == Wall::HEDGE && last_direct == d) {
+                hit_wall = false;
+            }
             // 非撞墙，尝试移动箱子
             if (!hit_wall && grid_map[nx][ny].HasBox()) {
                 bool box_success = BoxMove(nx, ny, k_DX_Direct[d], k_DY_Direct[d]);
@@ -538,11 +581,13 @@ class Board
             // 撞墙
             if (hit_wall) {
                 if (!hide) players[pid].NewStepRecord(direction, "撞");
+                last_direct = -1;   // 撞墙打断冲刺链
                 return false;
             }
         }
         // 轨迹记录
         if (!hide) players[pid].NewStepRecord(direction);
+        last_direct = d;
 
         // 非撞墙，炸弹触发，实际不移动
         if (players[pid].bomb_trigger) {
@@ -667,6 +712,7 @@ class Board
     {
         switch(grid.Type()) {
             case GridType::GRASS:   return Sound::SHASHA;
+            case GridType::BERRY:   return event == SpecialEvent::RAINSTORY ? Sound::PAPA : Sound::SHASHA;
             case GridType::WATER:   return Sound::PAPA;
             case GridType::ONEWAYPORTAL:
             case GridType::PORTAL:  return Sound::PAPA;
@@ -991,6 +1037,7 @@ class Board
     bool IsBlocked(const Grid& g) const
     {
         return g.Type() == GridType::HEAT ||
+            g.Type() == GridType::HEART ||
             g.Attach() == AttachType::BOX ||
             g.Attach() == AttachType::HEATBOX ||
             g.Attach() == AttachType::JAMMERBOX;
@@ -1326,6 +1373,7 @@ class Board
             case AttachType::BOX:       color = "#FFFF00"; break;
             case AttachType::HEATBOX:   color = "#FFFF00"; break;
             case AttachType::JAMMERBOX: color = "#FFFF00"; break;
+            case AttachType::COIN:      color = "#FF6EC7"; break;
             default:;
         }
 

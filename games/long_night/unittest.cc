@@ -61,6 +61,30 @@ GAME_TEST(3, all_active_stop3)
     ASSERT_SCORE(0, 0, 0);
 }
 
+// 幻变模式正常开局
+GAME_TEST(2, twist_mode_start)
+{
+    ASSERT_PRI_MSG(OK, 0, "模式 幻变");
+    START_GAME();
+
+    ASSERT_PUB_MSG(CONTINUE, 0, "停止");
+    ASSERT_PUB_MSG(CHECKOUT, 1, "停止");
+
+    ASSERT_SCORE(0, 0);
+}
+
+// 巨大的心房区块铺满地图可正常开局
+GAME_TEST(2, heart_blocks_full_map)
+{
+    ASSERT_PRI_MSG(OK, 0, "区块 51 51 51 51 51 51 51 51 51");
+    START_GAME();
+
+    ASSERT_PUB_MSG(CONTINUE, 0, "停止");
+    ASSERT_PUB_MSG(CHECKOUT, 1, "停止");
+
+    ASSERT_SCORE(0, 0);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game
