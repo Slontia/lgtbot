@@ -16,7 +16,10 @@ class Score
     // 逃生分
     static constexpr const int exit_order[8] = {150, 200, 250, 250, 250, 250, 250, 250};
     int exit_score = 0;
-    // 探索分   
+    // 金币分
+    static constexpr int COIN_SCORE = 30;
+    int coin_score = 0;
+    // 探索分
     vector<vector<int>> explore_map;
     // 退出惩罚
     int quit_score = 0;
@@ -33,7 +36,7 @@ class Score
 
     static string ScoreInfo() { return score_rule; }
 
-    int FinalScore() const { return catch_score + exit_score + ExploreScore() + quit_score; }
+    int FinalScore() const { return catch_score + exit_score + coin_score + ExploreScore() + quit_score; }
 
   private:
     int ExploreScore() const
@@ -46,7 +49,9 @@ class Score
 　【抓人分】<br>
 抓人+100，被抓-100<br>
 　【逃生分】<br>
-第1/2/3/4个逃生+150/200/250/250<br>
+第1/2/3/4+个逃生+150/200/250/250<br>
+　【金币分】<br>
+每持有一枚金币+30，被捕捉时金币被对方全部抢走<br>
 　【探索分】<br>
 每探索一个自己未探索的格子+1<br>
 每探索一个所有玩家未探索的格子额外+1<br>
@@ -96,6 +101,11 @@ class PlayerAchievement
         // 单向传送门视为普通传送门
         if (g == GridType::ONEWAYPORTAL) {
             grids.insert(GridType::PORTAL);
+            return;
+        }
+        // 浆果丛视为树丛
+        if (g == GridType::BERRY) {
+            grids.insert(GridType::GRASS);
             return;
         }
         if (g != GridType::EMPTY) grids.insert(g);
@@ -164,6 +174,7 @@ struct Move {
     pair<string, bool> extra_pri_content;   // 移动时的额外私信信息（私信完整赛况）
     pair<string, bool> content; // true（带移动方向）/ false（不带移动方向）
     string style;
+    bool heart_masked = false;  // [巨大的心脏] 心跳步（箭头加粗标红，不参与合并；有无声响均标记，防止泄露信息）
 
     Move(int direct, Sound sound, pair<string, bool> content)
         : direct(direct), sound(sound), content(content) {}
@@ -204,7 +215,7 @@ class RoundMove
         while (i < N) {
             const Move& mv = round_move[i];
 
-            bool mergeable = (mv.direct >= 0 && mv.sound == Sound::NONE && mv.content.first.empty());
+            bool mergeable = (mv.direct >= 0 && mv.sound == Sound::NONE && mv.content.first.empty() && !mv.heart_masked);
             if (mergeable) {
                 size_t j = i, count = 0;
                 while (j < N) {
@@ -213,9 +224,9 @@ class RoundMove
                     if (!next.extra_pri_content.first.empty() && !next.extra_pri_content.second && (query_pid != -1 || is_public)) {
                         j++; continue;
                     }
-                    // 计数判断：方向相同、无声响、非[无方向]content信息、无私信隐藏信息或私信隐藏信息[含有方向]
+                    // 计数判断：方向相同、无声响、非[无方向]content信息、无私信隐藏信息或私信隐藏信息[含有方向]、非心跳掩盖步
                     if (next.direct == mv.direct && next.sound == Sound::NONE && next.content.first.empty() &&
-                        (next.extra_pri_content.first.empty() || next.extra_pri_content.second)) {
+                        (next.extra_pri_content.first.empty() || next.extra_pri_content.second) && !next.heart_masked) {
                         count++; j++;
                     } else break;   // 计数失败则达到可合并尽头
                 }
@@ -239,6 +250,12 @@ class RoundMove
     static string formatSingle(const Move& mv, const int query_pid, const bool is_public, const bool is_html)
     {
         string d = dirSymbol(mv.direct);
+
+        // 私信赛况：本步带私信标注（浆果丛等）时，取代声响显示
+        if (mv.sound != Sound::NONE && query_pid == -1 && !is_public && !mv.extra_pri_content.first.empty()) {
+            const string content = (mv.extra_pri_content.second ? d : "") + mv.extra_pri_content.first;
+            return is_html ? "<span class=\"move " + mv.style + "\">" + content + "</span>" : "[" + content + "]";
+        }
 
         // 查询pid非-1（非自己），获取私信完整赛况声响方向
         string sound_d;
@@ -265,21 +282,24 @@ class RoundMove
             return mv.content.second ? "(" + d + mv.content.first + ")" : mv.content.first;
         }
         else { // 普通移动
+            // [巨大的心脏] 声响被心跳掩盖的步：箭头加粗标红（全视角可见）
+            const string move_class = mv.heart_masked ? "heart-beat" : "normal";
             if (!mv.extra_pri_content.first.empty()) {
                 if (query_pid == -1 && !is_public) {
                     // 私信额外内容（仅查询自己-1）
                     if (is_html) {
+                        const string d_str = mv.heart_masked ? "<b>" + d + "</b>" : d;
                         return mv.extra_pri_content.second
-                            ? "<span class=\"move " + mv.style + "\">" + d + mv.extra_pri_content.first + "</span>"  // 带方向信息
+                            ? "<span class=\"move " + mv.style + "\">" + d_str + mv.extra_pri_content.first + "</span>"  // 带方向信息
                             : "<span class=\"move " + mv.style + "\">" + mv.extra_pri_content.first + "</span>";   // 不带方向信息
                     }
                     return mv.content.second ? "[" + d + mv.extra_pri_content.first + "]" : "[" + mv.extra_pri_content.first + "]";
                 } else {
-                    string direct_str = is_html ? "<span class=\"move normal\">" + d + "</span>" : d;
+                    string direct_str = is_html ? "<span class=\"move " + move_class + "\">" + d + "</span>" : d;
                     return mv.content.second ? direct_str : "";
                 }
             } else {
-                return is_html ? "<span class=\"move normal\">" + d + "</span>" : d;
+                return is_html ? "<span class=\"move " + move_class + "\">" + d + "</span>" : d;
             }
         }
     }
@@ -330,6 +350,10 @@ class Player
     // 炸弹
     int bomb = 0;               // 剩余数量
     bool bomb_trigger = false;  // 炸弹触发状态
+    // 金币
+    int coins = 0;              // 本局持有金币数（实时，仅本人可见）
+    int coins_this_round = 0;   // 本回合新获得数量（回合结束公示后清零）
+    int coins_public = 0;       // 已公示的持有数（回合结束公示时同步，赛况徽章据此显示）
 
     // 玩家分数
     Score score;
@@ -343,6 +367,7 @@ class Player
     void UpdateSoundRecord(const Sound sound) { if (!move_record.empty()) move_record.back().sound = sound; }
     void AddSoundPropagation(const string& direct_str) { if (!move_record.empty()) move_record.back().propagation.push_back(direct_str); }
     void UpdateEndRecord(const string& content) { if (!move_record.empty()) move_record.back().content = {content, true}; }
+    void MarkHeartMasked() { if (!move_record.empty()) move_record.back().heart_masked = true; }
 
     void NewExtraPriContent(const string& content, const string& style) { if (!move_record.empty()) move_record.push_back({{content, false}, style}); }
     void UpdateExtraPriContent(const string& content, const string& style) { if (!move_record.empty()) move_record.back().UpdateExtraPriContent(content, true, style); }
@@ -419,6 +444,36 @@ R"(<style>
     background-size: 80px 80px, 100% 100%;
     backdrop-filter: blur(2px);
     box-shadow: 0 1px 2px rgba(179, 216, 255, 0.5);
+}
+.berry {
+    border: 1px solid #6fbf6f;
+    background:
+        radial-gradient(circle at 30% 35%, #ff5a5a 8%, transparent 9%),
+        radial-gradient(circle at 70% 60%, #ff5a5a 8%, transparent 9%),
+        repeating-linear-gradient(
+            45deg,
+            #c8f3c8,
+            #c8f3c8 4px,
+            #b6e8b6 4px,
+            #b6e8b6 8px
+        );
+}
+.heart-beat {
+    border: 1px solid #a01818;
+    background: #f2f2f2;
+    color: #c00000;
+    font-weight: bold;
+}
+.masked {
+    color: #fff;
+    border: 1px solid #a01818;
+    background: repeating-linear-gradient(
+        45deg,
+        #d63030,
+        #d63030 5px,
+        #a01818 5px,
+        #a01818 10px
+    );
 }
 .heat-wave {
     border: 1px solid #ff9a9a;
