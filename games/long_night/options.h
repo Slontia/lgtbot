@@ -11,6 +11,8 @@ EXTEND_OPTION("[区块] 先根据模式从区块池抽取 12+4 组成随机池�
     {"疯狂", BlockMode::CRAZY},
     {"按钮", BlockMode::BUTTON},
     {"陷阱", BlockMode::TRAP},
+    {"空旷", BlockMode::OPEN},
+    {"无声", BlockMode::SILENT},
 })), BlockMode::TWIST)
 EXTEND_OPTION("[区块] 自定义游戏区块随机池：自定义区块时「模式」配置不生效", 区块,
     (RepeatableChecker<BasicChecker<std::string>>("区块", "1 5 6 16 34 38 E1 e7 S4 s1")), (std::vector<std::string>{"默认"}))

@@ -72,6 +72,13 @@ class UnitMaps {
         {Map42(), "42", "红石迷宫B", GridType::GRASS, AttachType::BUTTON},
         {Map43(), "43", "小太阳", GridType::EMPTY, AttachType::HEATBOX},
         {Map44(), "44", "屏蔽器", GridType::EMPTY, AttachType::JAMMERBOX},
+        {Map45(), "45", "提款机A", GridType::PORTAL, AttachType::COIN},
+        {Map46(), "46", "提款机B", GridType::PORTAL, AttachType::COIN},
+        {Map47(), "47", "后花园A", GridType::GRASS},
+        {Map48(), "48", "后花园B", GridType::GRASS},
+        {Map49(), "49", "花园宝藏", GridType::TRAP, AttachType::COIN},
+        {Map50(), "50", "园艺孔雀", GridType::BERRY},
+        {Map51(), "51", "巨大的心房", GridType::HEART},
         // {Map31(), "31", "单向门A", GridType::PORTAL},
         // {Map32(), "32", "单向门B", GridType::PORTAL},
     };
@@ -90,6 +97,8 @@ class UnitMaps {
         {Exit12(), "12", "隐蔽逃生通道B", true, GridType::EMPTY, AttachType::BUTTON},
         {Exit13(), "13", "银行金库", true, GridType::PORTAL, AttachType::JAMMERBOX},
         {Exit14(), "14", "三箱之力", true, GridType::EMPTY, AttachType::BOX},
+        {Exit15(), "15", "花园密道A", true, GridType::GRASS, AttachType::BUTTON},
+        {Exit16(), "16", "花园密道B", true, GridType::GRASS, AttachType::BUTTON},
     };
     vector<Map> all_special_maps = {
         {MapS1(), "S1", "实验场", GridType::HEAT, AttachType::EMPTY, true},
@@ -100,13 +109,13 @@ class UnitMaps {
 
     // 幻变
     const vector<string> twist_mode_ids = {
-        "2", "6", "3", "7",
-        "9", "10", "11", "12",
-        "19", "20", "21", "22",
-        "5", "25", "26", "27",
-        "29", "30", "43", "44",
-        "E1", "E2", "E3", "E4",
-        "E13", "E14",
+        "45", "46", "47", "48",
+        "49", "50", "51", "5",
+        "2", "6", "13", "14",
+        "4", "8", "9", "10",
+        "11", "12", "23", "24",
+        "E15", "E16", "E1", "E4",
+        "E5", "E6", "E7", "E8",
     };
     // 按钮
     const vector<string> button_mode_ids = {
@@ -127,6 +136,20 @@ class UnitMaps {
         "16", "S3",
         "E1", "E2", "E3", "E4",
         "E9", "E10",
+    };
+    // 空旷
+    const vector<string> open_mode_ids = {
+        "23", "24", "25", "26",
+        "27", "28", "43", "44",
+        "51",
+        "E1", "E2", "E3", "E14",
+    };
+    // 无声
+    const vector<string> silent_mode_ids = {
+        "9", "10", "19", "20",
+        "21", "22", "27", "28",
+        "47", "48",
+        "E1", "E2", "E3", "E4",
     };
     vector<Map> pool_maps;
     vector<Map> pool_exits;
@@ -162,6 +185,12 @@ class UnitMaps {
         } else if (mode == BlockMode::TRAP) {
             // 陷阱-TRAP
             SampleBlockPoolsFromIds(trap_mode_ids);
+        } else if (mode == BlockMode::OPEN) {
+            // 空旷-OPEN
+            SampleBlockPoolsFromIds(open_mode_ids);
+        } else if (mode == BlockMode::SILENT) {
+            // 无声-SILENT
+            SampleBlockPoolsFromIds(silent_mode_ids);
         } else {
             // 自定义-CUSTOM
             for (const auto& block : custom_blocks) {
@@ -428,21 +457,21 @@ class UnitMaps {
     static string ShowSpecialEvent(const SpecialEvent event)
     {
         switch (event) {
-            case SpecialEvent::LAZYGARDENER: return "[特殊事件]【怠惰的园丁】树丛将在其区块内随机位置生成（有可能生成在中间）";
-            case SpecialEvent::OVERGROWTH:   return "[特殊事件]【营养过剩】树丛和陷阱将额外向随机1个方向再次生成1个树丛（不可隔墙生长）";
-            case SpecialEvent::RAINSTORY:    return "[特殊事件]【雨天小故事】地图中所有树丛变成水洼，陷阱会发出" PAPA_STR "声";
+            case SpecialEvent::LAZYGARDENER: return "[特殊事件]【怠惰的园丁】树丛（浆果丛）将在其区块内随机位置生成（有可能生成在中间）";
+            case SpecialEvent::OVERGROWTH:   return "[特殊事件]【营养过剩】树丛（浆果丛）和陷阱将额外向随机1个方向再次生成1个树丛（不可隔墙生长）";
+            case SpecialEvent::RAINSTORY:    return "[特殊事件]【雨天小故事】地图中所有树丛变成水洼，陷阱和浆果丛会发出" PAPA_STR "声";
             default:                         return "[特殊事件]【无】";
         }
     }
 
-    // 特殊事件1——怠惰的园丁：草丛将在其区块内随机位置生成
+    // 特殊事件1——怠惰的园丁：树丛（浆果丛）将在其区块内随机位置生成
     void SpecialEvent1()
     {
         auto MarkMaps = [](auto& maps) {
             for (auto& map : maps) {
                 for (int k = 0; k < 9; ++k) {
                     int i = k / 3, j = k % 3;
-                    if (map.block[i][j].Type() == GridType::GRASS)
+                    if (map.block[i][j].Type() == GridType::GRASS || map.block[i][j].Type() == GridType::BERRY)
                         map.block[i][j].SetContent("？");
                 }
             }
@@ -451,13 +480,14 @@ class UnitMaps {
             for (auto& map: maps) {
                 for (int k = 0; k < 9; ++k) {
                     int i = k / 3, j = k % 3;
-                    if (map.block[i][j].Type() == GridType::GRASS) {
+                    const GridType type = map.block[i][j].Type();
+                    if (type == GridType::GRASS || type == GridType::BERRY) {
                         map.block[i][j].SetType(GridType::EMPTY);
                         int m;
                         do {
                             m = rand() % 9;
                         } while (map.block[m / 3][m % 3].Type() != GridType::EMPTY);
-                        map.block[m / 3][m % 3].SetType(GridType::GRASS);
+                        map.block[m / 3][m % 3].SetType(type);
                         break;
                     }
                 }
@@ -490,7 +520,8 @@ class UnitMaps {
                 int grassCount = 0;
                 for (int i = 0; i < 3; ++i) {
                     for (int j = 0; j < 3; ++j) {
-                        if (map.block[i][j].Type() == GridType::GRASS || map.block[i][j].Type() == GridType::TRAP) {
+                        const GridType type = map.block[i][j].Type();
+                        if (type == GridType::GRASS || type == GridType::TRAP || type == GridType::BERRY) {
                             grassCount++;
                         }
                         if (map.block[i][j].CanGrow()) {
@@ -1515,7 +1546,155 @@ class UnitMaps {
         return map;
     }
 
-    // static vector<vector<Grid>> Map45()
+    static vector<vector<Grid>> Map45()
+    {
+        auto map = InitializeMapTemplate();
+        map[0][0].SetType(GridType::PORTAL).SetPortal(2, 2);
+        map[2][2].SetType(GridType::PORTAL).SetPortal(-2, -2);
+        map[0][2].SetAttach(AttachType::BUTTON).SetButton({{0, 0, Direct::DOWN}, {1, -1, Direct::DOWN}, {1, -1, Direct::RIGHT}, {2, -2, Direct::RIGHT}});
+        map[2][0].SetAttach(AttachType::BUTTON).SetButton({{-2, 2, Direct::DOWN}, {-1, 1, Direct::DOWN}, {-1, 1, Direct::RIGHT}, {0, 0, Direct::RIGHT}});
+        map[1][1].SetAttach(AttachType::COIN);
+
+        map[0][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[0][1].SetWall(Wall::EMPTY, Wall::NORMAL, Wall::EMPTY, Wall::EMPTY);
+        map[0][2].SetWall(Wall::NORMAL, Wall::DOOROPEN, Wall::EMPTY, Wall::EMPTY);
+
+        map[1][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::NORMAL);
+        map[1][1].SetWall(Wall::NORMAL, Wall::DOOR, Wall::NORMAL, Wall::DOOR);
+        map[1][2].SetWall(Wall::DOOROPEN, Wall::EMPTY, Wall::DOOR, Wall::EMPTY);
+
+        map[2][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::DOOROPEN);
+        map[2][1].SetWall(Wall::DOOR, Wall::NORMAL, Wall::DOOROPEN, Wall::EMPTY);
+        map[2][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+
+        return map;
+    }
+
+    static vector<vector<Grid>> Map46()
+    {
+        auto map = InitializeMapTemplate();
+        map[0][0].SetType(GridType::PORTAL).SetPortal(2, 2);
+        map[2][2].SetType(GridType::PORTAL).SetPortal(-2, -2);
+        map[0][2].SetAttach(AttachType::BUTTON).SetButton({{0, 0, Direct::LEFT}, {1, -1, Direct::UP}, {1, -1, Direct::LEFT}, {2, -2, Direct::UP}});
+        map[2][0].SetAttach(AttachType::BUTTON).SetButton({{-2, 2, Direct::LEFT}, {-1, 1, Direct::UP}, {-1, 1, Direct::LEFT}, {0, 0, Direct::UP}});
+        map[1][1].SetAttach(AttachType::COIN);
+
+        map[0][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[0][1].SetWall(Wall::NORMAL, Wall::DOOR, Wall::EMPTY, Wall::DOOROPEN);
+        map[0][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::DOOROPEN, Wall::NORMAL);
+
+        map[1][0].SetWall(Wall::EMPTY, Wall::DOOROPEN, Wall::NORMAL, Wall::DOOR);
+        map[1][1].SetWall(Wall::DOOR, Wall::NORMAL, Wall::DOOR, Wall::NORMAL);
+        map[1][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::EMPTY);
+
+        map[2][0].SetWall(Wall::DOOROPEN, Wall::NORMAL, Wall::EMPTY, Wall::EMPTY);
+        map[2][1].SetWall(Wall::NORMAL, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[2][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+
+        return map;
+    }
+
+    static vector<vector<Grid>> Map47()
+    {
+        auto map = InitializeMapTemplate();
+
+        map[0][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::EMPTY);
+        map[0][1].SetWall(Wall::NORMAL, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[0][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::NORMAL);
+
+        map[1][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::HEDGE);
+        map[1][1].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::HEDGE);
+        map[1][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::EMPTY);
+
+        map[2][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::HEDGE);
+        map[2][1].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::HEDGE);
+        map[2][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::EMPTY);
+
+        return map;
+    }
+
+    static vector<vector<Grid>> Map48()
+    {
+        auto map = InitializeMapTemplate();
+
+        map[0][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::HEDGE);
+        map[0][1].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::HEDGE);
+        map[0][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::EMPTY);
+
+        map[1][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::HEDGE);
+        map[1][1].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::HEDGE);
+        map[1][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::EMPTY);
+
+        map[2][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::EMPTY);
+        map[2][1].SetWall(Wall::EMPTY, Wall::NORMAL, Wall::EMPTY, Wall::EMPTY);
+        map[2][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::NORMAL);
+
+        return map;
+    }
+
+    static vector<vector<Grid>> Map49()
+    {
+        auto map = InitializeMapTemplate();
+        map[0][1].SetAttach(AttachType::COIN);
+        map[1][1].SetType(GridType::TRAP);
+        map[2][1].SetAttach(AttachType::COIN);
+
+        map[0][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::HEDGE).SetGrowable(true);
+        map[0][1].SetWall(Wall::NORMAL, Wall::EMPTY, Wall::HEDGE, Wall::HEDGE).SetGrowable(true);
+        map[0][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::EMPTY).SetGrowable(true);
+
+        map[1][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY).SetGrowable(true);
+        map[1][1].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[1][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY).SetGrowable(true);
+
+        map[2][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::HEDGE).SetGrowable(true);
+        map[2][1].SetWall(Wall::EMPTY, Wall::NORMAL, Wall::HEDGE, Wall::HEDGE).SetGrowable(true);
+        map[2][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::EMPTY).SetGrowable(true);
+
+        return map;
+    }
+
+    static vector<vector<Grid>> Map50()
+    {
+        auto map = InitializeMapTemplate();
+        map[1][1].SetType(GridType::BERRY);
+
+        map[0][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::EMPTY).SetGrowable(true);
+        map[0][1].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::HEDGE).SetGrowable(true);
+        map[0][2].SetWall(Wall::NORMAL, Wall::EMPTY, Wall::HEDGE, Wall::EMPTY);
+
+        map[1][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::HEDGE);
+        map[1][1].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::HEDGE);
+        map[1][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::EMPTY);
+
+        map[2][0].SetWall(Wall::EMPTY, Wall::NORMAL, Wall::EMPTY, Wall::HEDGE);
+        map[2][1].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::HEDGE, Wall::EMPTY).SetGrowable(true);
+        map[2][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::NORMAL).SetGrowable(true);
+
+        return map;
+    }
+
+    static vector<vector<Grid>> Map51()
+    {
+        auto map = InitializeMapTemplate();
+        map[1][1].SetType(GridType::HEART);
+
+        map[0][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[0][1].SetWall(Wall::EMPTY, Wall::NORMAL, Wall::EMPTY, Wall::EMPTY);
+        map[0][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+
+        map[1][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::NORMAL);
+        map[1][1].SetWall(Wall::NORMAL, Wall::NORMAL, Wall::NORMAL, Wall::NORMAL);
+        map[1][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::EMPTY);
+
+        map[2][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[2][1].SetWall(Wall::NORMAL, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[2][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+
+        return map;
+    }
+
+    // static vector<vector<Grid>> Map52()
     // {
     //     auto map = InitializeMapTemplate();
     //     map[0][0].SetType(GridType::WATER);
@@ -1890,6 +2069,50 @@ class UnitMaps {
         map[2][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
         map[2][1].SetWall(Wall::EMPTY, Wall::NORMAL, Wall::EMPTY, Wall::EMPTY);
         map[2][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+
+        return map;
+    }
+
+    static vector<vector<Grid>> Exit15()
+    {
+        auto map = InitializeMapTemplate();
+        map[0][1].SetType(GridType::EXIT);
+        map[1][1].SetType(GridType::GRASS);
+        map[0][0].SetAttach(AttachType::BUTTON).SetButton({{1, 1, Direct::RIGHT}, {2, 1, Direct::DOWN}});
+
+        map[0][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::NORMAL).SetGrowable(true);
+        map[0][1].SetWall(Wall::NORMAL, Wall::HEDGE, Wall::NORMAL, Wall::NORMAL);
+        map[0][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::EMPTY).SetGrowable(true);
+
+        map[1][0].SetWall(Wall::EMPTY, Wall::NORMAL, Wall::EMPTY, Wall::EMPTY).SetGrowable(true);
+        map[1][1].SetWall(Wall::HEDGE, Wall::HEDGE, Wall::EMPTY, Wall::DOOROPEN);
+        map[1][2].SetWall(Wall::EMPTY, Wall::HEDGE, Wall::DOOROPEN, Wall::EMPTY).SetGrowable(true);
+
+        map[2][0].SetWall(Wall::NORMAL, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+        map[2][1].SetWall(Wall::HEDGE, Wall::DOOR, Wall::EMPTY, Wall::EMPTY);
+        map[2][2].SetWall(Wall::HEDGE, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY);
+
+        return map;
+    }
+
+    static vector<vector<Grid>> Exit16()
+    {
+        auto map = InitializeMapTemplate();
+        map[2][1].SetType(GridType::EXIT);
+        map[1][1].SetType(GridType::GRASS);
+        map[2][2].SetAttach(AttachType::BUTTON).SetButton({{-1, -1, Direct::LEFT}, {-2, -1, Direct::UP}});
+
+        map[0][0].SetWall(Wall::EMPTY, Wall::HEDGE, Wall::EMPTY, Wall::EMPTY);
+        map[0][1].SetWall(Wall::DOOR, Wall::HEDGE, Wall::EMPTY, Wall::EMPTY);
+        map[0][2].SetWall(Wall::EMPTY, Wall::NORMAL, Wall::EMPTY, Wall::EMPTY);
+
+        map[1][0].SetWall(Wall::HEDGE, Wall::EMPTY, Wall::EMPTY, Wall::DOOROPEN).SetGrowable(true);
+        map[1][1].SetWall(Wall::HEDGE, Wall::HEDGE, Wall::DOOROPEN, Wall::EMPTY);
+        map[1][2].SetWall(Wall::NORMAL, Wall::EMPTY, Wall::EMPTY, Wall::EMPTY).SetGrowable(true);
+
+        map[2][0].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::EMPTY, Wall::NORMAL).SetGrowable(true);
+        map[2][1].SetWall(Wall::HEDGE, Wall::NORMAL, Wall::NORMAL, Wall::NORMAL);
+        map[2][2].SetWall(Wall::EMPTY, Wall::EMPTY, Wall::NORMAL, Wall::EMPTY).SetGrowable(true);
 
         return map;
     }

@@ -31,7 +31,7 @@ class Grid
     void HideSpecialWalls()
     {
         for (int i = 0; i < 4; i++)
-            if (CanPass(i))
+            if (CanPass(i) || wall[i] == Wall::HEDGE)   // 树篱伪装为空墙
                 wall[i] = Wall::EMPTY;
             else
                 wall[i] = Wall::NORMAL;
