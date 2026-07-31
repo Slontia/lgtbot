@@ -153,38 +153,30 @@ void MatchChildClient::PendingRequests::Emplace(const uint64_t ipc_id, Entry ent
     entries_.emplace(ipc_id, std::move(entry));
 }
 
-std::optional<MatchChildClient::PendingRequests::EntryIt> MatchChildClient::PendingRequests::FindEntry_(
+void MatchChildClient::PendingRequests::Remove(const uint64_t ipc_id)
+{
+    entries_.erase(ipc_id);
+}
+
+MsgSenderBase* MatchChildClient::PendingRequests::FindReplySender(const uint64_t ipc_id)
+{
+    const auto it = entries_.find(ipc_id);
+    if (it == entries_.end()) {
+        return nullptr;
+    }
+    return &it->second.reply_sender;
+}
+
+std::optional<MatchChildClient::PendingRequests::Entry> MatchChildClient::PendingRequests::TakeEntry(
         const uint64_t ipc_id)
 {
     const auto it = entries_.find(ipc_id);
     if (it == entries_.end()) {
         return std::nullopt;
     }
-    return it;
-}
-
-void MatchChildClient::PendingRequests::DispatchReply(const uint64_t ipc_id,
-                                                      const lgtbot::ipc::ReplyResp& reply)
-{
-    const auto it = FindEntry_(ipc_id);
-    if (!it) {
-        ErrorLog() << "MatchChildClient: Reply for unknown ipc_id=" << ipc_id;
-        return;
-    }
-    ReplyRespToMsgSender((*it)->second.reply_sender, reply);
-}
-
-void MatchChildClient::PendingRequests::DispatchResult(const uint64_t ipc_id, const IpcStage stage)
-{
-    const auto it = FindEntry_(ipc_id);
-    if (!it) {
-        ErrorLog() << "MatchChildClient: Result for unknown ipc_id=" << ipc_id
-                   << " stage=" << static_cast<int>(stage);
-        return;
-    }
-    auto entry = std::move((*it)->second);
-    entries_.erase(*it);
-    entry.on_result(stage);
+    auto entry = std::move(it->second);
+    entries_.erase(it);
+    return entry;
 }
 
 MatchChildClient::MatchChildClient(Subprocess proc, const ChildIpcPushHandler& dispatch_push,
@@ -279,8 +271,26 @@ void MatchChildClient::RunReadLoop_(std::stop_token stop, const ChildIpcPushHand
             [&](PostFrame&& f) { dispatch_push(PushFrame{std::move(f)}); },
             [&](PlayerStateFrame&& f) { dispatch_push(PushFrame{std::move(f)}); },
             [&](GameOverFrame&& f) { dispatch_push(PushFrame{std::move(f)}); },
-            [&](ReplyFrame&& f) { pending_.lock()->DispatchReply(f.ipc_id, f.reply); },
-            [&](ResultFrame&& f) { pending_.lock()->DispatchResult(f.ipc_id, f.stage); },
+            [&](ReplyFrame&& f) {
+                // Deliver outside the pending_ lock: flushing may render markdown for seconds,
+                // and holding the lock would stall every thread trying to register a request.
+                // Only this thread erases entries, so the pointer stays valid after unlocking.
+                MsgSenderBase* const reply_sender = pending_.lock()->FindReplySender(f.ipc_id);
+                if (!reply_sender) {
+                    ErrorLog() << "MatchChildClient: Reply for unknown ipc_id=" << f.ipc_id;
+                    return;
+                }
+                ReplyRespToMsgSender(*reply_sender, f.reply);
+            },
+            [&](ResultFrame&& f) {
+                auto entry = pending_.lock()->TakeEntry(f.ipc_id);
+                if (!entry) {
+                    ErrorLog() << "MatchChildClient: Result for unknown ipc_id=" << f.ipc_id
+                               << " stage=" << static_cast<int>(f.stage);
+                    return;
+                }
+                entry->on_result(f.stage);
+            },
         }, std::move(*frame_opt));
     }
 }
@@ -297,10 +307,13 @@ std::optional<std::future<T>> MatchChildClient::SendIpc_(lgtbot::ipc::GameReques
         reply_sender,
         [promise, handler = std::move(handler)](const IpcStage stage) { promise->set_value(handler(stage)); },
     };
+    // Register BEFORE writing: the child can execute the request and the read thread can dispatch its reply/result before this thread runs again.
+    // An unregistered ipc_id would drop the reply (user never sees it) and leak the future until match teardown.
+    pending_.lock()->Emplace(ipc_id, std::move(entry));
     if (!WriteProto_(std::move(req))) {
+        pending_.lock()->Remove(ipc_id);
         return std::nullopt;
     }
-    pending_.lock()->Emplace(ipc_id, std::move(entry));
     return std::move(fut);
 }
 

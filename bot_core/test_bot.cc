@@ -718,6 +718,14 @@ TEST_F(TestBot, interrupt_public_not_game)
   ASSERT_PUB_MSG(EC_MATCH_GROUP_NOT_IN_MATCH, "1", k_admin_qq, "%中断");
 }
 
+TEST_F(TestBot, lobby_help)
+{
+  ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "帮助 文字");
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "2", "帮助 文字");
+}
+
 TEST_F(TestBot, interrupt_public)
 {
   ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%配置 测试游戏 最大玩家数 2");
