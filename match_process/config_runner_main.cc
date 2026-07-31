@@ -4,7 +4,9 @@
 
 #include "match_process/child_config_session.h"
 
+#include <chrono>
 #include <cstdio>
+#include <cstdlib>
 
 #include "utility/process_signals.h"
 
@@ -18,6 +20,9 @@
 int main(const int argc, char** argv)
 {
     lgtbot::InstallDefaultSignalHandlersOnce();
+    // Game option handlers loaded into this subprocess may call rand()
+    // seed it like the match runner does so their behavior is not fixed across runs.
+    std::srand(std::chrono::steady_clock::now().time_since_epoch().count());
 #ifdef _WIN32
     _setmode(_fileno(stdin), _O_BINARY);
     _setmode(_fileno(stdout), _O_BINARY);
