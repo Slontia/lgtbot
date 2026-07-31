@@ -5,6 +5,8 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -30,7 +32,7 @@ Name(IdType) -> Name<IdType>;
 
 struct Image { std::string path_; };
 // Own markdown text: many call sites pass `Markdown(F(), w)` where `F()` returns a temporary
-// `std::string`; a `string_view` into that temporary would dangle before `SaveMarkdown` runs.
+// `std::string`; a `string_view` into that temporary would dangle before flush runs.
 struct Markdown {
     std::string content_;
     uint32_t width_{600};
@@ -62,24 +64,53 @@ struct Markdown {
 
 template <typename T> concept CanToString = requires(T&& t) { std::to_string(std::forward<T>(t)); };
 
+using MsgFragment = std::variant<std::string, At<UserID>, At<PlayerID>, Name<UserID>, Name<PlayerID>, Image, Markdown>;
+
+inline void AppendMsgFragmentText(std::vector<MsgFragment>& buf, std::string text)
+{
+    if (text.empty()) {
+        return;
+    }
+    if (buf.empty() || !std::holds_alternative<std::string>(buf.back())) {
+        buf.emplace_back(std::move(text));
+    } else {
+        std::get<std::string>(buf.back()) += std::move(text);
+    }
+}
+
+inline void AppendMsgFragmentText(std::vector<MsgFragment>& buf, const char* const data, const uint64_t len)
+{
+    if (len == 0) {
+        return;
+    }
+    if (buf.empty() || !std::holds_alternative<std::string>(buf.back())) {
+        buf.emplace_back(std::string(data, len));
+    } else {
+        std::get<std::string>(buf.back()).append(data, len);
+    }
+}
+
+inline void AppendMsgFragmentText(std::vector<MsgFragment>& buf, const std::string_view sv)
+{
+    AppendMsgFragmentText(buf, sv.data(), sv.size());
+}
+
 class MsgSenderBase
 {
   public:
     class MsgSenderGuard
     {
       public:
-        MsgSenderGuard(MsgSenderBase& sender) : sender_(&sender) {}
+        explicit MsgSenderGuard(const MsgSenderBase& sender) : sender_(&sender) {}
         MsgSenderGuard(const MsgSenderGuard&) = delete;
-        MsgSenderGuard(MsgSenderGuard&& other) : sender_(other.sender_)
-        {
-            other.sender_ = nullptr; // prevent call Flush
-        }
+        MsgSenderGuard(MsgSenderGuard&& other) noexcept;
+        MsgSenderGuard& operator=(const MsgSenderGuard&) = delete;
+        MsgSenderGuard& operator=(MsgSenderGuard&& other) noexcept;
+        ~MsgSenderGuard();
 
-        inline ~MsgSenderGuard();
+        void Release();
 
-        void Release() { sender_ = nullptr; }
-
-        inline MsgSenderGuard& operator<<(const std::string_view& sv);
+        MsgSenderGuard& operator<<(const std::string_view& sv);
 
         template <CanToString Arg>
         MsgSenderGuard& operator<<(Arg&& arg)
@@ -87,37 +118,33 @@ class MsgSenderBase
             return (*this) << std::to_string(arg);
         }
 
-        inline MsgSenderGuard& operator<<(const char c) { return (*this) << std::string(1, c); }
+        MsgSenderGuard& operator<<(const char c) { return (*this) << std::string(1, c); }
 
-
-        // It is safe to use STL because MsgSenderGuard will not be passed between libraries
-        inline MsgSenderGuard& operator<<(const At<UserID>&);
-        inline MsgSenderGuard& operator<<(const At<PlayerID>&);
-        inline MsgSenderGuard& operator<<(const Name<UserID>&);
-        inline MsgSenderGuard& operator<<(const Name<PlayerID>&);
-        inline MsgSenderGuard& operator<<(const Image&);
-        inline MsgSenderGuard& operator<<(const Markdown&);
+        MsgSenderGuard& operator<<(At<UserID> at) { messages_.emplace_back(std::move(at)); return *this; }
+        MsgSenderGuard& operator<<(At<PlayerID> at) { messages_.emplace_back(std::move(at)); return *this; }
+        MsgSenderGuard& operator<<(Name<UserID> name) { messages_.emplace_back(std::move(name)); return *this; }
+        MsgSenderGuard& operator<<(Name<PlayerID> name) { messages_.emplace_back(std::move(name)); return *this; }
+        MsgSenderGuard& operator<<(Image image) { messages_.emplace_back(std::move(image)); return *this; }
+        MsgSenderGuard& operator<<(Markdown markdown) { messages_.emplace_back(std::move(markdown)); return *this; }
 
       private:
-        MsgSenderBase* sender_;
+        const MsgSenderBase* sender_{nullptr};
+        std::vector<MsgFragment> messages_;
+
+        friend class MsgSenderBase;
     };
 
-    template<typename> friend class MsgSenderBatch;
-
   public:
-    virtual ~MsgSenderBase() {}
-    virtual MsgSenderGuard operator()() { return MsgSenderGuard(*this); }
-    virtual void SetMatch(const Match* const match) = 0;
+    virtual ~MsgSenderBase() = default;
+    virtual MsgSenderGuard operator()() const { return MsgSenderGuard(*this); }
+    virtual void SetMatch(std::weak_ptr<const Match> match) = 0;
 
-    friend class MsgSenderGuard;
+    template <typename> friend class MsgSenderBatch;
 
   protected:
-    virtual void SaveText(const char* const data, const uint64_t len) = 0;
-    virtual void SaveUser(const UserID& id, const bool is_at) = 0;
-    virtual void SavePlayer(const PlayerID& id, const bool is_at) = 0;
-    virtual void SaveImage(const char* const path) = 0;
-    virtual void SaveMarkdown(const char* const markdown, const uint32_t width) = 0;
-    virtual void Flush() = 0;
+    virtual void Flush(std::vector<MsgFragment>&& messages) const = 0;
+
+    friend class MsgSenderGuard;
 };
 
 class EmptyMsgSender : public MsgSenderBase
@@ -129,217 +156,109 @@ class EmptyMsgSender : public MsgSenderBase
         return sender;
     }
 
-  protected:
-    virtual void SaveText(const char* const data, const uint64_t len) override {}
-    virtual void SaveUser(const UserID& uid, const bool is_at) override {}
-    virtual void SavePlayer(const PlayerID& pid, const bool is_at) override {}
-    virtual void SaveImage(const char* const path) override {};
-    virtual void SaveMarkdown(const char* const markdown, const uint32_t width) override {};
-    virtual void Flush() override {}
-    virtual void SetMatch(const Match* const match) override {}
-
   private:
-    EmptyMsgSender() : MsgSenderBase() {}
-    ~EmptyMsgSender() {}
+    void Flush(std::vector<MsgFragment>&&) const override {}
+    void SetMatch(std::weak_ptr<const Match>) override {}
+
+    EmptyMsgSender() = default;
+    ~EmptyMsgSender() = default;
 };
 
 class MsgSender : public MsgSenderBase
 {
   public:
-    MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const UserID& uid, Match* const match = nullptr)
-        : handler_(handler), image_path_(&image_path), callbacks_(&callbacks), id_(uid.GetStr()), is_to_user_(true), match_(match) {}
-
-    MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const GroupID& gid, Match* const match = nullptr)
-        : handler_(handler), image_path_(&image_path), callbacks_(&callbacks), id_(gid.GetStr()), is_to_user_(false), match_(match) {}
+    MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const UserID& uid,
+            std::weak_ptr<Match> match = {});
+    MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const GroupID& gid,
+            std::weak_ptr<Match> match = {});
 
     MsgSender(const MsgSender&) = delete;
-    MsgSender(MsgSender&& o) = default;
+    MsgSender(MsgSender&& o) noexcept;
+    MsgSender& operator=(const MsgSender&) = delete;
+    MsgSender& operator=(MsgSender&& o) noexcept;
 
-    ~MsgSender()
-    {
-    }
+    ~MsgSender() override = default;
 
-    explicit MsgSender(const Match* const match = nullptr) : match_(match) {}
-
-    virtual void SetMatch(const Match* const match) override { match_ = match; }
-
-    virtual MsgSenderGuard operator()() override { return MsgSenderGuard(*this); }
-
-  protected:
-    virtual void SaveText(const char* const data, const uint64_t len) override
-    {
-        // TODO: len is useless
-        if (messages_.empty() || messages_.back().type_ != LGTBot_MessageType::LGTBOT_MSG_TEXT) {
-            messages_.emplace_back(std::string(data, len), LGTBot_MessageType::LGTBOT_MSG_TEXT);
-        } else {
-            messages_.back().str_.append(data, len);
-        }
-    }
-
-    virtual void SaveUser(const UserID& uid, const bool is_at) override
-    {
-        if (is_at) {
-            messages_.emplace_back(uid.GetStr(), LGTBot_MessageType::LGTBOT_MSG_USER_MENTION);
-            return;
-        }
-        char buffer[128];
-        if (is_to_user_) {
-            callbacks_->get_user_name(handler_, buffer, sizeof(buffer), uid.GetCStr());
-        } else {
-            callbacks_->get_user_name_in_group(handler_, buffer, sizeof(buffer), id_.c_str(), uid.GetCStr());
-        }
-        SaveText(buffer, std::strlen(buffer));
-    }
-
-    virtual void SavePlayer(const PlayerID& pid, const bool is_at) override;
-
-    virtual void SaveImage(const char* const path) override
-    {
-        messages_.emplace_back(std::string(path), LGTBot_MessageType::LGTBOT_MSG_IMAGE);
-    }
-
-    virtual void SaveMarkdown(const char* const markdown, const uint32_t width) override
-    {
-        if (!image_path_) {
-            return;
-        }
-        std::stringstream ss;
-        ss << std::this_thread::get_id();
-        const std::string path =
-            (std::filesystem::path(*image_path_) / "gen" / ss.str() += ".png").string();
-        MarkdownToImage(markdown, path, width);
-        SaveImage(path.c_str());
-    }
-
-    virtual void Flush() override
-    {
-        if (messages_.empty()) {
-            return;
-        }
-        std::vector<LGTBot_Message> raw_messages;
-        raw_messages.reserve(messages_.size());
-        for (const auto& message : messages_) {
-            raw_messages.emplace_back(message.str_.c_str(), message.type_);
-        }
-        callbacks_->handle_messages(handler_, id_.c_str(), is_to_user_, raw_messages.data(), raw_messages.size());
-        messages_.clear();
-    }
-
-    void SaveText_(const std::string_view& sv)
-    {
-        SaveText(sv.data(), sv.size());
-    }
+    void SetMatch(std::weak_ptr<const Match> match) override;
+    MsgSenderBase::MsgSenderGuard operator()() const override;
 
   private:
-    struct Message
-    {
-        std::string str_;
-        LGTBot_MessageType type_;
-    };
-    void* handler_;
-    const std::string* image_path_;
-    const LGTBot_Callback* callbacks_;
+    void Flush(std::vector<MsgFragment>&& messages) const override;
+
+    std::shared_ptr<const Match> LockMatch_() const;
+
+    void* handler_{nullptr};
+    const std::string* image_path_{nullptr};
+    const LGTBot_Callback* callbacks_{nullptr};
     std::string id_;
-    bool is_to_user_;
-    const Match* match_;
-    std::vector<Message> messages_;
+    bool is_to_user_{false};
+    mutable std::mutex match_wk_mutex_;
+    std::weak_ptr<const Match> match_wk_;
 };
 
-MsgSenderBase::MsgSenderGuard::~MsgSenderGuard()
-{
-    if (sender_) {
-        sender_->Flush();
-    }
-}
-
-MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const At<UserID>& at_msg)
-{
-    sender_->SaveUser(at_msg.id_, true);
-    return *this;
-}
-
-MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const At<PlayerID>& at_msg)
-{
-    sender_->SavePlayer(at_msg.id_, true);
-    return *this;
-}
-
-MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const Name<UserID>& name_msg)
-{
-    sender_->SaveUser(name_msg.id_, false);
-    return *this;
-}
-
-MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const Name<PlayerID>& name_msg)
-{
-    sender_->SavePlayer(name_msg.id_, false);
-    return *this;
-}
-
-MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const Image& image_msg)
-{
-    sender_->SaveImage(image_msg.path_.c_str());
-    return *this;
-}
-
-MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const Markdown& markdown_msg)
-{
-    sender_->SaveMarkdown(markdown_msg.content_.c_str(), markdown_msg.width_);
-    return *this;
-}
-
-MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const std::string_view& sv)
-{
-    sender_->SaveText(sv.data(), sv.size());
-    return *this;
-}
-
-// `MsgSenderBatch` is a wrapper which support sending the same message to several `MsgSender`s. User-defined class `Fn`
-// should override the operator() which handles a function `sender_fn`. When we send something by `MsgSenderBatch`, it
-// will invoke the `fn_` and pass a function as `sender_fn`. The user-defined `Fn` would pass each `MsgSender` to the
-// `sender_fn` so that the message can be sent by each `MsgSender`.
 template <typename Fn>
 class MsgSenderBatch : public MsgSenderBase
 {
   public:
-    MsgSenderBatch(Fn&& fn) : fn_(std::forward<Fn>(fn)) {}
-
-  protected:
-    virtual void SaveText(const char* const data, const uint64_t len) override
-    {
-        fn_([&](MsgSenderBase& sender) { sender.SaveText(data, len); });
-    }
-
-    virtual void SaveUser(const UserID& uid, const bool is_at) override
-    {
-        fn_([&](MsgSenderBase& sender) { sender.SaveUser(uid.GetCStr(), is_at); });
-    }
-
-    virtual void SavePlayer(const PlayerID& pid, const bool is_at) override
-    {
-        fn_([&](MsgSenderBase& sender) { sender.SavePlayer(pid, is_at); });
-    }
-
-    virtual void SaveImage(const char* const path) override
-    {
-        fn_([&](MsgSenderBase& sender) { sender.SaveImage(path); });
-    }
-
-    virtual void Flush() override
-    {
-        fn_([&](MsgSenderBase& sender) { sender.Flush(); });
-    }
-
-    virtual void SaveMarkdown(const char* const markdown, const uint32_t width) override
-    {
-        fn_([&](MsgSenderBase& sender) { sender.SaveMarkdown(markdown, width); });
-    };
-
-    virtual void SetMatch(const Match* const match) override
-    {
-        fn_([&](MsgSenderBase& sender) { sender.SetMatch(match); });
-    }
+    explicit MsgSenderBatch(Fn&& fn) : fn_(std::forward<Fn>(fn)) {}
 
   private:
+    void Flush(std::vector<MsgFragment>&& messages) const override;
+    void SetMatch(std::weak_ptr<const Match> match) override;
+
     Fn fn_;
 };
+
+template <typename Fn>
+void MsgSenderBatch<Fn>::Flush(std::vector<MsgFragment>&& messages) const
+{
+    if (messages.empty()) {
+        return;
+    }
+    fn_([&](MsgSenderBase& sender) {
+        auto copy = messages;
+        sender.Flush(std::move(copy));
+    });
+}
+
+template <typename Fn>
+void MsgSenderBatch<Fn>::SetMatch(std::weak_ptr<const Match> match)
+{
+    fn_([&](MsgSenderBase& sender) { sender.SetMatch(match); });
+}
+
+inline MsgSenderBase::MsgSenderGuard::MsgSenderGuard(MsgSenderGuard&& other) noexcept
+    : sender_(other.sender_)
+    , messages_(std::move(other.messages_))
+{
+    other.sender_ = nullptr;
+}
+
+inline MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator=(MsgSenderGuard&& other) noexcept
+{
+    if (this != &other) {
+        sender_ = other.sender_;
+        messages_ = std::move(other.messages_);
+        other.sender_ = nullptr;
+    }
+    return *this;
+}
+
+inline MsgSenderBase::MsgSenderGuard::~MsgSenderGuard()
+{
+    if (sender_) {
+        sender_->Flush(std::move(messages_));
+    }
+}
+
+inline void MsgSenderBase::MsgSenderGuard::Release()
+{
+    sender_ = nullptr;
+    messages_.clear();
+}
+
+inline MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const std::string_view& sv)
+{
+    AppendMsgFragmentText(messages_, sv);
+    return *this;
+}

@@ -6,6 +6,7 @@
 
 #include "bot_core/bot_core.h"
 #include "match_process/child_session.h"
+#include "match_process/msg_fragment_ipc.h"
 #include "utility/log.h"
 
 namespace {
@@ -124,48 +125,10 @@ void IpcMatchEnv::SendPostFrame(lgtbot::ipc::PostResp::Channel channel, uint32_t
     session_.SendProto(resp);
 }
 
-void IpcMatchEnv::IpcMsgSender::SaveText(const char* const data, const uint64_t len)
+void IpcMatchEnv::IpcMsgSender::Flush(std::vector<MsgFragment>&& messages) const
 {
-    lgtbot::ipc::MsgItem item;
-    item.set_text(std::string(data, data + len));
-    items_.push_back(std::move(item));
-}
-
-void IpcMatchEnv::IpcMsgSender::SaveUser(const UserID& id, const bool /*is_at*/)
-{
-    lgtbot::ipc::MsgItem item;
-    item.set_user_id(id.GetStr());
-    items_.push_back(std::move(item));
-}
-
-void IpcMatchEnv::IpcMsgSender::SavePlayer(const PlayerID& id, const bool /*is_at*/)
-{
-    lgtbot::ipc::MsgItem item;
-    item.set_at_player_id(id.Get());
-    items_.push_back(std::move(item));
-}
-
-void IpcMatchEnv::IpcMsgSender::SaveImage(const char* const path)
-{
-    lgtbot::ipc::MsgItem item;
-    item.set_image_path(path);
-    items_.push_back(std::move(item));
-}
-
-void IpcMatchEnv::IpcMsgSender::SaveMarkdown(const char* const markdown, const uint32_t width)
-{
-    lgtbot::ipc::MsgItem item;
-    auto* md = item.mutable_markdown();
-    md->set_text(markdown);
-    md->set_width(width);
-    items_.push_back(std::move(item));
-}
-
-void IpcMatchEnv::IpcMsgSender::Flush()
-{
-    if (!items_.empty()) {
-        env_.SendPostFrame(channel_, target_pid_, std::move(items_));
-        items_.clear();
+    if (!messages.empty()) {
+        env_.SendPostFrame(channel_, target_pid_, lgtbot::ipc::MsgFragmentsToItems(std::move(messages)));
     }
 }
 

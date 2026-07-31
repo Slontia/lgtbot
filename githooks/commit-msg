@@ -1,0 +1,153 @@
+#!/bin/sh
+# Validates commit messages against CLAUDE.md (Commit Message Rules).
+set -eu
+
+msg_file=${1:?usage: commit-msg <message-file>}
+
+trim_line() {
+    printf '%s' "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+}
+
+is_trailer_line() {
+    printf '%s' "$1" | grep -Eq '^[A-Za-z0-9-]+: '
+}
+
+body_style_of() {
+    content=$(trim_line "$1")
+    if [ -z "$content" ]; then
+        printf 'invalid'
+        return
+    fi
+    first_char=$(printf '%s' "$content" | cut -c1)
+    if ! printf '%s' "$first_char" | grep -Eq '^[A-Za-z]$'; then
+        printf 'invalid'
+        return
+    fi
+    if printf '%s' "$first_char" | grep -q '^[a-z]$'; then
+        case "$content" in
+            *.) printf 'invalid' ;;
+            *) printf 'lower' ;;
+        esac
+        return
+    fi
+    case "$content" in
+        *.) printf 'sentence' ;;
+        *) printf 'invalid' ;;
+    esac
+}
+
+title=$(trim_line "$(sed -n '1p' "$msg_file")")
+
+if [ -z "$title" ]; then
+    echo "commit-msg: empty commit title" >&2
+    exit 1
+fi
+
+case "$title" in
+    Merge\ *|Revert\ *) exit 0 ;;
+esac
+
+errors=""
+skip_lowercase_check=0
+
+title_len=$(printf '%s' "$title" | wc -c | tr -d ' ')
+
+case "$title" in
+    *.) errors="${errors}- title must not end with a period\n" ;;
+esac
+
+if [ "$title_len" -gt 72 ]; then
+    errors="${errors}- title exceeds 72 characters (got ${title_len})\n"
+fi
+
+block_type=""
+bullet_style=""
+line_no=0
+while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+    line_no=$((line_no + 1))
+    if [ "$line_no" -eq 1 ]; then
+        continue
+    fi
+
+    line=$(trim_line "$raw_line")
+    if [ -z "$line" ]; then
+        block_type=""
+        bullet_style=""
+        continue
+    fi
+
+    if is_trailer_line "$line"; then
+        continue
+    fi
+
+    line_len=$(printf '%s' "$line" | wc -c | tr -d ' ')
+    if [ "$line_len" -gt 72 ]; then
+        errors="${errors}- body line ${line_no} exceeds 72 characters (got ${line_len})\n"
+    fi
+
+    case "$line" in
+        "- "*)
+            content=$(printf '%s' "$line" | sed 's/^-[[:space:]]*//')
+            if [ "$block_type" != "bullet" ]; then
+                block_type="bullet"
+                bullet_style=""
+            fi
+            style=$(body_style_of "$content")
+            if [ "$style" = "invalid" ]; then
+                errors="${errors}- body line ${line_no}: bullet must start with lowercase (no period) or uppercase (with period)\n"
+                continue
+            fi
+            if [ -z "$bullet_style" ]; then
+                bullet_style=$style
+            elif [ "$bullet_style" != "$style" ]; then
+                errors="${errors}- body line ${line_no}: bullet list must use the same style on every line\n"
+            fi
+            ;;
+        *)
+            if [ "$block_type" != "para" ]; then
+                block_type="para"
+            fi
+            if [ "$(body_style_of "$line")" != "sentence" ]; then
+                errors="${errors}- body line ${line_no}: paragraph lines must start with uppercase and end with a period\n"
+            fi
+            ;;
+    esac
+done < "$msg_file"
+
+cached=$(git diff --cached --name-only 2>/dev/null || true)
+if [ -n "$cached" ]; then
+    game_modules=$(printf '%s\n' "$cached" | sed -n 's|^games/\([^/][^/]*\)/.*|\1|p' | sort -u)
+    non_game=$(printf '%s\n' "$cached" | grep -v '^games/' || true)
+
+    if [ -n "$game_modules" ] && [ -z "$non_game" ]; then
+        game_count=$(printf '%s\n' "$game_modules" | sed '/^$/d' | wc -l | tr -d ' ')
+        if [ "$game_count" -gt 1 ]; then
+            errors="${errors}- staged changes span multiple games; split the commit or touch non-game paths\n"
+        else
+            module=$(printf '%s\n' "$game_modules" | sed -n '1p')
+            prefix="${module}: "
+            case "$title" in
+                "$prefix"*) skip_lowercase_check=1 ;;
+                *) errors="${errors}- game-only commit must start with '${prefix}' (case-sensitive, must match games/${module}/)\n" ;;
+            esac
+        fi
+    elif [ -z "$game_modules" ] || [ -n "$non_game" ]; then
+        if printf '%s' "$title" | grep -Eq '^[A-Za-z][A-Za-z0-9-]*: '; then
+            errors="${errors}- non-game commit must not use '<prefix>: ' in the title\n"
+        fi
+    fi
+fi
+
+if [ "$skip_lowercase_check" -eq 0 ]; then
+    first_char=$(printf '%s' "$title" | cut -c1)
+    if ! printf '%s' "$first_char" | grep -q '^[a-z]$'; then
+        errors="${errors}- title must begin with a lowercase ASCII letter (a-z)\n"
+    fi
+fi
+
+if [ -n "$errors" ]; then
+    printf 'commit-msg: message rejected (see CLAUDE.md):\n%s' "$errors" >&2
+    exit 1
+fi
+
+exit 0

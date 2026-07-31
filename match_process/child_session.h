@@ -46,7 +46,8 @@ class ChildGameSession
 
     [[nodiscard]] bool LoadModule(const std::string& lib_path, std::string& err);
 
-    void SendProto(const lgtbot::ipc::GameResponse& resp);
+    void SendProto(lgtbot::ipc::GameResponse resp);
+    void SendResult(lgtbot::ipc::ResultResp::Stage stage);
 
     [[nodiscard]] std::mutex& write_mutex() { return write_mutex_; }
     [[nodiscard]] FILE* out() const { return out_; }
@@ -82,6 +83,7 @@ class ChildGameSession
     FILE* const in_;
     FILE* const out_;
     std::mutex write_mutex_;
+    uint64_t current_ipc_id_{0};
 
     std::string game_title_;
     ModuleFns module_;

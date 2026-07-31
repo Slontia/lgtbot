@@ -4,30 +4,28 @@
 
 #pragma once
 
-#include <condition_variable>
-#include <deque>
+#include <atomic>
 #include <filesystem>
 #include <functional>
+#include <future>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <variant>
 #include <vector>
 
 #include "bot_core/bot_core.h"
 #include "bot_core/id.h"
+#include "bot_core/msg_sender.h"
 #include "game_framework/game_main.h"
 #include "match_process/match_ipc.pb.h"
 #include "bot_core/subprocess.h"
-#include "nlohmann/json.hpp"
+#include "utility/lock_wrapper.h"
 
 class Match;
-class MsgSender;
-
-// ---------------------------------------------------------------------------
-// Typed frame variants — hold proto message objects directly
-// ---------------------------------------------------------------------------
 
 struct PostFrame {
     lgtbot::ipc::PostResp post;
@@ -40,131 +38,120 @@ struct GameOverFrame {
     lgtbot::ipc::GameOverResp game_over;
 };
 struct ReplyFrame {
+    uint64_t ipc_id;
     lgtbot::ipc::ReplyResp reply;
 };
 struct ResultFrame {
+    uint64_t ipc_id;
     lgtbot::ipc::ResultResp::Stage stage;
 };
-struct AckFrame {
-    bool ok;
-};
-// A "push" frame is one the subprocess sends spontaneously (not in reply to a request).
+
 using PushFrame = std::variant<PostFrame, PlayerStateFrame, GameOverFrame>;
+using ResponseFrame = std::variant<ReplyFrame, ResultFrame>;
+using ChildFrame = std::variant<PostFrame, PlayerStateFrame, GameOverFrame, ReplyFrame, ResultFrame>;
 
-// A "response" frame arrives in direct reply to a request written by the parent.
-using ResponseFrame = std::variant<ReplyFrame, ResultFrame, AckFrame>;
+using ChildIpcPushHandler = std::function<void(PushFrame)>;
+using ChildIpcEofHandler = std::function<void(bool unexpected)>;
 
-// Union of all frames.
-using ChildFrame = std::variant<PostFrame, PlayerStateFrame, GameOverFrame,
-                                ReplyFrame, ResultFrame, AckFrame>;
-
-// ---------------------------------------------------------------------------
-// Interface for push-frame callbacks from the read loop.
-// Called on the read thread — implementations must take their own lock if
-// needed, but must NOT hold MatchChildClient's internal pending_mutex_.
-// ---------------------------------------------------------------------------
-struct IMatchChildCallbacks {
-    virtual ~IMatchChildCallbacks() = default;
-    virtual void OnPost(const PostFrame&) = 0;
-    virtual void OnPlayerState(const PlayerStateFrame&) = 0;
-    virtual void OnGameOver(const GameOverFrame&) = 0;
-    // unexpected=true when the subprocess died without being asked to stop.
-    virtual void OnEof(bool unexpected) = 0;
-};
-
-// ---------------------------------------------------------------------------
-// MatchChildClient
-//
-// Owns the game subprocess (match_game_runner) and the stdin/stdout IPC channel.
-//
-// Read-thread model:
-//   The caller (Match) is responsible for running the read loop:
-//
-//     game_child_ = make_unique<MatchChildClient>(...);
-//     // ... SendInit / SendSetOption / SendStart ...
-//     read_thread_ = std::thread([&]{ game_child_->RunReadLoop(cbs); });
-//
-//   To stop cleanly (without holding the Match mutex):
-//     game_child_->SignalStop();   // wakes WaitForResponse_, signals child
-//     read_thread_.join();
-//     game_child_.reset();
-//
-// Concurrency:
-//   SendExecute / SendLeave / FetchHelp are serialized internally, then write
-//   stdin and block in WaitForResponse_(). They must be called WITHOUT holding any lock that the
-//   push-frame callbacks also need (otherwise deadlock: the callback blocks on
-//   the mutex while the caller blocks in WaitForResponse_).
-// ---------------------------------------------------------------------------
 class MatchChildClient
 {
   public:
-    MatchChildClient(std::filesystem::path runner_exe, std::filesystem::path game_library);
+    using IpcStage = lgtbot::ipc::ResultResp::Stage;
+
+    struct RuntimeOptions
+    {
+        struct ResourceHolder
+        {
+            std::string resource_dir_;
+            std::string saved_image_dir_;
+        };
+
+        ResourceHolder resource_holder_;
+        lgtbot::game::GenericOptions generic_options_;
+        bool public_timer_alert_{false};
+    };
+
     ~MatchChildClient();
 
     MatchChildClient(const MatchChildClient&) = delete;
     MatchChildClient& operator=(const MatchChildClient&) = delete;
 
-    [[nodiscard]] bool ok() const { return static_cast<bool>(proc_); }
+    [[nodiscard]] std::optional<std::future<IpcStage>> SendSetOption(const std::string& text);
 
-    // --- Pre-game synchronous calls (no read thread yet) ---
+    [[nodiscard]] std::optional<std::future<IpcStage>> SendStart(uint64_t match_id, uint32_t user_num,
+                                                                 const std::vector<lgtbot::ipc::PlayerInfo>& players);
 
-    [[nodiscard]] bool SendInit(const std::string& resource_dir, const std::string& saved_image_dir,
-                                bool public_timer_alert, uint32_t bench, uint32_t is_formal);
+    [[nodiscard]] std::optional<std::future<ErrCode>> SendExecute(PlayerID player_id, bool is_public,
+                                                                  const std::string& text, MsgSender& reply);
 
-    [[nodiscard]] bool SendSetOption(const std::string& text);
+    [[nodiscard]] std::optional<std::future<IpcStage>> SendLeave(PlayerID player_id);
 
-    // Apply preset commands (init_options) to the subprocess game options.
-    // Returns true if the args matched a preset command.
-    [[nodiscard]] bool SendApplyInitOptions(const std::string& args);
+    // Apply preset commands (init_options from "#新游戏 <game> <args>") to the subprocess game options.
+    // The future resolves to STAGE_OK if the args matched a preset command.
+    [[nodiscard]] std::optional<std::future<IpcStage>> SendApplyInitOptions(const std::string& args);
 
-    // Sends "start", reads until "ack".  Push frames collected during start are
-    // returned in push_frames_out for the caller to dispatch while it still holds
-    // its own lock.  Call RunReadLoop() in a separate thread after this returns true.
-    [[nodiscard]] bool SendStart(uint64_t match_id, uint32_t user_num,
-                                 const std::vector<lgtbot::ipc::PlayerInfo>& players,
-                                 std::vector<PushFrame>& push_frames_out);
-
-    // --- Read loop: run in a dedicated thread owned by Match ---
-
-    // Blocking loop. Reads frames from the subprocess stdout until EOF or
-    // SignalStop() is called.  Push frames are dispatched via cbs.
-    // Response frames wake any thread blocked in WaitForResponse_().
-    void RunReadLoop(IMatchChildCallbacks& cbs);
-
-    // Signal the read loop to stop:
-    //   1. Wakes any thread blocked in WaitForResponse_() (returns nullopt).
-    //   2. Sends SIGTERM to the child so the pipe EOF unblocks ReadFrame.
-    // Does NOT join the read thread — the caller does that.
-    void SignalStop();
-
-    // Close the write end of the stdin pipe so the subprocess gets EOF and exits.
-    // The subprocess will close its stdout, causing ReadFrame in the read thread to return
-    // false (EOF) and the read loop to exit.  Safe even if the subprocess is already dead.
-    // Use this for clean game-over teardown.
-    void CloseInput();
-
-    // --- Post-game-start calls (call without holding the Match mutex) ---
-
-    [[nodiscard]] ErrCode SendExecute(PlayerID player_id, bool is_public, const std::string& text,
-                                      std::function<void(const lgtbot::ipc::ReplyResp&)> reply_cb);
-
-    [[nodiscard]] bool SendLeave(PlayerID player_id);
-
-    [[nodiscard]] bool FetchHelp(bool text_mode, std::string& text_out);
+    [[nodiscard]] std::optional<std::future<IpcStage>> FetchHelp(bool text_mode, MsgSenderBase& reply_sender);
 
   private:
-    static std::optional<ChildFrame> ParseFrame(const std::string& raw);
-    [[nodiscard]] bool WriteProto(const lgtbot::ipc::GameRequest& req);
-    void SetPendingFrame_(ResponseFrame frame);
-    std::optional<ResponseFrame> WaitForResponse_();
+    friend std::unique_ptr<MatchChildClient> MakeMatchChildClient(std::filesystem::path runner_exe,
+                                                                  std::filesystem::path game_library,
+                                                                  const RuntimeOptions& options,
+                                                                  const ChildIpcPushHandler& dispatch_push,
+                                                                  const ChildIpcEofHandler& on_eof);
 
-    std::unique_ptr<Subprocess> proc_;
-    FILE* child_in_{nullptr};
-    FILE* child_out_{nullptr};
+    MatchChildClient(Subprocess proc, const ChildIpcPushHandler& dispatch_push, const ChildIpcEofHandler& on_eof);
 
+    class PendingRequests
+    {
+      public:
+        struct Entry {
+            MsgSenderBase& reply_sender;
+            std::function<void(IpcStage)> on_result;
+        };
+
+        PendingRequests() = default;
+        ~PendingRequests();
+
+        PendingRequests(const PendingRequests&) = delete;
+        PendingRequests& operator=(const PendingRequests&) = delete;
+
+        void Emplace(uint64_t ipc_id, Entry entry);
+        void DispatchReply(uint64_t ipc_id, const lgtbot::ipc::ReplyResp& reply);
+        void DispatchResult(uint64_t ipc_id, IpcStage stage);
+
+      private:
+        using EntryIt = std::map<uint64_t, Entry>::iterator;
+
+        [[nodiscard]] std::optional<EntryIt> FindEntry_(uint64_t ipc_id);
+
+        std::map<uint64_t, Entry> entries_;
+    };
+
+    [[nodiscard]] std::optional<std::future<IpcStage>> SendInit_(const RuntimeOptions& options);
+    template<typename T, typename Handler>
+    [[nodiscard]] std::optional<std::future<T>> SendIpc_(lgtbot::ipc::GameRequest&& req, MsgSenderBase& reply_sender,
+                                                         Handler handler);
+    [[nodiscard]] std::optional<std::future<IpcStage>> SendIpcStage_(lgtbot::ipc::GameRequest&& req,
+                                                                     MsgSenderBase& reply_sender);
+    [[nodiscard]] std::optional<std::future<ErrCode>> SendIpcErrCode_(lgtbot::ipc::GameRequest&& req,
+                                                                      MsgSenderBase& reply_sender);
+    [[nodiscard]] bool WriteProto_(lgtbot::ipc::GameRequest req);
+    uint64_t AllocIpcId_();
+
+    void RunReadLoop_(std::stop_token stop, const ChildIpcPushHandler& dispatch_push,
+                      const ChildIpcEofHandler& on_eof);
+
+    // Member declaration order controls ~MatchChildClient teardown (reverse order).
+    // proc_ is declared first so it is destroyed last; the read thread can use proc_ until it has been joined.
+    Subprocess proc_;
     std::mutex request_mutex_;
-    std::mutex pending_mutex_;
-    std::condition_variable pending_cv_;
-    std::deque<ResponseFrame> pending_frames_;
-    bool stopped_{false};
+    mutex_protect_wrapper<PendingRequests> pending_;
+    std::atomic<uint64_t> next_ipc_id_{1};
+    std::jthread read_thread_;
 };
+
+[[nodiscard]] std::unique_ptr<MatchChildClient> MakeMatchChildClient(std::filesystem::path runner_exe,
+                                                                     std::filesystem::path game_library,
+                                                                     const MatchChildClient::RuntimeOptions& options,
+                                                                     const ChildIpcPushHandler& dispatch_push,
+                                                                     const ChildIpcEofHandler& on_eof);

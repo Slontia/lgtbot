@@ -10,7 +10,6 @@
 #include <set>
 #include <bitset>
 #include <memory>
-#include <thread>
 #include <variant>
 #include <vector>
 
@@ -21,6 +20,8 @@
 #include "bot_core/game_handle.h"
 #include "bot_core/bot_ctx.h"
 #include "bot_core/db_manager.h"
+#include "bot_core/match_child_client.h"
+#include "utility/lock_wrapper.h"
 
 #define INVALID_MATCH (MatchID)0
 
@@ -35,15 +36,12 @@ class GroupMatch;
 class DiscussMatch;
 class MatchManager;
 class MatchChildClient;
-struct PostFrame;
-struct PlayerStateFrame;
-struct GameOverFrame;
 
 class Match : public MatchBase, public std::enable_shared_from_this<Match>
 {
   public:
     using VariantID = std::variant<UserID, ComputerID>;
-    enum State { NOT_STARTED = 'N', IS_STARTED = 'S', IS_OVER = 'O' };
+    enum State { NOT_STARTED = 'N', IS_STARTING = 'G', IS_STARTED = 'S', IS_OVER = 'O' };
     static const uint32_t kAvgScoreOffset = 10;
 
     struct InitOptions
@@ -75,7 +73,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     virtual void Hook(const PlayerID pid) override;
     virtual void Activate(const PlayerID pid) override;
 
-    virtual bool IsInDeduction() const override { return is_in_deduction_; }
+    virtual bool IsInDeduction() const override;
     virtual uint64_t MatchId() const override { return mid_; }
     virtual const char* GameName() const override { return game_handle_.Info().name_; }
 
@@ -99,7 +97,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     bool SwitchHost();
 
     bool IsPrivate() const { return !gid_.has_value(); }
-    auto UserNum() const { std::lock_guard<std::mutex> l(mutex_); return users_.size(); }
+    size_t UserNum() const;
 
     VariantID ConvertPid(const PlayerID pid) const;
 
@@ -107,15 +105,15 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
 
     const GameHandle& game_handle() const { return game_handle_; }
     std::optional<GroupID> gid() const { return gid_; }
-    UserID HostUserId() const { std::lock_guard<std::mutex> l(mutex_); return host_uid_; }
-    const State state() const { return state_; }
+    UserID HostUserId() const;
+    State state() const;
     MatchManager& match_manager() { return bot_.match_manager(); }
 
     void BriefInfo(std::string& out) const;
 
     void ReleaseGameChildIfOver();
 
-    friend class MatchChildClient;
+    void BindMsgSenderMatch_();
 
    private:
     struct ParticipantUser
@@ -124,7 +122,7 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         explicit ParticipantUser(Match& match, const UserID uid, const bool is_ai)
             : uid_(uid)
             , is_ai_(is_ai)
-            , sender_(match.bot_.MakeMsgSender(uid, &match))
+            , sender_(match.bot_.MakeMsgSender(uid))
         {}
         UserID uid_{""};
         bool is_ai_{false};
@@ -135,9 +133,6 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         bool want_interrupt_{false};
     };
 
-    uint64_t MaxPlayerNum_() const { return max_player_; }
-    uint32_t Multiple_() const { return multiple_; }
-
     template <typename Logger>
     Logger& MatchLog_(Logger&& logger) const
     {
@@ -147,49 +142,10 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         } else {
             logger << "[no gid] ";
         }
-        logger << "[game=" << GameName() << "] [host_uid=" << host_uid_ << "] ";
+        logger << "[game=" << GameName() << "] [host_uid=" << sync_.lock_const()->host_uid_ << "] ";
         return logger;
     }
 
-    void BriefInfo_(std::string& out) const;
-    void Help_(MsgSenderBase& reply, const bool text_mode);
-    std::string OptionInfo_() const;
-    void ApplyChildPlayerState(const PlayerID pid, const std::string& state);
-    void ApplyChildGameOverFromScores(const struct GameOverFrame& frame);
-    void ApplyChildPost_(const struct PostFrame& frame);
-    void StartReadThread_();
-    void StopReadThread_();
-    void KickForConfigChange_();
-    void Unbind_();
-    void UnbindMatchSide_();
-    // Signal the game child to stop and unbind the match.
-    // Must be called under mutex_. Returns the moved-out game child for the caller to
-    // destroy outside the lock (to avoid deadlocking with the read thread callbacks).
-    std::unique_ptr<MatchChildClient> PrepareTerminate_();
-
-    // Finish a terminate initiated by PrepareTerminate_: join the read thread and
-    // let the child be destroyed. Must be called WITHOUT holding mutex_.
-    void FinishTerminate_(std::unique_ptr<MatchChildClient> child);
-
-    bool Has_(const UserID uid) const;
-    std::string HostUserName_() const;
-    uint32_t PlayerNum_() const;
-    uint32_t ComputerNum_() const;
-    void EmplaceUser_(const UserID uid);
-
-    mutable std::mutex mutex_;
-
-    // bot
-    BotCtx& bot_;
-
-    // basic info
-    const MatchID mid_;
-    GameHandle& game_handle_;
-    UserID host_uid_;
-    const std::optional<GroupID> gid_;
-    std::atomic<State> state_{State::NOT_STARTED};
-
-    // options
     struct RuntimeOptions
     {
         struct ResourceHolder
@@ -201,30 +157,92 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
         ResourceHolder resource_holder_;
         lgtbot::game::GenericOptions generic_options_;
     };
-    RuntimeOptions options_;
 
-    std::unique_ptr<MatchChildClient> game_child_;
-    std::thread read_thread_;
-    std::vector<std::string> applied_options_log_;
-    std::string init_options_args_;
-    // Per-match snapshot of MaxPlayerNum(options)/Multiple(options).
-    // Initialized from the global default at match creation (plus any init_options result) and updated by per-match host config commands.
-    uint64_t max_player_{0};
-    uint32_t multiple_{0};
+    struct Player
+    {
+        enum class State { ACTIVE, ELIMINATED, HOOKED };
+        Player(const VariantID& id) : id_(id), state_(State::ACTIVE) {}
+        VariantID id_;
+        State state_;
+    };
 
-    // user info
-    std::map<UserID, ParticipantUser> users_;
+    struct MatchLockedState
+    {
+        UserID host_uid_;
+        State state_{State::NOT_STARTED};
+        RuntimeOptions options_;
+        std::unique_ptr<MatchChildClient> game_child_;
+        std::vector<std::string> applied_options_log_;
+        // Per-match snapshot of MaxPlayerNum(options)/Multiple(options).
+        // Initialized from the global default at match creation (plus any init_options result) and updated by per-match host config commands.
+        uint64_t max_player_{0};
+        uint32_t multiple_{0};
+        std::map<UserID, ParticipantUser> users_;
+        std::optional<MsgSender> group_sender_;
+        std::vector<Player> players_;
+        bool is_in_deduction_{false};
+    };
+
+    uint64_t MaxPlayerNum_(const MatchLockedState& st) const { return st.max_player_; }
+    uint32_t Multiple_(const MatchLockedState& st) const { return st.multiple_; }
+
+    void Help_(MsgSenderBase& reply, const bool text_mode);
+    std::string OptionInfo_(const MatchLockedState& st) const;
+    void ApplyChildPlayerState(MatchLockedState& st, const PlayerID pid, const std::string& state);
+    void ApplyChildGameOverFromScores(MatchLockedState& st, const struct GameOverFrame& frame);
+    void ApplyChildPost_(MatchLockedState& st, const struct PostFrame& frame);
+    void DispatchChildIpc_(MatchLockedState& st, const PushFrame& frame);
+    std::unique_ptr<MatchChildClient> DispatchChildEof_(MatchLockedState& st, bool unexpected);
+    void ApplyChildIpcFromReadThread_(const PushFrame& frame);
+    void ApplyChildEofFromReadThread_(bool unexpected);
+    void Unbind_();
+    std::unique_ptr<MatchChildClient> PrepareTerminate_(MatchLockedState& st);
+    void FinishTerminate_(std::unique_ptr<MatchChildClient> child);
+
+    bool Has_(const MatchLockedState& st, const UserID uid) const;
+    std::string HostUserName_(const MatchLockedState& st) const;
+    uint32_t PlayerNum_(const MatchLockedState& st) const;
+    uint32_t ComputerNum_(const MatchLockedState& st) const;
+    void EmplaceUser_(MatchLockedState& st, const UserID uid);
+    void BriefInfo_(const MatchLockedState& st, std::string& out) const;
+    void KickForConfigChange_(MatchLockedState& st);
+    void UnbindMatchSide_(MatchLockedState& st);
+    bool SwitchHost_(MatchLockedState& st);
+
+    VariantID ConvertPidLocked_(const MatchLockedState& st, const PlayerID pid) const;
+    MsgSenderBase& BoardcastMsgSenderLocked_(MatchLockedState& st);
+    MsgSenderBase& BoardcastAiInfoMsgSenderLocked_(MatchLockedState& st);
+    MsgSenderBase& TellMsgSenderLocked_(MatchLockedState& st, const PlayerID pid);
+    MsgSenderBase& GroupMsgSenderLocked_(MatchLockedState& st);
+    MsgSenderBase::MsgSenderGuard BoardcastLocked_(MatchLockedState& st);
+    MsgSenderBase::MsgSenderGuard BoardcastAiInfoLocked_(MatchLockedState& st);
+    MsgSenderBase::MsgSenderGuard TellLocked_(MatchLockedState& st, const PlayerID pid);
+    MsgSenderBase::MsgSenderGuard GroupLocked_(MatchLockedState& st);
+    MsgSenderBase::MsgSenderGuard BoardcastAtAllLocked_(MatchLockedState& st);
+
+    // bot
+    BotCtx& bot_;
+
+    // basic info
+    const MatchID mid_;
+    GameHandle& game_handle_;
+    const std::optional<GroupID> gid_;
+    // Preset command args from "#新游戏 <game> <args>", replayed to the game subprocess at start.
+    const std::string init_options_args_;
+
+    mutable mutex_protect_wrapper<MatchLockedState, std::recursive_mutex> sync_;
 
     // message senders
     class MsgSenderBatchHandler
     {
       public:
-        MsgSenderBatchHandler(Match& match, const bool ai_only) : match_(match), ai_only_(ai_only) {};
+        MsgSenderBatchHandler(Match& match, const bool ai_only) : match_(match), ai_only_(ai_only) {}
 
         template <typename Fn>
-        void operator()(Fn&& fn)
+        void operator()(Fn&& fn) const
         {
-            for (auto& [_, user_info] : match_.users_) {
+            auto st = match_.sync_.lock();
+            for (auto& [_, user_info] : st->users_) {
                 if (user_info.state_ != ParticipantUser::State::LEFT && (!ai_only_ || user_info.is_ai_)) {
                     fn(user_info.sender_);
                 }
@@ -237,22 +255,9 @@ class Match : public MatchBase, public std::enable_shared_from_this<Match>
     };
     MsgSenderBatch<MsgSenderBatchHandler> boardcast_private_sender_{MsgSenderBatchHandler(*this, false)};
     MsgSenderBatch<MsgSenderBatchHandler> boardcast_ai_info_private_sender_{MsgSenderBatchHandler(*this, true)};
-    std::optional<MsgSender> group_sender_;
-
-    // player info (fill when game ready to start)
-    struct Player
-    {
-        enum class State { ACTIVE, ELIMINATED, HOOKED };
-        Player(const VariantID& id) : id_(id), state_(State::ACTIVE) {}
-        VariantID id_;
-        State state_;
-    };
-    std::vector<Player> players_; // is filled when game starts
 
     const Command<void(MsgSenderBase&)> help_cmd_{
         Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"),
                 OptionalDefaultChecker<BoolChecker>(false, "文字", "图片"))
     };
-
-    bool is_in_deduction_{false};
 };
