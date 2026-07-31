@@ -280,6 +280,14 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
             is_eliminated = st->players_[pid].state_ == Player::State::ELIMINATED;
             child = st->game_child_.get();
         } else {
+            {
+                // The lobby branch returns without falling through to the help check below,
+                // so route "帮助" here first; any joined user may view it, not only the host.
+                MsgReader reader(msg);
+                if (help_cmd_.CallIfValid(reader, reply)) {
+                    return EC_GAME_REQUEST_OK;
+                }
+            }
             if (uid != st->host_uid_) {
                 reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << HostUserName_(*st);
                 return EC_MATCH_NOT_HOST;

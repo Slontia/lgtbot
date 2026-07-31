@@ -116,14 +116,15 @@ class MatchChildClient
         PendingRequests& operator=(const PendingRequests&) = delete;
 
         void Emplace(uint64_t ipc_id, Entry entry);
-        void DispatchReply(uint64_t ipc_id, const lgtbot::ipc::ReplyResp& reply);
-        void DispatchResult(uint64_t ipc_id, IpcStage stage);
+        // Removes without firing on_result (rollback when the request was never written).
+        void Remove(uint64_t ipc_id);
+        // Returns nullptr if the ipc_id is unknown. The pointee stays valid while the entry exists;
+        // only the read thread erases entries, so it may deliver outside the lock.
+        [[nodiscard]] MsgSenderBase* FindReplySender(uint64_t ipc_id);
+        // Erases and returns the entry so the caller can fire on_result outside the lock.
+        [[nodiscard]] std::optional<Entry> TakeEntry(uint64_t ipc_id);
 
       private:
-        using EntryIt = std::map<uint64_t, Entry>::iterator;
-
-        [[nodiscard]] std::optional<EntryIt> FindEntry_(uint64_t ipc_id);
-
         std::map<uint64_t, Entry> entries_;
     };
 
