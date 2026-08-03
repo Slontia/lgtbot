@@ -347,6 +347,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
 {
     MatchChildClient::RuntimeOptions child_runtime_options;
     std::vector<std::string> options_to_sync;
+    std::vector<VariantID> player_ids;
     std::vector<lgtbot::ipc::PlayerInfo> players_for_child;
     uint32_t user_num = 0;
     const auto self = shared_from_this();
@@ -399,22 +400,30 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         };
         options_to_sync = st->applied_options_log_;
 
-        players_for_child.reserve(st->players_.size());
+        player_ids.reserve(st->players_.size());
         for (const auto& pl : st->players_) {
-            lgtbot::ipc::PlayerInfo pi;
-            if (const auto* const cid = std::get_if<ComputerID>(&pl.id_)) {
-                pi.set_computer(true);
-                pi.set_computer_id(cid->Get());
-            } else {
-                const auto& player_uid = std::get<UserID>(pl.id_);
-                pi.set_computer(false);
-                pi.set_display_name(bot_.GetUserName(player_uid.GetCStr(), gid_.has_value() ? gid_->GetCStr() : nullptr));
-                pi.set_avatar(bot_.GetUserAvatar(player_uid.GetCStr(), 0));
-            }
-            players_for_child.push_back(std::move(pi));
+            player_ids.push_back(pl.id_);
         }
 
         st->state_ = State::IS_STARTING;
+    }
+
+    // Build the player list outside the lock: GetUserName/GetUserAvatar callbacks that may block for a long time,
+    // and holding sync_ across them froze the match and every command iterating matches.
+    // Once IS_STARTING is set, joins and leaves are rejected, so the snapshot cannot go stale.
+    players_for_child.reserve(player_ids.size());
+    for (const auto& id : player_ids) {
+        lgtbot::ipc::PlayerInfo pi;
+        if (const auto* const cid = std::get_if<ComputerID>(&id)) {
+            pi.set_computer(true);
+            pi.set_computer_id(cid->Get());
+        } else {
+            const auto& player_uid = std::get<UserID>(id);
+            pi.set_computer(false);
+            pi.set_display_name(bot_.GetUserName(player_uid.GetCStr(), gid_.has_value() ? gid_->GetCStr() : nullptr));
+            pi.set_avatar(bot_.GetUserAvatar(player_uid.GetCStr(), 0));
+        }
+        players_for_child.push_back(std::move(pi));
     }
 
     auto new_child = MakeMatchChildClient(ResolveRunnerExe(), GameLibraryPath(bot_, game_handle_), child_runtime_options,
