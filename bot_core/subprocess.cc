@@ -38,17 +38,21 @@ bool WriteAll(reproc_t* process, const void* data, const size_t len)
     return true;
 }
 
-bool ReadAll(reproc_t* process, void* data, const size_t len)
+// consumed_out receives the bytes actually read, so callers can tell a clean EOF from a mid-frame break.
+bool ReadAll(reproc_t* process, void* data, const size_t len, size_t& consumed_out)
 {
     auto* const p = static_cast<uint8_t*>(data);
     size_t off = 0;
+    consumed_out = 0;
     while (off < len) {
         const int r = reproc_read(process, REPROC_STREAM_OUT, p + off, len - off);
         if (r <= 0) {
+            consumed_out = off;
             return false;
         }
         off += static_cast<size_t>(r);
     }
+    consumed_out = off;
     return true;
 }
 
@@ -138,8 +142,14 @@ bool Subprocess::Read(std::string& payload_out)
         return false;
     }
     unsigned char hdr[4];
-    if (!ReadAll(process_.get(), hdr, sizeof(hdr))) {
-        ErrorLog() << "Subprocess: Read failed (frame header), pid=" << reproc_pid(process_.get());
+    size_t consumed = 0;
+    if (!ReadAll(process_.get(), hdr, sizeof(hdr), consumed)) {
+        if (consumed == 0) {
+            // Clean EOF at a frame boundary: the child exited normally; this is the expected end of stream, not an error.
+            DebugLog() << "Subprocess: stream closed, pid=" << reproc_pid(process_.get());
+        } else {
+            ErrorLog() << "Subprocess: Read failed (frame header), pid=" << reproc_pid(process_.get());
+        }
         return false;
     }
     const uint32_t len = (uint32_t(hdr[0]) << 24) | (uint32_t(hdr[1]) << 16) | (uint32_t(hdr[2]) << 8) | uint32_t(hdr[3]);
@@ -149,7 +159,7 @@ bool Subprocess::Read(std::string& payload_out)
         return false;
     }
     std::vector<char> buf(len);
-    if (len != 0 && !ReadAll(process_.get(), buf.data(), len)) {
+    if (len != 0 && !ReadAll(process_.get(), buf.data(), len, consumed)) {
         ErrorLog() << "Subprocess: Read failed (frame payload), pid=" << reproc_pid(process_.get()) << ", payload_len=" << len;
         return false;
     }
@@ -170,10 +180,12 @@ void Subprocess::Close() noexcept
                    << "), pid=" << pid;
     }
 
+    // Give the child a moment to exit on its own after stdin EOF before escalating:
+    // a clean exit closes its stdout at a frame boundary.
     const reproc_stop_actions stop{
+        {REPROC_STOP_WAIT, 500},
         {REPROC_STOP_TERMINATE, 1000},
         {REPROC_STOP_KILL, 1000},
-        {REPROC_STOP_WAIT, 2000},
     };
     if (const int stop_r = reproc_stop(process, stop); stop_r < 0) {
         ErrorLog() << "Subprocess: reproc_stop failed, r=" << stop_r << " (" << reproc_strerror(stop_r) << "), pid=" << pid;

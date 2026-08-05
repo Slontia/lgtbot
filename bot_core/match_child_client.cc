@@ -158,6 +158,15 @@ void MatchChildClient::PendingRequests::Remove(const uint64_t ipc_id)
     entries_.erase(ipc_id);
 }
 
+void MatchChildClient::PendingRequests::FailAll()
+{
+    for (auto& [id, entry] : entries_) {
+        (void)id;
+        entry.on_result(lgtbot::ipc::ResultResp::STAGE_FAILED);
+    }
+    entries_.clear();
+}
+
 MsgSenderBase* MatchChildClient::PendingRequests::FindReplySender(const uint64_t ipc_id)
 {
     const auto it = entries_.find(ipc_id);
@@ -218,6 +227,8 @@ std::unique_ptr<MatchChildClient> MakeMatchChildClient(const std::filesystem::pa
 
 MatchChildClient::~MatchChildClient()
 {
+    // Mark teardown BEFORE breaking the pipe: the read thread must observe stop_requested when Read() fails.
+    read_thread_.request_stop();
     // proc_ is destroyed after read_thread_ joins; shut down the child here so Read() can exit.
     proc_.Close();
 }
@@ -250,7 +261,9 @@ bool MatchChildClient::WriteProto_(lgtbot::ipc::GameRequest req)
 void MatchChildClient::RunReadLoop_(std::stop_token stop, const ChildIpcPushHandler& dispatch_push,
                                     const ChildIpcEofHandler& on_eof)
 {
-    while (!stop.stop_requested()) {
+    // Loop until EOF, not until stop_requested.
+    // The stop token only classifies the final EOF as expected or unexpected.
+    while (true) {
         std::string raw;
         if (!proc_.Read(raw)) {
             const bool unexpected = !stop.stop_requested();
@@ -293,6 +306,8 @@ void MatchChildClient::RunReadLoop_(std::stop_token stop, const ChildIpcPushHand
             },
         }, std::move(*frame_opt));
     }
+    // The pipe is drained and no response can ever arrive anymore; unblock every thread still waiting on a pending future.
+    pending_.lock()->FailAll();
 }
 
 template<typename T, typename Handler>
@@ -357,7 +372,8 @@ std::optional<std::future<MatchChildClient::IpcStage>> MatchChildClient::SendApp
 
 std::optional<std::future<MatchChildClient::IpcStage>> MatchChildClient::SendStart(const uint64_t match_id,
                                                                                  const uint32_t user_num,
-                                                                                 const std::vector<lgtbot::ipc::PlayerInfo>& players)
+                                                                                 const std::vector<lgtbot::ipc::PlayerInfo>& players,
+                                                                                 MsgSenderBase& reply_sender)
 {
     lgtbot::ipc::GameRequest req;
     auto* start = req.mutable_start();
@@ -366,7 +382,7 @@ std::optional<std::future<MatchChildClient::IpcStage>> MatchChildClient::SendSta
     for (const auto& p : players) {
         *start->add_players() = p;
     }
-    return SendIpcStage_(std::move(req), EmptyMsgSender::Get());
+    return SendIpcStage_(std::move(req), reply_sender);
 }
 
 std::optional<std::future<ErrCode>> MatchChildClient::SendExecute(const PlayerID player_id, const bool is_public,
