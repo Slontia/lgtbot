@@ -354,6 +354,19 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
     const ChildIpcPushHandler push_handler = [self](const PushFrame& frame) { self->ApplyChildIpcFromReadThread_(frame); };
     const ChildIpcEofHandler eof_handler = [self](const bool unexpected) { self->ApplyChildEofFromReadThread_(unexpected); };
 
+    // Tear down the half-started child and reply with an error. The client must be destroyed OUTSIDE sync_.
+    const auto abort_start = [&](const char* const error_text) {
+        std::unique_ptr<MatchChildClient> dead_child;
+        {
+            auto st = sync_.lock();
+            st->state_ = State::NOT_STARTED;
+            dead_child = std::move(st->game_child_);
+        }
+        dead_child.reset();
+        reply() << error_text;
+        return EC_MATCH_UNEXPECTED_CONFIG;
+    };
+
     {
         auto st = sync_.lock();
         if (st->state_ != State::NOT_STARTED) {
@@ -456,11 +469,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         }
         auto opt_fut = child->SendSetOption(line);
         if (!opt_fut || opt_fut->get() != lgtbot::ipc::ResultResp::STAGE_OK) {
-            auto st = sync_.lock();
-            st->state_ = State::NOT_STARTED;
-            st->game_child_.reset();
-            reply() << "[错误] 开始失败：无法同步游戏设置到子进程";
-            return EC_MATCH_UNEXPECTED_CONFIG;
+            return abort_start("[错误] 开始失败：无法同步游戏设置到子进程");
         }
     }
 
@@ -477,11 +486,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         }
         auto init_opts_fut = child->SendApplyInitOptions(init_options_args_);
         if (!init_opts_fut || init_opts_fut->get() != lgtbot::ipc::ResultResp::STAGE_OK) {
-            auto st = sync_.lock();
-            st->state_ = State::NOT_STARTED;
-            st->game_child_.reset();
-            reply() << "[错误] 开始失败：无法同步预设指令到子进程";
-            return EC_MATCH_UNEXPECTED_CONFIG;
+            return abort_start("[错误] 开始失败：无法同步预设指令到子进程");
         }
     }
 
@@ -495,19 +500,17 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         child = st->game_child_.get();
     }
 
-    auto start_fut = child->SendStart(MatchId(), user_num, players_for_child);
+    auto start_fut = child->SendStart(MatchId(), user_num, players_for_child, reply);
     if (!start_fut || start_fut->get() != lgtbot::ipc::ResultResp::STAGE_OK) {
-        auto st = sync_.lock();
-        st->state_ = State::NOT_STARTED;
-        st->game_child_.reset();
-        reply() << "[错误] 开始失败：不符合游戏参数的预期";
-        return EC_MATCH_UNEXPECTED_CONFIG;
+        return abort_start("[错误] 开始失败：不符合游戏参数的预期");
     }
 
+    std::unique_ptr<MatchChildClient> finished_child;
     {
         auto st = sync_.lock();
         if (st->state_ == State::IS_OVER) {
-            st->game_child_.reset();
+            // The game finished during startup.
+            finished_child = std::move(st->game_child_);
             return EC_OK;
         }
         st->state_ = State::IS_STARTED;
@@ -820,6 +823,10 @@ void Match::ApplyChildIpcFromReadThread_(const PushFrame& frame)
 
 void Match::ApplyChildEofFromReadThread_(const bool unexpected)
 {
+    if (!unexpected) {
+        // Expected teardown EOF
+        return;
+    }
     std::unique_ptr<MatchChildClient> child;
     {
         auto st = sync_.lock();
