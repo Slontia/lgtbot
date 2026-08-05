@@ -78,8 +78,10 @@ class MatchChildClient
 
     [[nodiscard]] std::optional<std::future<IpcStage>> SendSetOption(const std::string& text);
 
+    // reply_sender receives whatever the game writes while creating the main stage.
     [[nodiscard]] std::optional<std::future<IpcStage>> SendStart(uint64_t match_id, uint32_t user_num,
-                                                                 const std::vector<lgtbot::ipc::PlayerInfo>& players);
+                                                                 const std::vector<lgtbot::ipc::PlayerInfo>& players,
+                                                                 MsgSenderBase& reply_sender);
 
     [[nodiscard]] std::optional<std::future<ErrCode>> SendExecute(PlayerID player_id, bool is_public,
                                                                   const std::string& text, MsgSender& reply);
@@ -118,6 +120,8 @@ class MatchChildClient
         void Emplace(uint64_t ipc_id, Entry entry);
         // Removes without firing on_result (rollback when the request was never written).
         void Remove(uint64_t ipc_id);
+        // Fires on_result(STAGE_FAILED) for every pending entry and clears them. Called when the read loop exits.
+        void FailAll();
         // Returns nullptr if the ipc_id is unknown. The pointee stays valid while the entry exists;
         // only the read thread erases entries, so it may deliver outside the lock.
         [[nodiscard]] MsgSenderBase* FindReplySender(uint64_t ipc_id);

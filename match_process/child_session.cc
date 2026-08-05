@@ -15,24 +15,6 @@
 
 namespace {
 
-class ErrCollector final : public MsgSenderBase
-{
-  public:
-    mutable std::string text_;
-
-  private:
-    void SetMatch(std::weak_ptr<const Match>) override {}
-
-    void Flush(std::vector<MsgFragment>&& messages) const override
-    {
-        for (const auto& frag : messages) {
-            if (const auto* text = std::get_if<std::string>(&frag)) {
-                text_.append(*text);
-            }
-        }
-    }
-};
-
 class ReplySender final : public MsgSenderBase
 {
   public:
@@ -317,12 +299,14 @@ bool ChildGameSession::HandleStart(const lgtbot::ipc::StartReq& req, std::string
     mut.is_formal_ = generic_options_.is_formal_;
     generic_options_ = lgtbot::game::GenericOptions(imm, mut);
 
-    ErrCollector err_reply;
+    // Ship whatever the game writes during stage creation
+    // back to the starter as a reply frame; it used to be collected locally and dropped.
+    ReplySender start_reply(*this);
     main_stage_ = GameHandle::main_stage_ptr(
-            module_.alloc_stage_(&err_reply, game_options_.get(), &generic_options_, env_.get()),
+            module_.alloc_stage_(&start_reply, game_options_.get(), &generic_options_, env_.get()),
             module_.del_stage_);
     if (!main_stage_) {
-        err = err_reply.text_.empty() ? "NewMainStage failed" : err_reply.text_;
+        err = "NewMainStage failed";
         SendResult(lgtbot::ipc::ResultResp::STAGE_FAILED);
         env_.reset();
         return false;
