@@ -160,6 +160,76 @@ GAME_TEST(5, assassin_last_round_succeed)
     ASSERT_SCORE(1, 1, 0, 0, 0);
 }
 
+GAME_TEST(5, sword_reverses_action)
+{
+    ASSERT_PRI_MSG(OK, 0, "测试模式 开启");
+    START_GAME();
+
+    // round 1
+    ASSERT_PRI_MSG(CHECKOUT, 0, "1 2");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 1, "成功 2");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "成功");
+
+    // round 2
+    ASSERT_PRI_MSG(CHECKOUT, 1, "0 2 3");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "成功 2");
+    ASSERT_PRI_MSG(OK, 2, "成功");
+    ASSERT_PRI_MSG(CHECKOUT, 3, "成功");
+
+    // round 3
+    ASSERT_PRI_MSG(CHECKOUT, 2, "0 1");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "成功 1");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "成功");
+
+    ASSERT_SCORE(1, 1, 0, 0, 0);
+}
+
+GAME_TEST(5, sword_cannot_reverse_non_member)
+{
+    ASSERT_PRI_MSG(OK, 0, "测试模式 开启");
+    START_GAME();
+
+    ASSERT_PRI_MSG(CHECKOUT, 0, "1 2");
+    ASSERT_TIMEOUT(CHECKOUT);
+    ASSERT_PRI_MSG(FAILED, 1, "成功 3"); // player 3 does not join the mission
+    ASSERT_PRI_MSG(FAILED, 1, "成功 1"); // reversing oneself is meaningless
+    ASSERT_PRI_MSG(FAILED, 2, "成功 1"); // player 2 does not hold the sword
+}
+
+GAME_TEST(5, assassin_timeout)
+{
+    ASSERT_PRI_MSG(OK, 0, "测试模式 开启");
+    ASSERT_PRI_MSG(OK, 0, "王者之剑 关闭");
+    START_GAME();
+
+    // round 1
+    ASSERT_PRI_MSG(CHECKOUT, 0, "0 1");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "成功");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "成功");
+
+    // round 2
+    ASSERT_PRI_MSG(CHECKOUT, 1, "0 1 2");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "成功");
+    ASSERT_PRI_MSG(OK, 1, "成功");
+    ASSERT_PRI_MSG(CHECKOUT, 2, "成功");
+
+    // round 3
+    ASSERT_PRI_MSG(CHECKOUT, 2, "0 1");
+    ASSERT_TIMEOUT(CHECKOUT); // all agree
+    ASSERT_PRI_MSG(OK, 0, "成功");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "成功");
+
+    // the assassin gives up assassinating
+    ASSERT_TIMEOUT(CHECKOUT);
+
+    ASSERT_SCORE(0, 0, 1, 1, 1);
+}
+
 GAME_TEST(5, three_tasks_failed_need_not_assassin)
 {
     ASSERT_PRI_MSG(OK, 0, "测试模式 开启");
