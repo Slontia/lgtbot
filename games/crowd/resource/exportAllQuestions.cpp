@@ -10,9 +10,9 @@
 using namespace std;
 
 // formal questions
-constexpr static uint32_t k_question_num = 78;
+constexpr static uint32_t k_question_num = 83;
 // with test1 questions
-constexpr static uint32_t all_question_num = 132;
+constexpr static uint32_t all_question_num = 135;
 // test2 questions
 constexpr static uint32_t t_question_num = 24;
 
@@ -151,6 +151,9 @@ static const std::array<Question*(*)(), all_question_num> create_question{
     []() -> Question* { return new Q130(); },
     []() -> Question* { return new Q131(); },
     []() -> Question* { return new Q132(); },
+    []() -> Question* { return new Q133(); },
+    []() -> Question* { return new Q134(); },
+    []() -> Question* { return new Q135(); },
 };
 
 // test mode 2
