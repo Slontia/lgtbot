@@ -44,9 +44,9 @@ const MutableGenericOptions k_default_generic_options;
 
 
 // formal questions
-constexpr static uint32_t k_question_num = 78;
+constexpr static uint32_t k_question_num = 83;
 // with test1 questions
-constexpr static uint32_t all_question_num = 132;
+constexpr static uint32_t all_question_num = 135;
 // test2 questions
 constexpr static uint32_t t_question_num = 24;
 
@@ -185,6 +185,9 @@ static const std::array<Question*(*)(), all_question_num> create_question{
     []() -> Question* { return new Q130(); },
     []() -> Question* { return new Q131(); },
     []() -> Question* { return new Q132(); },
+    []() -> Question* { return new Q133(); },
+    []() -> Question* { return new Q134(); },
+    []() -> Question* { return new Q135(); },
 };
 
 // test mode 2
@@ -250,7 +253,7 @@ char* find_question(const string& keyword)
 {
     thread_local static string find_str;
     thread_local static string notfind_str;
-    notfind_str = "[错误] 未找到包含“" + keyword + "”的题目";
+    notfind_str = "[错误] 未找到相关题目，请检查关键字或题号";
     bool flag = false;
     for (int i = 1; i <= all_question_num; i++) {
         find_str = init_question(i, i > k_question_num);
@@ -500,7 +503,7 @@ class RoundStage : public SubGameStage<>
         q -> quickScore(p);
 
         for(int i = 0; i < Global().PlayerNum(); i++)
-            std::cout << i << " " << p[i].score << std::endl;
+            std::cerr << i << " " << p[i].score << std::endl;
 
         int specialRule_ = GAME_OPTION(特殊规则);
         specialRule(p, specialRule_, "roundEnd");
