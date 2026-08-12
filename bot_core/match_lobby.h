@@ -17,7 +17,6 @@
 struct LobbyGameStartPlan
 {
     MatchChildClient::RuntimeOptions child_runtime_options;
-    std::vector<std::string> options_to_sync;
     std::vector<lgtbot::ipc::PlayerInfo> players_for_child;
     uint32_t user_num{0};
 };
@@ -49,7 +48,7 @@ class Lobby : public MatchPhaseCommon
     ErrCode SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_computers_to_player_num);
     ErrCode SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_formal);
     ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply,
-            const std::weak_ptr<const class Match>& match_wk);
+            const std::weak_ptr<const class Match>& match_wk, class MatchChildClient& game_child);
     ErrCode Join(const UserID uid, MsgSenderBase& reply);
     ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force);
     ErrCode UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel) override;
@@ -65,6 +64,9 @@ class Lobby : public MatchPhaseCommon
             const std::weak_ptr<const class Match>& match_wk, ErrCode& err_out) &&;
     void RollbackPreparedStart() &&;
     std::optional<LobbyRunningHandoff> IntoRunning() &&;
+
+    [[nodiscard]] MatchChildClient::RuntimeOptions ChildRuntimeOptions() const;
+    [[nodiscard]] const std::vector<std::string>& AppliedOptionsLog() const { return applied_options_log_; }
 
   private:
     MsgSenderBase* GroupSenderOrNull_() override;

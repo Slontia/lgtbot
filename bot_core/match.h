@@ -112,6 +112,7 @@ class Match : public std::enable_shared_from_this<Match>
     void FetchHelp_(MsgSenderBase& reply, const bool text_mode);
     void ApplyChildIpcFromReadThread_(const PushFrame& frame);
     void ApplyChildEofFromReadThread_(bool unexpected);
+    ErrCode EnsureLobbyChild_(MsgSenderBase& reply);
     void CommitRunning_(LobbyStartSnapshot snapshot);
     [[nodiscard]] bool LobbyStartAborted_();
     void RollbackLobbyStart_(MatchData& data);

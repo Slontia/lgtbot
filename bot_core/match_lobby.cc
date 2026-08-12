@@ -127,7 +127,7 @@ ErrCode Lobby::SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_f
 }
 
 ErrCode Lobby::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply,
-        const std::weak_ptr<const Match>& match_wk)
+        const std::weak_ptr<const Match>& match_wk, MatchChildClient& game_child)
 {
     const auto it = users_.find(uid);
     if (it == users_.end() || !UserIsActive(it->second)) {
@@ -139,15 +139,13 @@ ErrCode Lobby::Request(const UserID uid, const std::optional<GroupID> gid, const
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << ctx_.HostUserName(host_uid_);
         return EC_MATCH_NOT_HOST;
     }
-    uint64_t max_player = 0;
-    uint32_t multiple = 0;
-    if (!ctx_.game_handle.ConfigClient().SetDefaultOption(msg, max_player, multiple)) {
+    auto opt_fut = game_child.SendSetOption(msg);
+    if (!opt_fut || std::move(*opt_fut).get() != lgtbot::ipc::ResultResp::STAGE_OK) {
         reply() << "[错误] 未预料的游戏设置，您可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置\n"
                    "若您想执行元指令，请尝试在请求前加「" META_COMMAND_SIGN "」，或通过「" META_COMMAND_SIGN
                    "帮助」查看所有支持的元指令";
         return EC_GAME_REQUEST_NOT_FOUND;
     }
-    ctx_.game_handle.UpdateCachedLimits(max_player, multiple);
     applied_options_log_.push_back(msg);
     KickForConfigChange_();
     { std::string brief; BriefInfo(brief); reply() << "设置成功！\n\n" << brief; }
@@ -189,15 +187,7 @@ std::optional<LobbyGameStartPlan> Lobby::BeginGameStart(const UserID uid, MsgSen
 
     LobbyGameStartPlan plan;
     plan.user_num = static_cast<uint32_t>(users_.size());
-    plan.child_runtime_options = MatchChildClient::RuntimeOptions{
-        {
-            options_.resource_holder_.resource_dir_,
-            options_.resource_holder_.saved_image_dir_,
-        },
-        options_.generic_options_,
-        GET_OPTION_VALUE(*ctx_.bot.option().lock(), 计时公开提示),
-    };
-    plan.options_to_sync = applied_options_log_;
+    plan.child_runtime_options = ChildRuntimeOptions();
     plan.players_for_child.reserve(players_.size());
     for (const auto& pl : players_) {
         lgtbot::ipc::PlayerInfo pi;
@@ -219,6 +209,18 @@ std::optional<LobbyGameStartPlan> Lobby::BeginGameStart(const UserID uid, MsgSen
 }
 
 void Lobby::RollbackPreparedStart() && { players_.clear(); }
+
+MatchChildClient::RuntimeOptions Lobby::ChildRuntimeOptions() const
+{
+    return MatchChildClient::RuntimeOptions{
+        {
+            options_.resource_holder_.resource_dir_,
+            options_.resource_holder_.saved_image_dir_,
+        },
+        options_.generic_options_,
+        GET_OPTION_VALUE(*ctx_.bot.option().lock(), 计时公开提示),
+    };
+}
 
 std::optional<LobbyRunningHandoff> Lobby::IntoRunning() &&
 {

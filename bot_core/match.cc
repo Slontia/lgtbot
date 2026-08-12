@@ -210,7 +210,14 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
     {
         auto&& g = data_.lock();
         if (auto* lobby = std::get_if<Lobby>(&g->phase)) {
-            return lobby->Request(uid, gid, msg, reply, weak_from_this());
+            if (!g->game_child) {
+                g = {};
+                if (const auto rc = EnsureLobbyChild_(reply); rc != EC_OK) {
+                    return rc;
+                }
+                g = data_.lock();
+            }
+            return lobby->Request(uid, gid, msg, reply, weak_from_this(), *g->game_child);
         }
         exec_fut = std::get<Running>(g->phase).BeginExecuteRequest(uid, gid, msg, reply, err_out, weak_from_this());
     }
@@ -332,8 +339,6 @@ ErrCode Match::Terminate(const bool is_force)
 
 ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
 {
-    MatchChildClient::RuntimeOptions child_runtime_options;
-    std::vector<std::string> options_to_sync;
     std::vector<lgtbot::ipc::PlayerInfo> players_for_child;
     uint32_t user_num = 0;
     ErrCode err_out = EC_OK;
@@ -352,75 +357,39 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         }
 
         state_.store(MATCH_IS_STARTING, std::memory_order_release);
-        child_runtime_options = std::move(plan->child_runtime_options);
-        options_to_sync = std::move(plan->options_to_sync);
         players_for_child = std::move(plan->players_for_child);
         user_num = plan->user_num;
     }
 
-    const auto self = shared_from_this();
-    const ChildIpcPushHandler push_handler = [self](const PushFrame& frame) {
-        self->ApplyChildIpcFromReadThread_(frame);
-    };
-    const ChildIpcEofHandler eof_handler = [self](const bool unexpected) {
-        self->ApplyChildEofFromReadThread_(unexpected);
-    };
-
-    auto new_child = MakeMatchChildClient(ResolveRunnerExe(),
-            GameLibraryPath(ctx_.bot, ctx_.game_handle), child_runtime_options,
-            push_handler, eof_handler);
-
+    if (![&]() -> bool {
+            auto&& g = data_.lock();
+            return g->game_child != nullptr;
+        }())
     {
-        auto&& g = data_.lock();
-        g->game_child = std::move(new_child);
+        if (const auto rc = EnsureLobbyChild_(reply); rc != EC_OK) {
+            return rc;
+        }
+    }
 
 #ifdef TEST_BOT
+    {
+        auto&& g = data_.lock();
         if (g_match_test_after_game_child_started) {
             g = {};
             g_match_test_after_game_child_started();
             g = data_.lock();
         }
+    }
 #endif
 
+    {
+        auto&& g = data_.lock();
         if (LobbyStartAborted_()) {
             std::unique_ptr<MatchChildClient> child = std::move(g->game_child);
             RollbackLobbyStart_(*g);
             g = {};
             reply() << "[错误] 开始失败：游戏已被中断";
             return EC_MATCH_ALREADY_BEGIN;
-        }
-
-        if (!g->game_child) {
-            RollbackLobbyStart_(*g);
-            g = {};
-            reply() << "[错误] 开始失败：无法启动游戏子进程";
-            return EC_MATCH_UNEXPECTED_CONFIG;
-        }
-    }
-
-    MatchChildClient* child = nullptr;
-    {
-        auto&& g = data_.lock();
-        child = g->game_child.get();
-    }
-
-    for (const auto& line : options_to_sync) {
-        {
-            auto&& g = data_.lock();
-            if (LobbyStartAborted_()) {
-                std::unique_ptr<MatchChildClient> child = std::move(g->game_child);
-                RollbackLobbyStart_(*g);
-                g = {};
-                reply() << "[错误] 开始失败：游戏已被中断";
-                return EC_MATCH_ALREADY_BEGIN;
-            }
-            child = g->game_child.get();
-        }
-        auto opt_fut = child->SendSetOption(line);
-        if (!opt_fut || std::move(*opt_fut).get() != lgtbot::ipc::ResultResp::STAGE_OK) {
-            RollbackLobbyStart_();
-            reply() << "[错误] 开始失败：无法同步游戏设置到子进程";
-            return EC_MATCH_UNEXPECTED_CONFIG;
         }
     }
 
@@ -483,6 +452,43 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         }
     }
 
+    return EC_OK;
+}
+
+ErrCode Match::EnsureLobbyChild_(MsgSenderBase& reply)
+{
+    const auto self = shared_from_this();
+    const ChildIpcPushHandler push_handler = [self](const PushFrame& frame) {
+        self->ApplyChildIpcFromReadThread_(frame);
+    };
+    const ChildIpcEofHandler eof_handler = [self](const bool unexpected) {
+        self->ApplyChildEofFromReadThread_(unexpected);
+    };
+    auto g = data_.lock();
+    const auto* lobby = std::get_if<Lobby>(&g->phase);
+    if (!lobby) {
+        return EC_MATCH_UNEXPECTED_CONFIG;
+    }
+    const auto applied_log = lobby->AppliedOptionsLog();
+    const auto child_runtime_options = lobby->ChildRuntimeOptions();
+    g = {};
+    auto new_child = MakeMatchChildClient(ResolveRunnerExe(),
+            GameLibraryPath(ctx_.bot, ctx_.game_handle), child_runtime_options,
+            push_handler, eof_handler);
+    if (!new_child) {
+        reply() << "[错误] 建立失败：无法启动游戏子进程";
+        return EC_MATCH_UNEXPECTED_CONFIG;
+    }
+    g = data_.lock();
+    g->game_child = std::move(new_child);
+    for (const auto& line : applied_log) {
+        auto opt_fut = g->game_child->SendSetOption(line);
+        if (!opt_fut || std::move(*opt_fut).get() != lgtbot::ipc::ResultResp::STAGE_OK) {
+            g->game_child.reset();
+            reply() << "[错误] 建立失败：无法同步游戏设置到子进程";
+            return EC_MATCH_UNEXPECTED_CONFIG;
+        }
+    }
     return EC_OK;
 }
 

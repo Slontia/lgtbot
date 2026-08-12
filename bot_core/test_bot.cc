@@ -1310,6 +1310,20 @@ TEST_F(TestBot, pub_game_request_reply_has_no_extra_bare_at_message)
   }
 }
 
+// Lobby option should apply to the game via lazy game_runner creation
+
+TEST_F(TestBot, lobby_option_should_apply_to_game)
+{
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%配置 测试游戏 最大玩家数 2");
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "直接结束");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+  // Game starts and finishes immediately because 直接结束 is set
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+}
+
 // Subprocess Kill
 
 TEST_F(TestBot, subprocess_killed_during_game)
