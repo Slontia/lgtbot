@@ -6,9 +6,7 @@
 
 #include <atomic>
 #include <cassert>
-#include <future>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <variant>
 #include <vector>
@@ -102,16 +100,12 @@ class Match : public std::enable_shared_from_this<Match>
 
     void BriefInfo(std::string& out) const;
 
-    void ReleaseGameChildIfOver();
-
     void BindMsgSenderMatch_();
 
    private:
     void Unbind_();
     void Help_(MsgSenderBase& reply, const bool text_mode);
     void FetchHelp_(MsgSenderBase& reply, const bool text_mode);
-    void ApplyChildIpcFromReadThread_(const PushFrame& frame);
-    void ApplyChildEofFromReadThread_(bool unexpected);
     ErrCode EnsureLobbyChild_(MsgSenderBase& reply);
     void CommitRunning_(LobbyStartSnapshot snapshot);
     [[nodiscard]] bool LobbyStartAborted_();
@@ -120,9 +114,6 @@ class Match : public std::enable_shared_from_this<Match>
     void CleanupRunning_(MatchData& data);
     void CleanupRunningUsers_(MatchData& data);
     void ReleaseGameChild_(MatchData& data);
-    void DrainPendingChildIpc_();
-    void ApplyChildIpcFromReadThreadImpl_(PushFrame frame);
-    void ApplyChildEofFromReadThreadImpl_(bool unexpected);
 
     const Command<void(MsgSenderBase&)> help_cmd_{
         Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"),
@@ -136,9 +127,6 @@ class Match : public std::enable_shared_from_this<Match>
     mutable std::unique_ptr<MsgSenderBase> private_broadcast_scratch_;
 
     mutable mutex_protect_wrapper<MatchData, MatchPhaseMutex> data_;
-
-    std::mutex pending_ipc_mutex_;
-    std::vector<std::future<void>> pending_ipc_futures_;
 
     std::atomic<MatchState> state_{MATCH_NOT_STARTED};
 };

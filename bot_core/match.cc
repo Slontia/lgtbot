@@ -205,31 +205,27 @@ ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
 
 ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply)
 {
-    ErrCode err_out = EC_OK;
-    std::optional<std::future<ErrCode>> exec_fut;
-    {
-        auto&& g = data_.lock();
-        if (auto* lobby = std::get_if<Lobby>(&g->phase)) {
-            if (!g->game_child) {
-                g = {};
-                if (const auto rc = EnsureLobbyChild_(reply); rc != EC_OK) {
-                    return rc;
-                }
-                g = data_.lock();
+    auto&& g = data_.lock();
+    if (auto* lobby = std::get_if<Lobby>(&g->phase)) {
+        if (!g->game_child) {
+            g = {};
+            if (const auto rc = EnsureLobbyChild_(reply); rc != EC_OK) {
+                return rc;
             }
-            return lobby->Request(uid, gid, msg, reply, weak_from_this(), *g->game_child);
+            g = data_.lock();
         }
-        exec_fut = std::get<Running>(g->phase).BeginExecuteRequest(uid, gid, msg, reply, err_out, weak_from_this());
+        return lobby->Request(uid, gid, msg, reply, weak_from_this(), *g->game_child);
     }
-    if (!exec_fut) {
-        return err_out;
-    }
-    ErrCode rc = std::move(*exec_fut).get();
-    DrainPendingChildIpc_();
+    auto& running = std::get<Running>(g->phase);
+    g = {};
+    const auto rc = running.ExecuteRequest(uid, gid, msg, reply, weak_from_this());
     {
-        auto&& g = data_.lock();
-        if (auto* running = std::get_if<Running>(&g->phase)) {
-            rc = running->FinishExecuteRequest(rc);
+        auto&& g2 = data_.lock();
+        if (std::get<Running>(g2->phase).is_over()) {
+            CleanupRunning_(*g2);
+            g2 = {};
+            Unbind_();
+            return rc;
         }
     }
     if (rc == EC_GAME_REQUEST_NOT_FOUND) {
@@ -238,43 +234,34 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
                    "若您想执行元指令，请尝试在请求前加「" META_COMMAND_SIGN "」，或通过「" META_COMMAND_SIGN
                    "帮助」查看所有支持的元指令";
     }
-    ReleaseGameChildIfOver();
     return rc;
 }
 
 ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
 {
-    ErrCode rc = EC_OK;
-    std::optional<std::future<MatchChildClient::IpcStage>> child_leave_out;
-    {
-        auto&& g = data_.lock();
-        if (auto* running = std::get_if<Running>(&g->phase)) {
-            rc = running->LeaveBeforeChild(uid, reply, force, child_leave_out);
-        } else {
-            rc = std::get<Lobby>(g->phase).Leave(uid, reply, force);
-        }
+    auto&& g = data_.lock();
+    if (auto* running = std::get_if<Running>(&g->phase)) {
+        const auto rc = running->LeaveBeforeChild(uid, reply, force);
         if (rc != EC_OK) {
             return rc;
         }
         match_manager().UnbindMatch(uid);
-        std::visit(overloaded{
-            [&](Running& phase) {
-                if (phase.is_over()) {
-                    CleanupRunning_(*g);
-                }
-            },
-            [&](Lobby&) {
-                if (g->users.empty()) {
-                    Unbind_();
-                }
-            },
-        }, g->phase);
+        if (running->is_over()) {
+            CleanupRunning_(*g);
+            g = {};
+            Unbind_();
+        }
+        return rc;
     }
-    if (child_leave_out) {
-        (void)std::move(*child_leave_out).get();
+    const auto rc = std::get<Lobby>(g->phase).Leave(uid, reply, force);
+    if (rc != EC_OK) {
+        return rc;
     }
-    DrainPendingChildIpc_();
-    ReleaseGameChildIfOver();
+    match_manager().UnbindMatch(uid);
+    if (g->users.empty()) {
+        g = {};
+        Unbind_();
+    }
     return rc;
 }
 
@@ -413,42 +400,53 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
 
     bool start_ok = false;
     {
-        MatchChildClient* child_ptr = nullptr;
-        {
-            auto&& g = data_.lock();
-            child_ptr = g->game_child.get();
+        auto&& g = data_.lock();
+        auto* child_ptr = g->game_child.get();
+        auto& running = std::get<Running>(g->phase);
+        g = {};
+        auto on_push = [&running](const PushFrame& f) { running.ApplyChildPushFrame(f); };
+        const auto stage = child_ptr->SendStart(ctx_.mid.Get(), user_num, players_for_child, on_push);
+        start_ok = stage && *stage == lgtbot::ipc::ResultResp::STAGE_OK;
+        if (!stage && !running.is_over()) {
+            running.HandleChildEof();
         }
-        auto start_fut = child_ptr->SendStart(ctx_.mid.Get(), user_num, players_for_child);
-        start_ok = start_fut && std::move(*start_fut).get() == lgtbot::ipc::ResultResp::STAGE_OK;
     }
-    DrainPendingChildIpc_();
     if (!start_ok) {
-        RollbackLobbyStart_();
+        auto&& g2 = data_.lock();
+        if (auto* r = std::get_if<Running>(&g2->phase); r && r->is_over()) {
+            CleanupRunning_(*g2);
+            g2 = {};
+            Unbind_();
+        } else {
+            RollbackLobbyStart_();
+        }
         reply() << "[错误] 开始失败：不符合游戏参数的预期";
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
-    ReleaseGameChildIfOver();
-
     {
         auto&& g = data_.lock();
         if (auto* running = std::get_if<Running>(&g->phase)) {
-            if (!running->is_over()) {
-                running->BoardcastAtAll()
-                    << "游戏开始，您可以使用「帮助」命令（不带" META_COMMAND_SIGN "号），查看可执行命令";
-
-                nlohmann::json players_json_array = nlohmann::json::array();
-                for (const auto& pi : players_for_child) {
-                    if (pi.computer()) {
-                        players_json_array.push_back(nlohmann::json{{"computer_id", pi.computer_id()}});
-                    } else {
-                        players_json_array.push_back(nlohmann::json{{"display_name", pi.display_name()}});
-                    }
-                }
-                running->Boardcast()
-                    << nlohmann::json{{"match_id", ctx_.mid.Get()},
-                                      {"state", "started"},
-                                      {"players", std::move(players_json_array)}}.dump();
+            if (running->is_over()) {
+                CleanupRunning_(*g);
+                g = {};
+                Unbind_();
+                return EC_OK;
             }
+            running->BoardcastAtAll()
+                << "游戏开始，您可以使用「帮助」命令（不带" META_COMMAND_SIGN "号），查看可执行命令";
+
+            nlohmann::json players_json_array = nlohmann::json::array();
+            for (const auto& pi : players_for_child) {
+                if (pi.computer()) {
+                    players_json_array.push_back(nlohmann::json{{"computer_id", pi.computer_id()}});
+                } else {
+                    players_json_array.push_back(nlohmann::json{{"display_name", pi.display_name()}});
+                }
+            }
+            running->Boardcast()
+                << nlohmann::json{{"match_id", ctx_.mid.Get()},
+                                  {"state", "started"},
+                                  {"players", std::move(players_json_array)}}.dump();
         }
     }
 
@@ -457,13 +455,6 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
 
 ErrCode Match::EnsureLobbyChild_(MsgSenderBase& reply)
 {
-    const auto self = shared_from_this();
-    const ChildIpcPushHandler push_handler = [self](const PushFrame& frame) {
-        self->ApplyChildIpcFromReadThread_(frame);
-    };
-    const ChildIpcEofHandler eof_handler = [self](const bool unexpected) {
-        self->ApplyChildEofFromReadThread_(unexpected);
-    };
     auto g = data_.lock();
     const auto* lobby = std::get_if<Lobby>(&g->phase);
     if (!lobby) {
@@ -473,8 +464,7 @@ ErrCode Match::EnsureLobbyChild_(MsgSenderBase& reply)
     const auto child_runtime_options = lobby->ChildRuntimeOptions();
     g = {};
     auto new_child = MakeMatchChildClient(ResolveRunnerExe(),
-            GameLibraryPath(ctx_.bot, ctx_.game_handle), child_runtime_options,
-            push_handler, eof_handler);
+            GameLibraryPath(ctx_.bot, ctx_.game_handle), child_runtime_options);
     if (!new_child) {
         reply() << "[错误] 建立失败：无法启动游戏子进程";
         return EC_MATCH_UNEXPECTED_CONFIG;
@@ -482,8 +472,8 @@ ErrCode Match::EnsureLobbyChild_(MsgSenderBase& reply)
     g = data_.lock();
     g->game_child = std::move(new_child);
     for (const auto& line : applied_log) {
-        auto opt_fut = g->game_child->SendSetOption(line);
-        if (!opt_fut || std::move(*opt_fut).get() != lgtbot::ipc::ResultResp::STAGE_OK) {
+        const auto stage = g->game_child->SendSetOption(line);
+        if (!stage || *stage != lgtbot::ipc::ResultResp::STAGE_OK) {
             g->game_child.reset();
             reply() << "[错误] 建立失败：无法同步游戏设置到子进程";
             return EC_MATCH_UNEXPECTED_CONFIG;
@@ -522,100 +512,18 @@ bool Match::LobbyStartAborted_()
     return state_.load(std::memory_order_acquire) != MATCH_IS_STARTING;
 }
 
-void Match::DrainPendingChildIpc_()
-{
-    std::vector<std::future<void>> futs;
-    {
-        std::lock_guard<std::mutex> lk(pending_ipc_mutex_);
-        futs = std::move(pending_ipc_futures_);
-    }
-    for (auto& fut : futs) {
-        fut.wait();
-    }
-}
 
-void Match::ApplyChildIpcFromReadThreadImpl_(const PushFrame frame)
-{
-    bool finalize_over = false;
-    {
-        auto&& g = data_.lock();
-        if (!std::holds_alternative<Running>(g->phase)) {
-            return;
-        }
-        auto& running = std::get<Running>(g->phase);
-        g = {};
-        running.ApplyChildIpcFromReadThread(frame);
-        finalize_over = running.is_over();
-    }
-    if (finalize_over) {
-        auto&& g = data_.lock();
-        CleanupRunningUsers_(*g);
-        g = {};
-        Unbind_();
-    }
-}
-
-void Match::ApplyChildIpcFromReadThread_(const PushFrame& frame)
-{
-    const auto self = shared_from_this();
-    auto fut = ctx_.bot.PostCleanup([self, frame] { self->ApplyChildIpcFromReadThreadImpl_(frame); });
-    std::lock_guard<std::mutex> lk(pending_ipc_mutex_);
-    pending_ipc_futures_.push_back(std::move(fut));
-}
-
-void Match::ApplyChildEofFromReadThread_(const bool unexpected)
-{
-    const auto self = shared_from_this();
-    auto fut = ctx_.bot.PostCleanup([self, unexpected] { self->ApplyChildEofFromReadThreadImpl_(unexpected); });
-    std::lock_guard<std::mutex> lk(pending_ipc_mutex_);
-    pending_ipc_futures_.push_back(std::move(fut));
-}
-
-void Match::ApplyChildEofFromReadThreadImpl_(const bool unexpected)
-{
-    bool finalize_over = false;
-    {
-        auto&& g = data_.lock();
-        if (!std::holds_alternative<Running>(g->phase)) {
-            return;
-        }
-        auto& running = std::get<Running>(g->phase);
-        g = {};
-        running.ApplyChildEofFromReadThread(unexpected);
-        finalize_over = running.is_over();
-    }
-    if (finalize_over) {
-        auto&& g = data_.lock();
-        CleanupRunningUsers_(*g);
-        g = {};
-        Unbind_();
-    }
-}
 
 void Match::Help_(MsgSenderBase& reply, const bool text_mode)
 {
-    std::string remote;
-    HelpTextCollector help_collector(remote);
-    std::optional<std::future<MatchChildClient::IpcStage>> help_fut;
-    {
-        auto&& g = data_.lock();
-        if (auto* r = std::get_if<Running>(&g->phase)) {
-            help_fut = r->BeginFetchHelp(text_mode, help_collector);
-            if (!help_fut) {
-                reply() << "[错误] 无法从游戏进程获取帮助信息";
-                return;
-            }
-        } else {
-            FetchHelp_(reply, text_mode);
-            return;
-        }
-    }
-    const auto stage = std::move(*help_fut).get();
-    DrainPendingChildIpc_();
     auto&& g = data_.lock();
     if (auto* r = std::get_if<Running>(&g->phase)) {
-        r->FinishFetchHelp(reply, text_mode, remote, stage);
+        g = {};
+        r->FetchHelp(reply, text_mode);
+        return;
     }
+    g = {};
+    FetchHelp_(reply, text_mode);
 }
 
 void Match::FetchHelp_(MsgSenderBase& reply, const bool text_mode)
@@ -647,13 +555,5 @@ void Match::BindMsgSenderMatch_()
     }
 }
 
-void Match::ReleaseGameChildIfOver()
-{
-    std::unique_ptr<MatchChildClient> child;
-    auto&& g = data_.lock();
-    if (const auto* running = std::get_if<Running>(&g->phase); running && running->is_over()) {
-        child = std::move(g->game_child);
-    }
-    g = {};
-}
+
 

@@ -5,7 +5,6 @@
 #pragma once
 
 #include <atomic>
-#include <future>
 #include <map>
 #include <memory>
 #include <optional>
@@ -42,13 +41,9 @@ class Running : public MatchPhaseCommon
 
     bool IsInDeduction() const;
 
-    [[nodiscard]] std::optional<std::future<ErrCode>> BeginExecuteRequest(const UserID uid,
-            const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply, ErrCode& err_out,
-            const std::weak_ptr<const class Match>& match_wk);
-    ErrCode FinishExecuteRequest(ErrCode rc);
-
-    ErrCode LeaveBeforeChild(const UserID uid, MsgSenderBase& reply, const bool force,
-            std::optional<std::future<MatchChildClient::IpcStage>>& child_leave_out);
+    ErrCode ExecuteRequest(const UserID uid, const std::optional<GroupID> gid, const std::string& msg,
+            MsgSender& reply, const std::weak_ptr<const class Match>& match_wk);
+    ErrCode LeaveBeforeChild(const UserID uid, MsgSenderBase& reply, const bool force);
     ErrCode UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel) override;
 
     void ShowInfo(MsgSenderBase& reply, const std::weak_ptr<const class Match>& match_wk) const override;
@@ -61,13 +56,9 @@ class Running : public MatchPhaseCommon
 
     using MatchPhaseCommon::BindMsgSenderMatch;
 
-    void ApplyChildIpcFromReadThread(const PushFrame& frame);
-    void ApplyChildEofFromReadThread(bool unexpected);
-
-    [[nodiscard]] std::optional<std::future<MatchChildClient::IpcStage>> BeginFetchHelp(const bool text_mode,
-            MsgSenderBase& reply_collector);
-    void FinishFetchHelp(MsgSenderBase& reply, const bool text_mode, const std::string& remote,
-            MatchChildClient::IpcStage stage);
+    void FetchHelp(MsgSenderBase& reply, const bool text_mode);
+    void ApplyChildPushFrame(const PushFrame& frame);
+    void HandleChildEof();
 
   private:
     MsgSenderBase* GroupSenderOrNull_() override;

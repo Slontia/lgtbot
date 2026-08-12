@@ -4,16 +4,11 @@
 
 #pragma once
 
-#include <atomic>
 #include <filesystem>
 #include <functional>
-#include <future>
-#include <map>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
-#include <thread>
 #include <variant>
 #include <vector>
 
@@ -23,7 +18,6 @@
 #include "game_framework/game_main.h"
 #include "match_process/match_ipc.pb.h"
 #include "bot_core/subprocess.h"
-#include "utility/lock_wrapper.h"
 
 class Match;
 
@@ -38,20 +32,14 @@ struct GameOverFrame {
     lgtbot::ipc::GameOverResp game_over;
 };
 struct ReplyFrame {
-    uint64_t ipc_id;
     lgtbot::ipc::ReplyResp reply;
 };
 struct ResultFrame {
-    uint64_t ipc_id;
     lgtbot::ipc::ResultResp::Stage stage;
 };
 
 using PushFrame = std::variant<PostFrame, PlayerStateFrame, GameOverFrame>;
-using ResponseFrame = std::variant<ReplyFrame, ResultFrame>;
-using ChildFrame = std::variant<PostFrame, PlayerStateFrame, GameOverFrame, ReplyFrame, ResultFrame>;
-
-using ChildIpcPushHandler = std::function<void(PushFrame)>;
-using ChildIpcEofHandler = std::function<void(bool unexpected)>;
+using PushHandler = std::function<void(const PushFrame&)>;
 
 class MatchChildClient
 {
@@ -76,80 +64,41 @@ class MatchChildClient
     MatchChildClient(const MatchChildClient&) = delete;
     MatchChildClient& operator=(const MatchChildClient&) = delete;
 
-    [[nodiscard]] std::optional<std::future<IpcStage>> SendSetOption(const std::string& text);
+    [[nodiscard]] std::optional<IpcStage> SendSetOption(const std::string& text);
 
-    [[nodiscard]] std::optional<std::future<IpcStage>> SendStart(uint64_t match_id, uint32_t user_num,
-                                                                 const std::vector<lgtbot::ipc::PlayerInfo>& players);
+    [[nodiscard]] std::optional<IpcStage> SendStart(uint64_t match_id, uint32_t user_num,
+                                                    const std::vector<lgtbot::ipc::PlayerInfo>& players,
+                                                    const PushHandler& on_push);
 
-    [[nodiscard]] std::optional<std::future<ErrCode>> SendExecute(PlayerID player_id, bool is_public,
-                                                                  const std::string& text, MsgSender& reply);
+    [[nodiscard]] std::optional<ErrCode> SendExecute(PlayerID player_id, bool is_public,
+                                                     const std::string& text, MsgSender& reply,
+                                                     const PushHandler& on_push);
 
-    [[nodiscard]] std::optional<std::future<IpcStage>> SendLeave(PlayerID player_id);
+    [[nodiscard]] std::optional<IpcStage> SendLeave(PlayerID player_id, const PushHandler& on_push);
 
-    [[nodiscard]] std::optional<std::future<IpcStage>> FetchHelp(bool text_mode, MsgSenderBase& reply_sender);
+    [[nodiscard]] std::optional<IpcStage> FetchHelp(bool text_mode, MsgSenderBase& reply_sender);
 
   private:
     friend std::unique_ptr<MatchChildClient> MakeMatchChildClient(std::filesystem::path runner_exe,
                                                                   std::filesystem::path game_library,
-                                                                  const RuntimeOptions& options,
-                                                                  const ChildIpcPushHandler& dispatch_push,
-                                                                  const ChildIpcEofHandler& on_eof);
+                                                                  const RuntimeOptions& options);
 
-    MatchChildClient(Subprocess proc, const ChildIpcPushHandler& dispatch_push, const ChildIpcEofHandler& on_eof);
+    explicit MatchChildClient(Subprocess proc);
 
-    class PendingRequests
-    {
-      public:
-        struct Entry {
-            MsgSenderBase& reply_sender;
-            std::function<void(IpcStage)> on_result;
-        };
+    [[nodiscard]] std::optional<IpcStage> SendInit_(const RuntimeOptions& options);
 
-        PendingRequests() = default;
-        ~PendingRequests();
+    // Core: write request, then read frames until ResultFrame. Returns the result stage.
+    // Push frames are dispatched to on_push. Reply frames are sent to reply_sender.
+    [[nodiscard]] std::optional<IpcStage> SendRequestAndRead_(lgtbot::ipc::GameRequest req,
+                                                              MsgSenderBase& reply_sender,
+                                                              const PushHandler& on_push);
 
-        PendingRequests(const PendingRequests&) = delete;
-        PendingRequests& operator=(const PendingRequests&) = delete;
-
-        void Emplace(uint64_t ipc_id, Entry entry);
-        void DispatchReply(uint64_t ipc_id, const lgtbot::ipc::ReplyResp& reply);
-        void DispatchResult(uint64_t ipc_id, IpcStage stage);
-        void FailAll(IpcStage stage);
-
-      private:
-        using EntryIt = std::map<uint64_t, Entry>::iterator;
-
-        [[nodiscard]] std::optional<EntryIt> FindEntry_(uint64_t ipc_id);
-
-        std::map<uint64_t, Entry> entries_;
-    };
-
-    [[nodiscard]] std::optional<std::future<IpcStage>> SendInit_(const RuntimeOptions& options);
-    template<typename T, typename Handler>
-    [[nodiscard]] std::optional<std::future<T>> SendIpc_(lgtbot::ipc::GameRequest&& req, MsgSenderBase& reply_sender,
-                                                         Handler handler);
-    [[nodiscard]] std::optional<std::future<IpcStage>> SendIpcStage_(lgtbot::ipc::GameRequest&& req,
-                                                                     MsgSenderBase& reply_sender);
-    [[nodiscard]] std::optional<std::future<ErrCode>> SendIpcErrCode_(lgtbot::ipc::GameRequest&& req,
-                                                                      MsgSenderBase& reply_sender);
     [[nodiscard]] bool WriteProto_(lgtbot::ipc::GameRequest req);
-    uint64_t AllocIpcId_();
 
-    void RunReadLoop_(std::stop_token stop, const ChildIpcPushHandler& dispatch_push,
-                      const ChildIpcEofHandler& on_eof);
-
-    // Member declaration order controls ~MatchChildClient teardown (reverse order).
-    // proc_ is declared first so it is destroyed last; the read thread can use proc_
-    // until it has been joined.
     Subprocess proc_;
-    std::mutex request_mutex_;
-    mutex_protect_wrapper<PendingRequests> pending_;
-    std::atomic<uint64_t> next_ipc_id_{1};
-    std::jthread read_thread_;
+    std::mutex write_mutex_;
 };
 
 [[nodiscard]] std::unique_ptr<MatchChildClient> MakeMatchChildClient(std::filesystem::path runner_exe,
                                                                      std::filesystem::path game_library,
-                                                                     const MatchChildClient::RuntimeOptions& options,
-                                                                     const ChildIpcPushHandler& dispatch_push,
-                                                                     const ChildIpcEofHandler& on_eof);
+                                                                     const MatchChildClient::RuntimeOptions& options);

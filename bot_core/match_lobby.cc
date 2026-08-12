@@ -139,8 +139,8 @@ ErrCode Lobby::Request(const UserID uid, const std::optional<GroupID> gid, const
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << ctx_.HostUserName(host_uid_);
         return EC_MATCH_NOT_HOST;
     }
-    auto opt_fut = game_child.SendSetOption(msg);
-    if (!opt_fut || std::move(*opt_fut).get() != lgtbot::ipc::ResultResp::STAGE_OK) {
+    const auto stage = game_child.SendSetOption(msg);
+    if (!stage || *stage != lgtbot::ipc::ResultResp::STAGE_OK) {
         reply() << "[错误] 未预料的游戏设置，您可以通过「帮助」（不带" META_COMMAND_SIGN "号）查看所有支持的游戏设置\n"
                    "若您想执行元指令，请尝试在请求前加「" META_COMMAND_SIGN "」，或通过「" META_COMMAND_SIGN
                    "帮助」查看所有支持的元指令";
