@@ -115,6 +115,11 @@ static std::string TimeRangeRightCondition(const std::string_view& column_name, 
     return ComparationCondition(column_name, "<", time_range_end);
 }
 
+static std::string GroupCondition(const std::optional<GroupID>& gid)
+{
+    return gid.has_value() ? " AND match.group_id = ? " : " ";
+}
+
 auto GetTotalScoreOfUser(sqlite::database& db, const UserID& uid, const std::string_view& time_range_begin,
         const std::string_view& time_range_end)
 {
@@ -223,41 +228,50 @@ void ForeachRecentMatchOfUser(sqlite::database& db, const UserID& uid, const uin
 
 template <typename Fn>
 void ForeachUserInRank(sqlite::database& db, const std::string& score_name, const std::string_view& time_range_begin,
-        const std::string_view& time_range_end, const Fn& fn)
+        const std::string_view& time_range_end, const std::optional<GroupID>& gid, const Fn& fn)
 {
-    db << "SELECT user.user_id, SUM(" + score_name + ") AS sum_score "
+    auto stmt = db << "SELECT user.user_id, SUM(" + score_name + ") AS sum_score "
             "FROM user_with_match, user, match "
             "WHERE user_with_match.user_id = user.user_id AND "
                 "user_with_match.birth_count = user.birth_count AND "
                 "match.match_id = user_with_match.match_id AND "
                 + TimeRangeLeftCondition("match.finish_time", time_range_begin) + " AND "
-                + TimeRangeRightCondition("match.finish_time", time_range_end) + " "
-            "GROUP BY user.user_id ORDER BY sum_score DESC LIMIT 10;"
-       >> fn;
+                + TimeRangeRightCondition("match.finish_time", time_range_end)
+                + GroupCondition(gid) +
+            "GROUP BY user.user_id ORDER BY sum_score DESC LIMIT 10;";
+    if (gid.has_value()) {
+        stmt << gid->GetStr();
+    }
+    stmt >> fn;
 }
 
 template <typename Fn>
 void ForeachUserInGameLevelScoreRank(sqlite::database& db, const std::string_view& game_name, const std::string_view& time_range_begin,
-        const std::string_view& time_range_end, const Fn& fn)
+        const std::string_view& time_range_end, const std::optional<GroupID>& gid, const Fn& fn)
 {
-    db << "SELECT user.user_id AS user_id, "
+    auto stmt = db << "SELECT user.user_id AS user_id, "
                 "SUM(user_with_match.level_score) AS total_level_score "
             "FROM user_with_match, user, match "
             "WHERE user_with_match.user_id = user.user_id AND "
                 "user_with_match.match_id = match.match_id AND "
                 "user_with_match.birth_count = user.birth_count AND "
                 "match.game_name = ? AND "
-                + TimeRangeRightCondition("match.finish_time", time_range_end) + " "
-            "GROUP BY user.user_id ORDER BY total_level_score DESC LIMIT 10"
-    << game_name.data()
-    >> fn;
+                + TimeRangeRightCondition("match.finish_time", time_range_end)
+                + GroupCondition(gid) +
+            "GROUP BY user.user_id ORDER BY total_level_score DESC LIMIT 10";
+    stmt << game_name.data();
+    if (gid.has_value()) {
+        stmt << gid->GetStr();
+    }
+    stmt >> fn;
 }
 
 template <typename Fn>
 void ForeachUserInGameWeightLevelScoreRank(sqlite::database& db, const std::string_view& game_name,
-        const std::string_view& time_range_begin, const std::string_view& time_range_end, const Fn& fn)
+        const std::string_view& time_range_begin, const std::string_view& time_range_end,
+        const std::optional<GroupID>& gid, const Fn& fn)
 {
-    db << "WITH game_user_match AS ( "
+    auto stmt = db << "WITH game_user_match AS ( "
                 "SELECT user.user_id AS user_id, "
                     "user_with_match.level_score AS level_score, "
                     "match.finish_time AS finish_time "
@@ -266,6 +280,7 @@ void ForeachUserInGameWeightLevelScoreRank(sqlite::database& db, const std::stri
                     "user_with_match.match_id = match.match_id AND "
                     "user_with_match.birth_count = user.birth_count AND "
                     "match.game_name = ? "
+                    + GroupCondition(gid) +
             ") "
             "SELECT user_history_total_level_score.user_id AS user_id, "
                 "history_total_level_score * ABS(history_total_level_score) * time_range_match_count AS weight_level_score "
@@ -284,16 +299,19 @@ void ForeachUserInGameWeightLevelScoreRank(sqlite::database& db, const std::stri
                     "GROUP BY game_user_match.user_id "
                 ") AS user_time_range_match_count "
             "WHERE user_history_total_level_score.user_id = user_time_range_match_count.user_id "
-            "ORDER BY weight_level_score DESC LIMIT 10"
-       << game_name.data()
-       >> fn;
+            "ORDER BY weight_level_score DESC LIMIT 10";
+    stmt << game_name.data();
+    if (gid.has_value()) {
+        stmt << gid->GetStr();
+    }
+    stmt >> fn;
 }
 
 template <typename Fn>
 void ForeachUserInGameMatchCountRank(sqlite::database& db, const std::string_view& game_name, const std::string_view& time_range_begin,
-        const std::string_view& time_range_end, const Fn& fn)
+        const std::string_view& time_range_end, const std::optional<GroupID>& gid, const Fn& fn)
 {
-    db << "SELECT user.user_id AS user_id, "
+    auto stmt = db << "SELECT user.user_id AS user_id, "
                 "COUNT(*) AS match_count "
             "FROM user_with_match, user, match "
             "WHERE user_with_match.user_id = user.user_id AND "
@@ -301,10 +319,14 @@ void ForeachUserInGameMatchCountRank(sqlite::database& db, const std::string_vie
                 "user_with_match.birth_count = user.birth_count AND "
                 "match.game_name = ? AND "
                 + TimeRangeLeftCondition("match.finish_time", time_range_begin) + " AND "
-                + TimeRangeRightCondition("match.finish_time", time_range_end) + " "
-            "GROUP BY user.user_id ORDER BY match_count DESC LIMIT 10"
-    << game_name.data()
-    >> fn;
+                + TimeRangeRightCondition("match.finish_time", time_range_end)
+                + GroupCondition(gid) +
+            "GROUP BY user.user_id ORDER BY match_count DESC LIMIT 10";
+    stmt << game_name.data();
+    if (gid.has_value()) {
+        stmt << gid->GetStr();
+    }
+    stmt >> fn;
 }
 
 void AddHonor(sqlite::database& db, const std::string_view& description, const UserID& uid, const uint32_t birth_count)
@@ -507,22 +529,23 @@ bool SQLiteDBManager::Suicide(const UserID& uid, const uint32_t required_match_n
         });
 }
 
-RankInfo SQLiteDBManager::GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end)
+RankInfo SQLiteDBManager::GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end,
+        const std::optional<GroupID>& gid)
 {
     RankInfo info;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            ForeachUserInRank(db, "user_with_match.zero_sum_score", time_range_begin, time_range_end,
+            ForeachUserInRank(db, "user_with_match.zero_sum_score", time_range_begin, time_range_end, gid,
                     [&](std::string uid, const int64_t score_sum)
                     {
                         info.zero_sum_score_rank_.emplace_back(std::move(uid), score_sum);
                     });
-            ForeachUserInRank(db, "user_with_match.top_score", time_range_begin, time_range_end,
+            ForeachUserInRank(db, "user_with_match.top_score", time_range_begin, time_range_end, gid,
                     [&](std::string uid, const int64_t score_sum)
                     {
                         info.top_score_rank_.emplace_back(std::move(uid), score_sum);
                     });
-            ForeachUserInRank(db, "1", time_range_begin, time_range_end,
+            ForeachUserInRank(db, "1", time_range_begin, time_range_end, gid,
                     [&](std::string uid, const int64_t score_sum)
                     {
                         info.match_count_rank_.emplace_back(std::move(uid), score_sum);
@@ -533,24 +556,24 @@ RankInfo SQLiteDBManager::GetRank(const std::string_view& time_range_begin, cons
 }
 
 GameRankInfo SQLiteDBManager::GetLevelScoreRank(const std::string& game_name, const std::string_view& time_range_begin,
-        const std::string_view& time_range_end)
+        const std::string_view& time_range_end, const std::optional<GroupID>& gid)
 {
     GameRankInfo info;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            ForeachUserInGameLevelScoreRank(db, game_name, time_range_begin, time_range_end,
+            ForeachUserInGameLevelScoreRank(db, game_name, time_range_begin, time_range_end, gid,
                     [&](std::string uid, const double total_level_score)
                     {
                         info.level_score_rank_.emplace_back(std::move(uid), total_level_score);
                     });
-            ForeachUserInGameWeightLevelScoreRank(db, game_name, time_range_begin, time_range_end,
+            ForeachUserInGameWeightLevelScoreRank(db, game_name, time_range_begin, time_range_end, gid,
                     [&](std::string uid, double weight_level_score)
                     {
                         weight_level_score =
                             (1 - 2 * std::signbit(weight_level_score)) * std::sqrt(std::abs(weight_level_score));
                         info.weight_level_score_rank_.emplace_back(std::move(uid), weight_level_score);
                     });
-            ForeachUserInGameMatchCountRank(db, game_name, time_range_begin, time_range_end,
+            ForeachUserInGameMatchCountRank(db, game_name, time_range_begin, time_range_end, gid,
                     [&](std::string uid, const int64_t match_count)
                     {
                         info.match_count_rank_.emplace_back(std::move(uid), match_count);

@@ -1,3 +1,6 @@
+// 乌合之众题库（废弃题目备份）
+// 文案 RC() 规则见 problems.h 顶部说明，本文件须在 problems.h 之后引入。
+
 // 39题囚徒困境修改前两版备份（目前废弃）
 class Qt1 : public Question
 {
@@ -87,7 +90,7 @@ public:
 	{
 		id = 3;
 		author = "大梦我先觉";
-		title = "战场的厮杀【废弃】";
+		title = RC("战场的厮杀【废弃】", "战场的对峙【废弃】");
 	}
 	
 	virtual void initTexts(vector<Player>& players) override
@@ -96,9 +99,9 @@ public:
 	}
 	virtual void initOptions() override
 	{
-        options.push_back("劫营");
-        options.push_back("守营");
-        options.push_back("抢粮");
+        options.push_back(RC("劫营", "突进"));
+        options.push_back(RC("守营", "防守"));
+        options.push_back(RC("抢粮", "夺粮"));
 		options.push_back("守粮");
 	}
 	virtual void initExpects() override
@@ -132,7 +135,7 @@ public:
 	Qt4()
 	{
 		id = 4;
-		author = "蔡徐坤";
+		author = RC("蔡徐坤", "[数据删除]");
 		title = "鉴宝师和收藏家";
 	}
 	
@@ -202,20 +205,24 @@ public:
 	{
 		id = 5;
 		author = "大梦我先觉";
-		title = "焦灼的击剑【废弃】";
+		title = RC("焦灼的击剑【废弃】", "焦灼的比武【废弃】");
 	}
 	
 	virtual void initTexts(vector<Player>& players) override
 	{
-		texts.push_back("a和b两人击剑时进行进攻和躲闪。a和b的最终行为分别由选择人数最多项确定（如果人数相等分数不变）。");
-		texts.push_back("若两人均进攻，则选进攻者-2分；两人均躲闪，则选躲闪者-1分。若一人进攻一人躲闪，则进攻方选进攻者+2，躲闪方分数不变。");
+		texts.push_back(RC(
+			"a和b两人击剑时进行进攻和躲闪。a和b的最终行为分别由选择人数最多项确定（如果人数相等分数不变）。",
+			"a和b两人比武时进行出招和闪避。a和b的最终行为分别由选择人数最多项确定（如果人数相等分数不变）。"));
+		texts.push_back(RC(
+			"若两人均进攻，则选进攻者-2分；两人均躲闪，则选躲闪者-1分。若一人进攻一人躲闪，则进攻方选进攻者+2，躲闪方分数不变。",
+			"若两人均出招，则选出招者-2分；两人均闪避，则选闪避者-1分。若一人出招一人闪避，则出招方选出招者+2，闪避方分数不变。"));
 	}
 	virtual void initOptions() override
 	{
-        options.push_back("a选择进攻");
-        options.push_back("a选择躲闪");
-        options.push_back("b选择进攻");
-		options.push_back("b选择躲闪");
+        options.push_back(RC("a选择进攻", "a选择出招"));
+        options.push_back(RC("a选择躲闪", "a选择闪避"));
+        options.push_back(RC("b选择进攻", "b选择出招"));
+		options.push_back(RC("b选择躲闪", "b选择闪避"));
 	}
 	virtual void initExpects() override
 	{
@@ -255,15 +262,17 @@ public:
 	
 	virtual void initTexts(vector<Player>& players) override
 	{
-		texts.push_back("选择一项，若死亡则不得分，但仍执行攻击效果");
+		texts.push_back(RC("选择一项，若死亡则不得分，但仍执行攻击效果", "选择一项，若出局则不得分，但仍执行行动效果"));
 	}
 	virtual void initOptions() override
 	{
-        options.push_back("大狼：+1分，每有一只小狼+1分。若大狼只有 1 只，神职死亡");
-        options.push_back("小狼：+1分，选择的人数比神职多时平民死亡，若大狼存活，额外+1分");
-		options.push_back("神职：+1分，选择人数比小狼多时，大狼死亡，此项额外+1分");
-		options.push_back("平民：+3分，若选择的人数比神职多，平民死亡");
-		options.push_back("第三方：+0分，若狼人方和好人方都有阵亡消息，你+4分 ");
+        options.push_back(RC("大狼：+1分，每有一只小狼+1分。若大狼只有 1 只，神职死亡", "大狼：+1分，每有一只小狼+1分。若大狼只有 1 只，先知出局"));
+        options.push_back(RC(
+        	"小狼：+1分，选择的人数比神职多时平民死亡，若大狼存活，额外+1分",
+        	"小狼：+1分，选择的人数比先知多时村民出局，若大狼存活，额外+1分"));
+		options.push_back(RC("神职：+1分，选择人数比小狼多时，大狼死亡，此项额外+1分", "先知：+1分，选择人数比小狼多时，大狼出局，此项额外+1分"));
+		options.push_back(RC("平民：+3分，若选择的人数比神职多，平民死亡", "村民：+3分，若选择的人数比先知多，村民出局"));
+		options.push_back(RC("第三方：+0分，若狼人方和好人方都有阵亡消息，你+4分 ", "第三方：+0分，若狼组和村组都有出局消息，你+4分 "));
 	}
 	virtual void initExpects() override
 	{
@@ -474,7 +483,9 @@ public:
 	
 	virtual void initTexts(vector<Player>& players) override
 	{
-		texts.push_back("一张正面是+2，背面是-2的卡牌，初始正面向上，最终状态是本题得分，你选择：");
+		texts.push_back(RC(
+			"一张正面是+2，背面是-2的卡牌，初始正面向上，最终状态是本题得分，你选择：",
+			"一张正面是+2，背面是-2的纸，初始正面向上，最终状态是本题得分，你选择："));
 	}
 	virtual void initOptions() override
 	{
@@ -746,7 +757,7 @@ public:
 	virtual void initOptions() override
 	{
         options.push_back("YAMI：总是能+2分的大佬，但是有5%的可能性失手-1");
-        options.push_back("飘渺：10%+24的赌博爱好者");
+        options.push_back(RC("飘渺：10%+24的赌博爱好者", "飘渺：10%+24的概率爱好者"));
 		options.push_back("黑桃3：+13，但每有一个飘渺-1.75分");
 		options.push_back("飞机：+12，但有YAMI就会被gank");
 		options.push_back("西东：+A+B-C+D");
@@ -824,12 +835,12 @@ public:
 	{
 		id = 19;
 		author = "圣墓上的倒吊人";
-		title = "真理";
+		title = RC("真理", "少与多");
 	}
-	
+
 	virtual void initTexts(vector<Player>& players) override
 	{
-		texts.push_back("真理掌握在？");
+		texts.push_back(RC("真理掌握在？", "机会属于？"));
 	}
 	virtual void initOptions() override
 	{
@@ -922,18 +933,18 @@ public:
 	{
 		id = 21;
 		author = "圣墓上的倒吊人";
-		title = "战争中的贵族";
+		title = RC("战争中的贵族", "对峙中的角色");
 	}
 	
 	virtual void initTexts(vector<Player>& players) override
 	{
-		texts.push_back("你的国家与敌国正在战争中，选择一项行动。");
+		texts.push_back(RC("你的国家与敌国正在战争中，选择一项行动。", "你的阵营与敌方阵营正在对峙中，选择一项行动。"));
 	}
 	virtual void initOptions() override
 	{
-        options.push_back("继续抵抗：+5，如果有玩家选择了B，那选择此项的人分数归零");
-        options.push_back("有条件投降：-3");
-		options.push_back("润出国外：如果有人选 A，则-2");
+        options.push_back(RC("继续抵抗：+5，如果有玩家选择了B，那选择此项的人分数归零", "继续坚持：+5，如果有玩家选择了B，那选择此项的人分数归零"));
+        options.push_back(RC("有条件投降：-3", "有条件让步：-3"));
+		options.push_back(RC("润出国外：如果有人选 A，则-2", "远赴他乡：如果有人选 A，则-2"));
 	}
 	virtual void initExpects() override
 	{

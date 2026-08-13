@@ -4,8 +4,11 @@
 
 #include "bot_core/match_child_client.h"
 
+#include <algorithm>
+#include <iomanip>
+#include <sstream>
+
 #include "bot_core/bot_core.h"
-#include "bot_core/msg_sender.h"
 #include "match_process/ipc_frame.h"
 #include "match_process/match_ipc.pb.h"
 #include "bot_core/subprocess.h"
@@ -13,6 +16,70 @@
 #include "utility/utils.h"
 
 namespace {
+
+constexpr const char* kGameOverReplyText = "游戏已经结束";
+constexpr size_t kMaxRawPayloadLogBytes = 4096;
+
+std::string FormatMakeClientContext(const std::filesystem::path& runner_exe,
+                                  const std::filesystem::path& game_library,
+                                  const MatchChildClient::RuntimeOptions* options = nullptr)
+{
+    std::ostringstream oss;
+    oss << "runner=" << runner_exe.string() << ", game=" << game_library.string();
+    if (options) {
+        oss << ", resource_dir=" << options->resource_holder_.resource_dir_
+            << ", saved_image_dir=" << options->resource_holder_.saved_image_dir_
+            << ", public_timer_alert=" << Bool2Str(options->public_timer_alert_)
+            << ", bench=" << options->generic_options_.bench_computers_to_player_num_
+            << ", is_formal=" << Bool2Str(options->generic_options_.is_formal_);
+    }
+    return oss.str();
+}
+
+std::string FormatRawPayload(const std::string& raw)
+{
+    std::ostringstream oss;
+    oss << "size=" << raw.size();
+    if (raw.empty()) {
+        return oss.str();
+    }
+    oss << " hex=" << std::hex << std::setfill('0');
+    const size_t limit = std::min(raw.size(), kMaxRawPayloadLogBytes);
+    for (size_t i = 0; i < limit; ++i) {
+        if (i > 0) {
+            oss << ' ';
+        }
+        oss << std::setw(2) << static_cast<unsigned>(static_cast<unsigned char>(raw[i]));
+    }
+    if (raw.size() > limit) {
+        oss << " ...(truncated)";
+    }
+    return oss.str();
+}
+
+void AppendMsgItem(MsgSenderBase::MsgSenderGuard& g, const lgtbot::ipc::MsgItem& item)
+{
+    switch (item.content_case()) {
+    case lgtbot::ipc::MsgItem::kText:         g << item.text(); break;
+    case lgtbot::ipc::MsgItem::kAtPlayerId:   g << At(PlayerID{item.at_player_id()}); break;
+    case lgtbot::ipc::MsgItem::kUserId:       g << Name(UserID{item.user_id()}); break;
+    case lgtbot::ipc::MsgItem::kImagePath:    g << Image{item.image_path()}; break;
+    case lgtbot::ipc::MsgItem::kMarkdown:
+        g << Markdown{item.markdown().text(), item.markdown().width()};
+        break;
+    default:
+        WarnLog() << "MatchChildClient: unknown MsgItem content_case=" << static_cast<int>(item.content_case());
+        break;
+    }
+}
+
+void ReplyRespToMsgSender(MsgSenderBase& reply, const lgtbot::ipc::ReplyResp& resp)
+{
+    auto g = reply();
+    for (const auto& item : resp.items()) {
+        AppendMsgItem(g, item);
+    }
+}
 
 ErrCode StageToErr(const lgtbot::ipc::ResultResp::Stage s)
 {
@@ -23,43 +90,28 @@ ErrCode StageToErr(const lgtbot::ipc::ResultResp::Stage s)
     case S::STAGE_FAILED:    return EC_GAME_REQUEST_FAILED;
     case S::STAGE_CONTINUE:  return EC_GAME_REQUEST_CONTINUE;
     case S::STAGE_NOT_FOUND: return EC_GAME_REQUEST_NOT_FOUND;
-    default:                 return EC_GAME_REQUEST_UNKNOWN;
+    default:
+        ErrorLog() << "MatchChildClient: unknown ResultResp stage=" << static_cast<int>(s);
+        return EC_GAME_REQUEST_UNKNOWN;
     }
 }
 
-} // namespace
-
-MatchChildClient::MatchChildClient(const std::filesystem::path runner_exe,
-                                   const std::filesystem::path game_library)
+lgtbot::ipc::ReplyResp MakeGameOverReply()
 {
-    std::string spawn_err;
-    std::vector<std::string> argv{runner_exe.string(), game_library.string()};
-    proc_ = std::make_unique<Subprocess>(std::move(argv), spawn_err);
-    if (!proc_->ok()) {
-        ErrorLog() << "MatchChildClient spawn failed: " << spawn_err;
-        proc_.reset();
-        return;
-    }
-    child_in_  = proc_->child_stdin();
-    child_out_ = proc_->child_stdout();
+    lgtbot::ipc::ReplyResp reply;
+    reply.add_items()->set_text(kGameOverReplyText);
+    return reply;
 }
 
-MatchChildClient::~MatchChildClient() = default;
-
-bool MatchChildClient::WriteProto(const lgtbot::ipc::GameRequest& req)
-{
-    if (!child_in_) return false;
-    std::string buf;
-    if (!req.SerializeToString(&buf)) return false;
-    return WriteFrame(child_in_, buf);
-}
-
-// static
-std::optional<ChildFrame> MatchChildClient::ParseFrame(const std::string& raw)
+std::optional<ChildFrame> ParseFrame(const std::string& raw)
 {
     lgtbot::ipc::GameResponse resp;
-    if (!resp.ParseFromString(raw)) return std::nullopt;
+    if (!resp.ParseFromString(raw)) {
+        ErrorLog() << "MatchChildClient: failed to parse GameResponse, " << FormatRawPayload(raw);
+        return std::nullopt;
+    }
 
+    const uint64_t ipc_id = resp.ipc_id();
     switch (resp.resp_case()) {
     case lgtbot::ipc::GameResponse::kPost: {
         PostFrame f;
@@ -73,47 +125,255 @@ std::optional<ChildFrame> MatchChildClient::ParseFrame(const std::string& raw)
     case lgtbot::ipc::GameResponse::kGameOver:
         return GameOverFrame{resp.game_over()};
     case lgtbot::ipc::GameResponse::kReply:
-        return ReplyFrame{resp.reply()};
+        return ReplyFrame{ipc_id, resp.reply()};
     case lgtbot::ipc::GameResponse::kResult:
-        return ResultFrame{resp.result().stage()};
-    case lgtbot::ipc::GameResponse::kAck:
-        return AckFrame{resp.ack().ok()};
+        return ResultFrame{ipc_id, resp.result().stage()};
     default:
+        ErrorLog() << "MatchChildClient: unknown GameResponse resp_case=" << static_cast<int>(resp.resp_case())
+                   << " response=" << resp.DebugString();
         return std::nullopt;
     }
 }
 
-bool MatchChildClient::SendInit(const std::string& resource_dir, const std::string& saved_image_dir,
-                                const bool public_timer_alert, const uint32_t bench, const uint32_t is_formal)
+} // namespace
+
+MatchChildClient::PendingRequests::~PendingRequests()
+{
+    const auto game_over = MakeGameOverReply();
+    for (auto& [id, entry] : entries_) {
+        (void)id;
+        ReplyRespToMsgSender(entry.reply_sender, game_over);
+        entry.on_result(lgtbot::ipc::ResultResp::STAGE_FAILED);
+    }
+    entries_.clear();
+}
+
+void MatchChildClient::PendingRequests::Emplace(const uint64_t ipc_id, Entry entry)
+{
+    entries_.emplace(ipc_id, std::move(entry));
+}
+
+void MatchChildClient::PendingRequests::Remove(const uint64_t ipc_id)
+{
+    entries_.erase(ipc_id);
+}
+
+void MatchChildClient::PendingRequests::FailAll()
+{
+    for (auto& [id, entry] : entries_) {
+        (void)id;
+        entry.on_result(lgtbot::ipc::ResultResp::STAGE_FAILED);
+    }
+    entries_.clear();
+}
+
+MsgSenderBase* MatchChildClient::PendingRequests::FindReplySender(const uint64_t ipc_id)
+{
+    const auto it = entries_.find(ipc_id);
+    if (it == entries_.end()) {
+        return nullptr;
+    }
+    return &it->second.reply_sender;
+}
+
+std::optional<MatchChildClient::PendingRequests::Entry> MatchChildClient::PendingRequests::TakeEntry(
+        const uint64_t ipc_id)
+{
+    const auto it = entries_.find(ipc_id);
+    if (it == entries_.end()) {
+        return std::nullopt;
+    }
+    auto entry = std::move(it->second);
+    entries_.erase(it);
+    return entry;
+}
+
+MatchChildClient::MatchChildClient(Subprocess proc, const ChildIpcPushHandler& dispatch_push,
+                                   const ChildIpcEofHandler& on_eof)
+    : proc_(std::move(proc)),
+      read_thread_([this, dispatch_push, on_eof](const std::stop_token stop) {
+          RunReadLoop_(stop, dispatch_push, on_eof);
+      })
+{
+}
+
+std::unique_ptr<MatchChildClient> MakeMatchChildClient(const std::filesystem::path runner_exe,
+                                                     const std::filesystem::path game_library,
+                                                     const MatchChildClient::RuntimeOptions& options,
+                                                     const ChildIpcPushHandler& dispatch_push,
+                                                     const ChildIpcEofHandler& on_eof)
+{
+    const std::string client_ctx = FormatMakeClientContext(runner_exe, game_library, &options);
+
+    std::vector<std::string> argv{runner_exe.string(), game_library.string()};
+    Subprocess proc(std::move(argv));
+    if (!proc.Ok()) {
+        ErrorLog() << "MatchChildClient: spawn failed, " << client_ctx;
+        return nullptr;
+    }
+    auto client = std::unique_ptr<MatchChildClient>(new MatchChildClient(std::move(proc), dispatch_push, on_eof));
+    auto init_fut = client->SendInit_(options);
+    if (!init_fut) {
+        ErrorLog() << "MatchChildClient: SendInit failed to write request, " << client_ctx;
+        return nullptr;
+    }
+    const auto init_stage = init_fut->get();
+    if (init_stage != lgtbot::ipc::ResultResp::STAGE_OK) {
+        ErrorLog() << "MatchChildClient: SendInit failed, stage=" << static_cast<int>(init_stage) << ", " << client_ctx;
+        return nullptr;
+    }
+    return client;
+}
+
+MatchChildClient::~MatchChildClient()
+{
+    // Mark teardown BEFORE breaking the pipe: the read thread must observe stop_requested when Read() fails.
+    read_thread_.request_stop();
+    // proc_ is destroyed after read_thread_ joins; shut down the child here so Read() can exit.
+    proc_.Close();
+}
+
+uint64_t MatchChildClient::AllocIpcId_()
+{
+    return next_ipc_id_.fetch_add(1, std::memory_order_relaxed);
+}
+
+bool MatchChildClient::WriteProto_(lgtbot::ipc::GameRequest req)
+{
+    const std::lock_guard request_lock(request_mutex_);
+    if (!proc_.Ok()) {
+        ErrorLog() << "MatchChildClient: WriteProto failed, stdin closed, request=" << req.DebugString();
+        return false;
+    }
+    std::string buf;
+    if (!req.SerializeToString(&buf)) {
+        ErrorLog() << "MatchChildClient: GameRequest::SerializeToString failed, request=" << req.DebugString();
+        return false;
+    }
+    if (!proc_.Write(buf)) {
+        ErrorLog() << "MatchChildClient: Write failed, ipc_id=" << req.ipc_id()
+                   << " request=" << req.DebugString();
+        return false;
+    }
+    return true;
+}
+
+void MatchChildClient::RunReadLoop_(std::stop_token stop, const ChildIpcPushHandler& dispatch_push,
+                                    const ChildIpcEofHandler& on_eof)
+{
+    // Loop until EOF, not until stop_requested.
+    // The stop token only classifies the final EOF as expected or unexpected.
+    while (true) {
+        std::string raw;
+        if (!proc_.Read(raw)) {
+            const bool unexpected = !stop.stop_requested();
+            if (unexpected) {
+                ErrorLog() << "MatchChildClient: Read failed unexpectedly";
+            }
+            if (on_eof) {
+                on_eof(unexpected);
+            }
+            break;
+        }
+        auto frame_opt = ParseFrame(raw);
+        if (!frame_opt) {
+            continue;
+        }
+
+        std::visit(Overload{
+            [&](PostFrame&& f) { dispatch_push(PushFrame{std::move(f)}); },
+            [&](PlayerStateFrame&& f) { dispatch_push(PushFrame{std::move(f)}); },
+            [&](GameOverFrame&& f) { dispatch_push(PushFrame{std::move(f)}); },
+            [&](ReplyFrame&& f) {
+                // Deliver outside the pending_ lock: flushing may render markdown for seconds,
+                // and holding the lock would stall every thread trying to register a request.
+                // Only this thread erases entries, so the pointer stays valid after unlocking.
+                MsgSenderBase* const reply_sender = pending_.lock()->FindReplySender(f.ipc_id);
+                if (!reply_sender) {
+                    ErrorLog() << "MatchChildClient: Reply for unknown ipc_id=" << f.ipc_id;
+                    return;
+                }
+                ReplyRespToMsgSender(*reply_sender, f.reply);
+            },
+            [&](ResultFrame&& f) {
+                auto entry = pending_.lock()->TakeEntry(f.ipc_id);
+                if (!entry) {
+                    ErrorLog() << "MatchChildClient: Result for unknown ipc_id=" << f.ipc_id
+                               << " stage=" << static_cast<int>(f.stage);
+                    return;
+                }
+                entry->on_result(f.stage);
+            },
+        }, std::move(*frame_opt));
+    }
+    // The pipe is drained and no response can ever arrive anymore; unblock every thread still waiting on a pending future.
+    pending_.lock()->FailAll();
+}
+
+template<typename T, typename Handler>
+std::optional<std::future<T>> MatchChildClient::SendIpc_(lgtbot::ipc::GameRequest&& req, MsgSenderBase& reply_sender,
+                                                         Handler handler)
+{
+    const uint64_t ipc_id = AllocIpcId_();
+    req.set_ipc_id(ipc_id);
+    auto promise = std::make_shared<std::promise<T>>();
+    auto fut = promise->get_future();
+    PendingRequests::Entry entry{
+        reply_sender,
+        [promise, handler = std::move(handler)](const IpcStage stage) { promise->set_value(handler(stage)); },
+    };
+    // Register BEFORE writing: the child can execute the request and the read thread can dispatch its reply/result before this thread runs again.
+    // An unregistered ipc_id would drop the reply (user never sees it) and leak the future until match teardown.
+    pending_.lock()->Emplace(ipc_id, std::move(entry));
+    if (!WriteProto_(std::move(req))) {
+        pending_.lock()->Remove(ipc_id);
+        return std::nullopt;
+    }
+    return std::move(fut);
+}
+
+std::optional<std::future<MatchChildClient::IpcStage>> MatchChildClient::SendIpcStage_(lgtbot::ipc::GameRequest&& req,
+                                                                                      MsgSenderBase& reply_sender)
+{
+    return SendIpc_<IpcStage>(std::move(req), reply_sender, [](const IpcStage stage) { return stage; });
+}
+
+std::optional<std::future<ErrCode>> MatchChildClient::SendIpcErrCode_(lgtbot::ipc::GameRequest&& req,
+                                                                     MsgSenderBase& reply_sender)
+{
+    return SendIpc_<ErrCode>(std::move(req), reply_sender, StageToErr);
+}
+
+std::optional<std::future<MatchChildClient::IpcStage>> MatchChildClient::SendInit_(const RuntimeOptions& options)
 {
     lgtbot::ipc::GameRequest req;
     auto* init = req.mutable_init();
-    init->set_resource_dir(resource_dir);
-    init->set_saved_image_dir(saved_image_dir);
-    init->set_public_timer_alert(public_timer_alert);
-    init->set_bench(bench);
-    init->set_is_formal(is_formal);
-    if (!WriteProto(req)) return false;
-    std::string raw;
-    if (!ReadFrame(child_out_, raw)) return false;
-    lgtbot::ipc::GameResponse resp;
-    return resp.ParseFromString(raw) && resp.has_ack() && resp.ack().ok();
+    init->set_resource_dir(options.resource_holder_.resource_dir_);
+    init->set_saved_image_dir(options.resource_holder_.saved_image_dir_);
+    init->set_public_timer_alert(options.public_timer_alert_);
+    init->set_bench(options.generic_options_.bench_computers_to_player_num_);
+    init->set_is_formal(options.generic_options_.is_formal_);
+    return SendIpcStage_(std::move(req), EmptyMsgSender::Get());
 }
 
-bool MatchChildClient::SendSetOption(const std::string& text)
+std::optional<std::future<MatchChildClient::IpcStage>> MatchChildClient::SendSetOption(const std::string& text)
 {
     lgtbot::ipc::GameRequest req;
     req.mutable_set_option()->set_text(text);
-    if (!WriteProto(req)) return false;
-    std::string raw;
-    if (!ReadFrame(child_out_, raw)) return false;
-    lgtbot::ipc::GameResponse resp;
-    return resp.ParseFromString(raw) && resp.has_ack() && resp.ack().ok();
+    return SendIpcStage_(std::move(req), EmptyMsgSender::Get());
 }
 
-bool MatchChildClient::SendStart(const uint64_t match_id, const uint32_t user_num,
-                                 const std::vector<lgtbot::ipc::PlayerInfo>& players,
-                                 std::vector<PushFrame>& push_frames_out)
+std::optional<std::future<MatchChildClient::IpcStage>> MatchChildClient::SendApplyInitOptions(const std::string& args)
+{
+    lgtbot::ipc::GameRequest req;
+    req.mutable_apply_init_options()->set_args(args);
+    return SendIpcStage_(std::move(req), EmptyMsgSender::Get());
+}
+
+std::optional<std::future<MatchChildClient::IpcStage>> MatchChildClient::SendStart(const uint64_t match_id,
+                                                                                 const uint32_t user_num,
+                                                                                 const std::vector<lgtbot::ipc::PlayerInfo>& players,
+                                                                                 MsgSenderBase& reply_sender)
 {
     lgtbot::ipc::GameRequest req;
     auto* start = req.mutable_start();
@@ -122,162 +382,31 @@ bool MatchChildClient::SendStart(const uint64_t match_id, const uint32_t user_nu
     for (const auto& p : players) {
         *start->add_players() = p;
     }
-    if (!WriteProto(req)) return false;
-
-    for (;;) {
-        std::string raw;
-        if (!ReadFrame(child_out_, raw)) return false;
-        auto frame_opt = ParseFrame(raw);
-        if (!frame_opt) continue;
-
-        // Returns nullopt to continue, or the bool result to return.
-        const auto result = std::visit(Overload{
-            [&push_frames_out](PostFrame&& f)        -> std::optional<bool> { push_frames_out.push_back(std::move(f)); return std::nullopt; },
-            [&push_frames_out](PlayerStateFrame&& f) -> std::optional<bool> { push_frames_out.push_back(std::move(f)); return std::nullopt; },
-            [&push_frames_out](GameOverFrame&& f)    -> std::optional<bool> { push_frames_out.push_back(std::move(f)); return std::nullopt; },
-            [](AckFrame&& f)                         -> std::optional<bool> { return f.ok; },
-            [](auto&&)                               -> std::optional<bool> { return false; },
-        }, std::move(*frame_opt));
-        if (result.has_value()) {
-            return *result;
-        }
-    }
+    return SendIpcStage_(std::move(req), reply_sender);
 }
 
-void MatchChildClient::RunReadLoop(IMatchChildCallbacks& cbs)
+std::optional<std::future<ErrCode>> MatchChildClient::SendExecute(const PlayerID player_id, const bool is_public,
+                                                                  const std::string& text, MsgSender& reply)
 {
-    for (;;) {
-        {
-            std::lock_guard<std::mutex> lk(pending_mutex_);
-            if (stopped_) break;
-        }
-        std::string raw;
-        if (!ReadFrame(child_out_, raw)) {
-            // EOF or error: unblock any WaitForResponse_ caller.
-            bool unexpected;
-            {
-                std::lock_guard<std::mutex> lk(pending_mutex_);
-                unexpected = !stopped_; // stopped_ == true means SignalStop() was called first
-                stopped_ = true;
-                pending_cv_.notify_all();
-            }
-            cbs.OnEof(unexpected);
-            break;
-        }
-        auto frame_opt = ParseFrame(raw);
-        if (!frame_opt) continue;
-
-        std::visit(Overload{
-            [&](PostFrame&& f)        { cbs.OnPost(f); },
-            [&](PlayerStateFrame&& f) { cbs.OnPlayerState(f); },
-            [&](GameOverFrame&& f)    { cbs.OnGameOver(f); },
-            [&](auto&& f)             { SetPendingFrame_(std::move(f)); },
-        }, std::move(*frame_opt));
-    }
-}
-
-void MatchChildClient::CloseInput()
-{
-    if (proc_) {
-        proc_->close_stdin();
-    }
-    child_in_ = nullptr; // keep in sync so WriteProto returns false
-}
-
-void MatchChildClient::SignalStop()
-{
-    {
-        std::lock_guard<std::mutex> lk(pending_mutex_);
-        stopped_ = true;
-    }
-    pending_cv_.notify_all();
-    // Kill the child so the pipe EOF unblocks ReadFrame in the read thread.
-    if (proc_) {
-        proc_->request_stop();
-    }
-}
-
-void MatchChildClient::SetPendingFrame_(ResponseFrame frame)
-{
-    {
-        std::lock_guard<std::mutex> lk(pending_mutex_);
-        pending_frames_.push_back(std::move(frame));
-    }
-    pending_cv_.notify_one();
-}
-
-std::optional<ResponseFrame> MatchChildClient::WaitForResponse_()
-{
-    std::unique_lock<std::mutex> lk(pending_mutex_);
-    pending_cv_.wait(lk, [this] { return stopped_ || !pending_frames_.empty(); });
-    if (pending_frames_.empty()) {
-        return std::nullopt;
-    }
-    ResponseFrame frame = std::move(pending_frames_.front());
-    pending_frames_.pop_front();
-    return frame;
-}
-
-ErrCode MatchChildClient::SendExecute(const PlayerID player_id, const bool is_public,
-                                      const std::string& text,
-                                      std::function<void(const lgtbot::ipc::ReplyResp&)> reply_cb)
-{
-    const std::lock_guard request_lock(request_mutex_);
     lgtbot::ipc::GameRequest req;
     auto* exec = req.mutable_execute();
     exec->set_text(text);
     exec->set_player_id(player_id.Get());
     exec->set_is_public(is_public);
-    std::string buf;
-    if (!req.SerializeToString(&buf) || !WriteFrame(child_in_, buf)) {
-        return EC_MATCH_UNEXPECTED_CONFIG;
-    }
-    for (;;) {
-        auto resp_opt = WaitForResponse_();
-        if (!resp_opt) return EC_MATCH_UNEXPECTED_CONFIG;
-        const auto rc = std::visit(Overload{
-            [](ResultFrame&& f)  -> std::optional<ErrCode> { return StageToErr(f.stage); },
-            [&](ReplyFrame&& f)  -> std::optional<ErrCode> { if (reply_cb) reply_cb(f.reply); return std::nullopt; },
-            [](auto&&)           -> std::optional<ErrCode> { return EC_MATCH_UNEXPECTED_CONFIG; },
-        }, std::move(*resp_opt));
-        if (rc.has_value()) return *rc;
-    }
+    return SendIpcErrCode_(std::move(req), reply);
 }
 
-bool MatchChildClient::SendLeave(const PlayerID player_id)
+std::optional<std::future<MatchChildClient::IpcStage>> MatchChildClient::SendLeave(const PlayerID player_id)
 {
-    const std::lock_guard request_lock(request_mutex_);
     lgtbot::ipc::GameRequest req;
     req.mutable_leave()->set_player_id(player_id.Get());
-    std::string buf;
-    if (!req.SerializeToString(&buf) || !WriteFrame(child_in_, buf)) {
-        return false;
-    }
-    auto resp_opt = WaitForResponse_();
-    if (!resp_opt) return false;
-    return std::visit(Overload{
-        [](AckFrame&& f) { return f.ok; },
-        [](auto&&)       { return false; },
-    }, std::move(*resp_opt));
+    return SendIpcStage_(std::move(req), EmptyMsgSender::Get());
 }
 
-bool MatchChildClient::FetchHelp(const bool text_mode, std::string& text_out)
+std::optional<std::future<MatchChildClient::IpcStage>> MatchChildClient::FetchHelp(const bool text_mode,
+                                                                                   MsgSenderBase& reply_sender)
 {
-    const std::lock_guard request_lock(request_mutex_);
     lgtbot::ipc::GameRequest req;
     req.mutable_help()->set_text_mode(text_mode);
-    std::string buf;
-    if (!req.SerializeToString(&buf) || !WriteFrame(child_in_, buf)) {
-        return false;
-    }
-    auto resp_opt = WaitForResponse_();
-    if (!resp_opt) return false;
-    return std::visit(Overload{
-        [&text_out](ReplyFrame&& f) {
-            if (f.reply.items_size() == 0) return false;
-            text_out = f.reply.items(0).text();
-            return true;
-        },
-        [](auto&&) { return false; },
-    }, std::move(*resp_opt));
+    return SendIpcStage_(std::move(req), reply_sender);
 }

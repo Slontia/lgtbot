@@ -4,6 +4,7 @@
 
 #include "match_process/ipc_frame.h"
 #include "match_process/match_ipc.pb.h"
+#include "match_process/msg_fragment_ipc.h"
 #include "utility/log.h"
 
 #ifdef _WIN32
@@ -14,23 +15,6 @@
 
 namespace {
 
-class ErrCollector final : public MsgSenderBase
-{
-  public:
-    void SetMatch(const Match* const) override {}
-
-  protected:
-    void SaveText(const char* const data, const uint64_t len) override { text_.append(data, data + len); }
-    void SaveUser(const UserID&, const bool) override {}
-    void SavePlayer(const PlayerID&, const bool) override {}
-    void SaveImage(const char* const) override {}
-    void SaveMarkdown(const char* const, const uint32_t) override {}
-    void Flush() override {}
-
-  public:
-    std::string text_;
-};
-
 class ReplySender final : public MsgSenderBase
 {
   public:
@@ -38,58 +22,24 @@ class ReplySender final : public MsgSenderBase
         : session_(session)
     {}
 
-    void SetMatch(const Match* const) override {}
+  private:
+    void SetMatch(std::weak_ptr<const Match>) override {}
 
-  protected:
-    void SaveText(const char* const data, const uint64_t len) override
+    void Flush(std::vector<MsgFragment>&& messages) const override
     {
-        auto* item = reply_.add_items();
-        item->set_text(std::string(data, data + len));
-    }
-
-    void SaveUser(const UserID& id, const bool /*is_at*/) override
-    {
-        auto* item = reply_.add_items();
-        item->set_user_id(id.GetStr());
-    }
-
-    void SavePlayer(const PlayerID& id, const bool /*is_at*/) override
-    {
-        auto* item = reply_.add_items();
-        item->set_at_player_id(id.Get());
-    }
-
-    void SaveImage(const char* const path) override
-    {
-        auto* item = reply_.add_items();
-        item->set_image_path(path);
-    }
-
-    void SaveMarkdown(const char* const markdown, const uint32_t width) override
-    {
-        auto* item = reply_.add_items();
-        auto* md = item->mutable_markdown();
-        md->set_text(markdown);
-        md->set_width(width);
-    }
-
-    void Flush() override
-    {
-        if (reply_.items_size() == 0) {
+        if (messages.empty()) {
             return;
         }
+        lgtbot::ipc::ReplyResp reply;
+        for (auto& item : lgtbot::ipc::MsgFragmentsToItems(std::move(messages))) {
+            *reply.add_items() = std::move(item);
+        }
         lgtbot::ipc::GameResponse resp;
-        *resp.mutable_reply() = reply_;
+        *resp.mutable_reply() = reply;
         session_.SendProto(resp);
-        reply_.Clear();
     }
 
-  public:
-    void flush_out() { Flush(); }
-
-  private:
     ChildGameSession& session_;
-    lgtbot::ipc::ReplyResp reply_;
 };
 
 static lgtbot::ipc::ResultResp::Stage StageErrToProto(const StageErrCode rc)
@@ -171,6 +121,10 @@ bool ChildGameSession::LoadModule(const std::string& lib_path, std::string& erro
     if (!error_out.empty()) {
         return false;
     }
+    module_.init_options_ = reinterpret_cast<init_options_command_handler>(sym("HandleInitOptionsCommand"));
+    if (!error_out.empty()) {
+        return false;
+    }
     const auto get_info = reinterpret_cast<void (*)(lgtbot::game::GameInfo*)>(sym("GetGameInfo"));
     if (!error_out.empty() || !get_info) {
         return false;
@@ -181,8 +135,9 @@ bool ChildGameSession::LoadModule(const std::string& lib_path, std::string& erro
     return true;
 }
 
-void ChildGameSession::SendProto(const lgtbot::ipc::GameResponse& resp)
+void ChildGameSession::SendProto(lgtbot::ipc::GameResponse resp)
 {
+    resp.set_ipc_id(current_ipc_id_);
     std::string buf;
     if (!resp.SerializeToString(&buf)) {
         ErrorLog() << "GameResponse::SerializeToString failed";
@@ -192,6 +147,13 @@ void ChildGameSession::SendProto(const lgtbot::ipc::GameResponse& resp)
     if (!WriteFrame(out_, buf)) {
         ErrorLog() << "WriteFrame failed";
     }
+}
+
+void ChildGameSession::SendResult(const lgtbot::ipc::ResultResp::Stage stage)
+{
+    lgtbot::ipc::GameResponse resp;
+    resp.mutable_result()->set_stage(stage);
+    SendProto(std::move(resp));
 }
 
 void ChildGameSession::SendGameOver()
@@ -260,9 +222,7 @@ bool ChildGameSession::HandleInit(const lgtbot::ipc::InitReq& req, std::string& 
     game_options_ = GameHandle::game_options_ptr(module_.alloc_opt_(), module_.del_opt_);
     if (!game_options_) {
         err = "NewGameOptions returned null";
-        lgtbot::ipc::GameResponse resp;
-        resp.mutable_ack()->set_ok(false);
-        SendProto(resp);
+        SendResult(lgtbot::ipc::ResultResp::STAGE_FAILED);
         return false;
     }
     lgtbot::game::ImmutableGenericOptions imm{};
@@ -274,18 +234,36 @@ bool ChildGameSession::HandleInit(const lgtbot::ipc::InitReq& req, std::string& 
     mut.bench_computers_to_player_num_ = req.bench();
     mut.is_formal_ = req.is_formal();
     generic_options_ = lgtbot::game::GenericOptions(imm, mut);
-    lgtbot::ipc::GameResponse resp;
-    resp.mutable_ack()->set_ok(true);
-    SendProto(resp);
+    SendResult(lgtbot::ipc::ResultResp::STAGE_OK);
     return true;
 }
 
 bool ChildGameSession::HandleSetOption(const lgtbot::ipc::SetOptionReq& req, std::string& /*err*/)
 {
     const bool ok = game_options_ && game_options_->SetOption(req.text().c_str());
-    lgtbot::ipc::GameResponse resp;
-    resp.mutable_ack()->set_ok(ok);
-    SendProto(resp);
+    SendResult(ok ? lgtbot::ipc::ResultResp::STAGE_OK : lgtbot::ipc::ResultResp::STAGE_FAILED);
+    return true;
+}
+
+bool ChildGameSession::HandleApplyInitOptions(const lgtbot::ipc::ApplyInitOptionsReq& req, std::string& /*err*/)
+{
+    bool ok = false;
+    if (game_options_ && module_.init_options_) {
+        lgtbot::game::MutableGenericOptions mut{};
+        mut.bench_computers_to_player_num_ = generic_options_.bench_computers_to_player_num_;
+        mut.is_formal_ = generic_options_.is_formal_;
+        const auto result = module_.init_options_(req.args().c_str(), game_options_.get(), &mut);
+        if (result != lgtbot::game::INVALID_INIT_OPTIONS_COMMAND) {
+            ok = true;
+            lgtbot::game::ImmutableGenericOptions imm{};
+            imm.public_timer_alert_ = generic_options_.public_timer_alert_;
+            imm.user_num_ = generic_options_.user_num_;
+            imm.resource_dir_ = resource_dir_.c_str();
+            imm.saved_image_dir_ = saved_image_dir_.c_str();
+            generic_options_ = lgtbot::game::GenericOptions(imm, mut);
+        }
+    }
+    SendResult(ok ? lgtbot::ipc::ResultResp::STAGE_OK : lgtbot::ipc::ResultResp::STAGE_FAILED);
     return true;
 }
 
@@ -321,23 +299,21 @@ bool ChildGameSession::HandleStart(const lgtbot::ipc::StartReq& req, std::string
     mut.is_formal_ = generic_options_.is_formal_;
     generic_options_ = lgtbot::game::GenericOptions(imm, mut);
 
-    ErrCollector err_reply;
+    // Ship whatever the game writes during stage creation
+    // back to the starter as a reply frame; it used to be collected locally and dropped.
+    ReplySender start_reply(*this);
     main_stage_ = GameHandle::main_stage_ptr(
-            module_.alloc_stage_(&err_reply, game_options_.get(), &generic_options_, env_.get()),
+            module_.alloc_stage_(&start_reply, game_options_.get(), &generic_options_, env_.get()),
             module_.del_stage_);
     if (!main_stage_) {
-        err = err_reply.text_.empty() ? "NewMainStage failed" : err_reply.text_;
-        lgtbot::ipc::GameResponse resp;
-        resp.mutable_ack()->set_ok(false);
-        SendProto(resp);
+        err = "NewMainStage failed";
+        SendResult(lgtbot::ipc::ResultResp::STAGE_FAILED);
         env_.reset();
         return false;
     }
     main_stage_->HandleStageBegin();
     Routine();
-    lgtbot::ipc::GameResponse resp;
-    resp.mutable_ack()->set_ok(true);
-    SendProto(resp);
+    SendResult(lgtbot::ipc::ResultResp::STAGE_OK);
     return true;
 }
 
@@ -355,7 +331,6 @@ bool ChildGameSession::HandleExecute(const lgtbot::ipc::ExecuteReq& req, std::st
             req.player_id(),
             req.is_public(),
             rep);
-    rep.flush_out();
     Routine();
     lgtbot::ipc::GameResponse resp;
     resp.mutable_result()->set_stage(StageErrToProto(stage_rc));
@@ -366,16 +341,12 @@ bool ChildGameSession::HandleExecute(const lgtbot::ipc::ExecuteReq& req, std::st
 bool ChildGameSession::HandleLeave(const lgtbot::ipc::LeaveReq& req, std::string& /*err*/)
 {
     if (!main_stage_) {
-        lgtbot::ipc::GameResponse resp;
-        resp.mutable_ack()->set_ok(false);
-        SendProto(resp);
+        SendResult(lgtbot::ipc::ResultResp::STAGE_FAILED);
         return true;
     }
     main_stage_->HandleLeave(PlayerID{req.player_id()});
     Routine();
-    lgtbot::ipc::GameResponse resp;
-    resp.mutable_ack()->set_ok(true);
-    SendProto(resp);
+    SendResult(lgtbot::ipc::ResultResp::STAGE_OK);
     return true;
 }
 
@@ -398,7 +369,8 @@ bool ChildGameSession::HandleHelp(const lgtbot::ipc::HelpReq& req, std::string& 
     lgtbot::ipc::GameResponse resp;
     auto* item = resp.mutable_reply()->add_items();
     item->set_text(std::move(out));
-    SendProto(resp);
+    SendProto(std::move(resp));
+    SendResult(lgtbot::ipc::ResultResp::STAGE_OK);
     return true;
 }
 
@@ -411,11 +383,11 @@ int ChildGameSession::RunLoop()
         }
         lgtbot::ipc::GameRequest req;
         if (!req.ParseFromString(raw)) {
-            lgtbot::ipc::GameResponse err_resp;
-            err_resp.mutable_ack()->set_ok(false);
-            SendProto(err_resp);
+            current_ipc_id_ = 0;
+            SendResult(lgtbot::ipc::ResultResp::STAGE_FAILED);
             continue;
         }
+        current_ipc_id_ = req.ipc_id();
         std::string err;
         switch (req.req_case()) {
         case lgtbot::ipc::GameRequest::kShutdown:
@@ -425,6 +397,9 @@ int ChildGameSession::RunLoop()
             break;
         case lgtbot::ipc::GameRequest::kSetOption:
             HandleSetOption(req.set_option(), err);
+            break;
+        case lgtbot::ipc::GameRequest::kApplyInitOptions:
+            HandleApplyInitOptions(req.apply_init_options(), err);
             break;
         case lgtbot::ipc::GameRequest::kStart:
             HandleStart(req.start(), err);
@@ -439,9 +414,7 @@ int ChildGameSession::RunLoop()
             HandleHelp(req.help(), err);
             break;
         default: {
-            lgtbot::ipc::GameResponse resp;
-            resp.mutable_ack()->set_ok(false);
-            SendProto(resp);
+            SendResult(lgtbot::ipc::ResultResp::STAGE_FAILED);
             break;
         }
         }

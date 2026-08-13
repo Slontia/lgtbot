@@ -45,6 +45,20 @@ bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const Gener
 }
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
+    InitOptionsCommand("快捷配置目标分数",
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options, const uint32_t& score)
+            {
+                GET_OPTION_VALUE(game_options, 目标分数) = score;
+                return NewGameMode::MULTIPLE_USERS;
+            },
+            VoidChecker("目标分数"), ArithChecker<uint32_t>(10, 100, "分数")),
+    InitOptionsCommand("快捷配置刺杀反制（省略参数视为开启）",
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options, const bool& enable)
+            {
+                GET_OPTION_VALUE(game_options, 刺杀反制) = enable;
+                return NewGameMode::MULTIPLE_USERS;
+            },
+            VoidChecker("刺杀反制"), OptionalDefaultChecker<BoolChecker>(true, "开启", "关闭")),
     InitOptionsCommand("独自一人开始游戏",
             [] (CustomOptions& game_options, MutableGenericOptions& generic_options)
             {
@@ -56,6 +70,8 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
 
 // ========== GAME STAGES ==========
 
+const int k_survive_score = 1;   // 每回合存活的额外得分
+
 class RoundStage;
 
 class MainStage : public MainGameStage<RoundStage>
@@ -66,6 +82,8 @@ class MainStage : public MainGameStage<RoundStage>
         round_(0),
         alive_(Global().PlayerNum()),
         player_scores_(Global().PlayerNum(), 0),
+        player_earn_score_(Global().PlayerNum(), 0),
+        player_survive_score_(Global().PlayerNum(), 0),
         player_alive_(Global().PlayerNum(), true),
         player_number_(Global().PlayerNum(), 0),
         player_target_(Global().PlayerNum(), -1),
@@ -80,6 +98,8 @@ class MainStage : public MainGameStage<RoundStage>
     int round_;
     int alive_;
     vector<int64_t> player_scores_;
+    vector<int64_t> player_earn_score_;     // 由数字获得的累计得分（UI 展示与目标分数判定均只看该分数）
+    vector<int64_t> player_survive_score_;  // 累计存活分（淘汰时仅保留该分数，用于区分淘汰名次）
     vector<bool> player_alive_;
     vector<int> player_number_;       // 本回合选择的数字 (2-8, 0=放弃/超时)
     vector<int> player_target_;       // 目标玩家ID (-1=无目标)
@@ -278,6 +298,14 @@ class RoundStage : public SubGameStage<>
 
         Global().Boardcast() << "第 " + to_string(Main().round_) + " 回合，请玩家私信选择行动。";
 
+        if (Main().round_ == 1) {
+            if (GAME_OPTION(刺杀反制)) {
+                Global().Boardcast() << "【规则提醒】本局已开启「刺杀反制」：刺杀可以淘汰反制，但必须指定刺杀 3；若猜的不是 3，则刺杀者被反制淘汰。";
+                // Global().Boardcast() << "【规则提醒】本局未开启「刺杀反制」：刺杀无法淘汰反制，刺杀反制玩家的人一律被反制淘汰。";
+            }
+
+        }
+
         for (int pid = 0; pid < (int)Global().PlayerNum(); pid++) {
             if (Main().player_alive_[pid] && Main().player_last_number_[pid] == 8) {
                 Global().Tell(pid) << "提醒：您上回合选择了巨型(8)，本回合不能选择 6-8";
@@ -473,13 +501,18 @@ class RoundStage : public SubGameStage<>
             int target = Main().player_target_[i];
             if (target < 0 || !Main().player_alive_[target] || Main().player_number_[target] <= 0) continue;
 
-            if (Main().player_number_[target] == 3) {
-                // 被反制：刺杀者淘汰
+            const bool guessed = Main().player_number_[target] == Main().player_guess_[i];
+            // 仅在开启「刺杀反制」且指定刺杀3时，猜中才能压过反制
+            const bool countered = Main().player_number_[target] == 3 && !(guessed && GAME_OPTION(刺杀反制));
+
+            if (countered) {
+                // 反制成功：刺杀者淘汰
                 eliminated_this_round[i] = true;
                 action_success[target] = true;
                 round_details += "- <font color=#DC143C>" + to_string(i + 1) + "号 刺杀</font> " + to_string(target + 1)
-                    + "号，被 <font color=#9932CC>反制</font>！" + to_string(i + 1) + "号被淘汰<br/>";
-            } else if (Main().player_number_[target] == Main().player_guess_[i]) {
+                    + "号，猜 " + to_string(Main().player_guess_[i]) + "，被 <font color=#9932CC>反制</font>！"
+                    + to_string(i + 1) + "号被淘汰<br/>";
+            } else if (guessed) {
                 // 刺杀成功：目标淘汰，获得对方数字的分值
                 eliminated_this_round[target] = true;
                 gain[i] = Main().player_number_[target];
@@ -500,10 +533,18 @@ class RoundStage : public SubGameStage<>
             }
         }
 
+        // === 存活额外得分（仅计入最终成绩） ===
+        for (int i = 0; i < n; i++) {
+            if (Main().player_alive_[i] && Main().player_number_[i] > 0 && !eliminated_this_round[i]) {
+                Main().player_survive_score_[i] += k_survive_score;
+            }
+        }
+
         // === 应用得分 ===
         for (int i = 0; i < n; i++) {
             if (Main().player_alive_[i] && Main().player_number_[i] > 0) {
-                Main().player_scores_[i] += gain[i];
+                Main().player_earn_score_[i] += gain[i];
+                Main().player_scores_[i] = Main().player_earn_score_[i] + Main().player_survive_score_[i];
             }
         }
 
@@ -559,12 +600,13 @@ class RoundStage : public SubGameStage<>
         b += "</tr>";
         Main().Board += b;
 
-        // === 处理淘汰 ===
+        // === 处理淘汰（仅保留存活分，用于区分淘汰名次） ===
         // 放弃/超时淘汰
         for (int i = 0; i < n; i++) {
             if (Main().player_alive_[i] && Main().player_number_[i] == 0) {
                 Main().player_alive_[i] = false;
-                Main().player_scores_[i] = 0;
+                Main().player_earn_score_[i] = 0;
+                Main().player_scores_[i] = Main().player_survive_score_[i];
                 Main().alive_--;
                 Global().Eliminate(i);
             }
@@ -573,7 +615,8 @@ class RoundStage : public SubGameStage<>
         for (int i = 0; i < n; i++) {
             if (Main().player_alive_[i] && eliminated_this_round[i]) {
                 Main().player_alive_[i] = false;
-                Main().player_scores_[i] = 0;
+                Main().player_earn_score_[i] = 0;
+                Main().player_scores_[i] = Main().player_survive_score_[i];
                 Main().alive_--;
                 Global().Eliminate(i);
             }
@@ -625,7 +668,8 @@ string MainStage::GetScoreBoard()
     for (int i = 0; i < (int)Global().PlayerNum(); i++) {
         s += "<td>";
         if (player_alive_[i]) {
-            s += to_string(player_scores_[i]);
+            // 仅展示由数字获得的得分，存活分不计入
+            s += to_string(player_earn_score_[i]);
         } else {
             s += "淘汰";
         }
@@ -672,10 +716,10 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 
 void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
-    // 检查是否有人达到目标分数
+    // 检查是否有人达到目标分数（存活分不计入）
     bool reached_goal = false;
     for (int i = 0; i < (int)Global().PlayerNum(); i++) {
-        if (player_alive_[i] && player_scores_[i] >= (int64_t)GAME_OPTION(目标分数)) {
+        if (player_alive_[i] && player_earn_score_[i] >= (int64_t)GAME_OPTION(目标分数)) {
             reached_goal = true;
             break;
         }

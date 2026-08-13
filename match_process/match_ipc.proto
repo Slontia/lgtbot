@@ -57,15 +57,19 @@ message LeaveReq { uint32 player_id = 1; }
 
 message HelpReq { bool text_mode = 1; }
 
+message ApplyInitOptionsReq { string args = 1; }
+
 message GameRequest {
+  uint64 ipc_id = 8;
   oneof req {
-    InitReq      init       = 1;
-    SetOptionReq set_option = 2;
-    StartReq     start      = 3;
-    ExecuteReq   execute    = 4;
-    LeaveReq     leave      = 5;
-    HelpReq      help       = 6;
-    bool         shutdown   = 7;  // true = terminate
+    InitReq             init               = 1;
+    SetOptionReq        set_option         = 2;
+    StartReq            start              = 3;
+    ExecuteReq          execute            = 4;
+    LeaveReq            leave              = 5;
+    HelpReq             help               = 6;
+    bool                shutdown           = 7;  // true = terminate
+    ApplyInitOptionsReq apply_init_options = 9;  // 8 is taken by ipc_id above
   }
 }
 
@@ -111,8 +115,9 @@ message ScoreEntry {
 message GameOverResp { repeated ScoreEntry scores = 1; }
 
 message GameResponse {
+  uint64 ipc_id = 7;
+  reserved 1;
   oneof resp {
-    AckResp         ack          = 1;
     ReplyResp       reply        = 2;
     ResultResp      result       = 3;
     PostResp        post         = 4;
@@ -129,16 +134,33 @@ message SetFormalReq        { bool value = 1; }
 message InitOptionsReq      { string args = 1; }
 message HandleRuleCommandReq { string args = 1; }
 
+// Compute option info as if a match started with the given log + init args.
+// Used in lobby state, where the match has its own view of the options state.
+message QueryMatchOptionInfoReq {
+  bool            text_mode           = 1;
+  repeated string applied_options_log = 2;
+  string          init_options_args   = 3;
+}
+
+// Validate an option string against [applied_options_log + text].
+// Returns ok + max_player/multiple without mutating global defaults.
+message TryMatchOptionReq {
+  repeated string applied_options_log = 1;
+  string          text                = 2;
+}
+
 message ConfigRequest {
   oneof req {
-    QueryOptionInfoReq   query_option_info   = 1;
-    SetDefaultOptionReq  set_default_option  = 2;
-    SetFormalReq         set_formal          = 3;
-    bool                 query_formal        = 4;  // true = request
-    bool                 get_applied_log     = 5;  // true = request
-    InitOptionsReq       init_options        = 6;
-    bool                 shutdown            = 7;  // true = terminate
-    HandleRuleCommandReq handle_rule_command = 8;
+    QueryOptionInfoReq      query_option_info       = 1;
+    SetDefaultOptionReq     set_default_option      = 2;
+    SetFormalReq            set_formal              = 3;
+    bool                    query_formal            = 4;  // true = request
+    bool                    get_applied_log         = 5;  // true = request
+    InitOptionsReq          init_options            = 6;
+    bool                    shutdown                = 7;  // true = terminate
+    HandleRuleCommandReq    handle_rule_command     = 8;
+    QueryMatchOptionInfoReq query_match_option_info = 9;
+    TryMatchOptionReq       try_match_option        = 10;
   }
 }
 

@@ -348,6 +348,8 @@ class MainStage : public MainGameStage<RoundStage>
 
     // 当前行动玩家
     int currentPlayer;
+    // 黑棋（先手）玩家 ID，整局不变
+    int blackPlayer;
     // 棋盘
     Board board;
     // 强制停止 
@@ -491,6 +493,7 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
 	// 随机生成先后手 
 	srand((unsigned int)time(NULL));
 	currentPlayer = rand() % 2;
+	blackPlayer = currentPlayer;
 	Global().Boardcast() << "先手（黑棋）：" << At(PlayerID(currentPlayer));
 	
 	// 设置读取棋盘大小 
@@ -536,14 +539,14 @@ void MainStage::NextStageFsm(RoundStage& sub_stage, const CheckoutReason reason,
 			(c[i][j] == c[i][j + 1] && c[i][j] == c[i][j + 2] && c[i][j] == c[i][j + 3]) ||
 			(c[i][j] == c[i + 1][j + 1] && c[i][j] == c[i + 2][j + 2] && c[i][j] == c[i + 3][j + 3]))
 			{
-				winner = c[i][j] - 1; 
+				winner = (c[i][j] == 1) ? blackPlayer : (1 - blackPlayer); 
 			}
 			// 特判，不然可能访问到负数位置 
 			if (j >= 4)
 			{
 				if (c[i][j] == c[i + 1][j - 1] && c[i][j] == c[i + 2][j - 2] && c[i][j] == c[i + 3][j - 3])
 				{
-					winner = c[i][j] - 1; 
+					winner = (c[i][j] == 1) ? blackPlayer : (1 - blackPlayer); 
 				}
 			}
 		}

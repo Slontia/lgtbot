@@ -11,6 +11,8 @@ EXTEND_OPTION("[区块] 先根据模式从区块池抽取 12+4 组成随机池�
     {"疯狂", BlockMode::CRAZY},
     {"按钮", BlockMode::BUTTON},
     {"陷阱", BlockMode::TRAP},
+    {"空旷", BlockMode::OPEN},
+    {"无声", BlockMode::SILENT},
 })), BlockMode::TWIST)
 EXTEND_OPTION("[区块] 自定义游戏区块随机池：自定义区块时「模式」配置不生效", 区块,
     (RepeatableChecker<BasicChecker<std::string>>("区块", "1 5 6 16 34 38 E1 e7 S4 s1")), (std::vector<std::string>{"默认"}))
@@ -19,7 +21,12 @@ EXTEND_OPTION("[常规] 设置游戏地图边长", 边长, (AlterChecker<int32_t
 EXTEND_OPTION("[常规] 游戏最大回合数限制", 回合数, (ArithChecker<uint32_t>(3, 40, "回合数")), 20)
 EXTEND_OPTION("[常规] 捕捉目标：设置游戏中玩家的捕捉顺序", 捕捉目标, 
     (AlterChecker(std::map<std::string, enum Target>{{"上家", Target::PREVIOUS}, {"下家", Target::NEXT}})), Target::PREVIOUS)
-EXTEND_OPTION("[常规] 停止私信：玩家主动停止或超时，得知私信墙壁信息", 停止私信, (BoolChecker("开启", "关闭")), false)
+EXTEND_OPTION("[常规] 停止信息：玩家主动停止或超时，得知墙壁信息的方式", 停止信息,
+    (AlterChecker(std::map<std::string, enum StopInfo>{
+        {"无", StopInfo::NONE},
+        {"私信", StopInfo::PRIVATE},
+        {"公开", StopInfo::PUBLIC},
+    })), StopInfo::NONE)
 
 EXTEND_OPTION("[事件] 设置游戏特殊事件", 特殊事件, (AlterChecker(std::map<std::string, enum SpecialEvent>{
     {"无", SpecialEvent::NONE},

@@ -138,9 +138,10 @@ class DBManagerBase
     virtual UserProfile GetUserProfile(const UserID& uid, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) = 0;
     virtual bool Suicide(const UserID& uid, const uint32_t required_match_num) = 0;
-    virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) = 0;
+    virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end,
+            const std::optional<GroupID>& gid = std::nullopt) = 0;
     virtual GameRankInfo GetLevelScoreRank(const std::string& game_name, const std::string_view& time_range_begin,
-            const std::string_view& time_range_end) = 0;
+            const std::string_view& time_range_end, const std::optional<GroupID>& gid = std::nullopt) = 0;
     virtual AchievementStatisticInfo GetAchievementStatistic(const UserID& uid, const std::string& game_name,
             const std::string& achievement_name) = 0;
     virtual std::vector<HonorInfo> GetHonors(const std::string& keyword, const uint32_t limit) = 0;
@@ -162,9 +163,10 @@ class SQLiteDBManager : public DBManagerBase
     virtual UserProfile GetUserProfile(const UserID& uid, const std::string_view& time_range_begin,
             const std::string_view& time_range_end) override;
     virtual bool Suicide(const UserID& uid, const uint32_t required_match_num) override;
-    virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end) override;
+    virtual RankInfo GetRank(const std::string_view& time_range_begin, const std::string_view& time_range_end,
+            const std::optional<GroupID>& gid = std::nullopt) override;
     virtual GameRankInfo GetLevelScoreRank(const std::string& game_name, const std::string_view& time_range_begin,
-            const std::string_view& time_range_end) override;
+            const std::string_view& time_range_end, const std::optional<GroupID>& gid = std::nullopt) override;
     virtual AchievementStatisticInfo GetAchievementStatistic(const UserID& uid, const std::string& game_name,
             const std::string& achievement_name) override;
     virtual std::vector<HonorInfo> GetHonors(const std::string& keyword, const uint32_t limit) override;

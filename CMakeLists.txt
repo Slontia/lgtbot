@@ -80,7 +80,8 @@ if (WITH_IMAGE)
     PATHS
       /usr/local/lib/cmake/Qt5Core
       /usr/lib/cmake/Qt5Core
-      /usr/lib64/cmake/Qt5Core)
+      /usr/lib64/cmake/Qt5Core
+      /usr/lib/x86_64-linux-gnu/cmake/Qt5Core)
   set(_qt5_usable FALSE)
   if (_qt5_core_cfg_path)
     # install prefix = Qt5CoreConfig.cmake dir / ../../.. (3 levels up)
@@ -95,7 +96,8 @@ if (WITH_IMAGE)
         "${_qt5_prefix}/mkspecs"
         "${_qt5_prefix}/lib64/qt5/mkspecs"
         "${_qt5_prefix}/lib/qt5/mkspecs"
-        "${_qt5_prefix}/share/qt5/mkspecs")
+        "${_qt5_prefix}/share/qt5/mkspecs"
+        "/usr/lib/x86_64-linux-gnu/qt5/mkspecs")
       if (EXISTS "${_qt5_mkspecs_dir}")
         set(_qt5_mkspecs_ok TRUE)
         break()

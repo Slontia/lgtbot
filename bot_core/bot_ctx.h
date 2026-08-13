@@ -83,8 +83,8 @@ class BotCtx
 
     std::string GetUserAvatar(const char* const user_id, const int32_t size) const;
 
-    MsgSender MakeMsgSender(const UserID& user_id, Match* const match = nullptr) const;
-    MsgSender MakeMsgSender(const GroupID& user_id, Match* const match = nullptr) const;
+    MsgSender MakeMsgSender(const UserID& user_id) const;
+    MsgSender MakeMsgSender(const GroupID& group_id) const;
 
     static std::variant<GameHandleMap, const char*> LoadGameModules(const char* games_path,
                                                                     const char* config_runner_path = nullptr,
@@ -116,8 +116,8 @@ class BotCtx
 #ifdef WITH_SQLITE
     std::unique_ptr<DBManagerBase> db_manager_;
 #endif
-    LockWrapper<MutableBotOption> mutable_bot_options_;
-    LockWrapper<nlohmann::json> config_json_;
+    mutex_protect_wrapper<MutableBotOption> mutable_bot_options_;
+    mutex_protect_wrapper<nlohmann::json> config_json_;
     void* const handler_;
 
     MatchManager match_manager_;

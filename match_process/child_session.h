@@ -46,7 +46,8 @@ class ChildGameSession
 
     [[nodiscard]] bool LoadModule(const std::string& lib_path, std::string& err);
 
-    void SendProto(const lgtbot::ipc::GameResponse& resp);
+    void SendProto(lgtbot::ipc::GameResponse resp);
+    void SendResult(lgtbot::ipc::ResultResp::Stage stage);
 
     [[nodiscard]] std::mutex& write_mutex() { return write_mutex_; }
     [[nodiscard]] FILE* out() const { return out_; }
@@ -55,6 +56,10 @@ class ChildGameSession
     [[nodiscard]] lgtbot::game::MainStageBase* main_stage() const { return main_stage_.get(); }
 
   private:
+    using init_options_command_handler =
+            lgtbot::game::InitOptionsResult(*)(const char*, lgtbot::game::GameOptionsBase*,
+                                               lgtbot::game::MutableGenericOptions*);
+
     struct ModuleFns
     {
         DynModule mod_{};
@@ -62,10 +67,12 @@ class ChildGameSession
         GameHandle::game_options_deleter del_opt_{};
         GameHandle::main_stage_allocator alloc_stage_{};
         GameHandle::main_stage_deleter del_stage_{};
+        init_options_command_handler init_options_{};
     };
 
     bool HandleInit(const lgtbot::ipc::InitReq& req, std::string& err);
     bool HandleSetOption(const lgtbot::ipc::SetOptionReq& req, std::string& err);
+    bool HandleApplyInitOptions(const lgtbot::ipc::ApplyInitOptionsReq& req, std::string& err);
     bool HandleStart(const lgtbot::ipc::StartReq& req, std::string& err);
     bool HandleExecute(const lgtbot::ipc::ExecuteReq& req, std::string& err);
     bool HandleLeave(const lgtbot::ipc::LeaveReq& req, std::string& err);
@@ -76,6 +83,7 @@ class ChildGameSession
     FILE* const in_;
     FILE* const out_;
     std::mutex write_mutex_;
+    uint64_t current_ipc_id_{0};
 
     std::string game_title_;
     ModuleFns module_;

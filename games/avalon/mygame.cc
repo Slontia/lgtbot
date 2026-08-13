@@ -89,6 +89,12 @@ bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const Gener
         reply() << "该游戏至少 5 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
         return false;
     }
+    // The role configurations of 5 and 6 players contain no 兰斯洛特
+    // So the extension must be disabled to avoid showing meaningless conversion cards.
+    if (generic_options_readonly.PlayerNum() < 7 && GET_OPTION_VALUE(game_options, 兰斯洛特模式) != LancelotMode::disable) {
+        GET_OPTION_VALUE(game_options, 兰斯洛特模式) = LancelotMode::disable;
+        reply() << "[警告] 玩家数不足 7 人，本局不包含【兰斯洛特】，已自动关闭兰斯洛特扩展";
+    }
     return true;
 }
 
@@ -119,6 +125,8 @@ struct Mission
     int32_t member_num_{0};
     bool is_protected_{false};
     bool to_convert_lancelot_{false};
+    // The action results of the members, only revealed in the final review.
+    std::vector<bool> members_succ_;
 };
 
 static std::vector<Player> InitializePlayers(const uint32_t player_num, const bool with_extend)
@@ -295,7 +303,7 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
     virtual void NextStageFsm(VoteStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
     virtual void NextStageFsm(ActStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
     virtual void NextStageFsm(DetectStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
-    virtual void NextStageFsm(AssassinStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override {}
+    virtual void NextStageFsm(AssassinStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter) override;
 
     virtual int64_t PlayerScore(const PlayerID pid) const override { return players_[pid].team_ == winner_team_; }
 
@@ -310,7 +318,14 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
         return std::distance(players_.begin(), it);
     }
 
-    void ShowHtml(const std::string& title) const
+    void ShowHtml(const std::string& title)
+    {
+        cur_title_ = title;
+        Global().Boardcast() << Markdown(MakeHtml_(title), 800);
+    }
+
+  private:
+    std::string MakeHtml_(const std::string& title) const
     {
         std::string html = "## ";
         html += title;
@@ -332,38 +347,62 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
         html += "\n\n**组队结果**\n\n";
         html += team_up_table_.ToString();
         html += "\n\n</div>";
-        Global().Boardcast() << Markdown(std::move(html), 800);
+        return html;
     }
 
-  private:
     CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
     {
-        reply() << "这里输出当前游戏情况";
-        // Returning `OK` means the game stage
+        reply() << Markdown(MakeHtml_(cur_title_), 800);
+        if (!is_public) {
+            auto sender = reply();
+            AppendOccupationInfo_(pid, sender);
+        }
         return StageErrCode::OK;
     }
 
-    CompReqErrCode Assassin_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const PlayerID assassin_pid)
+    CompReqErrCode Assassin_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const PlayerID target_pid)
     {
         if (!players_[pid].can_assassin_) {
             reply() << "刺杀失败：你不具有刺杀能力";
             return StageErrCode::FAILED;
         }
-        auto sender = Global().Boardcast();
-        sender << ::Name(pid) << "选择刺杀" << ::Name(assassin_pid) << "，";
-        if (GetPlayers()[assassin_pid ].occupation_ == Occupation::梅林) {
-            sender << "成功，坏人阵营胜利";
-            winner_team_ = Team::坏;
-        } else {
-            sender << "失败，好人阵营胜利";
-            winner_team_ = Team::好;
-        }
+        DoAssassin_(pid, target_pid);
         return StageErrCode::CHECKOUT;
     }
 
+  public:
+    // Announces the result of the assassination and finishes the game.
+    void DoAssassin_(const PlayerID pid, const PlayerID target_pid)
+    {
+        {
+            auto sender = Global().Boardcast();
+            sender << ::Name(pid) << "选择刺杀" << ::Name(target_pid) << "，";
+            if (players_[target_pid].occupation_ == Occupation::梅林) {
+                sender << "成功，坏人阵营胜利";
+                winner_team_ = Team::坏;
+            } else {
+                sender << "失败，好人阵营胜利";
+                winner_team_ = Team::好;
+            }
+        }
+        ShowFinalHtml_();
+    }
+
+  private:
+
+    // Records who chose to fail the mission, so that the final review can show the results in member order.
+    void RecordMissionResult_(const std::vector<bool>& players_succ)
+    {
+        auto& members_succ = missions_[mission_idx_].members_succ_;
+        members_succ.clear();
+        members_succ.reserve(member_pids_.size());
+        std::ranges::transform(member_pids_, std::back_inserter(members_succ), [&](const PlayerID pid) { return players_succ[pid]; });
+    }
+
+    void AppendOccupationInfo_(const PlayerID pid, MsgSenderBase::MsgSenderGuard& sender) const;
     void UpdateTeamUpTable_(const std::vector<bool>& players_agree);
     void UpdateMissionTable_(const int32_t failure_num, const std::optional<PlayerID> target_pid);
-
+    void ShowFinalHtml_();
     bool IsMissionSucc_(const int32_t failure_num) const { return failure_num <= missions_[mission_idx_].is_protected_; }
 
     std::string PlayerAvatar_(const PlayerID pid, const int32_t size) const
@@ -457,6 +496,7 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
     PlayerID captain_pid_{0};
     std::optional<PlayerID> witch_pid_{std::nullopt};
     std::vector<PlayerID> member_pids_;
+    std::string cur_title_{"游戏进展"};
     std::string occupations_html_;
     html::Table mission_table_;
     html::Table team_up_table_{1, 6};
@@ -586,6 +626,8 @@ class ActStage : public SubGameStage<>
 
     std::optional<PlayerID> GetReversePlayerID() const { return reverse_pid_; }
 
+    const std::vector<bool>& GetPlayersSucc() const { return players_succ_; }
+
   private:
     void TryReverseAction_()
     {
@@ -637,17 +679,18 @@ class ActStage : public SubGameStage<>
             reply() << "行动失败：反转自己的行动没有意义";
             return AtomReqErrCode::FAILED;
         }
-        const auto ret = Act_(pid, is_public, reply, to_succ);
+        const auto ret = ActInternal_(pid, reply, to_succ);
         if (ret == AtomReqErrCode::FAILED) {
             return ret;
         }
+        reverse_pid_ = pid_to_reverse;
         reply() << "行动成功，您选择了让此次任务" << (to_succ ? "成功" : "失败") << "，并反转了"
                 << ::Name(pid_to_reverse) << "的行动，其原本的行动在阶段结束后将被私信给您";
         return ret;
     }
 
-    const std::vector<PlayerID>& member_pids_;
     std::vector<bool> players_succ_;
+    const std::vector<PlayerID>& member_pids_;
     std::optional<PlayerID> reverse_pid_;
 };
 
@@ -713,11 +756,11 @@ class TeamUpStage : public SubGameStage<>
             Global().Boardcast() << "请队长" << At(captain_pid_) << "在 " << GAME_OPTION(组队时限)
                 << " 秒私信或公开给出参加本次行动的玩家的 ID，其中第一个 ID 为持有王者之剑的玩家，例如「1 4 6 10」"
                    "（1 号玩家持有王者之剑）\n如果未能在规定时间给出，则默认为从当前队长开始顺时针的 "
-                << member_pids_.size() << " 名玩家，队长的顺时针的下一位玩家持有王者之剑";
+                << member_num_ << " 名玩家，队长的顺时针的下一位玩家持有王者之剑";
         } else {
             Global().Boardcast() << "请队长" << At(captain_pid_) << "在 " << GAME_OPTION(组队时限)
                 << " 秒私信或公开给出参加本次行动的玩家的 ID，例如「1 4 6 10」\n如果未能在规定时间给出，则默认为从当前队长开始顺时针的 "
-                << member_pids_.size() << " 名玩家";
+                << member_num_ << " 名玩家";
         }
         std::ranges::for_each(
                 std::views::iota(0U, Global().PlayerNum()) | std::views::filter([&](const PlayerID pid) { return pid != captain_pid_; }),
@@ -793,95 +836,137 @@ class TeamUpStage : public SubGameStage<>
 class AssassinStage : public SubGameStage<>
 {
   public:
-    AssassinStage(MainStage& main_stage) : StageFsm(main_stage, "刺杀阶段")
+    AssassinStage(MainStage& main_stage, const PlayerID assassin_pid): StageFsm(main_stage, "刺杀阶段")
+        , assassin_pid_(assassin_pid)
     {
     }
 
     virtual void OnStageBegin() override
     {
+        // The identity of the assassin has been made public, so only the assassin is waited for.
+        std::ranges::for_each(
+                std::views::iota(0U, Global().PlayerNum()) | std::views::filter([&](const PlayerID pid) { return pid != assassin_pid_; }),
+                [&](const PlayerID pid) { Global().SetReady(pid); });
         Global().StartTimer(GAME_OPTION(投票时限));
     }
+
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    {
+        if (Global().IsReady(pid)) {
+            return StageErrCode::OK;
+        }
+        // The assassin knows its own teammates, hence only the players of the good team are worth killing.
+        std::vector<PlayerID> candidate_pids;
+        std::ranges::copy_if(std::views::iota(0U, Global().PlayerNum()), std::back_inserter(candidate_pids),
+                [&](const PlayerID candidate_pid) { return Main().GetPlayers()[candidate_pid].team_ == Team::好; });
+        assert(!candidate_pids.empty());
+        target_pid_ = candidate_pids[rand() % candidate_pids.size()];
+        return StageErrCode::CHECKOUT;
+    }
+
+    PlayerID GetAssassinPid() const { return assassin_pid_; }
+    std::optional<PlayerID> GetTargetPid() const { return target_pid_; }
+
+  private:
+    const PlayerID assassin_pid_;
+    std::optional<PlayerID> target_pid_;
 };
 
-void MainStage::FirstStageFsm(SubStageFsmSetter setter)
+void MainStage::NextStageFsm(AssassinStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
-    const auto append_bad_team_players = [&](auto& sender, const Occupation except_occupation)
+    if (const auto target_pid = sub_stage.GetTargetPid(); target_pid.has_value()) {
+        DoAssassin_(sub_stage.GetAssassinPid(), *target_pid);
+        return;
+    }
+    Global().Boardcast() << (reason == CheckoutReason::BY_TIMEOUT ? "刺客未能在规定时间内完成刺杀，" : "刺客放弃了刺杀，")
+                         << "好人阵营胜利";
+    ShowFinalHtml_();
+}
+
+void MainStage::AppendOccupationInfo_(const PlayerID pid, MsgSenderBase::MsgSenderGuard& sender) const
+{
+    const auto append_bad_team_players = [&](const Occupation except_occupation)
         {
             sender << "- 除【" << except_occupation << "】以外的「坏人阵营」玩家包括 ";
-            for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
-                if (players_[pid].team_ == Team::坏 && players_[pid].occupation_ != except_occupation) {
-                    sender << ::Name(pid) << " ";
+            for (PlayerID other_pid = 0; other_pid < Global().PlayerNum(); ++other_pid) {
+                if (players_[other_pid].team_ == Team::坏 && players_[other_pid].occupation_ != except_occupation) {
+                    sender << ::Name(other_pid) << " ";
                 }
             }
         };
+    sender << "您的身份是【" << players_[pid].occupation_ << "】，属于「" << players_[pid].team_ << "人阵营」";
+    switch (players_[pid].occupation_) {
+        case Occupation::莫德雷德:
+            sender << "\n\n- 【梅林】看不到你\n";
+            append_bad_team_players(Occupation::奥伯伦);
+            break;
+        case Occupation::莫甘娜:
+            sender << "\n\n- 【派西维尔】能看到但区分不出你和【梅林】\n";
+            append_bad_team_players(Occupation::奥伯伦);
+            break;
+        case Occupation::奥伯伦:
+            sender << "\n\n- 你看不到「坏人阵营」的玩家，「坏人阵营」的玩家也看不到你";
+            break;
+        case Occupation::刺客:
+        case Occupation::莫德雷德的爪牙:
+            sender << "\n\n";
+            append_bad_team_players(Occupation::奥伯伦);
+            break;
+        case Occupation::梅林:
+            sender << "\n\n";
+            append_bad_team_players(Occupation::莫德雷德);
+            break;
+        case Occupation::派西维尔:
+            sender << "\n\n - 【梅林】和【莫甘娜】在";
+            {
+                bool found_one = false;
+                for (PlayerID other_pid = 0; other_pid < Global().PlayerNum(); ++other_pid) {
+                    if (players_[other_pid].occupation_ != Occupation::梅林 && players_[other_pid].occupation_ != Occupation::莫甘娜) {
+                        continue;
+                    }
+                    sender << ::Name(other_pid);
+                    if (std::exchange(found_one, true) == false) {
+                        sender << "和";
+                    }
+                }
+            }
+            sender << "之间";
+            break;
+        case Occupation::兰斯洛特:
+            sender << "\n\n- 场上有两名分别位于不同阵营的【兰斯洛特】——";
+            switch (GAME_OPTION(兰斯洛特模式)) {
+                case LancelotMode::disable:
+                    break;
+                case LancelotMode::implicit_three_rounds:
+                    sender << "从第三次任务开始，每次任务开始前，会翻出一张兰斯洛特转换卡，如果翻出了「转换」标识，则你和另一名【兰斯洛特】的阵营对换";
+                    break;
+                case LancelotMode::explicit_five_rounds:
+                    sender << "游戏开始时，会为每次任务各翻出一张兰斯洛特转换卡，如果翻出了「转换」标识，则在该次任务开始前，你和另一名【兰斯洛特】的阵营对换";
+                    break;
+                case LancelotMode::recognition:
+                    sender << "另一名【兰斯洛特】是";
+                    for (PlayerID other_pid = 0; other_pid < Global().PlayerNum(); ++other_pid) {
+                        if (players_[other_pid].occupation_ == Occupation::兰斯洛特 && pid != other_pid) {
+                            sender << ::Name(other_pid);
+                            break;
+                        }
+                    }
+            }
+            break;
+        default:
+            break;
+    }
+    if (players_[pid].can_assassin_) {
+        sender << "\n- 你可以随时刺杀【梅林】，若刺杀成功，「坏人阵营」胜利，否则「好人阵营」胜利";
+    }
+}
+
+void MainStage::FirstStageFsm(SubStageFsmSetter setter)
+{
     Global().Boardcast() << "游戏开始，将私信各位玩家身份";
     for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
         auto sender = Global().Tell(pid);
-        sender << "您的身份是【" << players_[pid].occupation_ << "】，属于「" << players_[pid].team_ << "人阵营」";
-        switch (players_[pid].occupation_) {
-            case Occupation::莫德雷德:
-                sender << "\n\n- 【梅林】看不到你\n";
-                append_bad_team_players(sender, Occupation::奥伯伦);
-                break;
-            case Occupation::莫甘娜:
-                sender << "\n\n- 【派西维尔】能看到但区分不出你和【梅林】\n";
-                append_bad_team_players(sender, Occupation::奥伯伦);
-                break;
-            case Occupation::奥伯伦:
-                sender << "\n\n- 你看不到「坏人阵营」的玩家，「坏人阵营」的玩家也看不到你";
-                break;
-            case Occupation::刺客:
-            case Occupation::莫德雷德的爪牙:
-                sender << "\n\n";
-                append_bad_team_players(sender, Occupation::奥伯伦);
-                break;
-            case Occupation::梅林:
-                sender << "\n\n";
-                append_bad_team_players(sender, Occupation::莫德雷德);
-                break;
-            case Occupation::派西维尔:
-                sender << "\n\n - 【梅林】和【莫甘娜】在";
-                {
-                    bool found_one = false;
-                    for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
-                        if (players_[pid].occupation_ != Occupation::梅林 && players_[pid].occupation_ != Occupation::莫甘娜) {
-                            continue;
-                        }
-                        sender << ::Name(pid);
-                        if (std::exchange(found_one, true) == false) {
-                            sender << "和";
-                        }
-                    }
-                }
-                sender << "之间";
-                break;
-            case Occupation::兰斯洛特:
-                sender << "\n\n- 场上有两名分别位于不同阵营的【兰斯洛特】——";
-                switch (GAME_OPTION(兰斯洛特模式)) {
-                    case LancelotMode::disable:
-                        break;
-                    case LancelotMode::implicit_three_rounds:
-                        sender << "从第三次任务开始，每次任务开始前，会翻出一张兰斯洛特转换卡，如果翻出了「转换」标识，则你和另一名【兰斯洛特】的阵营对换";
-                        break;
-                    case LancelotMode::explicit_five_rounds:
-                        sender << "游戏开始时，会为每次任务各翻出一张兰斯洛特转换卡，如果翻出了「转换」标识，则在该次任务开始前，你和另一名【兰斯洛特】的阵营对换";
-                        break;
-                    case LancelotMode::recognition:
-                        sender << "另一名【兰斯洛特】是";
-                        for (PlayerID other_pid = 0; other_pid < Global().PlayerNum(); ++other_pid) {
-                            if (players_[pid].occupation_ == Occupation::兰斯洛特 && pid != other_pid) {
-                                sender << ::Name(other_pid);
-                                break;
-                            }
-                        }
-                }
-                break;
-            default:
-                break;
-        }
-        if (players_[pid].can_assassin_) {
-            sender << "\n- 你可以随时刺杀【梅林】，若刺杀成功，「坏人阵营」胜利，否则「好人阵营」胜利";
-        }
+        AppendOccupationInfo_(pid, sender);
     }
     setter.Emplace<TeamUpStage>(*this, captain_pid_, missions_[mission_idx_].member_num_, member_pids_);
     ShowHtml(GetTeamUpTitle_());
@@ -982,6 +1067,16 @@ static std::string GetMissionResultString(const std::string& resource_dir, const
     return s;
 }
 
+// The results are kept in member order, only used in the final review.
+static std::string GetOrderedMissionResultString(const std::string& resource_dir, const std::vector<bool>& members_succ)
+{
+    std::string s;
+    for (const bool succ : members_succ) {
+        s += "![](file:///" + resource_dir + (succ ? "/succ.png)" : "/fail.png)");
+    }
+    return s;
+}
+
 void MainStage::UpdateMissionTable_(const int32_t failure_num, const std::optional<PlayerID> reverse_pid)
 {
     const bool with_lancelot_card = NeedLancelotCard(GAME_OPTION(兰斯洛特模式));
@@ -1004,20 +1099,42 @@ void MainStage::UpdateMissionTable_(const int32_t failure_num, const std::option
             IsMissionSucc_(failure_num) ? HTML_COLOR_FONT_HEADER(green) "成功" HTML_FONT_TAIL : HTML_COLOR_FONT_HEADER(red) "失败" HTML_FONT_TAIL);
 }
 
+void MainStage::ShowFinalHtml_()
+{
+    // Reveal which member turned in each failure card.
+    const bool with_lancelot_card = NeedLancelotCard(GAME_OPTION(兰斯洛特模式));
+    for (int32_t i = 0; i < k_mission_num; ++i) {
+        if (missions_[i].members_succ_.empty()) {
+            continue;
+        }
+        mission_table_.Get(1 + i, 1 + with_lancelot_card).SetContent(GetOrderedMissionResultString(Global().ResourceDir(), missions_[i].members_succ_));
+    }
+    ShowHtml("终局");
+    auto sender = Global().Boardcast();
+    sender << "「" << winner_team_ << "人阵营」胜利！本局身份：";
+    for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+        sender << "\n" << At(pid) << " " << players_[pid].occupation_;
+        if (players_[pid].occupation_ == Occupation::兰斯洛特) {
+            sender << "（" << players_[pid].team_ << "）";
+        }
+    }
+}
+
 void MainStage::NextStageFsm(ActStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
+    RecordMissionResult_(sub_stage.GetPlayersSucc());
     UpdateMissionTable_(sub_stage.GetFailureNumber(), sub_stage.GetReversePlayerID());
+    const PlayerID assassin_pid = std::distance(players_.begin(),
+            std::ranges::find_if(players_, [](const auto& player) { return player.can_assassin_; }));
+    bool to_assassin = false;
+    bool is_over = false;
     {
         auto sender = Global().Boardcast();
         if (IsMissionSucc_(sub_stage.GetFailureNumber())) {
             sender << "行动告捷！当前好人已经行动成功 " << ++mission_succ_count_ << " 次";
             if (mission_succ_count_ > k_mission_num / 2) {
-                const PlayerID assassin_pid = std::distance(players_.begin(),
-                        std::ranges::find_if(players_, [](const auto& player) { return player.can_assassin_; }));
                 sender << "，达到了任务成功次数的要求，但是" << At{assassin_pid} << "，你还有翻盘的机会，使用「刺杀 梅林ID」（例如「刺杀 0」），一击干掉他！";
-                setter.Emplace<AssassinStage>(*this);
-                ShowHtml("终局 - 绝地反击");
-                return;
+                to_assassin = true;
             }
         } else {
             const auto mission_failure_num = mission_idx_ + 1 - mission_succ_count_;
@@ -1025,10 +1142,18 @@ void MainStage::NextStageFsm(ActStage& sub_stage, const CheckoutReason reason, S
             if (mission_failure_num > k_mission_num / 2) {
                 sender << "，无力回天了，坏人宣告胜利";
                 winner_team_ = Team::坏;
-                ShowHtml("终局");
-                return;
+                is_over = true;
             }
         }
+    }
+    if (to_assassin) {
+        setter.Emplace<AssassinStage>(*this, assassin_pid);
+        ShowHtml("终局 - 绝地反击");
+        return;
+    }
+    if (is_over) {
+        ShowFinalHtml_();
+        return;
     }
     if (witch_pid_.has_value() && mission_idx_ > 0) {
         setter.Emplace<DetectStage>(*this, *witch_pid_);

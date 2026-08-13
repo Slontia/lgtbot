@@ -42,9 +42,22 @@ class GameConfigClient
     // Returns empty string on failure.
     std::string QueryOptionInfo(bool text_mode);
 
+    // Returns the option info text for a match with its own applied_options_log and init_options_args applied on top of fresh defaults.
+    // Used by Match::Help_ and Match::OptionInfo_ in the lobby state.
+    std::string QueryMatchOptionInfo(bool text_mode,
+                                     const std::vector<std::string>& applied_options_log,
+                                     const std::string& init_options_args);
+
     // Sets a default option. Updates max_player/multiple on success.
     // Returns false on failure.
     bool SetDefaultOption(const std::string& text, uint64_t& max_player, uint32_t& multiple);
+
+    // Validate one option against [applied_options_log + text].
+    // Returns false if the option string is rejected
+    bool TryMatchOption(const std::vector<std::string>& applied_options_log,
+                        const std::string& text,
+                        uint64_t& max_player,
+                        uint32_t& multiple);
 
     // Sets the default formal/informal flag for new matches.
     bool SetDefaultFormal(bool is_formal);
@@ -90,8 +103,6 @@ class GameConfigClient
 
     std::mutex mutex_;
     std::unique_ptr<Subprocess> proc_;
-    FILE* child_in_{nullptr};
-    FILE* child_out_{nullptr};
 
     // Idle-timeout tracking
     std::chrono::steady_clock::time_point last_use_;

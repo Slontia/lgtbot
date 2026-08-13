@@ -8,6 +8,26 @@
 #include "match_process/match_ipc.pb.h"
 #include "utility/log.h"
 
+namespace {
+
+void DestroyConfigRunnerProc(std::unique_ptr<Subprocess>& proc)
+{
+    if (!proc) {
+        return;
+    }
+    if (proc->Ok()) {
+        lgtbot::ipc::ConfigRequest req;
+        req.set_shutdown(true);
+        std::string buf;
+        if (req.SerializeToString(&buf)) {
+            (void)proc->Write(buf);
+        }
+    }
+    proc.reset();
+}
+
+} // namespace
+
 GameConfigClient::GameConfigClient(std::filesystem::path runner_exe,
                                    std::filesystem::path game_library,
                                    std::filesystem::path conf_path)
@@ -15,12 +35,15 @@ GameConfigClient::GameConfigClient(std::filesystem::path runner_exe,
     , game_library_(std::move(game_library))
     , conf_path_(std::move(conf_path))
     , last_use_(std::chrono::steady_clock::now())
+#ifndef TEST_BOT
     , watchdog_thread_([this] { WatchdogRun_(); })
-{}
+#endif
+{
+}
 
 GameConfigClient::~GameConfigClient()
 {
-    Shutdown();
+#ifndef TEST_BOT
     {
         std::lock_guard<std::mutex> lk(watchdog_cv_mutex_);
         watchdog_stop_ = true;
@@ -29,58 +52,46 @@ GameConfigClient::~GameConfigClient()
     if (watchdog_thread_.joinable()) {
         watchdog_thread_.join();
     }
+#endif
+    Shutdown();
 }
 
 void GameConfigClient::Shutdown()
 {
-    std::lock_guard<std::mutex> lk(mutex_);
-    Stop_();
+    std::unique_ptr<Subprocess> proc;
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        proc = std::move(proc_);
+    }
+    DestroyConfigRunnerProc(proc);
 }
 
 void GameConfigClient::Stop_()
 {
-    if (!proc_) {
-        return;
-    }
-    // Send shutdown, best-effort
-    if (child_in_) {
-        lgtbot::ipc::ConfigRequest req;
-        req.set_shutdown(true);
-        std::string buf;
-        if (req.SerializeToString(&buf)) {
-            WriteFrame(child_in_, buf);
-        }
-    }
-    proc_.reset(); // destructor kills and waits
-    child_in_ = nullptr;
-    child_out_ = nullptr;
+    DestroyConfigRunnerProc(proc_);
 }
 
 bool GameConfigClient::EnsureRunning_()
 {
-    if (proc_ && proc_->ok()) {
+    if (proc_ && proc_->Ok()) {
         last_use_ = std::chrono::steady_clock::now();
         return true;
     }
     // (Re)start
     proc_.reset();
-    child_in_ = nullptr;
-    child_out_ = nullptr;
 
     std::vector<std::string> argv{
         runner_exe_.string(),
         game_library_.string(),
         conf_path_.string(),
     };
-    std::string spawn_err;
-    proc_ = std::make_unique<Subprocess>(std::move(argv), spawn_err);
-    if (!proc_->ok()) {
-        ErrorLog() << "GameConfigClient: failed to spawn config_runner: " << spawn_err;
+    proc_ = std::make_unique<Subprocess>(argv);
+    if (!proc_->Ok()) {
+        ErrorLog() << "GameConfigClient: failed to spawn config_runner, runner=" << runner_exe_
+                   << ", game=" << game_library_ << ", conf=" << conf_path_;
         proc_.reset();
         return false;
     }
-    child_in_ = proc_->child_stdin();
-    child_out_ = proc_->child_stdout();
     last_use_ = std::chrono::steady_clock::now();
     InfoLog() << "GameConfigClient: started config_runner for " << game_library_;
     return true;
@@ -88,14 +99,14 @@ bool GameConfigClient::EnsureRunning_()
 
 bool GameConfigClient::SendRecv_(const std::string& req_bytes, std::string& resp_bytes)
 {
-    if (!child_in_ || !child_out_) {
+    if (!proc_ || !proc_->Ok()) {
         return false;
     }
-    if (!WriteFrame(child_in_, req_bytes)) {
+    if (!proc_->Write(req_bytes)) {
         Stop_();
         return false;
     }
-    if (!ReadFrame(child_out_, resp_bytes)) {
+    if (!proc_->Read(resp_bytes)) {
         Stop_();
         return false;
     }
@@ -146,6 +157,34 @@ std::string GameConfigClient::QueryOptionInfo(const bool text_mode)
     return {};
 }
 
+std::string GameConfigClient::QueryMatchOptionInfo(const bool text_mode,
+                                                   const std::vector<std::string>& applied_options_log,
+                                                   const std::string& init_options_args)
+{
+    std::lock_guard<std::mutex> lk(mutex_);
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        if (!EnsureRunning_()) {
+            return {};
+        }
+        lgtbot::ipc::ConfigRequest req;
+        auto* q = req.mutable_query_match_option_info();
+        q->set_text_mode(text_mode);
+        for (const auto& line : applied_options_log) {
+            q->add_applied_options_log(line);
+        }
+        q->set_init_options_args(init_options_args);
+        lgtbot::ipc::ConfigResponse resp;
+        std::string req_bytes, resp_bytes;
+        if (!req.SerializeToString(&req_bytes)) return {};
+        if (!SendRecv_(req_bytes, resp_bytes)) continue;
+        if (!resp.ParseFromString(resp_bytes)) { Stop_(); continue; }
+        if (resp.has_option_info()) {
+            return resp.option_info().text();
+        }
+    }
+    return {};
+}
+
 bool GameConfigClient::SetDefaultOption(const std::string& text, uint64_t& max_player, uint32_t& multiple)
 {
     std::lock_guard<std::mutex> lk(mutex_);
@@ -155,6 +194,37 @@ bool GameConfigClient::SetDefaultOption(const std::string& text, uint64_t& max_p
         }
         lgtbot::ipc::ConfigRequest req;
         req.mutable_set_default_option()->set_text(text);
+        lgtbot::ipc::ConfigResponse resp;
+        std::string req_bytes, resp_bytes;
+        if (!req.SerializeToString(&req_bytes)) return false;
+        if (!SendRecv_(req_bytes, resp_bytes)) continue;
+        if (!resp.ParseFromString(resp_bytes)) { Stop_(); continue; }
+        if (!resp.has_option_update() || !resp.option_update().ok()) {
+            return false;
+        }
+        max_player = resp.option_update().max_player();
+        multiple = resp.option_update().multiple();
+        return true;
+    }
+    return false;
+}
+
+bool GameConfigClient::TryMatchOption(const std::vector<std::string>& applied_options_log,
+                                      const std::string& text,
+                                      uint64_t& max_player,
+                                      uint32_t& multiple)
+{
+    std::lock_guard<std::mutex> lk(mutex_);
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        if (!EnsureRunning_()) {
+            return false;
+        }
+        lgtbot::ipc::ConfigRequest req;
+        auto* q = req.mutable_try_match_option();
+        for (const auto& line : applied_options_log) {
+            q->add_applied_options_log(line);
+        }
+        q->set_text(text);
         lgtbot::ipc::ConfigResponse resp;
         std::string req_bytes, resp_bytes;
         if (!req.SerializeToString(&req_bytes)) return false;
@@ -304,14 +374,20 @@ void GameConfigClient::WatchdogRun_()
                 break;
             }
         }
-        std::lock_guard<std::mutex> lk(mutex_);
-        if (!proc_) {
-            continue;
+        std::unique_ptr<Subprocess> idle_proc;
+        {
+            std::lock_guard<std::mutex> lk(mutex_);
+            if (!proc_) {
+                continue;
+            }
+            const auto idle = std::chrono::steady_clock::now() - last_use_;
+            if (idle >= kIdleTimeout) {
+                idle_proc = std::move(proc_);
+            }
         }
-        const auto idle = std::chrono::steady_clock::now() - last_use_;
-        if (idle >= kIdleTimeout) {
+        if (idle_proc) {
             InfoLog() << "GameConfigClient: idle timeout, shutting down config_runner for " << game_library_;
-            Stop_();
+            DestroyConfigRunnerProc(idle_proc);
         }
     }
 }

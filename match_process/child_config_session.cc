@@ -78,11 +78,22 @@ bool ChildConfigSession::LoadModule(const std::string& lib_path, const std::stri
     if (!error_out.empty()) { return false; }
     module_.handle_rule_command_ = reinterpret_cast<rule_command_handler>(sym("HandleRuleCommand"));
     if (!error_out.empty()) { return false; }
+    module_.get_game_info_ = reinterpret_cast<get_game_info_handler>(sym("GetGameInfo"));
+    if (!error_out.empty()) { return false; }
 
     default_options_ = game_options_ptr(module_.alloc_opt_(), module_.del_opt_);
     if (!default_options_) {
         error_out = "NewGameOptions returned null";
         return false;
+    }
+
+    // Seed default_is_formal_ from the game's compile-time k_default_generic_options
+    // (mygame.cc declares e.g. `.is_formal_ = false`). Without this, the static
+    // declaration was silently ignored and matches always defaulted to formal.
+    {
+        lgtbot::game::GameInfo game_info{};
+        module_.get_game_info_(&game_info);
+        default_is_formal_ = game_info.default_generic_options_.is_formal_;
     }
 
     // Restore persisted default options from config file
@@ -141,6 +152,33 @@ bool ChildConfigSession::HandleQueryOptionInfo(const lgtbot::ipc::QueryOptionInf
     return true;
 }
 
+bool ChildConfigSession::HandleQueryMatchOptionInfo(const lgtbot::ipc::QueryMatchOptionInfoReq& req)
+{
+    lgtbot::ipc::ConfigResponse resp;
+    auto* info = resp.mutable_option_info();
+    game_options_ptr opts(module_.alloc_opt_(), module_.del_opt_);
+    if (!opts) {
+        info->set_ok(false);
+        SendProto(resp);
+        return true;
+    }
+    for (const auto& opt : req.applied_options_log()) {
+        opts->SetOption(opt.c_str());
+    }
+    if (!req.init_options_args().empty() && module_.init_options_) {
+        lgtbot::game::MutableGenericOptions generic_options{};
+        generic_options.is_formal_ = default_is_formal_;
+        // The result is intentionally ignored: invalid init args were already
+        // rejected at NewMatch time, so anything we receive here was previously
+        // accepted and is safe to re-apply.
+        module_.init_options_(req.init_options_args().c_str(), opts.get(), &generic_options);
+    }
+    info->set_ok(true);
+    info->set_text(opts->Info(true, !req.text_mode()));
+    SendProto(resp);
+    return true;
+}
+
 bool ChildConfigSession::HandleSetDefaultOption(const lgtbot::ipc::SetDefaultOptionReq& req)
 {
     const bool ok = default_options_ && default_options_->SetOption(req.text().c_str());
@@ -148,6 +186,29 @@ bool ChildConfigSession::HandleSetDefaultOption(const lgtbot::ipc::SetDefaultOpt
         applied_options_log_.push_back(req.text());
     }
     SendProto(MakeOptionUpdateResp(ok));
+    return true;
+}
+
+bool ChildConfigSession::HandleTryMatchOption(const lgtbot::ipc::TryMatchOptionReq& req)
+{
+    lgtbot::ipc::ConfigResponse resp;
+    auto* upd = resp.mutable_option_update();
+    game_options_ptr opts(module_.alloc_opt_(), module_.del_opt_);
+    if (!opts) {
+        upd->set_ok(false);
+        SendProto(resp);
+        return true;
+    }
+    for (const auto& opt : req.applied_options_log()) {
+        opts->SetOption(opt.c_str());
+    }
+    const bool ok = opts->SetOption(req.text().c_str());
+    upd->set_ok(ok);
+    if (ok) {
+        upd->set_max_player(module_.max_player_num_(opts.get()));
+        upd->set_multiple(module_.multiple_(opts.get()));
+    }
+    SendProto(resp);
     return true;
 }
 
@@ -255,8 +316,14 @@ int ChildConfigSession::RunLoop()
         case lgtbot::ipc::ConfigRequest::kQueryOptionInfo:
             HandleQueryOptionInfo(req.query_option_info());
             break;
+        case lgtbot::ipc::ConfigRequest::kQueryMatchOptionInfo:
+            HandleQueryMatchOptionInfo(req.query_match_option_info());
+            break;
         case lgtbot::ipc::ConfigRequest::kSetDefaultOption:
             HandleSetDefaultOption(req.set_default_option());
+            break;
+        case lgtbot::ipc::ConfigRequest::kTryMatchOption:
+            HandleTryMatchOption(req.try_match_option());
             break;
         case lgtbot::ipc::ConfigRequest::kSetFormal:
             HandleSetFormal(req.set_formal());

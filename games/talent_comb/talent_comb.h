@@ -421,7 +421,7 @@ class TalentComb
         return Rescore_();
     }
 
-    // Apply 两级反转 talent: swap all 1↔9 on the board, then rescore
+    // Apply 两极反转 talent: swap all 1↔9 on the board, then rescore
     ScoreResult ApplyDigitReverse()
     {
         for (uint32_t i = 1; i < areas_.size(); ++i) {
@@ -512,6 +512,29 @@ class TalentComb
         areas_[idx].card_ = AreaCard(a, b, c);
         areas_[idx].box_.SetContent(CardHtml_(*areas_[idx].card_));
         return std::make_pair(dir, Rescore_());
+    }
+
+    // Apply 二环里 talent: 把 10 号位周围二环的 6 块朝向中心方向变为单线癞子。
+    // 方向映射：5/15 → 左上（dir 0），6/14 → 右上（dir 2），9/11 → 垂直（dir 1）。
+    // 每块若已经在对应方向为癞子，则保持不变。最后整盘重算。
+    ScoreResult ApplyInnerRingTransform()
+    {
+        static const std::array<std::pair<uint32_t, uint32_t>, 6> k_inner_ring_positions = {{
+            {5, 0}, {15, 0},   // 左上
+            {6, 2}, {14, 2},   // 右上
+            {9, 1}, {11, 1},   // 垂直
+        }};
+        for (auto [pos, dir] : k_inner_ring_positions) {
+            if (!areas_[pos].card_.has_value()) continue;
+            auto& card = *areas_[pos].card_;
+            int32_t a = card.PointAt(0), b = card.PointAt(1), c = card.PointAt(2);
+            int32_t& target = (dir == 0) ? a : (dir == 1) ? b : c;
+            if (target == 10) continue;
+            target = 10;
+            areas_[pos].card_ = AreaCard(a, b, c);
+            areas_[pos].box_.SetContent(CardHtml_(*areas_[pos].card_));
+        }
+        return Rescore_();
     }
 
     // Remove a card from position idx (for 临时用品 expiry)
