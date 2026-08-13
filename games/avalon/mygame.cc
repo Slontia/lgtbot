@@ -45,7 +45,7 @@ template <typename... SubStages> using MainGameStage = StageFsm<void, SubStages.
 // 0 indicates no max-player limits
 uint64_t MaxPlayerNum(const CustomOptions& options) { return 10; }
 
-uint32_t Multiple(const CustomOptions& options) { return 0; }
+uint32_t Multiple(const CustomOptions& options) { return 2; }
 
 const GameProperties k_properties {
     .name_ = "阿瓦隆",
@@ -55,7 +55,9 @@ const GameProperties k_properties {
 };
 
 // The default generic options.
-const MutableGenericOptions k_default_generic_options;
+const MutableGenericOptions k_default_generic_options{
+    .is_formal_{false},
+};
 
 // The commands for showing more rules information. Users can get the information by "#规则 <game name> <rule command>...".
 const std::vector<RuleCommand> k_rule_commands = {};
@@ -465,6 +467,25 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
         return "任务 " + std::to_string(mission_idx_ + 1) + " - 行动";
     }
 
+    // Converts the camps of the two 兰斯洛特 if the card of the current mission requires it.
+    void ConvertLancelotsIfNeeded_()
+    {
+        if (!missions_[mission_idx_].to_convert_lancelot_) {
+            return;
+        }
+        Global().Boardcast() << "请注意，两位兰斯洛特的阵营发生了转换！";
+        std::ranges::for_each(
+                std::views::iota(0U, Global().PlayerNum()) |
+                    std::views::filter([&](const PlayerID pid) { return players_[pid].occupation_ == Occupation::兰斯洛特; }),
+                [&](const PlayerID pid)
+                {
+                    auto& team = players_[pid].team_;
+                    const Team new_team = Team::Condition(team == Team::好, Team::坏, Team::好);
+                    Global().Tell(pid) << "您的阵营从「" << team << "」变成了" << "「" << new_team << "」";
+                    team = new_team;
+                });
+    }
+
     void ToNextMission_()
     {
         ++mission_idx_;
@@ -473,19 +494,7 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
             mission_table_.Get(1 + mission_idx_, 1).SetContent(std::string("![](file:///") + Global().ResourceDir() +
                     (missions_[mission_idx_].to_convert_lancelot_ ? "/convert.png)" : "/not_convert.png)"));
         }
-        if (missions_[mission_idx_].to_convert_lancelot_) {
-            Global().Boardcast() << "请注意，两位兰斯洛特的阵营发生了转换！";
-            std::ranges::for_each(
-                    std::views::iota(0U, Global().PlayerNum()) |
-                        std::views::filter([&](const PlayerID pid) { return players_[pid].occupation_ == Occupation::兰斯洛特; }),
-                    [&](const PlayerID pid)
-                    {
-                        auto& team = players_[pid].team_;
-                        const Team new_team = Team::Condition(team == Team::好, Team::坏, Team::好);
-                        Global().Tell(pid) << "您的阵营从「" << team << "」变成了" << "「" << new_team << "」";
-                        team = new_team;
-                    });
-        }
+        ConvertLancelotsIfNeeded_();
     }
 
     std::vector<Player> players_;
@@ -968,6 +977,8 @@ void MainStage::FirstStageFsm(SubStageFsmSetter setter)
         auto sender = Global().Tell(pid);
         AppendOccupationInfo_(pid, sender);
     }
+    // The card of the first mission is applied here.
+    ConvertLancelotsIfNeeded_();
     setter.Emplace<TeamUpStage>(*this, captain_pid_, missions_[mission_idx_].member_num_, member_pids_);
     ShowHtml(GetTeamUpTitle_());
 }
