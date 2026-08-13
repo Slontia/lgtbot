@@ -10,18 +10,10 @@ namespace lgtbot {
 namespace game {
 namespace GAME_MODULE_NAME {
 
-// 注：MainStage::PlayerScore 现在按"游戏是否结束"切换：
-//   - 终局后：按淘汰名次结算的 game_score（提交给框架作入库分）
-//   - 终局前：盘面+天赋原分（用于此文件历史 ASSERT_SCORE 断言）
-// 因此本文件内 ASSERT_SCORE / ASSERT_FINAL_SCORE 走默认的 AssertScoresImpl_ 即可，
-// 在 AUTO_PLAY_TEST 等"未到游戏结束就断言"的场景下，PlayerScore 会自动回退到盘面分。
-#undef ASSERT_SCORE
-#define ASSERT_SCORE(...) \
-    do { \
-        this->AssertScoresImpl_({__VA_ARGS__}); \
-    } while (0)
-
-// Backward-compatible alias used by older tests; still asserts raw board/talent score.
+// 注：MainStage::PlayerScore 由「计分」选项决定返回值——排名模式返回淘汰名次分，
+// 分数模式返回玩家盘面+天赋最终总分。本文件所有用例都在开局前设置「计分 分数」，
+// 因此 ASSERT_SCORE / ASSERT_FINAL_SCORE 断言的是玩家的原始总分。
+// Backward-compatible alias used by older tests; asserts the same raw board/talent score.
 #define ASSERT_FINAL_SCORE(...) \
     do { \
         this->AssertScoresImpl_({__VA_ARGS__}); \
@@ -30,6 +22,7 @@ namespace GAME_MODULE_NAME {
 // Auto-play variant for cases whose expected raw score differs from the generic helper.
 #define AUTO_PLAY_TEST_FINAL(test_name, talent_str, final_p0, final_p1) \
 GAME_TEST(2, test_name) { \
+    ASSERT_PUB_MSG(OK, 0, "计分 分数"); \
     ASSERT_PUB_MSG(OK, 0, "种子 test"); \
     ASSERT_PUB_MSG(OK, 0, "事件 无"); \
     ASSERT_PUB_MSG(OK, 0, "血量 500"); \
@@ -46,6 +39,7 @@ GAME_TEST(2, test_name) { \
 // Auto-play test: both players timeout every round, HP=500 to prevent early elimination
 #define AUTO_PLAY_TEST(test_name, talent_str, expected_p0, expected_p1) \
 GAME_TEST(2, test_name) { \
+    ASSERT_PUB_MSG(OK, 0, "计分 分数"); \
     ASSERT_PUB_MSG(OK, 0, "种子 test"); \
     ASSERT_PUB_MSG(OK, 0, "事件 无"); \
     ASSERT_PUB_MSG(OK, 0, "血量 500"); \
@@ -58,6 +52,7 @@ GAME_TEST(2, test_name) { \
 // Auto-play test with no talent
 #define AUTO_PLAY_TEST_NO_TALENT(test_name, expected_p0, expected_p1) \
 GAME_TEST(2, test_name) { \
+    ASSERT_PUB_MSG(OK, 0, "计分 分数"); \
     ASSERT_PUB_MSG(OK, 0, "种子 test"); \
     ASSERT_PUB_MSG(OK, 0, "事件 无"); \
     ASSERT_PUB_MSG(OK, 0, "血量 500"); \
@@ -83,6 +78,7 @@ AUTO_PLAY_TEST_NO_TALENT(baseline_auto_play, 6, 15)
 
 // Strategic: P0 forms a line, no talents
 GAME_TEST(2, strategic_vert_line) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
     ASSERT_PUB_MSG(OK, 0, "种子 test");
     ASSERT_PUB_MSG(OK, 0, "事件 无");
     ASSERT_PUB_MSG(OK, 0, "血量 500");
@@ -102,6 +98,7 @@ GAME_TEST(2, strategic_vert_line) {
 // P1's auto-played cards benefit from transforms; the later A-tier lottery can pick an active
 // talent that is passed on timeout, so the final score follows the current random pool.
 GAME_TEST(2, strategic_retreat_advance) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
     ASSERT_PUB_MSG(OK, 0, "种子 test");
     ASSERT_PUB_MSG(OK, 0, "事件 无");
     ASSERT_PUB_MSG(OK, 0, "血量 500");
@@ -121,6 +118,7 @@ GAME_TEST(2, strategic_retreat_advance) {
 // Strategic with 垃圾回收: P1 discards 7 cards → 14 bonus points from recycle.
 // P0 places cards so fewer discards → less recycle bonus.
 GAME_TEST(2, strategic_trash_recycle) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
     ASSERT_PUB_MSG(OK, 0, "种子 test");
     ASSERT_PUB_MSG(OK, 0, "事件 无");
     ASSERT_PUB_MSG(OK, 0, "血量 500");
@@ -137,10 +135,81 @@ GAME_TEST(2, strategic_trash_recycle) {
     ASSERT_FINAL_SCORE(94, 94);
 }
 
+// 回归：星河流转把砖块变成单线癞子后，若刚好凑成 312 万能牌条件，完美块必须当场触发，
+// 而不是等到放置阶段结束的兜底变换（否则玩家会在放置当场看到错误的"扣分"提示）。
+// 第 3 回合的 card_352 放到 2 号位（星河流转的垂直方向位）→ 3,10,2 → 满足完美块条件。
+GAME_TEST(2, galaxy_flow_triggers_perfect_block) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
+    ASSERT_PUB_MSG(OK, 0, "种子 test");
+    ASSERT_PUB_MSG(OK, 0, "事件 无");
+    ASSERT_PUB_MSG(OK, 0, "血量 500");
+    ASSERT_PUB_MSG(OK, 0, "天赋 星河流转 完美块");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PUB_MSG(OK, 0, "19");  ASSERT_PUB_MSG(CHECKOUT, 1, "0");
+    ASSERT_PUB_MSG(OK, 0, "17");  ASSERT_PUB_MSG(CHECKOUT, 1, "0");
+    ASSERT_PUB_MSG(OK, 0, "2");   ASSERT_PUB_MSG(CHECKOUT, 1, "0");
+    for (int i = 0; i < 200 && !this->main_stage_->IsOver(); ++i) this->TimeoutRequest_();
+    ASSERT_FINISHED(true);
+}
+
+// 回归：「关键选择」选到同为主动天赋的「乾坤大挪移」时，玩家仍需在同一阶段继续行动，
+// 指令必须返回 OK（而非 READY 提前置就绪），由 PromptChainedAction_ 补提示并重置计时器。
+GAME_TEST(2, key_choice_chains_into_qiankun_move) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
+    ASSERT_PUB_MSG(OK, 0, "种子 test");
+    ASSERT_PUB_MSG(OK, 0, "事件 无");
+    ASSERT_PUB_MSG(OK, 0, "血量 500");
+    ASSERT_PUB_MSG(OK, 0, "天赋 关键选择");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PUB_MSG(OK, 0, "19");  ASSERT_PUB_MSG(CHECKOUT, 1, "0");
+    // 选到乾坤大挪移后本玩家仍未就绪 → OK；随后可以立刻发动交换 → READY
+    ASSERT_PUB_MSG(OK, 0, "关键选择 乾坤大挪移");
+    ASSERT_PUB_MSG(OK, 0, "乾坤大挪移 19 18");
+    for (int i = 0; i < 200 && !this->main_stage_->IsOver(); ++i) this->TimeoutRequest_();
+    ASSERT_FINISHED(true);
+}
+
+// 回归：阶段顺序为 放置 → 天赋选择 → 主动天赋 → 战前额外 → 对战。
+// 主动天赋阶段用「关键选择」选到会发砖块的「0的力量」后，必须先进入额外砖块阶段把 000 放完，而不是直接开打、等战后额外才补放。
+GAME_TEST(2, active_talent_brick_placed_before_battle) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
+    ASSERT_PUB_MSG(OK, 0, "种子 test");
+    ASSERT_PUB_MSG(OK, 0, "事件 无");
+    ASSERT_PUB_MSG(OK, 0, "血量 500");
+    ASSERT_PUB_MSG(OK, 0, "天赋 关键选择");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PUB_MSG(OK, 0, "19");  ASSERT_PUB_MSG(CHECKOUT, 1, "0");
+    ASSERT_PUB_MSG(OK, 0, "关键选择 0的力量");
+    ASSERT_PUB_MSG(CHECKOUT, 1, "pass");
+    // 上一条 CHECKOUT 后进入的是额外砖块阶段（而非直接对战）：
+    // P0 是唯一有待放砖块的人，放完即结束该阶段 → CHECKOUT。
+    ASSERT_PUB_MSG(CHECKOUT, 0, "18");
+    for (int i = 0; i < 200 && !this->main_stage_->IsOver(); ++i) this->TimeoutRequest_();
+    ASSERT_FINISHED(true);
+}
+
+// 回归：一条消息最多只能带一张 Markdown 图片，因此回合开始时只完整展示第一个待发动的主动天赋
+// （提示 + 图），其余的仅用天赋名称文字列出；玩家处理完一个后再依次顶上来。
+GAME_TEST(2, multi_active_talents_prompt_one_at_a_time) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
+    ASSERT_PUB_MSG(OK, 0, "种子 test");
+    ASSERT_PUB_MSG(OK, 0, "事件 无");
+    ASSERT_PUB_MSG(OK, 0, "血量 500");
+    ASSERT_PUB_MSG(OK, 0, "天赋 九转玄机 乾坤大挪移 关键选择");
+    ASSERT_TRUE(StartGame());
+    ASSERT_PUB_MSG(OK, 0, "19");  ASSERT_PUB_MSG(CHECKOUT, 1, "0");
+    // 三个主动天赋同时待发动：每次只处理一个，处理完仍未就绪（OK）直到最后一个
+    ASSERT_PUB_MSG(OK, 0, "九转玄机 B");
+    ASSERT_PUB_MSG(OK, 0, "乾坤大挪移 19 18");
+    for (int i = 0; i < 200 && !this->main_stage_->IsOver(); ++i) this->TimeoutRequest_();
+    ASSERT_FINISHED(true);
+}
+
 // ---- 1c. 多人崩溃测试：仅验证游戏能跑完 ----
 
 // 4-player baseline (无天赋)
 GAME_TEST(4, four_player_baseline) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
     ASSERT_PUB_MSG(OK, 0, "种子 test");
     ASSERT_PUB_MSG(OK, 0, "事件 无");
     ASSERT_TRUE(StartGame());
@@ -150,6 +219,7 @@ GAME_TEST(4, four_player_baseline) {
 
 // 4-player 基本天赋组合
 GAME_TEST(4, four_player_with_talents) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
     ASSERT_PUB_MSG(OK, 0, "种子 test");
     ASSERT_PUB_MSG(OK, 0, "事件 无");
     ASSERT_PUB_MSG(OK, 0, "天赋 以退为进 来点实在的");
@@ -160,6 +230,7 @@ GAME_TEST(4, four_player_with_talents) {
 
 // 4-player 含主动触发的复杂天赋（三相之力 摇奖机 紧急救援 ...）
 GAME_TEST(4, four_player_new_talents) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
     ASSERT_PUB_MSG(OK, 0, "种子 test");
     ASSERT_PUB_MSG(OK, 0, "事件 无");
     ASSERT_PUB_MSG(OK, 0, "天赋 三相之力 事不过三 摇奖机 紧急救援 败者之刃 包扎");
@@ -170,6 +241,7 @@ GAME_TEST(4, four_player_new_talents) {
 
 // 4-player 含板面变换型天赋（潘多拉魔盒 利滚利 戴森球 ...）
 GAME_TEST(4, four_player_new_talents_2) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
     ASSERT_PUB_MSG(OK, 0, "种子 test");
     ASSERT_PUB_MSG(OK, 0, "事件 无");
     ASSERT_PUB_MSG(OK, 0, "天赋 潘多拉魔盒 利滚利 戴森球 两极反转 临时用品");
@@ -189,9 +261,7 @@ AUTO_PLAY_TEST(talent_seize,                "占得先机",   6, 15)
 AUTO_PLAY_TEST(talent_iron_body,            "钢铁之躯",   6, 15)
 AUTO_PLAY_TEST_FINAL(talent_retreat_advance,"以退为进",   24, 42)
 AUTO_PLAY_TEST(talent_deadly_magic,         "致命魔术",   6, 15)
-AUTO_PLAY_TEST(talent_tri_force,            "三相之力",   6, 15)
 AUTO_PLAY_TEST(talent_emergency_rescue,     "紧急救援",   33, 42)
-AUTO_PLAY_TEST(talent_want_all,             "我全都要",   6, 15)
 AUTO_PLAY_TEST(talent_pandora_box,          "潘多拉魔盒", 6, 15)
 AUTO_PLAY_TEST(talent_compound_interest,    "利滚利",     6, 15)
 AUTO_PLAY_TEST(talent_dyson_sphere,         "戴森球",     6, 15)
@@ -200,11 +270,14 @@ AUTO_PLAY_TEST(talent_sincere,              "坦诚相见",   6, 15)
 AUTO_PLAY_TEST(talent_galaxy_flow,          "星河流转",   6, 15)
 AUTO_PLAY_TEST_FINAL(talent_meditation,     "冥想",       6, 15)
 AUTO_PLAY_TEST(talent_light_interference,   "光波干涉",   6, 15)
-AUTO_PLAY_TEST_FINAL(talent_nine_mystery,   "九转玄机",   48, 42)
-AUTO_PLAY_TEST(talent_qiankun_move,         "乾坤大挪移", 6, 15)
+AUTO_PLAY_TEST_FINAL(talent_nine_mystery,   "九转玄机",   21, 15)
 AUTO_PLAY_TEST(talent_key_choice,           "关键选择",   6, 15)
-AUTO_PLAY_TEST_FINAL(talent_life_game,      "生命游戏",   16, 17)
+AUTO_PLAY_TEST_FINAL(talent_life_game,      "生命游戏",   15, 15)
 AUTO_PLAY_TEST(talent_y_zone,               "Y区域",      6, 15)
+AUTO_PLAY_TEST(talent_temp_wild,            "临时用品",   6, 0)
+AUTO_PLAY_TEST(talent_zero_redemption,      "0的救赎",    33, 43)
+AUTO_PLAY_TEST(talent_nine_color_deer,      "九色鹿",     6, 15)
+AUTO_PLAY_TEST(talent_placebo,              "安慰剂",     60, 69)
 
 // ============================================================================
 // 3. B 级天赋单独测试 (single B-tier, auto-play)
@@ -217,20 +290,19 @@ AUTO_PLAY_TEST(talent_swift_attack,                 "快攻",       6, 15)
 AUTO_PLAY_TEST(talent_independent,                  "特立独行",   6, 15)
 AUTO_PLAY_TEST(talent_in_pairs,                     "成双成对",   6, 15)
 AUTO_PLAY_TEST(talent_trash_recycle,                "垃圾回收",   100, 109)
-AUTO_PLAY_TEST(talent_something_real,               "来点实在的", 10, 19)
+AUTO_PLAY_TEST(talent_something_real,               "来点实在的", 9, 18)
 AUTO_PLAY_TEST(talent_offensive_form,               "攻击形态",   6, 15)
 AUTO_PLAY_TEST(talent_defensive_form,               "防御形态",   6, 15)
 AUTO_PLAY_TEST(talent_local_enhance,                "局部强化",   9, 15)
 AUTO_PLAY_TEST(talent_gain_after_loss,              "有舍有得",   0, 15)
 AUTO_PLAY_TEST_FINAL(talent_three_year,             "三年之期",   24, 24)
 AUTO_PLAY_TEST(talent_forge,                        "锻造",       6, 15)
-AUTO_PLAY_TEST(talent_tail_goods,                   "尾货处理",   6, 15)
+AUTO_PLAY_TEST(talent_tail_goods,                   "尾货处理",   57, 42)
 AUTO_PLAY_TEST(talent_turing_test,                  "图灵测试",   6, 15)
 AUTO_PLAY_TEST(talent_no_more_than_three,           "事不过三",   6, 15)
 AUTO_PLAY_TEST(talent_slot_machine,                 "摇奖机",     6, 15)
 AUTO_PLAY_TEST(talent_digit_reverse,                "两极反转",   6, 15)
-AUTO_PLAY_TEST(talent_loser_blade,                  "败者之刃",   6, 15)
-AUTO_PLAY_TEST(talent_temp_wild,                    "临时用品",   6, 15)
+AUTO_PLAY_TEST(talent_loser_blade,                  "败者之刃",   15, 18)
 AUTO_PLAY_TEST_FINAL(talent_bandage,                "包扎",       6, 15)
 AUTO_PLAY_TEST(talent_herbal_growth,                "百味草",     6, 15)
 AUTO_PLAY_TEST(talent_angel_round,                  "天使轮",     6, 15)
@@ -250,6 +322,12 @@ AUTO_PLAY_TEST(talent_battle_hardened,              "以战代练",   6, 15)
 AUTO_PLAY_TEST(talent_fatal_rhythm,                 "致命节奏",   6, 15)
 AUTO_PLAY_TEST(talent_time_anchor,                  "时间锚",     6, 15)
 AUTO_PLAY_TEST(talent_rhythm_remnant,               "律动残余",   6, 15)
+AUTO_PLAY_TEST(talent_block,                        "格挡",       6, 15)
+AUTO_PLAY_TEST(talent_warm_up,                      "热身运动",   6, 33)
+AUTO_PLAY_TEST(talent_strategy_expert,              "谋划专家",   6, 15)
+AUTO_PLAY_TEST(talent_tri_force,                    "三相之力",   34, 43)
+AUTO_PLAY_TEST(talent_want_all,                     "我全都要",   6, 15)
+AUTO_PLAY_TEST(talent_qiankun_move,                 "乾坤大挪移", 6, 15)
 
 // ============================================================================
 // 4. 多天赋组合测试 (multi-talent combos, auto-play)
@@ -264,7 +342,7 @@ AUTO_PLAY_TEST_FINAL(combo_retreat_perfect_block,        "以退为进 完美块
 AUTO_PLAY_TEST_FINAL(combo_retreat_still_useful,         "以退为进 还是有用的",        30, 42)
 
 // 来点实在的 adds flat +4; stacks additively with 以退为进's 45/36.
-AUTO_PLAY_TEST_FINAL(combo_retreat_something_real,       "以退为进 来点实在的",        28, 46)
+AUTO_PLAY_TEST_FINAL(combo_retreat_something_real,       "以退为进 来点实在的",        27, 45)
 
 // 零风险投资 prevents score decrease; with 以退为进 lines, score is same.
 AUTO_PLAY_TEST_FINAL(combo_retreat_zero_risk,            "以退为进 零风险投资",        24, 42)
@@ -279,10 +357,10 @@ AUTO_PLAY_TEST(combo_offensive_defensive,                "攻击形态 防御形
 AUTO_PLAY_TEST(combo_pairs_independent,                  "成双成对 特立独行",          6, 15)
 
 // Triple combo: 以退为进(45/36) + 来点实在的(+4) + 垃圾回收(+94) = 143/134
-AUTO_PLAY_TEST_FINAL(combo_triple_retreat_real_recycle,  "以退为进 来点实在的 垃圾回收", 72, 90)
+AUTO_PLAY_TEST_FINAL(combo_triple_retreat_real_recycle,  "以退为进 来点实在的 垃圾回收", 71, 89)
 
 // 三相之力 + 以退为进: directional wilds combine with retreat transforms.
-AUTO_PLAY_TEST_FINAL(combo_tri_force_retreat,            "三相之力 以退为进",          24, 42)
+AUTO_PLAY_TEST_FINAL(combo_tri_force_retreat,            "三相之力 以退为进",          48, 66)
 
 // 摇奖机 + 以退为进: slot machine may become another A-tier, combined with retreat.
 AUTO_PLAY_TEST_FINAL(combo_slot_machine_retreat,         "摇奖机 以退为进",            24, 42)
@@ -294,18 +372,21 @@ AUTO_PLAY_TEST_FINAL(combo_discard_scorer_retreat,       "0号位 以退为进",
 AUTO_PLAY_TEST_FINAL(combo_digit_reverse_retreat,        "两极反转 以退为进",          24, 42)
 
 // 九转玄机 + 两极反转：两极反转 OnAcquire 翻转后链式 ApplyNineAsWild，把新出现的 9 全部转为癞子。
-AUTO_PLAY_TEST_FINAL(combo_digit_reverse_nine_mystery,   "九转玄机 两极反转",          13, 22)
+AUTO_PLAY_TEST_FINAL(combo_digit_reverse_nine_mystery,   "九转玄机 两极反转",          6, 15)
+
+// 谋划专家 + 完美块：完美块把 312 变癞子，auto-play 下出现连续得分，验证连击加分真实触发。
+// P0 = 45 比「完美块」单独时的 42 高出 3 分，即连击第 2 次得分的 (0+2)+... 奖励。
+AUTO_PLAY_TEST_FINAL(combo_strategy_expert_perfect_block, "谋划专家 完美块",            45, 51)
 
 // ============================================================================
-// 5. 名次结算冒烟测试 (rank-based scoring smoke tests)
-//    生产构建（无 TEST_BOT）下 PlayerScore 返回按淘汰名次结算的 game_score；
-//    测试构建（TEST_BOT）下 PlayerScore 仍返回盘面分以兼容历史断言。
-//    这里只验证不同人数、不同 HP 设置下游戏能正常跑完，不直接断言名次分数（具体
-//    分布通过手算验证：4 人完整分胜负 → -300/-100/+100/+300；同回合同阶段
-//    并列；中毒淘汰晚于对战；卡池耗尽多人并列第一。详见 plan 文件）。
+// 5. 淘汰流程冒烟测试 (elimination-flow smoke tests)
+//    这里只验证不同人数、不同 HP 设置下游戏能正常跑完，不直接断言名次分数
+//    （本文件统一用「计分 分数」模式；名次分布通过手算验证：4 人完整分胜负 →
+//    -300/-100/+100/+300；同回合同阶段并列；中毒淘汰晚于对战；卡池耗尽并列第一）。
 // ============================================================================
 
 GAME_TEST(2, rank_score_2_player_low_hp) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
     ASSERT_PUB_MSG(OK, 0, "种子 test");
     ASSERT_PUB_MSG(OK, 0, "事件 无");
     ASSERT_PUB_MSG(OK, 0, "血量 50");
@@ -315,6 +396,7 @@ GAME_TEST(2, rank_score_2_player_low_hp) {
 }
 
 GAME_TEST(4, rank_score_4_player_low_hp) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
     ASSERT_PUB_MSG(OK, 0, "种子 test");
     ASSERT_PUB_MSG(OK, 0, "事件 无");
     ASSERT_PUB_MSG(OK, 0, "血量 50");
@@ -324,6 +406,7 @@ GAME_TEST(4, rank_score_4_player_low_hp) {
 }
 
 GAME_TEST(2, rank_score_pool_exhaust_survival) {
+    ASSERT_PUB_MSG(OK, 0, "计分 分数");
     ASSERT_PUB_MSG(OK, 0, "种子 test");
     ASSERT_PUB_MSG(OK, 0, "事件 无");
     ASSERT_PUB_MSG(OK, 0, "血量 500");

@@ -45,6 +45,7 @@ inline constexpr Talent k_after_score_order[] = {
     Talent::戴森球,
     Talent::冥想,
     Talent::天使轮,
+    Talent::谋划专家,
     Talent::表演型人格,
     Talent::二环里,
 };
@@ -52,6 +53,7 @@ inline constexpr Talent k_after_score_order[] = {
 // 触发时机：MainStage::HandleDiscard_
 inline constexpr Talent k_discard_order[] = {
     Talent::垃圾回收,
+    Talent::格挡,
     Talent::零号位,
     Talent::锻造,
     Talent::贪婪宝藏,
@@ -61,14 +63,15 @@ inline constexpr Talent k_discard_order[] = {
 // 触发时机：MainStage::ApplyAttackTalents_（胜者对败者结算前的攻击侧修正）
 inline constexpr Talent k_attack_order[] = {
     Talent::快攻,
+    Talent::嗜血,
     Talent::致命魔术,
     Talent::攻击形态,
     Talent::防御形态,
+    Talent::热身运动,
 };
 
 // 触发时机：MainStage::ApplyDefenseTalents_（败者收到伤害前的防御侧修正）
 inline constexpr Talent k_defense_order[] = {
-    Talent::钢铁之躯,
     Talent::防御形态,
     Talent::攻击形态,
 };
@@ -76,19 +79,23 @@ inline constexpr Talent k_defense_order[] = {
 // 触发时机：MainStage::ApplyDefeatTalents_
 // 律动残余 排在最前：先把伤害封顶在 25，再交给后续 hook 进一步调整（如 事不过三 归零）。
 inline constexpr Talent k_defeat_order[] = {
+    Talent::钢铁之躯,
     Talent::律动残余,
+    Talent::格挡,
     Talent::图灵测试,
     Talent::事不过三,
     Talent::有舍有得,
     Talent::败者之刃,
     Talent::贪婪宝藏,
     Talent::以战代练,
+    Talent::热身运动,
 };
 
 // 触发时机：MainStage::ApplyVictoryTalents_
 inline constexpr Talent k_victory_order[] = {
     Talent::嗜血,
     Talent::败者之刃,
+    Talent::热身运动,
     Talent::以战代练,
 };
 
@@ -108,7 +115,8 @@ inline constexpr Talent k_round_start_order[] = {
     Talent::零号位,
     Talent::冥想,
     Talent::利滚利,
-    Talent::临时用品,
+    Talent::三相之力,
+    Talent::热身运动,
 };
 
 // 触发时机：MainStage::NextStageFsm（放置 / 选牌 / 额外砖块阶段结束后的盘面变换）

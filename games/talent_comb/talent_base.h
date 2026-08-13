@@ -176,7 +176,8 @@ class TalentBase
 
     // 本回合"真实对战阶段"完整结束后（DoBattle_ 真正发生过对战）逐 alive 玩家调用。
     // 区别于 OnDefeat/OnVictory与 OnRoundStart：对战阶段已结算完，但还未进入战后额外/下回合
-    virtual void OnBattlePhaseEnd(Player& player, int32_t current_round);
+    // 返回非空字符串时由 MainStage::OnBattlePhaseEnd_ 以「@玩家 文本」的形式播报。
+    virtual std::string OnBattlePhaseEnd(Player& player, int32_t current_round);
 
     // DoEliminationAfterBattle_ 中，victim 在对战阶段被淘汰、且 killer 是同对对战中存活的赢家时，
     // 对 killer 的每个天赋调用。返回非空字符串时由调用方追加到当前 sender。
@@ -274,9 +275,13 @@ class TalentBase
     // 返回空字符串时阶段不会播报图片；返回值会作为 Markdown 图片内容发送。
     virtual std::string ActiveImageHtml(const Player& player) const;
 
+    // 上面那张图片渲染时的画布宽度（像素）。默认 1000；
+    // 内容较窄的天赋可以调小，避免右侧留出大片空白。
+    virtual uint32_t ActiveImageWidth() const;
+
     // 主动天赋阶段玩家选择 pass 时调用。
     // 返回提示文本；天赋可在这里将待发动效果标记为失效。
-    virtual std::string OnActivePass(Player& player);
+    virtual std::string OnActivePass(Player& player, const TalentActiveContext& context);
 
     // 主动天赋阶段指令调用。
     // 阶段负责解析指令文本和基础参数范围，并把参数按顺序放入 args。
@@ -299,6 +304,11 @@ class TalentBase
     // 修改 a_pick / b_pick 会直接影响本次候选池的抽签数量。
     virtual void ModifyTalentPoolPicks(const Player& player, uint32_t& a_pick, uint32_t& b_pick) const;
 
+    // 任意砖块放置后总是触发（不受 HasTalent 过滤；与 OnDamageReceived/OnHealApplied 同属"记账型"hook）。
+    // 「谋划专家」等需要自开局起跟踪状态的天赋通过此 hook 维护自己的内部计数器；
+    // dispatcher 在所有 after-score hook 之后才调用本 hook，确保 AfterScoreUpdatedOnCardPlaced 内看到的是放置前的旧值。
+    virtual void TrackCardPlaced(Player& player, const ScoreResult& result);
+
   private:
     TalentInfo info_;
     bool enabled_;
@@ -310,9 +320,7 @@ class SeizeTalent;
 class IronBodyTalent;
 class RetreatAdvanceTalent;
 class DeadlyMagicTalent;
-class TriForceTalent;
 class EmergencyRescueTalent;
-class WantAllTalent;
 class CompoundInterestTalent;
 class DysonSphereTalent;
 class DiscardScorerTalent;
@@ -321,11 +329,13 @@ class GalaxyFlowTalent;
 class MeditationTalent;
 class LightInterferenceTalent;
 class NineMysteryTalent;
-class QiankunMoveTalent;
 class KeyChoiceTalent;
 class LifeGameTalent;
 class YZoneTalent;
 class TempWildTalent;
+class ZeroRedemptionTalent;
+class NineColorDeerTalent;
+class PlaceboTalent;
 
 class BloodlustTalent;
 class StillUsefulTalent;
@@ -366,6 +376,12 @@ class FatalRhythmTalent;
 class TimeAnchorTalent;
 class RhythmRemnantTalent;
 class PandoraBoxTalent;
+class BlockTalent;
+class WarmUpTalent;
+class StrategyExpertTalent;
+class TriForceTalent;
+class WantAllTalent;
+class QiankunMoveTalent;
 
 std::unique_ptr<TalentBase> CreateTalentState(Talent talent);
 

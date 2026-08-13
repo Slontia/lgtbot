@@ -12,6 +12,9 @@
 
 #pragma once
 
+#include <set>
+#include <vector>
+
 #include "utility/random.h"
 #include "talent.h"
 // Note: "player.h" is included at the bottom of this file because
@@ -590,6 +593,7 @@ class TalentComb
 
         base_score_ = 0;
         line_count_ = 0;
+        filled_unmatched_lengths_.clear();
 
         for (const auto& line_def : k_all_lines) {
             CheckLine_(line_def);
@@ -607,41 +611,58 @@ class TalentComb
     {
         const auto& positions = line_def.positions;
         const uint32_t dir_idx = static_cast<uint32_t>(line_def.direction);
+        const int32_t length = static_cast<int32_t>(positions.size());
 
-        // Check if all positions are filled
+        // 1) 所有格必须已填
         for (uint32_t pos : positions) {
-            if (!areas_[pos].card_.has_value()) {
-                return; // Not all filled
+            if (!areas_[pos].card_.has_value()) return;
+        }
+
+        // 2) 单次扫描分类：
+        //    - actual_values: 参与"同值匹配"的值（非癞子；「0的救赎」生效时 0 也不参与匹配）
+        //    - wild_count   : 10（癞子）格子数
+        //    - zero_count   : 0 的格子数（仅 zero_redemption_active_ 时与常规分开统计）
+        std::vector<int32_t> actual_values;
+        int32_t wild_count = 0;
+        int32_t zero_count = 0;
+        actual_values.reserve(positions.size());
+        for (uint32_t pos : positions) {
+            const int32_t val = areas_[pos].card_->PointAt(dir_idx);
+            if (val == 10) {
+                ++wild_count;
+            } else if (val == 0 && zero_redemption_active_) {
+                ++zero_count;
+            } else {
+                actual_values.push_back(val);
             }
         }
 
-        // Find the matching value (considering per-direction wilds: value 10 = wild)
-        std::optional<int32_t> matched_value;
-        bool all_wild = true;
-
-        for (uint32_t pos : positions) {
-            const auto& card = *areas_[pos].card_;
-            int32_t val = card.PointAt(dir_idx);
-            if (val != 10) {
-                all_wild = false;
-                if (!matched_value.has_value()) {
-                    matched_value = val;
-                } else if (val != *matched_value) {
-                    return; // Mismatch - not a completed line
+        // 3) 常规匹配：actual_values 全部相同才算完成
+        if (!actual_values.empty()) {
+            const int32_t matched = actual_values.front();
+            for (int32_t v : actual_values) {
+                if (v != matched) {
+                    // 「安慰剂」记账：填满但未完成的线
+                    filled_unmatched_lengths_.push_back(length);
+                    return;
                 }
             }
+            line_count_++;
+            // 计分：matched × (length - zero_count)
+            //   - 普通模式 zero_count 永远 0，等价于 matched × length
+            //   - 「0的救赎」模式扣除 0 格子数：{3,0,3} → 3*2 = 6
+            base_score_ += matched * (length - zero_count);
+            UpdateWallsForLine_(line_def);
+            return;
         }
 
-        // Line is completed!
+        // 4) actual_values 为空：行内只剩癞子 / 0
+        //    - 全癞子（无 0）→ 10 × length
+        //    - 「0的救赎」下含 0 → 完成但 0 分（含全 0、0+癞子混合）
         line_count_++;
-
-        if (all_wild) {
-            base_score_ += 10 * static_cast<int32_t>(positions.size());
-        } else {
-            base_score_ += *matched_value * static_cast<int32_t>(positions.size());
+        if (wild_count == length) {
+            base_score_ += 10 * length;
         }
-
-        // Update walls along this line's direction
         UpdateWallsForLine_(line_def);
     }
 
@@ -689,6 +710,26 @@ class TalentComb
     html::Table table_;
     int32_t base_score_ = 0;
     uint32_t line_count_ = 0;
+
+    // 每玩家私有 flag —— 由「0的救赎」的 OnAcquire 设置。
+    bool zero_redemption_active_ = false;
+
+    // 「安慰剂」记账：每次 Rescore_ 后填入该轮所有"填满但未完成"的线的长度。
+    std::vector<int32_t> filled_unmatched_lengths_;
+
+  public:
+    // 设置后立即重算：使盘面分数和 line_count 与新规则一致。
+    ScoreResult SetZeroRedemption(bool active)
+    {
+        zero_redemption_active_ = active;
+        return Rescore_();
+    }
+
+    // 「0的救赎」被激活
+    bool ZeroRedemptionActive() const { return zero_redemption_active_; }
+
+    // 「安慰剂」直接读取此 const ref。
+    const std::vector<int32_t>& FilledUnmatchedLengths() const { return filled_unmatched_lengths_; }
 };
 
 // ==================== CSS Style (adapted from opencomb) ====================

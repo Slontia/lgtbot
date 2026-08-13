@@ -181,9 +181,15 @@ inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(PlayerID pid, ui
             TalentCardPlacedContext{HasValuableOne(special_event_), placement_source, source_talent, previous_card}, old_perm);
     }
 
+    // 记账型 hook：遍历 talent_states_ 而非 talents_，让「谋划专家」等需要自开局起累计的天赋在被玩家获取之前也能记账。
+    // 放在所有 after-score hook 之后，确保它们看到的是放置前的旧值。
+    for (auto& [talent, state] : player.talent_states_) {
+        state->TrackCardPlaced(player, effective_result);
+    }
+
     // Permanent extra changes are reported as a generic talent effect notification.
-    // 放在 after-score hooks 之后：例如表演型人格在 AfterScoreUpdatedOnCardPlaced 内修改百分比并触发
-    // UpdateScore，此时 permanent_extra_ 才是最终值；提早比较会显示与玩家实际拿到的额外分不符的数值。
+    // 放在 after-score hooks 之后：例如表演型人格在 AfterScoreUpdatedOnCardPlaced 内修改百分比并触发 UpdateScore，
+    // 此时 permanent_extra_ 才是最终值；提早比较会显示与玩家实际拿到的额外分不符的数值。
     {
         int32_t perm_delta = player.permanent_extra_ - old_perm;
         if (perm_delta > 0) {
@@ -419,7 +425,7 @@ inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror,
     if (score_cmp > 0) {
         // pid1 wins, pid2 loses
         if (!mirror) players_[pid2].never_lost_ = false;
-        extra_damage = ApplyAttackTalents_(pid1, pid2, base_damage);
+        extra_damage = ApplyAttackTalents_(pid1, pid2, base_damage, result);
         int32_t total = base_damage + extra_damage;
         ApplyVictoryTalents_(pid1, mirror, score1, score2, result);
 
@@ -441,7 +447,7 @@ inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror,
         // pid2 wins, pid1 loses
         players_[pid1].never_lost_ = false;
         if (!mirror) {
-            extra_damage = ApplyAttackTalents_(pid2, pid1, base_damage);
+            extra_damage = ApplyAttackTalents_(pid2, pid1, base_damage, result);
             int32_t total = base_damage + extra_damage;
 
             int32_t defense = ApplyDefenseTalents_(pid1, total);
@@ -456,7 +462,7 @@ inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror,
             }
             p1_info = "(" + std::to_string(-total) + ")";
         } else {
-            extra_damage = ApplyAttackTalents_(pid2, pid1, base_damage);
+            extra_damage = ApplyAttackTalents_(pid2, pid1, base_damage, result);
             int32_t total = base_damage + extra_damage;
             int32_t defense = ApplyDefenseTalents_(pid1, total);
             total += defense;
@@ -498,7 +504,7 @@ inline void MainStage::ApplyBattleEndTalents_(PlayerID pid, bool mirror, int64_t
 }
 
 // Returns extra damage from attacker's talents
-inline int32_t MainStage::ApplyAttackTalents_(PlayerID attacker, PlayerID defender, int32_t damage)
+inline int32_t MainStage::ApplyAttackTalents_(PlayerID attacker, PlayerID defender, int32_t damage, std::string& result)
 {
     int32_t extra = 0;
     for (const auto talent : k_attack_order) {
@@ -506,7 +512,7 @@ inline int32_t MainStage::ApplyAttackTalents_(PlayerID attacker, PlayerID defend
         auto effect = players_[attacker].talent_states_.at(talent)->AttackDamageDelta(players_[attacker], players_[defender], damage, battle_rng_);
         extra += effect.delta;
         if (!effect.message.empty()) {
-            Global().Boardcast() << At(attacker) << " " << effect.message;
+            result += GetName(Global().PlayerName(attacker)) + " " + effect.message + "\n";
         }
     }
     return extra;
@@ -658,11 +664,11 @@ inline void MainStage::CollectPreBattleExtras_()
                 if (pool_mid.empty()) {
                     pool_mid.assign(k_points[1].begin(), k_points[1].end());
                 }
-                // 3 选 1：生成 3 张备选随机砖块，尽量保证 3 张互不相同。
-                // 种子稳定性：固定消耗 18 次 RandInt（6 候选 × 3 维度），不论是否触发去重。
+                // 5 选 1：生成 5 张备选随机砖块，尽量保证 5 张互不相同。
+                // 种子稳定性：固定消耗 30 次 RandInt（10 候选 × 3 维度），不论是否触发去重。
                 // 注：必须把三次 RandInt 拆成有序语句——C++ 函数实参之间是"不确定顺序"，
                 // 直接写在 emplace_back 的实参里会让 GCC(libstdc++) 与 Clang(libc++) 以不同顺序消耗 random_card_rng_，造成跨平台 RNG 序列分叉。
-                constexpr int kCandidatePool = 6;
+                constexpr int kCandidatePool = 10;
                 std::vector<AreaCard> candidate_pool;
                 candidate_pool.reserve(kCandidatePool);
                 for (int i = 0; i < kCandidatePool; ++i) {
@@ -671,15 +677,15 @@ inline void MainStage::CollectPreBattleExtras_()
                     const uint32_t right = RandInt(random_card_rng_, 0, static_cast<uint32_t>(k_points[2].size() - 1));
                     candidate_pool.emplace_back(k_points[0][left], pool_mid[mid], k_points[2][right]);
                 }
-                // 依序挑选 3 张互不相同的牌；候选池足够时几乎总能凑齐。
+                // 依序挑选 5 张互不相同的牌；候选池足够时几乎总能凑齐。
                 for (const auto& card : candidate_pool) {
-                    if (offered_cards.size() >= 3) break;
+                    if (offered_cards.size() >= 5) break;
                     if (std::find(offered_cards.begin(), offered_cards.end(), card) == offered_cards.end()) {
                         offered_cards.push_back(card);
                     }
                 }
-                // 兜底：极端情况下 6 张候选都无法凑齐 3 张唯一牌，按池序补齐（允许重复）。
-                for (size_t i = 0; offered_cards.size() < 3 && i < candidate_pool.size(); ++i) {
+                // 兜底：极端情况下 10 张候选都无法凑齐 5 张唯一牌，按池序补齐（允许重复）。
+                for (size_t i = 0; offered_cards.size() < 5 && i < candidate_pool.size(); ++i) {
                     offered_cards.push_back(candidate_pool[i]);
                 }
             }
