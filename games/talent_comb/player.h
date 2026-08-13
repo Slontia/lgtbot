@@ -146,6 +146,11 @@ struct Player
         return std::find(talents_.begin(), talents_.end(), t) != talents_.end();
     }
 
+    bool HasAvailableTalent() const
+    {
+        return !available_a_.empty() || !available_b_.empty();
+    }
+
     // Calculate raw total (without ZERO_RISK floor)
     int32_t RawTotalScore() const
     {
@@ -162,6 +167,12 @@ struct Player
 
     // DYSON_SPHERE bonus (how much the 6% adds)
     int32_t DysonSphereBonus() const;
+
+    // 九色鹿：当前完成的连线（同值匹配）覆盖了多少个 1-9 数字。
+    int32_t NineColorCoveredCount() const;
+    bool HasAll1To9Lines() const { return NineColorCoveredCount() >= 9; }
+    // 九色鹿 +9% 的"绝对增量"（用于显示）。
+    int32_t NineColorDeerBonus() const;
 
     // Calculate the "有1吗" special event bonus
     int32_t ValuableOneBonus() const
@@ -263,14 +274,21 @@ struct Player
         selected.insert(selected.end(), a_picks.begin(), a_picks.end());
         selected.insert(selected.end(), b_picks.begin(), b_picks.end());
 
-        // 若某池不够：用对方池补齐（尽量凑满 a_pick + b_pick 个选项）
-        uint32_t target = a_pick + b_pick;
+        // 若某池不够：用其他卡池补齐（尽量凑满选项）。仅在确实需要补齐时才消耗 RNG，避免影响常规流程的种子稳定性。
+        const uint32_t target = a_pick + b_pick;
         auto try_fill_from = [&](const std::vector<Talent>& src) {
+            if (selected.size() >= target) return;
+            std::vector<Talent> candidates;
             for (const auto& t : src) {
-                if (selected.size() >= target) break;
                 if (std::find(selected.begin(), selected.end(), t) == selected.end()) {
-                    selected.push_back(t);
+                    candidates.push_back(t);
                 }
+            }
+            if (candidates.empty()) return;
+            SeededShuffle(candidates.begin(), candidates.end(), rng);
+            for (const auto& t : candidates) {
+                if (selected.size() >= target) break;
+                selected.push_back(t);
             }
         };
         try_fill_from(pool_a);
@@ -314,17 +332,18 @@ struct Player
     bool IsLineCompleted_(const LineDefinition& line_def) const
     {
         const uint32_t dir_idx = static_cast<uint32_t>(line_def.direction);
+        const bool zero_wild = comb_->ZeroRedemptionActive();
         std::optional<int32_t> matched_value;
         for (uint32_t pos : line_def.positions) {
             const auto& card = comb_->GetCard(pos);
             if (!card.has_value()) return false;
-            int32_t val = card->PointAt(dir_idx);
-            if (val != 10) {  // 10 = wild in this direction
-                if (!matched_value.has_value()) {
-                    matched_value = val;
-                } else if (val != *matched_value) {
-                    return false;
-                }
+            const int32_t val = card->PointAt(dir_idx);
+            if (val == 10) continue;              // 癞子
+            if (zero_wild && val == 0) continue;  // 「0的救赎」：0 视为任意数字
+            if (!matched_value.has_value()) {
+                matched_value = val;
+            } else if (val != *matched_value) {
+                return false;
             }
         }
         return true;
@@ -333,11 +352,14 @@ struct Player
     int32_t GetLineMatchedValue_(const LineDefinition& line_def) const
     {
         const uint32_t dir_idx = static_cast<uint32_t>(line_def.direction);
+        const bool zero_wild = comb_->ZeroRedemptionActive();
         for (uint32_t pos : line_def.positions) {
             const auto& card = comb_->GetCard(pos);
-            if (card.has_value() && card->PointAt(dir_idx) != 10) {
-                return card->PointAt(dir_idx);
-            }
+            if (!card.has_value()) continue;
+            const int32_t val = card->PointAt(dir_idx);
+            if (val == 10) continue;
+            if (zero_wild && val == 0) continue;
+            return val;
         }
         return 0; // all wild
     }
@@ -421,6 +443,9 @@ inline int32_t Player::TotalScore() const
     if (HasTalent(Talent::戴森球) && CountCompletedLength3Lines_() >= 6) {
         total = static_cast<int32_t>(std::ceil(total * 1.06));
     }
+    if (HasTalent(Talent::九色鹿) && HasAll1To9Lines()) {
+        total = static_cast<int32_t>(std::ceil(total * 1.09));
+    }
     return total;
 }
 
@@ -438,6 +463,28 @@ inline int32_t Player::DysonSphereBonus() const
     int32_t before_dyson = RawTotalScore() + ZeroRiskBaseFloor();
     int32_t after_dyson = static_cast<int32_t>(std::ceil(before_dyson * 1.06));
     return after_dyson - before_dyson;
+}
+
+inline int32_t Player::NineColorCoveredCount() const
+{
+    std::set<int32_t> covered;
+    for (const auto& line_def : k_all_lines) {
+        if (!IsLineCompleted_(line_def)) continue;
+        const int32_t matched = GetLineMatchedValue_(line_def);
+        if (matched >= 1 && matched <= 9) covered.insert(matched);
+    }
+    return static_cast<int32_t>(covered.size());
+}
+
+inline int32_t Player::NineColorDeerBonus() const
+{
+    if (!HasTalent(Talent::九色鹿) || !HasAll1To9Lines()) return 0;
+    int32_t before = RawTotalScore() + ZeroRiskBaseFloor();
+    if (HasTalent(Talent::戴森球) && CountCompletedLength3Lines_() >= 6) {
+        before = static_cast<int32_t>(std::ceil(before * 1.06));
+    }
+    const int32_t after = static_cast<int32_t>(std::ceil(before * 1.09));
+    return after - before;
 }
 
 inline int32_t Player::TempBattleScore() const

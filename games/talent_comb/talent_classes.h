@@ -32,7 +32,8 @@ inline std::string TalentBase::OnExtraCardActionEnd(Player& player) { return "";
 inline bool TalentBase::HasPendingActiveChoice(const Player& player) const { return false; }
 inline std::string TalentBase::ActivePrompt(const Player& player) const { return ""; }
 inline std::string TalentBase::ActiveImageHtml(const Player& player) const { return ""; }
-inline std::string TalentBase::OnActivePass(Player& player) { return ""; }
+inline uint32_t TalentBase::ActiveImageWidth() const { return 1000; }
+inline std::string TalentBase::OnActivePass(Player& player, const TalentActiveContext& context) { return ""; }
 inline bool TalentBase::OnActiveCommand(Player& player, std::string_view command, const std::vector<uint32_t>& args,
                                         const TalentActiveContext& context, ScoreResult& result, std::string& message)
 {
@@ -44,11 +45,12 @@ inline int32_t TalentBase::DefenseDamageDelta(Player& defender, int32_t damage) 
 inline void TalentBase::OnHealApplied(Player& player, int32_t actual_heal) {}
 inline void TalentBase::OnDamageReceived(Player& player, int32_t damage) {}
 inline std::string TalentBase::OnLethalDamage(Player& player, int32_t& damage, int32_t current_round) { return ""; }
-inline void TalentBase::OnBattlePhaseEnd(Player& player, int32_t current_round) {}
+inline std::string TalentBase::OnBattlePhaseEnd(Player& player, int32_t current_round) { return ""; }
 inline std::string TalentBase::OnDefeatedOpponent(Player& killer, Player& victim, std::mt19937& rng) { return ""; }
 inline int32_t TalentBase::SelectionPriority(const Player& player) const { return INT32_MAX; }
 inline std::string TalentBase::SelectionBorderStyle(const Player& player, bool is_last_selector) const { return ""; }
 inline void TalentBase::ModifyTalentPoolPicks(const Player& player, uint32_t& a_pick, uint32_t& b_pick) const {}
+inline void TalentBase::TrackCardPlaced(Player& player, const ScoreResult& result) {}
 
 inline constexpr const char* kTalentColorInactive = "#999999";
 inline constexpr const char* kTalentColorGlobal = "#D94A6A";
@@ -143,12 +145,13 @@ class CounterattackTalent : public TalentBase
     }
 
     // 触发回合的下一个真实对战阶段结束时清掉 extra_score。
-    void OnBattlePhaseEnd(Player& /*player*/, int32_t current_round) override
+    std::string OnBattlePhaseEnd(Player& /*player*/, int32_t current_round) override
     {
         if (extra_score > 0 && trigger_round < current_round) {
             extra_score = 0;
             trigger_round = 0;
         }
+        return "";
     }
 
     bool used = false;
@@ -172,18 +175,34 @@ class SeizeTalent : public TalentBase
 class IronBodyTalent : public TalentBase
 {
   public:
-    IronBodyTalent() : TalentBase({"A", Talent::钢铁之躯, "钢铁之躯", "你受到的伤害降低30%"}) {}
+    IronBodyTalent() : TalentBase({"A", Talent::钢铁之躯, "钢铁之躯", "下3次对战失败时不受到伤害"}) {}
 
-    int32_t DefenseDamageDelta(Player& defender, int32_t damage) override
+    std::string BoardDisplay(const Player& /*player*/) const override
     {
-        return -static_cast<int32_t>(std::ceil(damage * 0.3));
+        if (blocks_remaining <= 0) return TalentInactiveText(Name());
+        return Name() + TalentTempScoreText("(" + std::to_string(blocks_remaining) + "/3)");
     }
+
+    std::string OnDefeat(Player& /*player*/, const TalentDefeatContext& /*context*/, int32_t& damage) override
+    {
+        if (blocks_remaining <= 0 || damage <= 0) return "";
+        --blocks_remaining;
+        damage = 0;
+        return "触发天赋「钢铁之躯」，免疫伤害（剩余" + std::to_string(blocks_remaining) + "次）";
+    }
+
+    int32_t blocks_remaining = 3;
 };
 
 class RetreatAdvanceTalent : public TalentBase
 {
   public:
     RetreatAdvanceTalent() : TalentBase({"A", Talent::以退为进, "以退为进", "你的7均视为6，4均视为3"}) {}
+
+    bool IsCompatibleWithSpecialEvent(SpecialEvent event) const override
+    {
+        return event != SpecialEvent::大的要来了 && event != SpecialEvent::两极分化 && event != SpecialEvent::大的没了;
+    }
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
@@ -211,40 +230,14 @@ class RetreatAdvanceTalent : public TalentBase
 class DeadlyMagicTalent : public TalentBase
 {
   public:
-    DeadlyMagicTalent() : TalentBase({"A", Talent::致命魔术, "致命魔术", "造成伤害时有15%概率造成额外100%伤害"}) {}
+    DeadlyMagicTalent() : TalentBase({"A", Talent::致命魔术, "致命魔术", "造成伤害时有50%概率造成额外50%伤害"}) {}
 
     TalentDamageEffect AttackDamageDelta(Player& attacker, Player& defender, int32_t damage, std::mt19937& rng) override
     {
-        if (RandInt(rng, 1, 100) > 15) return {};
-        int32_t magic_damage = static_cast<int32_t>(std::ceil(damage * 1.0));
+        if (RandInt(rng, 1, 100) > 50) return {};
+        int32_t magic_damage = static_cast<int32_t>(std::ceil(damage * 0.5));
         return {magic_damage, "触发天赋「致命魔术」，额外造成 " + std::to_string(magic_damage) + " 点伤害！"};
     }
-};
-
-class TriForceTalent : public TalentBase
-{
-  public:
-    TriForceTalent() : TalentBase({"A", Talent::三相之力, "三相之力", "你的下三张非选牌阶段的牌依次获得左/中/右单线癞子"}) {}
-
-    std::string BoardDisplay(const Player& player) const override
-    {
-        if (progress >= 3) {
-            return TalentInactiveText(Name());
-        }
-        return Name() + TalentProgressText("(" + std::to_string(progress) + "/3)");
-    }
-
-    std::string OnBeforePlaceCard(Player& player, AreaCard& card, bool is_normal_round) override
-    {
-        if (!is_normal_round || progress >= 3) return "";
-        const int32_t dir = progress;
-        card.SetDirectionWild(dir);
-        progress++;
-        static const char* dir_names[3] = {"左上", "垂直", "右上"};
-        return "\n触发天赋「三相之力」，" + std::string(dir_names[dir]) + "方向获得单线癞子（" + std::to_string(progress) + "/3）";
-    }
-
-    int32_t progress = 0;
 };
 
 class EmergencyRescueTalent : public TalentBase
@@ -273,20 +266,10 @@ class EmergencyRescueTalent : public TalentBase
     bool used = false;
 };
 
-class WantAllTalent : public TalentBase
-{
-  public:
-    WantAllTalent() : TalentBase({"A", Talent::我全都要, "我全都要", "下次选择天赋时获得全部"}) {}
-
-    // 我全都要：玩家拥有该天赋后，"下次选择天赋"——也就是下一次出现非空候选池时——直接获得池中全部天赋，同时把"我全都要"从 talents_ 移除。
-    // 需要注意"刚选到我全都要的那一次选择"本身不算"下次"，触发要等到再次选择天赋（同回合的级联池，或下一回合的天赋阶段）。
-    // 该效果由 TalentStage::TriggerWantAllIfHeld_ 处理；当前是唯一的整池吞噬天赋，不引入基类通用 hook，避免为单例特例增加 API 噪音。
-};
-
 class CompoundInterestTalent : public TalentBase
 {
   public:
-    CompoundInterestTalent() : TalentBase({"A", Talent::利滚利, "利滚利", "你每有125分，每回合加1分"}) {}
+    CompoundInterestTalent() : TalentBase({"A", Talent::利滚利, "利滚利", "你每有111分，每回合加1分"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
@@ -299,7 +282,7 @@ class CompoundInterestTalent : public TalentBase
 
     std::string OnRoundStart(Player& player, const TalentRoundContext& context) override
     {
-        const int32_t interest = player.TotalScore() / 125;
+        const int32_t interest = player.TotalScore() / 111;
         if (interest <= 0) return "";
         accumulated += interest;
         player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, context.has_valuable_one);
@@ -423,36 +406,56 @@ class GalaxyFlowTalent : public TalentBase
         if (idx == 0) return "";
         auto r = player.comb_->ApplyGalaxyFlowAt(idx);
         if (!r.has_value()) return "";
-        const auto& [dir, new_result] = *r;
-        effective_result.base_score = new_result.base_score;
-        effective_result.line_count = new_result.line_count;
-        effective_result.score_delta = original_result.score_delta + new_result.score_delta;
+        const auto& [dir, galaxy_result] = *r;
         static const char* k_dir_name[3] = {"左上", "垂直", "右上"};
-        return std::string("\n触发天赋「星河流转」，") + k_dir_name[dir] + "方向获得单线癞子";
+        std::string notify = std::string("\n触发天赋「星河流转」，") + k_dir_name[dir] + "方向获得单线癞子";
+
+        int32_t extra_delta = galaxy_result.score_delta;
+        ScoreResult latest = galaxy_result;
+
+        // 单线癞子可能让该砖块刚好满足完美块条件，在这里立刻补一次。
+        if (player.HasTalent(Talent::完美块)) {
+            const auto before = player.comb_->GetCard(idx);
+            const auto pb_result = player.comb_->ApplyPerfectBlock();
+            const auto after = player.comb_->GetCard(idx);
+            if (before.has_value() && after.has_value() && !(*before == *after)) {
+                notify += "\n触发天赋「完美块」，该砖块视为万能牌！";
+            }
+            extra_delta += pb_result.score_delta;
+            latest = pb_result;
+        }
+
+        effective_result.base_score = latest.base_score;
+        effective_result.line_count = latest.line_count;
+        effective_result.score_delta = original_result.score_delta + extra_delta;
+        return notify;
     }
 };
 
 class MeditationTalent : public TalentBase
 {
   public:
-    MeditationTalent() : TalentBase({"A", Talent::冥想, "冥想", "每回合获得5点生命，直到单次连线获得25分及以上的分数"}) {}
+    MeditationTalent() : TalentBase({"A", Talent::冥想, "冥想", "每回合获得20点生命，直到6回合或单次连线获得25分及以上的分数"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
-        if (active) return Name();
+        if (active) return Name() + TalentTempScoreText("(" + std::to_string(rounds_done) + "/6)");
         return TalentInactiveText(Name());
     }
 
     std::string OnRoundStart(Player& player, const TalentRoundContext& context) override
     {
-        if (active) player.Heal(5);
+        if (!active) return "";
+        player.Heal(20);
+        ++rounds_done;
+        if (rounds_done >= 6) active = false;
         return "";
     }
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
         active = true;
-        return "，每回合获得5点生命，直到单次连线≥25分";
+        return "，每回合获得20点生命，直到6回合或单次连线≥25分";
     }
 
     std::string AfterScoreUpdatedOnCardPlaced(Player& player, uint32_t idx, const ScoreResult& effective_result,
@@ -464,12 +467,18 @@ class MeditationTalent : public TalentBase
     }
 
     bool active = false;
+    int32_t rounds_done = 0;
 };
 
 class LightInterferenceTalent : public TalentBase
 {
   public:
     LightInterferenceTalent() : TalentBase({"A", Talent::光波干涉, "光波干涉", "如果2条连线上的数字相同且连线长度也相同，这些连线获得20%额外分数"}) {}
+
+    bool IsCompatibleWithSpecialEvent(SpecialEvent event) const override
+    {
+        return event != SpecialEvent::大的要来了 && event != SpecialEvent::两极分化 && event != SpecialEvent::大的没了;
+    }
 
     std::string BoardDisplay(const Player& player) const override
     {
@@ -537,103 +546,109 @@ class LightInterferenceTalent : public TalentBase
 class NineMysteryTalent : public TalentBase
 {
   public:
-    NineMysteryTalent() : TalentBase({"A", Talent::九转玄机, "九转玄机", "你的9视为癞子线"}) {}
+    NineMysteryTalent() : TalentBase({"A", Talent::九转玄机, "九转玄机", "二选一，A=当前盘面所有9转化为癞子线；B=此后放置的所有9转化为癞子线（不改变已有盘面）"}) {}
 
     bool IsCompatibleWithSpecialEvent(SpecialEvent event) const override
     {
         return event != SpecialEvent::大的要来了 && event != SpecialEvent::两极分化 && event != SpecialEvent::大的没了;
     }
 
-    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
+    std::string BoardDisplay(const Player& /*player*/) const override
     {
-        player.comb_->ApplyNineAsWild();
-        player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, context.has_valuable_one);
-        return "，盘面上所有9已变为癞子线！";
+        if (pending) return Name() + TalentProgressText("[待选择]");
+        if (future_mode) return Name() + TalentProgressText("(后续)");
+        return TalentInactiveText(Name());
     }
 
-    std::string OnBeforePlaceCard(Player& player, AreaCard& card, bool is_normal_round) override
+    std::string OnAcquire(Player& /*player*/, const TalentAcquireContext& /*context*/) override
     {
+        pending = true;
+        return "，请在主动天赋阶段输入「九转玄机 A」或「九转玄机 B」选择效果";
+    }
+
+    bool HasPendingActiveChoice(const Player& /*player*/) const override { return pending; }
+
+    std::string ActivePrompt(const Player& /*player*/) const override
+    {
+        return "「九转玄机」：输入“九转玄机 A”或“九转玄机 B”二选一，超时默认按 A 结算";
+    }
+
+    std::string ActiveImageHtml(const Player& /*player*/) const override
+    {
+        if (!pending) return "";
+        std::string html = "<div style=\"padding: 20px;\">";
+        html += "<h2 style=\"text-align:center; margin: 0 0 16px 0;\">「九转玄机」二选一</h2>";
+        html += "<table style=\"border-collapse: collapse; width: 100%; font-size: 18px;\">";
+        html += "<tr><th style=\"border:1px solid #999; padding:8px; width:12%;\">选项</th>"
+                "<th style=\"border:1px solid #999; padding:8px;\">效果</th></tr>";
+        html += "<tr><td style=\"border:1px solid #bbb; padding:8px; font-weight:bold; text-align:center; font-size:24px; color:#D94A6A;\">A</td>"
+                "<td style=\"border:1px solid #bbb; padding:8px;\">立刻把<b>当前盘面上</b>所有的 9 转化为癞子线<br>"
+                "<span style=\"color:#666; font-size:15px;\">（一次性生效，此后放置的 9 不再转化）</span></td></tr>";
+        html += "<tr><td style=\"border:1px solid #bbb; padding:8px; font-weight:bold; text-align:center; font-size:24px; color:#1E3A8A;\">B</td>"
+                "<td style=\"border:1px solid #bbb; padding:8px;\">你<b>接下来放置</b>的所有 9 转化为癞子线<br>"
+                "<span style=\"color:#666; font-size:15px;\">（持续生效，但不改变已有盘面）</span></td></tr>";
+        html += "</table></div>";
+        return html;
+    }
+
+    uint32_t ActiveImageWidth() const override { return 560; }
+
+    // pass 默认按 A 方案结算
+    std::string OnActivePass(Player& player, const TalentActiveContext& context) override
+    {
+        if (!pending) return "";
+        pending = false;
+        const int32_t old_score = player.TotalScore();
+        const auto result = player.comb_->ApplyNineAsWild();
+        player.UpdateScore(result, context.has_valuable_one);
+        const int32_t delta = player.TotalScore() - old_score;
+        std::string msg = "未选择「九转玄机」，默认按 A 方案结算：盘面上所有9已变为癞子线";
+        if (delta > 0) {
+            msg += "，获得 " + std::to_string(delta) + " 点积分";
+        }
+        return msg;
+    }
+
+    // args[0]：0 = A（变换当前盘面），1 = B（此后放置生效）。
+    bool OnActiveCommand(Player& player, std::string_view /*command*/, const std::vector<uint32_t>& args,
+                         const TalentActiveContext& context, ScoreResult& result, std::string& message) override
+    {
+        if (!player.HasTalent(Talent::九转玄机) || !pending) {
+            message = "当前没有可发动的「九转玄机」";
+            return false;
+        }
+        if (args.size() != 1 || args[0] > 1) {
+            message = "「九转玄机」需要输入 A 或 B";
+            return false;
+        }
+        pending = false;
+        if (args[0] == 0) {
+            const int32_t old_score = player.TotalScore();
+            result = player.comb_->ApplyNineAsWild();
+            player.UpdateScore(result, context.has_valuable_one);
+            const int32_t delta = player.TotalScore() - old_score;
+            message = "发动天赋「九转玄机 A」，盘面上所有9已变为癞子线";
+            if (delta > 0) {
+                message += "，获得 " + std::to_string(delta) + " 点积分";
+            }
+            return true;
+        }
+        future_mode = true;
+        message = "发动天赋「九转玄机 B」，此后放置的所有9将转化为癞子线（已有盘面保持不变）";
+        return true;
+    }
+
+    std::string OnBeforePlaceCard(Player& /*player*/, AreaCard& card, bool /*is_normal_round*/) override
+    {
+        if (!future_mode) return "";
         AreaCard before = card;
         card.ApplyNineAsWild();
         if (card == before) return "";
         return "\n触发天赋「九转玄机」，9变为癞子线！";
     }
-};
-
-// 乾坤大挪移交换后同步位置追踪类天赋的状态。
-// 因引用了 TempWild()/GreedyTreasure()/ZeroPower()/VoidHeart() 等定义在下方的类，
-// 函数体延后到 VoidHeartTalent 之后；这里仅做前向声明供 QiankunMoveTalent 内联调用。
-inline void ApplyQiankunSwapFixup(Player& player, uint32_t lhs, uint32_t rhs, ScoreResult& result);
-
-class QiankunMoveTalent : public TalentBase
-{
-  public:
-    QiankunMoveTalent() : TalentBase({"A", Talent::乾坤大挪移, "乾坤大挪移", "你可以立刻交换盘面上的两个砖块"}) {}
-
-    std::string BoardDisplay(const Player& player) const override
-    {
-        if (!pending) return TalentInactiveText(Name());
-        return Name() + TalentProgressText("[待发动]");
-    }
-
-    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
-    {
-        pending = true;
-        return "，请在主动天赋阶段选择两个位置交换";
-    }
-
-    bool HasPendingActiveChoice(const Player& player) const override
-    {
-        return pending;
-    }
-
-    std::string ActivePrompt(const Player& player) const override
-    {
-        return "「乾坤大挪移」：输入“乾坤大挪移 <位置1> <位置2>”交换两个位置，或输入“pass”放弃";
-    }
-
-    std::string OnActivePass(Player& player) override
-    {
-        if (!pending) return "";
-        pending = false;
-        return "放弃发动天赋「乾坤大挪移」，天赋失效";
-    }
-
-    bool OnActiveCommand(Player& player, std::string_view command, const std::vector<uint32_t>& args,
-                         const TalentActiveContext& context, ScoreResult& result, std::string& message) override
-    {
-        if (!player.HasTalent(Talent::乾坤大挪移) || !pending) {
-            message = "当前没有可发动的「乾坤大挪移」";
-            return false;
-        }
-        if (args.size() != 2) {
-            message = "「乾坤大挪移」需要输入两个位置";
-            return false;
-        }
-        const uint32_t lhs = args[0];
-        const uint32_t rhs = args[1];
-        if (!player.comb_->IsFilled(lhs) && !player.comb_->IsFilled(rhs)) {
-            message = "「乾坤大挪移」发动失败：位置 " + std::to_string(lhs) + " 与位置 " + std::to_string(rhs) + " 均为空";
-            return false;
-        }
-
-        const int32_t old_score = player.TotalScore();
-        result = player.comb_->SwapCards(lhs, rhs);
-        ApplyQiankunSwapFixup(player, lhs, rhs, result);
-        player.UpdateScore(result, context.has_valuable_one);
-        const int32_t delta = player.TotalScore() - old_score;
-        pending = false;
-
-        message = "发动天赋「乾坤大挪移」，交换位置 " + std::to_string(lhs) + " 与 " + std::to_string(rhs);
-        if (delta > 0) {
-            message += "，获得 " + std::to_string(delta) + " 点积分";
-        } else if (delta < 0) {
-            message += "，损失 " + std::to_string(-delta) + " 点积分";
-        }
-        return true;
-    }
 
     bool pending = false;
+    bool future_mode = false;
 };
 
 class KeyChoiceTalent : public TalentBase
@@ -664,7 +679,7 @@ class KeyChoiceTalent : public TalentBase
 
     std::string ActivePrompt(const Player& player) const override
     {
-        return "「关键选择」：输入“关键选择 <天赋名称>”选择一个未获得的B级天赋，或输入“pass”放弃";
+        return "「关键选择」：输入“关键选择 <天赋名称>”选择一个未获得的B级天赋，超时默认“pass”放弃";
     }
 
     std::string ActiveImageHtml(const Player& player) const override
@@ -684,7 +699,7 @@ class KeyChoiceTalent : public TalentBase
         return html;
     }
 
-    std::string OnActivePass(Player& player) override
+    std::string OnActivePass(Player& player, const TalentActiveContext& /*context*/) override
     {
         if (!pending) return "";
         pending = false;
@@ -738,14 +753,13 @@ class KeyChoiceTalent : public TalentBase
 class LifeGameTalent : public TalentBase
 {
   public:
-    LifeGameTalent() : TalentBase({"A", Talent::生命游戏, "生命游戏", "在本局游戏内，每累计被扣20生命，额外+2分；每累计回复5生命，额外+1分"}) {}
+    LifeGameTalent() : TalentBase({"A", Talent::生命游戏, "生命游戏", "在本局游戏内，每累计被扣10生命，额外+1分"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
         const int32_t dmg_bonus = DamageBonus();
-        const int32_t heal_bonus = HealBonus();
-        if (dmg_bonus == 0 && heal_bonus == 0) return Name();
-        return Name() + TalentProgressText("(" + std::to_string(dmg_bonus) + "+" + std::to_string(heal_bonus) + ")");
+        if (dmg_bonus == 0) return Name();
+        return Name() + TalentProgressText("(+" + std::to_string(dmg_bonus) + ")");
     }
 
     void OnDamageReceived(Player& player, int32_t damage) override
@@ -759,27 +773,14 @@ class LifeGameTalent : public TalentBase
         }
     }
 
-    void OnHealApplied(Player& player, int32_t actual_heal) override
-    {
-        if (actual_heal <= 0) return;
-        const int32_t before = HealBonus();
-        heal_done += actual_heal;
-        // 同上：回血累计跨过门槛时立即刷新分数，避免滞后。
-        if (HealBonus() != before && player.HasTalent(Talent::生命游戏)) {
-            player.RefreshPermanentExtra();
-        }
-    }
-
     int32_t PermanentExtraScore(Player& player, int32_t current_extra) override
     {
-        return DamageBonus() + HealBonus();
+        return DamageBonus();
     }
 
-    int32_t DamageBonus() const { return (damage_taken / 20) * 2; }
-    int32_t HealBonus() const { return heal_done / 5; }
+    int32_t DamageBonus() const { return damage_taken / 10; }
 
     int32_t damage_taken = 0;
-    int32_t heal_done = 0;
 };
 
 class YZoneTalent : public TalentBase
@@ -850,14 +851,17 @@ class YZoneTalent : public TalentBase
 class TempWildTalent : public TalentBase
 {
   public:
-    TempWildTalent() : TalentBase({"A", Talent::临时用品, "临时用品", "获得一个仅三回合可用的癞子"}) {}
+    TempWildTalent() : TalentBase({"A", Talent::临时用品, "临时用品", "获得一个仅三次对战可用的癞子"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
         if (position <= 0) {
+            if (HasPendingCard_(player)) {
+                return TalentBlueBuffText(Name()) + TalentTempScoreText("[待选择]");
+            }
             return TalentInactiveText(Name());
         }
-        return Name() + TalentTempScoreText("[" + std::to_string(rounds_left) + "回合]");
+        return Name() + TalentTempScoreText("[" + std::to_string(battles_left) + "对战]");
     }
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
@@ -866,11 +870,11 @@ class TempWildTalent : public TalentBase
         if (context.initial_test_mode && player.comb_->HasEmptyPosition()) {
             const auto [idx, result] = player.comb_->SeqFill(wild_card);
             position = idx;
-            rounds_left = 3;
+            battles_left = 3;
             return "，获得一张临时癞子砖块";
         }
         player.extra_card_queue_.push_back({{wild_card}, Name(), false, Talent::临时用品});
-        return "，请在额外放置阶段选择位置放置临时癞子（3回合后到期）";
+        return "，请在额外放置阶段选择位置放置临时癞子（3次对战后到期）";
     }
 
     std::string OnCardPlaced(Player& player, uint32_t idx, const ScoreResult& original_result, ScoreResult& effective_result,
@@ -879,36 +883,136 @@ class TempWildTalent : public TalentBase
         if (position <= 0 || idx != position || context.previous_card == nullptr || !context.previous_card->IsWild()) return "";
         if (context.source_talent == Talent::临时用品) return "";
         position = 0;
-        rounds_left = 0;
+        battles_left = 0;
         return "\n「临时用品」已被覆盖，天赋不再生效";
     }
 
-    std::string OnRoundStart(Player& player, const TalentRoundContext& context) override
+    std::string OnBattlePhaseEnd(Player& player, int32_t /*current_round*/) override
     {
-        if (position <= 0 || context.is_selection_round) return "";
-        rounds_left--;
-        if (rounds_left > 0) return "";
+        if (position <= 0) return "";
+        if (battles_left > 0) {
+            --battles_left;
+            if (battles_left > 0) return "";
+        }
         const uint32_t expired_position = position;
         const auto& card = player.comb_->GetCard(expired_position);
-        if (!card.has_value() || !card->IsWild()) return "";
-        auto result = player.comb_->RemoveCard(expired_position);
-        player.UpdateScore(result, context.has_valuable_one);
+        if (!card.has_value() || !card->IsWild()) { position = 0; return ""; }
+        const int32_t old_score = player.TotalScore();
+        player.comb_->RemoveCard(expired_position);
+        player.RefreshPermanentExtra();
+        player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, /*has_valuable_one=*/false);
         position = 0;
-        return " 的「临时用品」癞子到期，已从位置 " + std::to_string(expired_position) + " 移除";
+        const int32_t delta = old_score - player.TotalScore();
+        std::string msg = "「临时用品」到期，从位置 " + std::to_string(expired_position) + " 移除";
+        if (delta > 0) {
+            msg += "，损失 " + std::to_string(delta) + " 点积分";
+        }
+        return msg;
     }
 
     uint32_t position = 0;
-    int32_t rounds_left = 0;
+    int32_t battles_left = 0;
+
+  private:
+    // 额外砖块队列里是否还有本天赋发放、但玩家尚未放置的癞子。
+    static bool HasPendingCard_(const Player& player)
+    {
+        for (const auto& entry : player.extra_card_queue_) {
+            if (entry.source_talent == Talent::临时用品) return true;
+        }
+        return false;
+    }
+};
+
+class ZeroRedemptionTalent : public TalentBase
+{
+  public:
+    ZeroRedemptionTalent() : TalentBase({"A", Talent::零的救赎, "0的救赎", "你的0线视为任何数字参与连线（但0不计入得分），获得一张000"}) {}
+
+    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
+    {
+        auto result = player.comb_->SetZeroRedemption(true);
+        player.UpdateScore(result, context.has_valuable_one);
+        player.extra_card_queue_.push_back({{AreaCard(0, 0, 0)}, Name(), false, Talent::零的救赎});
+        return "，盘面立即重算，并获得一张 000";
+    }
+};
+
+class NineColorDeerTalent : public TalentBase
+{
+  public:
+    NineColorDeerTalent() : TalentBase({"A", Talent::九色鹿, "九色鹿", "当完成的连线覆盖所有1-9数字时，分数+9%"}) {}
+
+    bool IsCompatibleWithSpecialEvent(SpecialEvent event) const override
+    {
+        return event != SpecialEvent::大的要来了 && event != SpecialEvent::两极分化 && event != SpecialEvent::大的没了;
+    }
+
+    std::string BoardDisplay(const Player& player) const override
+    {
+        const int32_t covered = player.NineColorCoveredCount();
+        if (covered >= 9) return Name() + TalentTempScoreText("(9/9✦)");
+        return Name() + TalentProgressText("(" + std::to_string(covered) + "/9)");
+    }
+
+    std::string ScoreDetail(const Player& player) const override
+    {
+        const int32_t bonus = player.NineColorDeerBonus();
+        if (bonus == 0) return "";
+        return "+" + TalentExtraScoreText("[九色鹿+" + std::to_string(bonus) + "]");
+    }
+
+    std::string OnAcquire(Player& /*player*/, const TalentAcquireContext& /*context*/) override
+    {
+        return "，当完成连线覆盖1-9全部数字时，总分+9%";
+    }
+};
+
+class PlaceboTalent : public TalentBase
+{
+  public:
+    PlaceboTalent() : TalentBase({"A", Talent::安慰剂, "安慰剂", "每条填满但未成功连线的线，获得 长度×1 分（不增加连线数）"}) {}
+
+    std::string BoardDisplay(const Player& player) const override
+    {
+        const int32_t bonus = ComputeBonus_(player);
+        if (bonus == 0) return Name();
+        return Name() + TalentProgressText("(+" + std::to_string(bonus) + ")");
+    }
+
+    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
+    {
+        player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, context.has_valuable_one);
+        return "";
+    }
+
+    int32_t PermanentExtraScore(Player& player, int32_t /*current_extra*/) override
+    {
+        return ComputeBonus_(player);
+    }
+
+  private:
+    static int32_t ComputeBonus_(const Player& player)
+    {
+        int32_t bonus = 0;
+        for (int32_t len : player.comb_->FilledUnmatchedLengths()) bonus += len;
+        return bonus;
+    }
 };
 
 class BloodlustTalent : public TalentBase
 {
   public:
-    BloodlustTalent() : TalentBase({"B", Talent::嗜血, "嗜血", "战斗获胜时，生命值+4"}) {}
+    BloodlustTalent() : TalentBase({"B", Talent::嗜血, "嗜血", "战斗获胜时，对对手造成伤害+5，生命值+5"}) {}
+
+    TalentDamageEffect AttackDamageDelta(Player& /*attacker*/, Player& /*defender*/, int32_t /*damage*/, std::mt19937& /*rng*/) override
+    {
+        return {5, ""};
+    }
 
     std::string OnVictory(Player& player, const TalentVictoryContext& context) override
     {
-        player.Heal(4);
+        player.Heal(5);
         return "";
     }
 };
@@ -977,7 +1081,7 @@ class StillUsefulTalent : public TalentBase
 class SwiftAttackTalent : public TalentBase
 {
   public:
-    SwiftAttackTalent() : TalentBase({"B", Talent::快攻, "快攻", "战斗获胜时，对对手造成伤害+6"}) {}
+    SwiftAttackTalent() : TalentBase({"B", Talent::快攻, "快攻", "战斗获胜时，对对手造成伤害+6"}, false) {}
 
     TalentDamageEffect AttackDamageDelta(Player& attacker, Player& defender, int32_t damage, std::mt19937& rng) override
     {
@@ -988,40 +1092,42 @@ class SwiftAttackTalent : public TalentBase
 class IndependentTalent : public TalentBase
 {
   public:
-    IndependentTalent() : TalentBase({"B", Talent::特立独行, "特立独行", "分数为奇数时，战斗时分数短暂提升6"}) {}
+    IndependentTalent() : TalentBase({"B", Talent::特立独行, "特立独行", "分数为奇数时，战斗时分数短暂提升5+1.5%"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
-        std::string s = Name();
-        if (TempBattleScore(player) > 0) {
-            s += TalentTempScoreText("[+6]");
-        }
-        return s;
+        const int32_t bonus = TempBattleScore(player);
+        if (bonus <= 0) return Name();
+        return Name() + TalentTempScoreText("[+" + std::to_string(bonus) + "]");
     }
 
+    // 随当前总分动态变化：每次查询都按最新分数重算。
     int32_t TempBattleScore(const Player& player) const override
     {
-        return player.TotalScore() % 2 == 1 ? 6 : 0;
+        const int32_t total = player.TotalScore();
+        if (total % 2 == 0) return 0;
+        return 5 + static_cast<int32_t>(std::ceil(total * 0.015));
     }
 };
 
 class InPairsTalent : public TalentBase
 {
   public:
-    InPairsTalent() : TalentBase({"B", Talent::成双成对, "成双成对", "分数为偶数时，战斗时分数短暂提升6"}) {}
+    InPairsTalent() : TalentBase({"B", Talent::成双成对, "成双成对", "分数为偶数时，战斗时分数短暂提升5+1.5%"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
-        std::string s = Name();
-        if (TempBattleScore(player) > 0) {
-            s += TalentTempScoreText("[+6]");
-        }
-        return s;
+        const int32_t bonus = TempBattleScore(player);
+        if (bonus <= 0) return Name();
+        return Name() + TalentTempScoreText("[+" + std::to_string(bonus) + "]");
     }
 
+    // 随当前总分动态变化：每次查询都按最新分数重算。
     int32_t TempBattleScore(const Player& player) const override
     {
-        return player.TotalScore() % 2 == 0 ? 6 : 0;
+        const int32_t total = player.TotalScore();
+        if (total % 2 != 0) return 0;
+        return 5 + static_cast<int32_t>(std::ceil(total * 0.015));
     }
 };
 
@@ -1055,19 +1161,24 @@ class TrashRecycleTalent : public TalentBase
 class SomethingRealTalent : public TalentBase
 {
   public:
-    SomethingRealTalent() : TalentBase({"B", Talent::来点实在的, "来点实在的", "立刻获得4分"}) {}
+    SomethingRealTalent() : TalentBase({"B", Talent::来点实在的, "来点实在的", "立刻获得3+1%分"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
-        return Name() + TalentPermanentGreenText("(+4)");
+        return Name() + TalentPermanentGreenText("(+" + std::to_string(bonus) + ")");
     }
 
+    // 一次性快照：按获得天赋当时的总分结算，此后不随分数变化。
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
-        return "，立即获得 4 分！";
+        bonus = 3 + static_cast<int32_t>(std::ceil(player.TotalScore() * 0.01));
+        player.RefreshPermanentExtra();
+        return "，立即获得 " + std::to_string(bonus) + " 分！";
     }
 
-    int32_t PermanentExtraScore(Player& player, int32_t current_extra) override { return 4; }
+    int32_t PermanentExtraScore(Player& player, int32_t current_extra) override { return bonus; }
+
+    int32_t bonus = 0;
 };
 
 class OffensiveFormTalent : public TalentBase
@@ -1191,7 +1302,7 @@ class LocalEnhanceTalent : public TalentBase
 class GainAfterLossTalent : public TalentBase
 {
   public:
-    GainAfterLossTalent() : TalentBase({"B", Talent::有舍有得, "有舍有得", "每战败4次，随机获得3枚砖块，从中选择1枚放置"}) {}
+    GainAfterLossTalent() : TalentBase({"B", Talent::有舍有得, "有舍有得", "每战败4次，随机获得5枚砖块，从中选择1枚放置"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
@@ -1210,7 +1321,7 @@ class GainAfterLossTalent : public TalentBase
         // place_all=false → 玩家在 ExtraCardStage 中从 3 张候选里挑 1 张放置，剩余丢弃。
         player.extra_card_queue_.push_back({*context.offered_cards, Name(), false, Talent::有舍有得});
         loss_count -= 4;
-        return "触发天赋「有舍有得」，从 3 枚砖块中选 1 枚放置";
+        return "触发天赋「有舍有得」，从5枚砖块中选1枚放置";
     }
 
     int32_t loss_count = 0;
@@ -1310,13 +1421,22 @@ class ForgeTalent : public TalentBase
 class TailGoodsTalent : public TalentBase
 {
   public:
-    TailGoodsTalent() : TalentBase({"B", Talent::尾货处理, "尾货处理", "选牌时，如果你最后一个选，则可以获得剩下两个砖块"}) {}
+    TailGoodsTalent() : TalentBase({"B", Talent::尾货处理, "尾货处理", "下两次选秀时，获得本次公共选卡中没有人选择的砖块"}) {}
 
-    // 仅当玩家排在最后一位选牌时显示青色边框；触发"末位补牌"的逻辑保留在 SelectStage::Select_ 中特判。
-    std::string SelectionBorderStyle(const Player& /*player*/, bool is_last_selector) const override
+    std::string BoardDisplay(const Player& /*player*/) const override
     {
-        return is_last_selector ? "border:2px solid #00E5FF;" : "";
+        if (pending_uses <= 0) return TalentInactiveText(Name());
+        return Name() + TalentTempScoreText("[剩余" + std::to_string(pending_uses) + "]");
     }
+
+    std::string OnAcquire(Player& /*player*/, const TalentAcquireContext& /*context*/) override
+    {
+        pending_uses = 2;
+        return "，接下来 2 次选秀阶段结束时，获得没有人选择的砖块";
+    }
+
+    // 触发与剩余次数由 SelectStage::StageOver_ 内联处理（参见 mygame.cc）。
+    int32_t pending_uses = 0;
 };
 
 class TuringTestTalent : public TalentBase
@@ -1335,7 +1455,7 @@ class TuringTestTalent : public TalentBase
 class NoMoreThanThreeTalent : public TalentBase
 {
   public:
-    NoMoreThanThreeTalent() : TalentBase({"B", Talent::事不过三, "事不过三", "你第4次战败时，免疫此次伤害"}) {}
+    NoMoreThanThreeTalent() : TalentBase({"B", Talent::事不过三, "事不过三", "你第4次战败时，免疫此次伤害"}, false) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
@@ -1404,43 +1524,53 @@ class DigitReverseTalent : public TalentBase
 class LoserBladeTalent : public TalentBase
 {
   public:
-    LoserBladeTalent() : TalentBase({"B", Talent::败者之刃, "败者之刃", "你战败后获得4分临时分（可累积），在战胜一次后清除"}) {}
+    LoserBladeTalent() : TalentBase({"B", Talent::败者之刃, "败者之刃", "战败后获得3分临时分（战胜后清除）和1分永久分"}) {}
 
-    std::string BoardDisplay(const Player& player) const override
+    std::string BoardDisplay(const Player& /*player*/) const override
     {
-        std::string s = Name();
+        if (perm_score == 0 && temp_score == 0) return Name();
         if (temp_score > 0) {
-            s += TalentTempScoreText("[+" + std::to_string(temp_score) + "]");
+            return Name()
+                + TalentProgressText("(" + std::to_string(perm_score) + "+")
+                + TalentTempScoreText("[" + std::to_string(temp_score) + "]")
+                + TalentProgressText(")");
         }
-        return s;
+        return Name() + TalentProgressText("(" + std::to_string(perm_score) + ")");
     }
 
-    int32_t TempBattleScore(const Player& player) const override { return temp_score; }
+    int32_t TempBattleScore(const Player& /*player*/) const override { return temp_score; }
 
-    std::string OnDefeat(Player& player, const TalentDefeatContext& context, int32_t& damage) override
+    int32_t PermanentExtraScore(Player& /*player*/, int32_t /*current_extra*/) override { return perm_score; }
+
+    std::string OnDefeat(Player& player, const TalentDefeatContext& /*context*/, int32_t& /*damage*/) override
     {
-        temp_score += 4;
-        return "";
+        temp_score += 3;
+        perm_score += 1;
+        player.RefreshPermanentExtra();
+        return "触发天赋「败者之刃」，获得1+[3]分";
     }
 
-    std::string OnVictory(Player& player, const TalentVictoryContext& context) override
+    std::string OnVictory(Player& /*player*/, const TalentVictoryContext& /*context*/) override
     {
+        if (temp_score == 0) return "";
+        const int32_t old = temp_score;
         temp_score = 0;
         return "";
     }
 
     int32_t temp_score = 0;
+    int32_t perm_score = 0;
 };
 
 class BandageTalent : public TalentBase
 {
   public:
-    BandageTalent() : TalentBase({"B", Talent::包扎, "包扎", "立即获得20点生命"}) {}
+    BandageTalent() : TalentBase({"B", Talent::包扎, "包扎", "立即获得40点生命"}) {}
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
-        player.Heal(20);
-        return "，立即获得 20 点生命！";
+        player.Heal(40);
+        return "，立即获得40点生命！";
     }
 };
 
@@ -1469,33 +1599,38 @@ class HerbalGrowthTalent : public TalentBase
 class AngelRoundTalent : public TalentBase
 {
   public:
-    AngelRoundTalent() : TalentBase({"B", Talent::天使轮, "天使轮", "获得15点临时分，直到下次完成一次连线为止"}) {}
+    AngelRoundTalent() : TalentBase({"B", Talent::天使轮, "天使轮", "获得16点临时分，每完成一次连线扣除8点本天赋获得的分数"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
-        if (!active) {
+        if (temp_score <= 0) {
             return TalentInactiveText(Name());
         }
-        return Name() + TalentTempScoreText("[+15]");
+        return Name() + TalentTempScoreText("[+" + std::to_string(temp_score) + "]");
     }
 
-    int32_t TempBattleScore(const Player& player) const override { return active ? 15 : 0; }
+    int32_t TempBattleScore(const Player& player) const override { return temp_score; }
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
-        active = true;
-        return "，获得15点临时分，直到下次完成连线为止";
+        temp_score = 16;
+        return "，获得16点临时分，每完成一次连线扣除8点";
     }
 
+    // 每次放置完成新连线扣 8；扣到 0 为止（不会变负）。
     std::string AfterScoreUpdatedOnCardPlaced(Player& player, uint32_t idx, const ScoreResult& effective_result,
                                               const TalentCardPlacedContext& context, int32_t old_permanent_extra) override
     {
-        if (!active || effective_result.score_delta <= 0) return "";
-        active = false;
-        return "\n天赋「天使轮」临时分已消失！（完成连线）";
+        if (temp_score <= 0 || effective_result.score_delta <= 0) return "";
+        const int32_t deducted = std::min(temp_score, 8);
+        temp_score -= deducted;
+        if (temp_score > 0) {
+            return "\n天赋「天使轮」扣除 " + std::to_string(deducted) + " 点临时分（剩余 " + std::to_string(temp_score) + "）";
+        }
+        return "\n天赋「天使轮」临时分已耗尽！";
     }
 
-    bool active = false;
+    int32_t temp_score = 0;
 };
 
 class PlunderTalent : public TalentBase
@@ -1536,7 +1671,7 @@ class MultiChoiceTalent : public TalentBase
 class ZhangSanTalent : public TalentBase
 {
   public:
-    ZhangSanTalent() : TalentBase({"B", Talent::张三来袭, "张三来袭", "你每放置一张3，获得3点生命"}) {}
+    ZhangSanTalent() : TalentBase({"B", Talent::张三来袭, "张三来袭", "放置含3/6/9的牌时，每有一个对应数字获得3点生命（每条单线癞子也算一次）"}) {}
 
     std::string OnCardPlaced(Player& player, uint32_t idx, const ScoreResult& original_result, ScoreResult& effective_result,
                              const TalentCardPlacedContext& context) override
@@ -1544,12 +1679,13 @@ class ZhangSanTalent : public TalentBase
         if (idx == 0) return "";
         const auto& placed = player.comb_->GetCard(idx);
         if (!placed.has_value()) return "";
-        int32_t threes = 0;
+        int32_t match = 0;
         for (uint32_t d = 0; d < k_direct_max; ++d) {
-            if (placed->PointAt(d) == 3 || placed->PointAt(d) == 10) ++threes;
+            const int32_t v = placed->PointAt(d);
+            if (v == 3 || v == 6 || v == 9 || v == 10) ++match;
         }
-        if (threes <= 0) return "";
-        const int32_t heal = threes * 3;
+        if (match <= 0) return "";
+        const int32_t heal = match * 3;
         const int32_t actual_heal = player.Heal(heal);
         return "\n触发天赋「张三来袭」，获得 " + std::to_string(actual_heal) + " 点生命";
     }
@@ -1620,7 +1756,7 @@ class GreedyTreasureTalent : public TalentBase
 class ZeroPowerTalent : public TalentBase
 {
   public:
-    ZeroPowerTalent() : TalentBase({"B", Talent::零的力量, "0的力量", "获得一张000，只要000在场上存在，你放置卡牌时3视为4，6视为7"}) {}
+    ZeroPowerTalent() : TalentBase({"B", Talent::零的力量, "0的力量", "获得一张000，只要此000在场上存在，你放置卡牌时3视为4，6视为7"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
@@ -1655,7 +1791,7 @@ class ZeroPowerTalent : public TalentBase
             active = true;
             return "\n天赋「0的力量」场地效果生效";
         }
-        if (active && idx == position && context.previous_card != nullptr && context.previous_card->IsZero()) {
+        if (active && idx == position && context.previous_card != nullptr) {
             active = false;
             position = 0;
             return "\n位置上的000被覆盖，天赋「0的力量」效果解除";
@@ -1670,38 +1806,37 @@ class ZeroPowerTalent : public TalentBase
 class VoidHeartTalent : public TalentBase
 {
   public:
-    VoidHeartTalent() : TalentBase({"B", Talent::虚空之心, "虚空之心", "若你的10号位空置，则为你提供10点临时分"}) {}
+    VoidHeartTalent() : TalentBase({"B", Talent::虚空之心, "虚空之心", "为你提供等同于你最大空置号码位置（范围1~10）数字的临时分"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
-        if (disabled || player.comb_->IsFilled(10)) return TalentInactiveText(Name());
-        return Name() + TalentTempScoreText("[+10]");
+        const int32_t score = LargestEmptyPosition_(player);
+        if (score <= 0) return TalentInactiveText(Name());
+        return Name() + TalentTempScoreText("[+" + std::to_string(score) + "]");
     }
 
-    int32_t TempBattleScore(const Player& player) const override
-    {
-        return (!disabled && !player.comb_->IsFilled(10)) ? 10 : 0;
-    }
+    int32_t TempBattleScore(const Player& player) const override { return LargestEmptyPosition_(player); }
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
-        disabled = player.comb_->IsFilled(10);
-        return disabled ? "，但10号位已被占用，天赋未生效" : "，10号位空置时获得10点临时分！";
+        const int32_t score = LargestEmptyPosition_(player);
+        if (score <= 0) return "，但1~10号位已全部占满，暂无临时分";
+        return "，当前最大空置位置为 " + std::to_string(score) + " 号位，获得 " + std::to_string(score) + " 点临时分！";
     }
 
-    std::string OnCardPlaced(Player& player, uint32_t idx, const ScoreResult& original_result, ScoreResult& effective_result,
-                             const TalentCardPlacedContext& context) override
+  private:
+    // 1~10 号位中编号最大的空位；全满则为 0。随盘面变化实时生效，无需 OnCardPlaced 记账。
+    static int32_t LargestEmptyPosition_(const Player& player)
     {
-        if (disabled || idx != 10) return "";
-        disabled = true;
-        return "\n10号位被覆盖，天赋「虚空之心」失效";
+        for (int32_t pos = 10; pos >= 1; --pos) {
+            if (!player.comb_->IsFilled(static_cast<uint32_t>(pos))) return pos;
+        }
+        return 0;
     }
-
-    bool disabled = false;
 };
 
 // 「乾坤大挪移」交换 lhs / rhs 之后，同步关联天赋的盘面位置状态。
-// 前向声明位于 QiankunMoveTalent 之前；此处函数体放在所有受影响天赋类完整定义之后。
+// 位置在所有受影响天赋类完整定义之后、QiankunMoveTalent（B 段末尾）之前，因此无需前向声明。
 inline void ApplyQiankunSwapFixup(Player& player, uint32_t lhs, uint32_t rhs, ScoreResult& result)
 {
     // 1. 星河流转：lhs / rhs 落在 {2,4,7,13,16,18} 时重新对该位置应用单线癞子。
@@ -1720,13 +1855,6 @@ inline void ApplyQiankunSwapFixup(Player& player, uint32_t lhs, uint32_t rhs, Sc
     if (player.HasTalent(Talent::临时用品)) swap_position(player.TempWild().position);
     if (player.HasTalent(Talent::贪婪宝藏)) swap_position(player.GreedyTreasure().position);
     if (player.HasTalent(Talent::零的力量)) swap_position(player.ZeroPower().position);
-
-    // 3. 虚空之心：交换让原本空置的 10 号位被填上时，按"放置到 10"语义永久 disable。
-    //    反向（把 10 号位的卡换出）不主动恢复 disabled，与 OnCardPlaced 的「永久失效」语义一致。
-    if (player.HasTalent(Talent::虚空之心) && (lhs == 10 || rhs == 10)) {
-        auto& vh = player.VoidHeart();
-        if (!vh.disabled && player.comb_->IsFilled(10)) vh.disabled = true;
-    }
 }
 
 class PerformancePersonalityTalent : public TalentBase
@@ -1911,17 +2039,18 @@ class ChestnutTalent : public TalentBase
 class VitalityTalent : public TalentBase
 {
   public:
-    VitalityTalent() : TalentBase({"B", Talent::勃勃生机, "勃勃生机", "立即获得15点生命。你的回血效果翻倍"}) {}
+    VitalityTalent() : TalentBase({"B", Talent::勃勃生机, "勃勃生机", "立即获得25点生命，你的回血效果增加50%"}) {}
 
     int32_t ModifyHealAmount(const Player& player, int32_t amount) const override
     {
-        return amount * 2;
+        // 50% 加成，向上取整（对小回血量友好：1→2、3→5）。
+        return amount + (amount + 1) / 2;
     }
 
     std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
     {
-        player.Heal(15, false);
-        return "，立即获得15点生命，此后的回血效果翻倍！";
+        player.Heal(25, false);
+        return "，立即获得25点生命，此后的回血效果增加50%！";
     }
 };
 
@@ -1981,7 +2110,7 @@ class ZeroRiskInvestmentTalent : public TalentBase
 class BattleHardenedTalent : public TalentBase
 {
   public:
-    BattleHardenedTalent() : TalentBase({"B", Talent::以战代练, "以战代练", "在你和分数差距5以内的对手对战后，你的分数永久+3"}) {}
+    BattleHardenedTalent() : TalentBase({"B", Talent::以战代练, "以战代练", "在你和分数差距7以内的对手对战后，你的分数永久+3"}) {}
 
     std::string BoardDisplay(const Player& player) const override
     {
@@ -1994,7 +2123,7 @@ class BattleHardenedTalent : public TalentBase
     // 走 OnBattleEnd 而非 OnVictory/OnDefeat，平局也应记账。
     std::string OnBattleEnd(Player& player, const TalentBattleEndContext& context) override
     {
-        if (std::abs(context.my_battle_score - context.opponent_battle_score) > 5) return "";
+        if (std::abs(context.my_battle_score - context.opponent_battle_score) > 7) return "";
         accumulated += 3;
         // 命中条件即时刷新 permanent_extra_，避免分数详情/总分滞后到下次 UpdateScore。
         player.UpdateScore(ScoreResult{player.comb_->BaseScore(), player.comb_->LineCount(), 0}, context.has_valuable_one);
@@ -2077,11 +2206,11 @@ class TimeAnchorTalent : public TalentBase
 class RhythmRemnantTalent : public TalentBase
 {
   public:
-    RhythmRemnantTalent() : TalentBase({"B", Talent::律动残余, "律动残余", "你每次受到的伤害不超过25"}) {}
+    RhythmRemnantTalent() : TalentBase({"B", Talent::律动残余, "律动残余", "你每次受到的伤害不超过30"}) {}
 
     std::string OnDefeat(Player& player, const TalentDefeatContext& context, int32_t& damage) override
     {
-        if (damage > 25) damage = 25;
+        if (damage > 30) damage = 30;
         return "";
     }
 };
@@ -2090,6 +2219,290 @@ class PandoraBoxTalent : public TalentBase
 {
   public:
     PandoraBoxTalent() : TalentBase({"B", Talent::潘多拉魔盒, "潘多拉魔盒", "随机获得两个B级天赋"}) {}
+};
+
+class BlockTalent : public TalentBase
+{
+  public:
+    BlockTalent() : TalentBase({"B", Talent::格挡, "格挡", "下一次对战失败受到伤害时减免50%，弃牌可再次获得（不可叠加）"}) {}
+
+    std::string BoardDisplay(const Player& /*player*/) const override
+    {
+        return armed ? Name() : TalentInactiveText(Name());
+    }
+
+    std::string OnAcquire(Player& /*player*/, const TalentAcquireContext& /*context*/) override
+    {
+        armed = true;
+        return "，下一次失败可减免 50% 伤害";
+    }
+
+    std::string OnDiscard(Player& /*player*/, const AreaCard& /*card*/, const TalentDiscardContext& /*context*/) override
+    {
+        if (armed) return "";  // 不可叠加
+        armed = true;
+        return "\n天赋「格挡」重新蓄势";
+    }
+
+    std::string OnDefeat(Player& /*player*/, const TalentDefeatContext& /*context*/, int32_t& damage) override
+    {
+        if (!armed || damage <= 0) return "";
+        const int32_t reduced = static_cast<int32_t>(std::ceil(damage * 0.5));
+        damage -= reduced;
+        if (damage < 0) damage = 0;
+        armed = false;
+        return "触发天赋「格挡」，伤害减免 " + std::to_string(reduced);
+    }
+
+    bool armed = false;
+};
+
+class WarmUpTalent : public TalentBase
+{
+  public:
+    WarmUpTalent() : TalentBase({"B", Talent::热身运动, "热身运动", "下一次对战胜利时生效；战斗胜利不造成伤害，改为获得3分，持续6回合或战斗失败"}) {}
+
+    std::string BoardDisplay(const Player& /*player*/) const override
+    {
+        if (expired) return TalentInactiveText(Name()) + TalentProgressText("(+" + std::to_string(accumulated) + ")");
+        if (pending) return Name() + TalentTempScoreText("[待生效]");
+        return Name() + TalentProgressText("(" + std::to_string(rounds_left) + "回合, +" + std::to_string(accumulated) + ")");
+    }
+
+    std::string OnAcquire(Player& /*player*/, const TalentAcquireContext& /*context*/) override
+    {
+        pending = true;
+        return "，下一次对战胜利时生效（不造成伤害并 +3 分，持续 6 回合或战败结束）";
+    }
+
+    // 胜方造成伤害归零。pending 在此翻转为生效，使激活当场就免疫伤害。
+    TalentDamageEffect AttackDamageDelta(Player& /*attacker*/, Player& /*defender*/, int32_t damage, std::mt19937& /*rng*/) override
+    {
+        if (expired) return {};
+        if (pending) {
+            pending = false;
+            rounds_left = 6;
+            just_activated = true;
+        }
+        if (rounds_left <= 0) return {};
+        return {-damage, ""};
+    }
+
+    // 胜利：生效期间 +4 分（含激活当场那一次）。
+    std::string OnVictory(Player& player, const TalentVictoryContext& /*context*/) override
+    {
+        if (expired || pending || rounds_left <= 0) return "";
+        accumulated += 3;
+        player.RefreshPermanentExtra();
+        if (just_activated) {
+            just_activated = false;
+            return "天赋「热身运动」生效，获得 3 分（此后6回合内胜利不造成伤害且+3分）";
+        }
+        return "触发天赋「热身运动」，获得 3 分";
+    }
+
+    std::string OnDefeat(Player& /*player*/, const TalentDefeatContext& /*context*/, int32_t& /*damage*/) override
+    {
+        if (expired || pending) return "";
+        if (rounds_left > 0) {
+            rounds_left = 0;
+            expired = true;
+            return "「热身运动」遭遇战败，效果终止";
+        }
+        return "";
+    }
+
+    std::string OnRoundStart(Player& /*player*/, const TalentRoundContext& context) override
+    {
+        if (expired || pending || context.is_selection_round) return "";
+        if (rounds_left > 0) {
+            --rounds_left;
+            if (rounds_left == 0) {
+                expired = true;
+                return "「热身运动」6回合到期";
+            }
+        }
+        return "";
+    }
+
+    int32_t PermanentExtraScore(Player& /*player*/, int32_t /*current_extra*/) override { return accumulated; }
+
+    bool pending = false;
+    bool expired = false;
+    bool just_activated = false;  // 仅用于区分"生效当场"与后续胜利的播报文案
+    int32_t rounds_left = 0;
+    int32_t accumulated = 0;
+};
+
+class StrategyExpertTalent : public TalentBase
+{
+  public:
+    StrategyExpertTalent() : TalentBase({"B", Talent::谋划专家, "谋划专家", "放置砖块连续得分时计连击（自开局起），第2次得分起每次额外获得（连击数+2）分；放置不得分仅中断连击"}, false) {}
+
+    std::string BoardDisplay(const Player& /*player*/) const override
+    {
+        std::string s = Name();
+        if (scoring_combo > 0 || accumulated > 0) {
+            s += TalentProgressText("(连击" + std::to_string(scoring_combo) + ", +" + std::to_string(accumulated) + ")");
+        }
+        return s;
+    }
+
+    std::string AfterScoreUpdatedOnCardPlaced(Player& player, uint32_t /*idx*/, const ScoreResult& effective_result,
+                                              const TalentCardPlacedContext& /*context*/, int32_t /*old_permanent_extra*/) override
+    {
+        // 本 hook 在 TrackCardPlaced 之前调用，scoring_combo 仍是放置前的旧值。
+        const int32_t combo_before = scoring_combo;
+        if (effective_result.score_delta > 0) {
+            // 一段新连击的首次得分（combo_before == 0）不奖励；第 2 次起 (combo_before + 2)。
+            if (combo_before <= 0) return "";
+            const int32_t bonus = combo_before + 2;
+            accumulated += bonus;
+            player.RefreshPermanentExtra();
+            // 显示用 combo_before + 1，即本次得分后的最终连击数。
+            return "\n触发天赋「谋划专家」连击 " + std::to_string(combo_before + 1) + "，获得 " + std::to_string(bonus) + " 分";
+        }
+        // 放置不得分：仅中断连击（accumulated 保留）。只在原本 combo_before>0 才提示。
+        if (combo_before == 0) return "";
+        return "\n天赋「谋划专家」连击中断（已累计 " + std::to_string(accumulated) + " 分）";
+    }
+
+    // always-fire：维持 scoring_combo 自开局起的全局账。无论玩家是否已获取本天赋都更新。
+    void TrackCardPlaced(Player& /*player*/, const ScoreResult& result) override
+    {
+        if (result.score_delta > 0) ++scoring_combo;
+        else scoring_combo = 0;
+    }
+
+    int32_t PermanentExtraScore(Player& /*player*/, int32_t /*current_extra*/) override { return accumulated; }
+
+    int32_t scoring_combo = 0;  // 自开局起跟踪，由 TrackCardPlaced 维护
+    int32_t accumulated = 0;
+};
+
+class TriForceTalent : public TalentBase
+{
+  public:
+    TriForceTalent() : TalentBase({"B", Talent::三相之力, "三相之力", "对战3次后生效，下三张非选牌阶段的牌依次获得左/中/右单线癞子"}) {}
+
+    std::string BoardDisplay(const Player& player) const override
+    {
+        if (progress >= 3) return TalentInactiveText(Name());
+        if (battles_until_active > 0) {
+            return Name() + TalentTempScoreText("[待对战" + std::to_string(battles_until_active) + "]");
+        }
+        return Name() + TalentProgressText("(" + std::to_string(progress) + "/3)");
+    }
+
+    std::string OnBattlePhaseEnd(Player& /*player*/, int32_t /*current_round*/) override
+    {
+        if (battles_until_active <= 0) return "";
+        --battles_until_active;
+        if (battles_until_active == 0) just_activated = true;
+        return "";
+    }
+
+    std::string OnRoundStart(Player& /*player*/, const TalentRoundContext& /*context*/) override
+    {
+        if (!just_activated) return "";
+        just_activated = false;
+        return "「三相之力」激活，下三张非选牌阶段的牌依次获得左/中/右单线癞子";
+    }
+
+    std::string OnBeforePlaceCard(Player& player, AreaCard& card, bool is_normal_round) override
+    {
+        if (!is_normal_round || battles_until_active > 0 || progress >= 3) return "";
+        const int32_t dir = progress;
+        card.SetDirectionWild(dir);
+        progress++;
+        static const char* dir_names[3] = {"左上", "垂直", "右上"};
+        return "\n触发天赋「三相之力」，" + std::string(dir_names[dir]) + "方向获得单线癞子（" + std::to_string(progress) + "/3）";
+    }
+
+    int32_t battles_until_active = 3;
+    int32_t progress = 0;
+    bool just_activated = false;
+};
+
+class WantAllTalent : public TalentBase
+{
+  public:
+    WantAllTalent() : TalentBase({"B", Talent::我全都要, "我全都要", "下次选择天赋时获得全部"}) {}
+
+    // 我全都要：玩家拥有该天赋后，"下次选择天赋"——也就是下一次出现非空候选池时——直接获得池中全部天赋，同时把"我全都要"从 talents_ 移除。
+    // 需要注意"刚选到我全都要的那一次选择"本身不算"下次"，触发要等到再次选择天赋（同回合的级联池，或下一回合的天赋阶段）。
+    // 该效果由 TalentStage::TriggerWantAllIfHeld_ 处理；当前是唯一的整池吞噬天赋，不引入基类通用 hook，避免为单例特例增加 API 噪音。
+};
+
+class QiankunMoveTalent : public TalentBase
+{
+  public:
+    QiankunMoveTalent() : TalentBase({"B", Talent::乾坤大挪移, "乾坤大挪移", "你可以立刻交换盘面上的两个砖块"}) {}
+
+    std::string BoardDisplay(const Player& player) const override
+    {
+        if (!pending) return TalentInactiveText(Name());
+        return Name() + TalentProgressText("[待发动]");
+    }
+
+    std::string OnAcquire(Player& player, const TalentAcquireContext& context) override
+    {
+        pending = true;
+        return "，请在主动天赋阶段选择两个位置交换";
+    }
+
+    bool HasPendingActiveChoice(const Player& player) const override
+    {
+        return pending;
+    }
+
+    std::string ActivePrompt(const Player& player) const override
+    {
+        return "「乾坤大挪移」：输入“乾坤大挪移 <位置1> <位置2>”交换两个位置，或输入“pass”放弃";
+    }
+
+    std::string OnActivePass(Player& player, const TalentActiveContext& /*context*/) override
+    {
+        if (!pending) return "";
+        pending = false;
+        return "放弃发动天赋「乾坤大挪移」，天赋失效";
+    }
+
+    bool OnActiveCommand(Player& player, std::string_view command, const std::vector<uint32_t>& args,
+                         const TalentActiveContext& context, ScoreResult& result, std::string& message) override
+    {
+        if (!player.HasTalent(Talent::乾坤大挪移) || !pending) {
+            message = "当前没有可发动的「乾坤大挪移」";
+            return false;
+        }
+        if (args.size() != 2) {
+            message = "「乾坤大挪移」需要输入两个位置";
+            return false;
+        }
+        const uint32_t lhs = args[0];
+        const uint32_t rhs = args[1];
+        if (!player.comb_->IsFilled(lhs) && !player.comb_->IsFilled(rhs)) {
+            message = "「乾坤大挪移」发动失败：位置 " + std::to_string(lhs) + " 与位置 " + std::to_string(rhs) + " 均为空";
+            return false;
+        }
+
+        const int32_t old_score = player.TotalScore();
+        result = player.comb_->SwapCards(lhs, rhs);
+        ApplyQiankunSwapFixup(player, lhs, rhs, result);
+        player.UpdateScore(result, context.has_valuable_one);
+        const int32_t delta = player.TotalScore() - old_score;
+        pending = false;
+
+        message = "发动天赋「乾坤大挪移」，交换位置 " + std::to_string(lhs) + " 与 " + std::to_string(rhs);
+        if (delta > 0) {
+            message += "，获得 " + std::to_string(delta) + " 点积分";
+        } else if (delta < 0) {
+            message += "，损失 " + std::to_string(-delta) + " 点积分";
+        }
+        return true;
+    }
+
+    bool pending = false;
 };
 
 inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
@@ -2101,9 +2514,7 @@ inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
         case Talent::钢铁之躯: return std::make_unique<IronBodyTalent>();
         case Talent::以退为进: return std::make_unique<RetreatAdvanceTalent>();
         case Talent::致命魔术: return std::make_unique<DeadlyMagicTalent>();
-        case Talent::三相之力: return std::make_unique<TriForceTalent>();
         case Talent::紧急救援: return std::make_unique<EmergencyRescueTalent>();
-        case Talent::我全都要: return std::make_unique<WantAllTalent>();
         case Talent::利滚利: return std::make_unique<CompoundInterestTalent>();
         case Talent::戴森球: return std::make_unique<DysonSphereTalent>();
         case Talent::零号位: return std::make_unique<DiscardScorerTalent>();
@@ -2112,11 +2523,13 @@ inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
         case Talent::冥想: return std::make_unique<MeditationTalent>();
         case Talent::光波干涉: return std::make_unique<LightInterferenceTalent>();
         case Talent::九转玄机: return std::make_unique<NineMysteryTalent>();
-        case Talent::乾坤大挪移: return std::make_unique<QiankunMoveTalent>();
         case Talent::关键选择: return std::make_unique<KeyChoiceTalent>();
         case Talent::生命游戏: return std::make_unique<LifeGameTalent>();
         case Talent::Y区域: return std::make_unique<YZoneTalent>();
         case Talent::临时用品: return std::make_unique<TempWildTalent>();
+        case Talent::零的救赎: return std::make_unique<ZeroRedemptionTalent>();
+        case Talent::九色鹿: return std::make_unique<NineColorDeerTalent>();
+        case Talent::安慰剂: return std::make_unique<PlaceboTalent>();
         case Talent::嗜血: return std::make_unique<BloodlustTalent>();
         case Talent::还是有用的: return std::make_unique<StillUsefulTalent>();
         case Talent::快攻: return std::make_unique<SwiftAttackTalent>();
@@ -2156,6 +2569,12 @@ inline std::unique_ptr<TalentBase> CreateTalentState(Talent talent)
         case Talent::时间锚: return std::make_unique<TimeAnchorTalent>();
         case Talent::律动残余: return std::make_unique<RhythmRemnantTalent>();
         case Talent::潘多拉魔盒: return std::make_unique<PandoraBoxTalent>();
+        case Talent::格挡: return std::make_unique<BlockTalent>();
+        case Talent::热身运动: return std::make_unique<WarmUpTalent>();
+        case Talent::谋划专家: return std::make_unique<StrategyExpertTalent>();
+        case Talent::三相之力: return std::make_unique<TriForceTalent>();
+        case Talent::我全都要: return std::make_unique<WantAllTalent>();
+        case Talent::乾坤大挪移: return std::make_unique<QiankunMoveTalent>();
         case Talent::COUNT: break;
     }
     return std::make_unique<WantAllTalent>();
@@ -2177,6 +2596,20 @@ inline const TalentInfo& GetTalentInfo(Talent t)
         return unknown;
     }
     return infos[idx];
+}
+
+// 与 GetTalentInfo 同样一次性缓存：构造一遍全部天赋对象读取各自的 enabled 标记。
+inline bool IsTalentEnabled(Talent t)
+{
+    static const auto flags = [] {
+        std::array<bool, static_cast<size_t>(Talent::COUNT)> result{};
+        for (int i = 0; i < static_cast<int>(Talent::COUNT); ++i) {
+            result[static_cast<size_t>(i)] = CreateTalentState(static_cast<Talent>(i))->Enabled();
+        }
+        return result;
+    }();
+    const auto idx = static_cast<size_t>(t);
+    return idx < flags.size() ? flags[idx] : false;
 }
 
 inline std::string TalentName(Talent t)

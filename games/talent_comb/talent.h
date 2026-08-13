@@ -85,9 +85,7 @@ enum class Talent
     钢铁之躯,
     以退为进,
     致命魔术,
-    三相之力,
     紧急救援,
-    我全都要,
     利滚利,
     戴森球,
     零号位,         // 原名：0号位
@@ -96,11 +94,13 @@ enum class Talent
     冥想,
     光波干涉,
     九转玄机,
-    乾坤大挪移,
     关键选择,
     生命游戏,
     Y区域,
     临时用品,
+    零的救赎,        // 原名：0的救赎
+    九色鹿,
+    安慰剂,
 
     // ========== B 级天赋 ==========
     嗜血,
@@ -142,6 +142,12 @@ enum class Talent
     时间锚,
     律动残余,
     潘多拉魔盒,
+    格挡,
+    热身运动,
+    谋划专家,
+    三相之力,
+    我全都要,
+    乾坤大挪移,
 
     COUNT
 };
@@ -155,6 +161,7 @@ struct TalentInfo
 };
 
 const TalentInfo& GetTalentInfo(Talent t);
+bool IsTalentEnabled(Talent t);
 std::string TalentName(Talent t);
 std::string TalentDescription(Talent t);
 std::string_view TalentGrade(Talent t);
@@ -166,6 +173,16 @@ const std::vector<Talent>& GradeATalents();
 const std::vector<Talent>& GradeBTalents();
 std::map<std::string, int> MakeTalentOptionMap();
 std::map<std::string, int> MakeGradeBTalentOptionMap();
+
+// ==================== Score Mode ====================
+
+// 终局计分方式：排名 = 按淘汰名次结算；分数 = 直接按玩家最终盘面+天赋总分结算。
+enum class ScoreMode { 排名 = 0, 分数 = 1 };
+
+inline std::map<std::string, ScoreMode> MakeScoreModeOptionMap()
+{
+    return {{"排名", ScoreMode::排名}, {"分数", ScoreMode::分数}};
+}
 
 // ==================== Option Map Builders ====================
 // 由 options.h 调用，根据枚举自动生成下拉选项的 {名称 -> 整数值} 映射。
