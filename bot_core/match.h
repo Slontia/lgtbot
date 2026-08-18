@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <cassert>
+#include <concepts>
 #include <memory>
 #include <optional>
 #include <variant>
@@ -24,27 +25,129 @@
 #include "bot_core/match_lobby.h"
 #include "bot_core/match_running.h"
 
-struct MatchData
-{
-    std::map<UserID, MatchParticipantUser> users;
-    std::vector<MatchPlayer> players;
-    std::unique_ptr<MatchChildClient> game_child;
-    std::variant<Lobby, Running> phase;
-
-    MatchData(const MatchContext& ctx, MatchMessaging* messaging,
-            const UserID host_uid, MatchInitOptions init_options)
-        : users([&ctx, host_uid]() {
-            std::map<UserID, MatchParticipantUser> m;
-            m.emplace(host_uid, MatchParticipantUser(host_uid, ctx.bot.MakeMsgSender(host_uid)));
-            return m;
-        }())
-        , phase(std::in_place_type<Lobby>, ctx, messaging, users, players, host_uid, std::move(init_options))
-    {}
-};
-
 class Match : public std::enable_shared_from_this<Match>
 {
   public:
+    class Internal
+    {
+      public:
+        Internal(const MatchContext& ctx, MatchMessaging* messaging,
+                const UserID host_uid, MatchInitOptions init_options)
+            : users_([&ctx, host_uid]() {
+                std::map<UserID, MatchParticipantUser> m;
+                m.emplace(host_uid, MatchParticipantUser(host_uid, ctx.bot.MakeMsgSender(host_uid)));
+                return m;
+            }())
+            , phase_(std::in_place_type<Lobby>, ctx, messaging, users_, players_, host_uid, std::move(init_options))
+        {}
+
+        struct PhaseResult {
+            ErrCode rc = EC_OK;
+            bool is_over = false;
+            std::unique_ptr<MatchChildClient> child;
+        };
+
+        struct LobbyOptions {
+            std::vector<std::string> applied_log;
+            MatchChildClient::RuntimeOptions runtime;
+        };
+
+        bool HasGameChild() const { return game_child_ != nullptr; }
+
+        void BriefInfo(std::string& out) const;
+
+        ErrCode SetBenchTo(UserID uid, HostMsgSenderBase& reply,
+                           uint64_t bench_computers_to_player_num, bool is_starting);
+        ErrCode SetFormal(UserID uid, HostMsgSenderBase& reply,
+                          bool is_formal, bool is_starting);
+        ErrCode Join(UserID uid, HostMsgSenderBase& reply, bool is_starting);
+
+        ErrCode ExecuteLobbyRequest(UserID uid, std::optional<GroupID> gid,
+                                    const std::string& msg, MsgSender& reply,
+                                    std::weak_ptr<class Match> self);
+
+        std::optional<LobbyOptions> ReadLobbyOptions() const;
+        ErrCode InstallGameChild(std::unique_ptr<MatchChildClient> child,
+                                 const std::vector<std::string>& applied_log,
+                                 HostMsgSenderBase& reply);
+
+        std::optional<LobbyGameStartPlan> BeginGameStart(UserID uid, HostMsgSenderBase& reply,
+                                                         std::weak_ptr<const class Match> self,
+                                                         const std::atomic<MatchState>& state,
+                                                         ErrCode& err_out);
+        std::optional<LobbyRunningHandoff> TryExtractRunningHandoff(
+            std::atomic<MatchState>& state,
+            std::unique_ptr<MatchChildClient>& aborted_child_out);
+        void CommitRunning(LobbyStartSnapshot snapshot,
+                           std::optional<MsgSender> group_sender,
+                           const MatchContext& ctx, MatchMessaging* messaging,
+                           MatchHelpServices* help,
+                           std::weak_ptr<class Match> self,
+                           std::atomic<MatchState>& state);
+        PhaseResult ExecuteSendStart(MatchID mid, uint32_t user_num,
+                                     const std::vector<lgtbot::ipc::PlayerInfo>& players);
+        void BroadcastGameStartedImpl_(MatchID mid,
+                                       const std::vector<lgtbot::ipc::PlayerInfo>& players);
+        std::unique_ptr<MatchChildClient> RollbackLobbyStart(std::atomic<MatchState>& state);
+
+        void ExecuteAlert(uint64_t remaining_sec,
+                          const std::shared_ptr<std::atomic<bool>>& tio);
+
+        template <std::invocable<UserID> F>
+        std::unique_ptr<MatchChildClient> CleanupRunning(std::atomic<MatchState>& state,
+                                                          F&& unbind_user);
+
+        template <std::invocable<UserID> F>
+        PhaseResult ExecuteRunningRequest(UserID uid, std::optional<GroupID> gid,
+                                          const std::string& msg, MsgSender& reply,
+                                          std::weak_ptr<const class Match> self,
+                                          std::atomic<MatchState>& state, F&& unbind_user);
+
+        template <std::invocable<UserID> F>
+        PhaseResult ExecuteLeave(UserID uid, HostMsgSenderBase& reply, bool force,
+                                 std::atomic<MatchState>& state, F&& unbind_user);
+
+        template <std::invocable<UserID> F>
+        PhaseResult ExecuteUserInterrupt(UserID uid, HostMsgSenderBase& reply, bool cancel,
+                                         std::atomic<MatchState>& state, F&& unbind_user);
+
+        template <std::invocable<UserID> F>
+        PhaseResult ExecuteTerminate(bool is_force, std::atomic<MatchState>& state,
+                                     F&& unbind_user);
+
+        template <std::invocable<UserID> F>
+        PhaseResult BroadcastGameStarted(MatchID mid,
+                                         const std::vector<lgtbot::ipc::PlayerInfo>& players,
+                                         std::atomic<MatchState>& state, F&& unbind_user);
+
+        template <std::invocable<UserID> F>
+        PhaseResult ExecuteTimeout(const std::shared_ptr<std::atomic<bool>>& tio,
+                                   std::atomic<MatchState>& state, F&& unbind_user);
+
+        template <std::invocable<> F>
+        void Help(HostMsgSenderBase& reply, bool text_mode, F&& lobby_help);
+
+        template <typename F>
+        decltype(auto) VisitPhase(F&& f)
+        {
+            return std::visit(std::forward<F>(f), phase_);
+        }
+
+        template <typename F>
+        decltype(auto) VisitPhase(F&& f) const
+        {
+            return std::visit(std::forward<F>(f), phase_);
+        }
+
+        bool IsLobby() const { return std::holds_alternative<Lobby>(phase_); }
+
+      private:
+        std::map<UserID, MatchParticipantUser> users_;
+        std::vector<MatchPlayer> players_;
+        std::unique_ptr<MatchChildClient> game_child_;
+        std::variant<Lobby, Running> phase_;
+    };
+
     using VariantID = MatchVariantID;
     using State = MatchState;
     using InitOptions = MatchInitOptions;
@@ -107,12 +210,7 @@ class Match : public std::enable_shared_from_this<Match>
     void Help_(HostMsgSenderBase& reply, const bool text_mode);
     void FetchHelp_(HostMsgSenderBase& reply, const bool text_mode);
     ErrCode EnsureLobbyChild_(HostMsgSenderBase& reply);
-    void CommitRunning_(LobbyStartSnapshot snapshot);
-    [[nodiscard]] bool LobbyStartAborted_();
-    void RollbackLobbyStart_(MatchData& data);
-    void RollbackLobbyStart_();
-    [[nodiscard]] std::unique_ptr<MatchChildClient> CleanupRunning_(MatchData& data);
-    void CleanupRunningUsers_(MatchData& data);
+    void HandleGameTimeout_(const std::shared_ptr<std::atomic<bool>>& tio);
 
     const Command<void(HostMsgSenderBase&)> help_cmd_{
         Command<void(HostMsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"),
@@ -125,7 +223,7 @@ class Match : public std::enable_shared_from_this<Match>
     std::optional<MsgSender> group_sender_;
     mutable std::unique_ptr<HostMsgSenderBase> private_broadcast_scratch_;
 
-    mutable mutex_protect_wrapper<MatchData, MatchPhaseMutex> data_;
+    mutable mutex_protect_wrapper<Internal, MatchPhaseMutex> data_;
 
     std::atomic<MatchState> state_{MATCH_NOT_STARTED};
 };

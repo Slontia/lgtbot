@@ -20,6 +20,8 @@ void AppendMsgItem(HostMsgSenderBase::MsgSenderGuard& g, const lgtbot::ipc::MsgI
 
 std::filesystem::path ResolveRunnerExe();
 
+// Captures the first plain-text fragment from a game reply, used to extract
+// help text from the child process without sending anything to chat.
 class HelpTextCollector final : public HostMsgSenderBase
 {
   public:
@@ -31,6 +33,8 @@ class HelpTextCollector final : public HostMsgSenderBase
     std::string& out_;
 };
 
+// Fans out a single message to multiple target senders, delivering the same
+// fragments to each participant as a private message.
 class PrivateBroadcastSender final : public HostMsgSenderBase
 {
   public:

@@ -283,8 +283,6 @@ void Running::HandleTimerStart(const uint64_t duration_sec)
 {
     timer_is_over_ = std::make_shared<std::atomic<bool>>(false);
     auto timeout_handler = [weak = weak_match_, tio = timer_is_over_]() {
-        // Early check before acquiring match lock so that HandleTimerStop (which sets
-        // *tio=true while holding the lock) can then safely join this thread.
         if (tio->load(std::memory_order_acquire)) {
             return;
         }
@@ -292,21 +290,7 @@ void Running::HandleTimerStart(const uint64_t duration_sec)
         if (!match) {
             return;
         }
-        auto&& g = match->data_.lock();
-        if (tio->load(std::memory_order_acquire)) {
-            return;
-        }
-        auto& running = std::get<Running>(g->phase);
-        if (running.is_over()) {
-            return;
-        }
-        auto on_push = [&running](const PushFrame& f) { running.ApplyChildPushFrame(f); };
-        (void)g->game_child->SendTimeout(on_push, &running);
-        if (running.is_over()) {
-            auto child = match->CleanupRunning_(*g);
-            g = {};
-            match->Unbind_();
-        }
+        match->HandleGameTimeout_(tio);
     };
     auto alert_handler = [weak = weak_match_, tio = timer_is_over_](const uint64_t remaining_sec) {
         if (tio->load(std::memory_order_acquire)) {
@@ -316,16 +300,7 @@ void Running::HandleTimerStart(const uint64_t duration_sec)
         if (!match) {
             return;
         }
-        auto&& g = match->data_.lock();
-        if (tio->load(std::memory_order_acquire)) {
-            return;
-        }
-        auto& running = std::get<Running>(g->phase);
-        if (running.is_over()) {
-            return;
-        }
-        auto on_push = [&running](const PushFrame& f) { running.ApplyChildPushFrame(f); };
-        (void)g->game_child->SendAlert(remaining_sec, on_push, &running);
+        match->data_.lock()->ExecuteAlert(remaining_sec, tio);
     };
     game_timer_ = std::make_unique<Timer>(
         BuildGameTimerTasks(duration_sec, std::move(alert_handler), std::move(timeout_handler)));
