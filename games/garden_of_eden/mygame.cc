@@ -30,7 +30,7 @@ uint32_t Multiple(const CustomOptions& options) { return GET_OPTION_VALUE(option
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 3) {
         reply() << "该游戏至少 3 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -142,7 +142,7 @@ class MainStage : public MainGameStage<>
         return CheckoutErrCode::Condition(Over_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -328,7 +328,7 @@ class MainStage : public MainGameStage<>
         return true;
     }
 
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (html_.empty()) {
             reply() << "暂无赛况";
@@ -338,7 +338,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const AppleType type)
+    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const AppleType type)
     {
         if (is_public) {
             reply() << "选择失败：请私信裁判进行选择";

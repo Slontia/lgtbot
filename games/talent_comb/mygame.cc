@@ -63,7 +63,7 @@ const std::vector<RuleCommand> k_rule_commands = {
             AlterChecker<int>(MakeTalentOptionMap())),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "天赋云巢至少需要 2 人参加游戏";
@@ -435,13 +435,13 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     std::string ApplyImmediateTalentEffects_(PlayerID pid, Talent talent);
 
   private:
-    CompReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(CombHtml("## 第 " + std::to_string(round_) + " 回合"));
         return StageErrCode::OK;
     }
 
-    CompReqErrCode TalentRule_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int talent_id)
+    CompReqErrCode TalentRule_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int talent_id)
     {
         reply() << TalentRuleText(talent_id);
         return StageErrCode::OK;
@@ -650,7 +650,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) return StageErrCode::OK;
         auto& player = Main().players_[pid];
@@ -666,7 +666,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t idx)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t idx)
     {
         if (Global().IsReady(pid)) {
             reply() << "您已经设置过，无法重复设置";
@@ -711,7 +711,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    void SendInfo(MsgSenderBase& sender)
+    void SendInfo(ChildMsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
         if (is_initial_) {
@@ -875,7 +875,7 @@ class SelectStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) return StageErrCode::OK;
         auto& player = Main().players_[pid];
@@ -891,7 +891,7 @@ class SelectStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Select_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t card_id, const uint32_t pos)
+    AtomReqErrCode Select_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t card_id, const uint32_t pos)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 当前并非您的选卡回合";
@@ -994,7 +994,7 @@ class SelectStage : public SubGameStage<>
         return style + avatar_table.ToString() + card_table.ToString();
     }
 
-    void SendInfo(MsgSenderBase& sender)
+    void SendInfo(ChildMsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
         sender() << Markdown(SelectCardHtml_(), 300);
@@ -1274,7 +1274,7 @@ class ExtraCardStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) return StageErrCode::OK;
         auto& player = Main().players_[pid];
@@ -1311,7 +1311,7 @@ class ExtraCardStage : public SubGameStage<>
     }
 
     // Command: place single-card entry directly (位置, 0=discard)
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t idx)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t idx)
     {
         auto& player = Main().players_[pid];
         if (player.extra_card_queue_.empty()) {
@@ -1375,7 +1375,7 @@ class ExtraCardStage : public SubGameStage<>
     }
 
     // Command: choose from multi-card entry then place (砖块序号, 位置, 0=discard)
-    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                            const uint32_t card_id, const uint32_t pos)
     {
         auto& player = Main().players_[pid];
@@ -1574,7 +1574,7 @@ class TalentStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) return StageErrCode::OK;
         auto& player = Main().players_[pid];
@@ -1585,7 +1585,7 @@ class TalentStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t choice)
+    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t choice)
     {
         auto& player = Main().players_[pid];
         if (player.talent_pool_.empty()) {
@@ -1682,7 +1682,7 @@ class ActiveTalentStage : public SubGameStage<>
         return false;
     }
 
-    void PassPlayer_(PlayerID pid, MsgSenderBase& sender)
+    void PassPlayer_(PlayerID pid, ChildMsgSenderBase& sender)
     {
         auto& player = Main().players_[pid];
         bool any = false;
@@ -1728,14 +1728,14 @@ class ActiveTalentStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) return StageErrCode::OK;
         PassPlayer_(pid, reply);
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) {
             reply() << "[错误] 当前没有待发动的主动天赋";
@@ -1745,7 +1745,7 @@ class ActiveTalentStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode QiankunMove_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode QiankunMove_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                                 const uint32_t lhs, const uint32_t rhs)
     {
         if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) {
@@ -1771,7 +1771,7 @@ class ActiveTalentStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode KeyChoice_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int talent_id)
+    AtomReqErrCode KeyChoice_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int talent_id)
     {
         if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) {
             reply() << "[错误] 当前没有待发动的主动天赋";

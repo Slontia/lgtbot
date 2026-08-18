@@ -37,7 +37,6 @@ class Lobby : public MatchPhaseCommon
     using MatchPhaseCommon::BoardcastAtAll;
     using MatchPhaseCommon::BoardcastMsgSender;
     using MatchPhaseCommon::BriefInfo;
-    using MatchPhaseCommon::BindMsgSenderMatch;
     using MatchPhaseCommon::ConvertPid;
     using MatchPhaseCommon::GroupMsgSender;
     using MatchPhaseCommon::PlayerAvatar;
@@ -45,22 +44,22 @@ class Lobby : public MatchPhaseCommon
     using MatchPhaseCommon::TellMsgSender;
     using MatchPhaseCommon::UserNum;
 
-    ErrCode SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_computers_to_player_num);
-    ErrCode SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_formal);
+    ErrCode SetBenchTo(const UserID uid, HostMsgSenderBase& reply, const uint64_t bench_computers_to_player_num);
+    ErrCode SetFormal(const UserID uid, HostMsgSenderBase& reply, const bool is_formal);
     ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply,
             const std::weak_ptr<const class Match>& match_wk, class MatchChildClient& game_child);
-    ErrCode Join(const UserID uid, MsgSenderBase& reply);
-    ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force);
-    ErrCode UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel) override;
+    ErrCode Join(const UserID uid, HostMsgSenderBase& reply);
+    ErrCode Leave(const UserID uid, HostMsgSenderBase& reply, const bool force);
+    ErrCode UserInterrupt(const UserID uid, HostMsgSenderBase& reply, const bool cancel) override;
 
-    void ShowInfo(MsgSenderBase& reply, const std::weak_ptr<const class Match>& match_wk) const override;
+    void ShowInfo(HostMsgSenderBase& reply, const std::weak_ptr<const class Match>& match_wk) const override;
     bool SwitchHost() override;
 
     ErrCode Terminate(const bool is_force) override;
 
     UserID HostUserId() const override;
 
-    std::optional<LobbyGameStartPlan> BeginGameStart(const UserID uid, MsgSenderBase& reply,
+    std::optional<LobbyGameStartPlan> BeginGameStart(const UserID uid, HostMsgSenderBase& reply,
             const std::weak_ptr<const class Match>& match_wk, ErrCode& err_out) &&;
     void RollbackPreparedStart() &&;
     std::optional<LobbyRunningHandoff> IntoRunning() &&;
@@ -69,7 +68,7 @@ class Lobby : public MatchPhaseCommon
     [[nodiscard]] const std::vector<std::string>& AppliedOptionsLog() const { return applied_options_log_; }
 
   private:
-    MsgSenderBase* GroupSenderOrNull_() override;
+    HostMsgSenderBase* GroupSenderOrNull_() override;
     MatchVariantID HostVariantId_() const override;
     uint32_t ComputerNumImpl_() const override;
     const MatchRuntimeOptions& RuntimeOptions_() const override;

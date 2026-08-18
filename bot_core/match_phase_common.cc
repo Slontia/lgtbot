@@ -11,9 +11,9 @@
 
 namespace {
 
-std::unique_ptr<MsgSenderBase> MakePrivateBroadcastSender(const std::map<UserID, MatchParticipantUser>& users)
+std::unique_ptr<HostMsgSenderBase> MakePrivateBroadcastSender(const std::map<UserID, MatchParticipantUser>& users)
 {
-    std::vector<const MsgSenderBase*> targets;
+    std::vector<const HostMsgSenderBase*> targets;
     targets.reserve(users.size());
     for (const auto& [_, user] : users) {
         if (user.presence_.load(std::memory_order_acquire) != UserPresence::LEFT) {
@@ -38,45 +38,45 @@ bool MatchPhaseCommon::UserIsActive(const MatchParticipantUser& user) const noex
     return user.presence_.load(std::memory_order_acquire) != UserPresence::LEFT;
 }
 
-MsgSenderBase& MatchPhaseCommon::BoardcastMsgSender()
+HostMsgSenderBase& MatchPhaseCommon::BoardcastMsgSender()
 {
-    if (MsgSenderBase* const group = GroupSenderOrNull_()) {
+    if (HostMsgSenderBase* const group = GroupSenderOrNull_()) {
         return *group;
     }
     *messaging_->private_broadcast_scratch = MakePrivateBroadcastSender(users_);
     return **messaging_->private_broadcast_scratch;
 }
 
-MsgSenderBase& MatchPhaseCommon::TellMsgSender(const PlayerID pid)
+HostMsgSenderBase& MatchPhaseCommon::TellMsgSender(const PlayerID pid)
 {
     const auto& id = ConvertPid(pid);
     const auto pval = std::get_if<UserID>(&id);
     if (!pval) {
-        return EmptyMsgSender::Get();
+        return HostEmptyMsgSender::Get();
     }
     if (const auto it = users_.find(*pval); it != users_.end() && UserIsActive(it->second)) {
         return it->second.sender_;
     }
-    return EmptyMsgSender::Get();
+    return HostEmptyMsgSender::Get();
 }
 
-MsgSenderBase& MatchPhaseCommon::GroupMsgSender()
+HostMsgSenderBase& MatchPhaseCommon::GroupMsgSender()
 {
-    if (MsgSenderBase* const group = GroupSenderOrNull_()) {
+    if (HostMsgSenderBase* const group = GroupSenderOrNull_()) {
         return *group;
     }
-    return EmptyMsgSender::Get();
+    return HostEmptyMsgSender::Get();
 }
 
-MsgSenderBase::MsgSenderGuard MatchPhaseCommon::Boardcast()
+HostMsgSenderBase::MsgSenderGuard MatchPhaseCommon::Boardcast()
 {
-    if (MsgSenderBase* const group = GroupSenderOrNull_()) {
+    if (HostMsgSenderBase* const group = GroupSenderOrNull_()) {
         return (*group)();
     }
-    return MsgSenderBase::MsgSenderGuard(MakePrivateBroadcastSender(users_));
+    return HostMsgSenderBase::MsgSenderGuard(MakePrivateBroadcastSender(users_));
 }
 
-MsgSenderBase::MsgSenderGuard MatchPhaseCommon::BoardcastAtAll()
+HostMsgSenderBase::MsgSenderGuard MatchPhaseCommon::BoardcastAtAll()
 {
     if (ctx_.gid.has_value()) {
         auto sender = Boardcast();
@@ -139,21 +139,8 @@ void MatchPhaseCommon::BriefInfo(std::string& out) const
         "\n- 当前电脑数：" + std::to_string(cnum);
 }
 
-void MatchPhaseCommon::BindMsgSenderMatch(const std::weak_ptr<const Match>& match_wk)
+void MatchPhaseCommon::ShowInfoHeader_(HostMsgSenderBase& reply, const char* status) const
 {
-    const auto wk = match_wk;
-    for (auto& [_, user] : users_) {
-        user.sender_.SetMatch(wk);
-    }
-    if (MsgSenderBase* const group = GroupSenderOrNull_()) {
-        group->SetMatch(wk);
-    }
-}
-
-void MatchPhaseCommon::ShowInfoHeader_(MsgSenderBase& reply, const std::weak_ptr<const Match>& match_wk,
-        const char* status) const
-{
-    reply.SetMatch(match_wk);
     auto sender = reply();
     sender << "游戏名称：" << ctx_.game_handle.Info().name_ << "\n";
     sender << "配置信息：" << ctx_.OptionInfo() << "\n";

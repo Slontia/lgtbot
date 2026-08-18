@@ -20,6 +20,7 @@
 #include "bot_core/subprocess.h"
 
 class Match;
+class MatchPhaseCommon;
 
 struct PostFrame {
     lgtbot::ipc::PostResp post;
@@ -37,8 +38,11 @@ struct ReplyFrame {
 struct ResultFrame {
     lgtbot::ipc::ResultResp::Stage stage;
 };
+struct TimerStartFrame { uint64_t duration_sec; };
+struct TimerStopFrame  {};
 
-using PushFrame = std::variant<PostFrame, PlayerStateFrame, GameOverFrame>;
+using PushFrame = std::variant<PostFrame, PlayerStateFrame, GameOverFrame,
+                               TimerStartFrame, TimerStopFrame>;
 using PushHandler = std::function<void(const PushFrame&)>;
 
 class MatchChildClient
@@ -68,15 +72,24 @@ class MatchChildClient
 
     [[nodiscard]] std::optional<IpcStage> SendStart(uint64_t match_id, uint32_t user_num,
                                                     const std::vector<lgtbot::ipc::PlayerInfo>& players,
-                                                    const PushHandler& on_push);
+                                                    const PushHandler& on_push,
+                                                    const MatchPhaseCommon* phase);
 
     [[nodiscard]] std::optional<ErrCode> SendExecute(PlayerID player_id, bool is_public,
                                                      const std::string& text, MsgSender& reply,
-                                                     const PushHandler& on_push);
+                                                     const PushHandler& on_push,
+                                                     const MatchPhaseCommon* phase);
 
-    [[nodiscard]] std::optional<IpcStage> SendLeave(PlayerID player_id, const PushHandler& on_push);
+    [[nodiscard]] std::optional<IpcStage> SendLeave(PlayerID player_id, const PushHandler& on_push,
+                                                     const MatchPhaseCommon* phase);
 
-    [[nodiscard]] std::optional<IpcStage> FetchHelp(bool text_mode, MsgSenderBase& reply_sender);
+    [[nodiscard]] std::optional<IpcStage> SendTimeout(const PushHandler& on_push,
+                                                       const MatchPhaseCommon* phase);
+    [[nodiscard]] std::optional<IpcStage> SendAlert(uint64_t remaining_sec, const PushHandler& on_push,
+                                                     const MatchPhaseCommon* phase);
+
+    [[nodiscard]] std::optional<IpcStage> FetchHelp(bool text_mode, HostMsgSenderBase& reply_sender,
+                                                     const MatchPhaseCommon* phase);
 
   private:
     friend std::unique_ptr<MatchChildClient> MakeMatchChildClient(std::filesystem::path runner_exe,
@@ -90,8 +103,9 @@ class MatchChildClient
     // Core: write request, then read frames until ResultFrame. Returns the result stage.
     // Push frames are dispatched to on_push. Reply frames are sent to reply_sender.
     [[nodiscard]] std::optional<IpcStage> SendRequestAndRead_(lgtbot::ipc::GameRequest req,
-                                                              MsgSenderBase& reply_sender,
-                                                              const PushHandler& on_push);
+                                                              HostMsgSenderBase& reply_sender,
+                                                              const PushHandler& on_push,
+                                                              const MatchPhaseCommon* phase);
 
     [[nodiscard]] bool WriteProto_(lgtbot::ipc::GameRequest req);
 

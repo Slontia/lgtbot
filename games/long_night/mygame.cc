@@ -113,7 +113,7 @@ const std::vector<RuleCommand> k_rule_commands = {
             AlterChecker<int>({{"机制", 0}, {"地形", 1}, {"传送", 2}, {"成就", 3}, {"区块", 4}})),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     auto& custom_blocks = GET_OPTION_VALUE(game_options, 区块);
     if (custom_blocks.empty()) {
@@ -317,7 +317,7 @@ class MainStage : public MainGameStage<RoundStage>
     int Alive_() const { return std::count_if(board.players.begin(), board.players.end(), [](const auto& player){ return player.out == 0; }); }
     
   private:
-    CompReqErrCode BlockInfo_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode BlockInfo_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         auto sender = reply();
         if (GAME_OPTION(特殊事件) != SpecialEvent::NONE) {
@@ -330,7 +330,7 @@ class MainStage : public MainGameStage<RoundStage>
         return StageErrCode::OK;
     }
 
-    CompReqErrCode MapPreview_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const vector<string>& map_string)
+    CompReqErrCode MapPreview_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const vector<string>& map_string)
     {
         vector<string> map_str = map_string;
         map_str.resize(board.unitMaps.pos.size(), "0");
@@ -588,7 +588,7 @@ class RoundStage : public SubGameStage<>
         }
     }
 
-    bool CheckCommon(const PlayerID pid, MsgSenderBase& reply)
+    bool CheckCommon(const PlayerID pid, ChildMsgSenderBase& reply)
     {
         Player& player = Main().board.players[pid];
         ActivatePlayerMovingTimer(pid);
@@ -603,7 +603,7 @@ class RoundStage : public SubGameStage<>
         return true;
     }
 
-    AtomReqErrCode MakeMove_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, Direct direction)
+    AtomReqErrCode MakeMove_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, Direct direction)
     {
         if (!CheckCommon(pid, reply)) return StageErrCode::FAILED;
 
@@ -653,7 +653,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode MakeMultipleMove_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const string& direction_str)
+    AtomReqErrCode MakeMultipleMove_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const string& direction_str)
     {
         if (!CheckCommon(pid, reply)) return StageErrCode::FAILED;
 
@@ -714,7 +714,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Stop_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Stop_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (!CheckCommon(pid, reply)) return StageErrCode::FAILED;
 
@@ -736,7 +736,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Hide_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Hide_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (GAME_OPTION(隐匿) == HideMode::NONE) {
             reply() << "[错误] 本局游戏未开启隐匿技能";
@@ -771,7 +771,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode SetBomb_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode SetBomb_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (GAME_OPTION(炸弹) == 0) {
             reply() << "[错误] 本局游戏未开启炸弹人模式";
@@ -799,7 +799,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool show_image)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool show_image)
     {
         ActivatePlayerMovingTimer(pid);
         auto sender = reply();
@@ -823,7 +823,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode AllStatus_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool show_image)
+    AtomReqErrCode AllStatus_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool show_image)
     {
         ActivatePlayerMovingTimer(pid);
         auto sender = reply();
@@ -982,7 +982,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -1003,16 +1003,16 @@ class RoundStage : public SubGameStage<>
     int TimerLeft() const { return std::chrono::duration_cast<std::chrono::seconds>(*Global().TimerFinishTime() - std::chrono::steady_clock::now()).count(); }
 
     // ========== 成员函数 ==========
-    bool HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderGuard& sender, const bool multiple_mode);
-    bool PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& sender);
+    bool HandleGridInteraction(Player& player, ChildMsgSenderBase::MsgSenderGuard& sender, const bool multiple_mode);
+    bool PlayerCatch(Player& player, ChildMsgSenderBase::MsgSenderGuard& sender);
     void SendSoundMessage(const int fromX, const int fromY, const Sound sound, const bool to_all);
-    void HandleMinotaurBossAction(Boss& boss, string& boss_record, MsgSenderBase::MsgSenderGuard& sender);
-    void HandleBangBangBossAction(Boss& boss, string& boss_record, MsgSenderBase::MsgSenderGuard& sender);
+    void HandleMinotaurBossAction(Boss& boss, string& boss_record, ChildMsgSenderBase::MsgSenderGuard& sender);
+    void HandleBangBangBossAction(Boss& boss, string& boss_record, ChildMsgSenderBase::MsgSenderGuard& sender);
 };
 
 
 // 处理区块效果（返回玩家回合是否结束）
-bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderGuard& sender, const bool multiple_mode)
+bool RoundStage::HandleGridInteraction(Player& player, ChildMsgSenderBase::MsgSenderGuard& sender, const bool multiple_mode)
 {
     const string prefix = "\n";
 
@@ -1182,7 +1182,7 @@ bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderG
 }
 
 // 捕捉：坐标重合，玩家没有隐匿且未出局
-bool RoundStage::PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& sender)
+bool RoundStage::PlayerCatch(Player& player, ChildMsgSenderBase::MsgSenderGuard& sender)
 {
     vector<PlayerID> list = Main().board.player_map[player.x][player.y];
     PlayerID t = player.target;
@@ -1299,7 +1299,7 @@ void RoundStage::SendSoundMessage(const int fromX, const int fromY, const Sound 
 }
 
 // [BOSS-米诺陶斯] 行动
-void RoundStage::HandleMinotaurBossAction(Boss& boss, string& boss_record, MsgSenderBase::MsgSenderGuard& sender)
+void RoundStage::HandleMinotaurBossAction(Boss& boss, string& boss_record, ChildMsgSenderBase::MsgSenderGuard& sender)
 {
     if (boss.BossChangeTarget(false)) {
         // 更换目标，重置步数
@@ -1352,7 +1352,7 @@ void RoundStage::HandleMinotaurBossAction(Boss& boss, string& boss_record, MsgSe
 }
 
 // [BOSS-邦邦] 行动
-void RoundStage::HandleBangBangBossAction(Boss& boss, string& boss_record, MsgSenderBase::MsgSenderGuard& sender)
+void RoundStage::HandleBangBangBossAction(Boss& boss, string& boss_record, ChildMsgSenderBase::MsgSenderGuard& sender)
 {
     // 更新目标
     if (boss.BossChangeTarget(false)) {

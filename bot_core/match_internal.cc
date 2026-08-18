@@ -7,18 +7,36 @@
 #include <cstdlib>
 #include <filesystem>
 
+#include "bot_core/match_phase_common.h"
+
 #ifndef MATCH_GAME_RUNNER_PATH
 #define MATCH_GAME_RUNNER_PATH "match_game_runner"
 #endif
 
-void AppendMsgItem(MsgSenderBase::MsgSenderGuard& g, const lgtbot::ipc::MsgItem& item)
+void AppendMsgItem(HostMsgSenderBase::MsgSenderGuard& g, const lgtbot::ipc::MsgItem& item,
+                   const MatchPhaseCommon* const phase)
 {
     switch (item.content_case()) {
-    case lgtbot::ipc::MsgItem::kText:       g << item.text(); break;
-    case lgtbot::ipc::MsgItem::kAtPlayerId: g << At(PlayerID{item.at_player_id()}); break;
-    case lgtbot::ipc::MsgItem::kUserId:     g << Name(UserID{item.user_id()}); break;
-    case lgtbot::ipc::MsgItem::kImagePath:  g << Image{item.image_path()}; break;
-    case lgtbot::ipc::MsgItem::kMarkdown:   g << Markdown{item.markdown().text(), item.markdown().width()}; break;
+    case lgtbot::ipc::MsgItem::kText:      g << item.text(); break;
+    case lgtbot::ipc::MsgItem::kAtPlayerId: {
+        const auto pid = PlayerID{item.at_player_id()};
+        g << "[" << pid.Get() << "号：";
+        if (phase) {
+            const auto id = phase->ConvertPid(pid);
+            if (const auto pval = std::get_if<ComputerID>(&id)) {
+                g << "机器人" << pval->Get() << "号";
+            } else {
+                g << At(std::get<UserID>(id));
+            }
+        } else {
+            g << "玩家";
+        }
+        g << "]";
+        break;
+    }
+    case lgtbot::ipc::MsgItem::kUserId:    g << Name(UserID{item.user_id()}); break;
+    case lgtbot::ipc::MsgItem::kImagePath: g << Image{item.image_path()}; break;
+    case lgtbot::ipc::MsgItem::kMarkdown:  g << Markdown{item.markdown().text(), item.markdown().width()}; break;
     default: break;
     }
 }
@@ -31,7 +49,7 @@ std::filesystem::path ResolveRunnerExe()
     return std::filesystem::path(MATCH_GAME_RUNNER_PATH);
 }
 
-void HelpTextCollector::Flush(std::vector<MsgFragment>&& messages) const
+void HelpTextCollector::Flush(std::vector<HostMsgFragment>&& messages) const
 {
     if (!out_.empty()) {
         return;
@@ -44,17 +62,17 @@ void HelpTextCollector::Flush(std::vector<MsgFragment>&& messages) const
     }
 }
 
-PrivateBroadcastSender::PrivateBroadcastSender(std::vector<const MsgSenderBase*> targets)
+PrivateBroadcastSender::PrivateBroadcastSender(std::vector<const HostMsgSenderBase*> targets)
     : targets_(std::move(targets))
 {}
 
-void PrivateBroadcastSender::Flush(std::vector<MsgFragment>&& messages) const
+void PrivateBroadcastSender::Flush(std::vector<HostMsgFragment>&& messages) const
 {
     if (messages.empty() || targets_.empty()) {
         return;
     }
     for (size_t i = 0; i + 1 < targets_.size(); ++i) {
-        targets_[i]->DeliverMessages(std::vector<MsgFragment>(messages));
+        targets_[i]->DeliverMessages(std::vector<HostMsgFragment>(messages));
     }
     targets_.back()->DeliverMessages(std::move(messages));
 }

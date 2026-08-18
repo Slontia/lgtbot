@@ -30,7 +30,7 @@ using CheckoutErrCode = StageErrCode::SubSet<StageErrCode::CONTINUE, StageErrCod
 namespace internal {
 
 template <typename RetType>
-using GameCommand = Command<RetType(const uint64_t pid, const bool is_public, MsgSenderBase& reply)>;
+using GameCommand = Command<RetType(const uint64_t pid, const bool is_public, ChildMsgSenderBase& reply)>;
 
 template <typename ...Fsms>
     requires (sizeof...(Fsms) > 0)
@@ -124,7 +124,7 @@ struct AtomicStageFsm : virtual public StageFsmBase
     //   checked out until all players completed their actions. However, this function can be invoked again during the
     //   same stage for the same player, even if this function has returned READY in the previous invocation. To avoid
     //   repeated action, it can be necessary to check whether the player has completed its action by `Global().IsReady(pid)`.
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::READY; }
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) { return StageErrCode::READY; }
 
     virtual const std::vector<GameCommand<AtomReqErrCode>>& Commands() const = 0;
 };
@@ -168,7 +168,7 @@ struct CompoundStageFsmBase : virtual public StageFsmBase
     // Only when `CompoundStageFsmBase::OnComputerAct` returns OK can the stage proceed to invoke `OnComputerAct` of its
     // sub stage's FSM. Players controlled by users can not take actions until `AtomicStageFsm::OnComputerAct` returns
     // OK or READY for each players controlled by computers.
-    virtual CompReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) { return StageErrCode::OK; }
+    virtual CompReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) { return StageErrCode::OK; }
 
     virtual const std::vector<GameCommand<CompReqErrCode>>& Commands() const = 0;
 };
@@ -294,7 +294,7 @@ template <typename Fsm, typename RetType, typename... Args, typename... Checkers
 internal::GameCommand<RetType> MakeStageCommand(Fsm& fsm, const char* const description, const uint8_t flags, RetType (Fsm::*cb)(Args...),
         Checkers&&... checkers)
 {
-    auto callback = [flags, cb, &fsm]<typename ...CbArgs>(const uint64_t pid, const bool is_public, MsgSenderBase& reply, CbArgs&& ...args) -> RetType
+    auto callback = [flags, cb, &fsm]<typename ...CbArgs>(const uint64_t pid, const bool is_public, ChildMsgSenderBase& reply, CbArgs&& ...args) -> RetType
     {
         if ((flags & CommandFlag::PRIVATE_ONLY) && is_public) {
             reply() << "[错误] 请私信执行该指令";

@@ -26,7 +26,7 @@ uint32_t Multiple(const CustomOptions& options) { return 0; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
@@ -80,7 +80,7 @@ class BuyStage : public SubGameStage<>
 
   private:
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<std::string>& animals)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::vector<std::string>& animals)
     {
         int n = buy_list.size();
         std::vector<int> vis(n, 0);
@@ -125,7 +125,7 @@ class BuyStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(markdown);
         return StageErrCode::OK;
@@ -203,7 +203,7 @@ class GrazingStage : public SubGameStage<>
 
   private:
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<std::string>& animals)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::vector<std::string>& animals)
     {
         std::map<std::string, int> rest = Main().pasture.Rest();
         if (animals.size() != Main().pasture.GetRemoveCount())
@@ -232,7 +232,7 @@ class GrazingStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << mInfo;
         return StageErrCode::OK;

@@ -15,10 +15,10 @@
 
 #include "bot_core/bot_core.h"
 #include "bot_core/id.h"
+#include "bot_core/msg_sender.h"
 
 class Match;
 class BotCtx;
-class MsgSenderBase;
 class GameHandle;
 
 class MatchManager
@@ -27,7 +27,7 @@ class MatchManager
     MatchManager(BotCtx& bot) : bot_(bot), next_mid_(0) {}
 
     ErrCode NewMatch(GameHandle& game_handle, const std::string_view init_options_args, const UserID& uid,
-            const std::optional<GroupID> gid, MsgSenderBase& reply);
+            const std::optional<GroupID> gid, HostMsgSenderBase& reply);
 
     template <typename IdType>
     std::shared_ptr<Match> GetMatch(const IdType id)

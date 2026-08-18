@@ -8,6 +8,7 @@
 #include <sstream>
 
 #include "bot_core/match.h"
+#include "utility/log.h"
 #include "utility/utils.h"
 
 bool DownloadUserAvatar(const char* const uid, const char* const dest_filename);
@@ -44,39 +45,6 @@ void AppendNameUser(std::vector<OutMessage>& out, void* const handler, const LGT
     AppendText(out, buffer);
 }
 
-void AppendAtPlayer(std::vector<OutMessage>& out, const std::shared_ptr<const Match>& match, const PlayerID& pid)
-{
-    if (!match || match->state() == Match::NOT_STARTED) {
-        AppendText(out, "[" + std::to_string(pid.Get()) + "号玩家]");
-        return;
-    }
-    AppendText(out, "[" + std::to_string(pid.Get()) + "号：");
-    const auto& id = match->ConvertPid(pid);
-    if (const auto pval = std::get_if<ComputerID>(&id)) {
-        AppendText(out, "机器人" + std::to_string(*pval) + "号");
-    } else {
-        AppendAtUser(out, std::get<UserID>(id));
-    }
-    AppendText(out, "]");
-}
-
-void AppendNamePlayer(std::vector<OutMessage>& out, void* const handler, const LGTBot_Callback& callbacks,
-        const bool is_to_user, const std::string& dest_id, const std::shared_ptr<const Match>& match, const PlayerID& pid)
-{
-    if (!match || match->state() == Match::NOT_STARTED) {
-        AppendText(out, "[" + std::to_string(pid.Get()) + "号玩家]");
-        return;
-    }
-    AppendText(out, "[" + std::to_string(pid.Get()) + "号：");
-    const auto& id = match->ConvertPid(pid);
-    if (const auto pval = std::get_if<ComputerID>(&id)) {
-        AppendText(out, "机器人" + std::to_string(*pval) + "号");
-    } else {
-        AppendNameUser(out, handler, callbacks, is_to_user, dest_id, std::get<UserID>(id));
-    }
-    AppendText(out, "]");
-}
-
 void AppendImage(std::vector<OutMessage>& out, const Image& image)
 {
     out.push_back(OutMessage{image.path_, LGTBot_MessageType::LGTBOT_MSG_IMAGE});
@@ -98,25 +66,21 @@ void AppendMarkdown(std::vector<OutMessage>& out, const std::string& image_path,
 
 } // namespace
 
-MsgSender::MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const UserID& uid,
-        std::weak_ptr<Match> match)
+MsgSender::MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const UserID& uid)
     : handler_(handler)
     , image_path_(&image_path)
     , callbacks_(&callbacks)
     , id_(uid.GetStr())
     , is_to_user_(true)
-    , match_wk_(match)
 {
 }
 
-MsgSender::MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const GroupID& gid,
-        std::weak_ptr<Match> match)
+MsgSender::MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const GroupID& gid)
     : handler_(handler)
     , image_path_(&image_path)
     , callbacks_(&callbacks)
     , id_(gid.GetStr())
     , is_to_user_(false)
-    , match_wk_(match)
 {
 }
 
@@ -126,7 +90,6 @@ MsgSender::MsgSender(MsgSender&& o) noexcept
     , callbacks_(o.callbacks_)
     , id_(std::move(o.id_))
     , is_to_user_(o.is_to_user_)
-    , match_wk_(o.match_wk_.Exchange({}))
 {
 }
 
@@ -138,32 +101,20 @@ MsgSender& MsgSender::operator=(MsgSender&& o) noexcept
         callbacks_ = o.callbacks_;
         id_ = std::move(o.id_);
         is_to_user_ = o.is_to_user_;
-        match_wk_.Store(o.match_wk_.Exchange({}));
     }
     return *this;
 }
 
-void MsgSender::SetMatch(std::weak_ptr<const Match> match)
-{
-    match_wk_.Store(std::move(match));
-}
-
-MsgSenderBase::MsgSenderGuard MsgSender::operator()() const
+HostMsgSenderBase::MsgSenderGuard MsgSender::operator()() const
 {
     return MsgSenderGuard(*this);
 }
 
-std::shared_ptr<const Match> MsgSender::LockMatch_() const
-{
-    return match_wk_.Lock();
-}
-
-void MsgSender::Flush(std::vector<MsgFragment>&& messages) const
+void MsgSender::Flush(std::vector<HostMsgFragment>&& messages) const
 {
     if (messages.empty()) {
         return;
     }
-    const auto match = LockMatch_();
     const std::string image_path = image_path_ ? *image_path_ : std::string{};
     std::vector<OutMessage> out;
     out.reserve(messages.size() * 2);
@@ -173,10 +124,6 @@ void MsgSender::Flush(std::vector<MsgFragment>&& messages) const
             [&](std::string& text) { AppendText(out, std::move(text)); },
             [&](At<UserID>& at) { AppendAtUser(out, at.id_); },
             [&](Name<UserID>& name) { AppendNameUser(out, handler_, *callbacks_, is_to_user_, id_, name.id_); },
-            [&](At<PlayerID>& at) { AppendAtPlayer(out, match, at.id_); },
-            [&](Name<PlayerID>& name) {
-                AppendNamePlayer(out, handler_, *callbacks_, is_to_user_, id_, match, name.id_);
-            },
             [&](Image& image) { AppendImage(out, image); },
             [&](Markdown& markdown) { AppendMarkdown(out, image_path, markdown); },
         }, frag);

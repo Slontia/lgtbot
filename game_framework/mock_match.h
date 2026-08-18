@@ -12,7 +12,7 @@
 #include "bot_core/msg_sender.h"
 #include "utility/utils.h"
 
-class MockMsgSender : public MsgSenderBase
+class MockMsgSender : public ChildMsgSenderBase
 {
   public:
     MockMsgSender(std::filesystem::path image_dir)
@@ -28,9 +28,9 @@ class MockMsgSender : public MsgSenderBase
     {
     }
 
-    MsgSenderBase::MsgSenderGuard operator()() const override
+    ChildMsgSenderBase::MsgSenderGuard operator()() const override
     {
-        MsgSenderBase::MsgSenderGuard guard(*this);
+        ChildMsgSenderBase::MsgSenderGuard guard(*this);
         if (is_public_ && pid_.has_value()) {
             guard << At(*pid_) << " ";
         }
@@ -38,7 +38,7 @@ class MockMsgSender : public MsgSenderBase
     }
 
   private:
-    void Flush(std::vector<MsgFragment>&& messages) const override
+    void Flush(std::vector<ChildMsgFragment>&& messages) const override
     {
         if (messages.empty()) {
             return;
@@ -71,8 +71,6 @@ class MockMsgSender : public MsgSenderBase
         std::cout << std::endl << ss.str() << std::endl;
     }
 
-    void SetMatch(std::weak_ptr<const Match>) override {}
-
     mutable uint64_t image_no_{0};
     const std::filesystem::path image_dir_;
     const std::optional<PlayerID> pid_;
@@ -89,9 +87,9 @@ class MockMatch : public MatchBase
 
     virtual ~MockMatch() {}
 
-    virtual MsgSenderBase& BoardcastMsgSender() override { return boardcast_sender_; }
+    virtual ChildMsgSenderBase& BoardcastMsgSender() override { return boardcast_sender_; }
 
-    virtual MsgSenderBase& TellMsgSender(const PlayerID pid) override
+    virtual ChildMsgSenderBase& TellMsgSender(const PlayerID pid) override
     {
         auto it = tell_senders_.find(pid);
         if (it == tell_senders_.end()) {

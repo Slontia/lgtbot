@@ -10,7 +10,7 @@
 #include "bot_core/msg_sender.h"
 #include "bot_core/match.h"
 
-static ErrCode StartGame(const lgtbot::game::InitOptionsResult start_mode, const UserID& uid, Match& match, MsgSenderBase& reply)
+static ErrCode StartGame(const lgtbot::game::InitOptionsResult start_mode, const UserID& uid, Match& match, HostMsgSenderBase& reply)
 {
     if (start_mode == lgtbot::game::InitOptionsResult::NEW_SINGLE_USER_MODE_GAME) {
         // Start game directly for single-player mode.
@@ -38,7 +38,7 @@ static ErrCode StartGame(const lgtbot::game::InitOptionsResult start_mode, const
 }
 
 ErrCode MatchManager::NewMatch(GameHandle& game_handle, const std::string_view init_options_args, const UserID& uid,
-        const std::optional<GroupID> gid, MsgSenderBase& reply)
+        const std::optional<GroupID> gid, HostMsgSenderBase& reply)
 {
     lgtbot::game::InitOptionsResult start_mode = lgtbot::game::InitOptionsResult::NEW_MULTIPLE_USERS_MODE_GAME;
     std::shared_ptr<Match> new_match;
@@ -82,7 +82,6 @@ ErrCode MatchManager::NewMatch(GameHandle& game_handle, const std::string_view i
         options.is_formal_ = is_formal;
         options.applied_options_log_ = game_handle.ConfigClient().GetAppliedLog();
         new_match = std::make_shared<Match>(bot_, mid, game_handle, std::move(options), uid, gid);
-        new_match->BindMsgSenderMatch_();
         BindMatch_(mid, new_match);
         BindMatch_(uid, new_match);
         if (gid.has_value()) {

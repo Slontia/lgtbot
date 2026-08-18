@@ -15,6 +15,7 @@
 #include "bot_core/db_manager.h"
 #include "bot_core/match_manager.h"
 #include "bot_core/match_internal.h"
+#include "bot_core/match_game_timer.h"
 #include "bot_core/options.h"
 #include "match_process/match_ipc.pb.h"
 
@@ -31,7 +32,7 @@ Running::Running(const MatchContext& ctx, MatchMessaging* messaging, MatchHelpSe
         , game_child_(game_child)
 {}
 
-MsgSenderBase* Running::GroupSenderOrNull_()
+HostMsgSenderBase* Running::GroupSenderOrNull_()
 {
     if (group_sender_.has_value()) {
         return &*group_sender_;
@@ -105,7 +106,6 @@ ErrCode Running::ExecuteRequest(const UserID uid, const std::optional<GroupID> g
         reply() << "[错误] 游戏已经结束";
         return EC_MATCH_ALREADY_OVER;
     }
-    reply.SetMatch(match_wk);
     const PlayerID pid = it->second.pid_;
     const bool is_eliminated = players_[pid.Get()].IsEliminated();
     {
@@ -122,7 +122,7 @@ ErrCode Running::ExecuteRequest(const UserID uid, const std::optional<GroupID> g
         return EC_MATCH_UNEXPECTED_CONFIG;
     }
     auto on_push = [this](const PushFrame& f) { ApplyChildPushFrame(f); };
-    const auto result = game_child_->SendExecute(pid, gid.has_value(), msg, reply, on_push);
+    const auto result = game_child_->SendExecute(pid, gid.has_value(), msg, reply, on_push, this);
     if (!result) {
         HandleChildEof();
         return EC_MATCH_UNEXPECTED_CONFIG;
@@ -134,7 +134,7 @@ ErrCode Running::ExecuteRequest(const UserID uid, const std::optional<GroupID> g
     return out;
 }
 
-ErrCode Running::LeaveBeforeChild(const UserID uid, MsgSenderBase& reply, const bool force)
+ErrCode Running::LeaveBeforeChild(const UserID uid, HostMsgSenderBase& reply, const bool force)
 {
     const auto it = users_.find(uid);
     if (it == users_.end() || !UserIsActive(it->second)) {
@@ -165,14 +165,14 @@ ErrCode Running::LeaveBeforeChild(const UserID uid, MsgSenderBase& reply, const 
     }
     if (game_child_) {
         auto on_push = [this](const PushFrame& f) { ApplyChildPushFrame(f); };
-        if (!game_child_->SendLeave(leave_pid, on_push)) {
+        if (!game_child_->SendLeave(leave_pid, on_push, this)) {
             HandleChildEof();
         }
     }
     return EC_OK;
 }
 
-ErrCode Running::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel)
+ErrCode Running::UserInterrupt(const UserID uid, HostMsgSenderBase& reply, const bool cancel)
 {
     const char* const operation_str = cancel ? "取消中断" : "确定中断";
     const auto it = users_.find(uid);
@@ -224,18 +224,24 @@ ErrCode Running::Terminate(const bool is_force)
 
 bool Running::SwitchHost() { return false; }
 
-void Running::ShowInfo(MsgSenderBase& reply, const std::weak_ptr<const Match>& match_wk) const
+void Running::ShowInfo(HostMsgSenderBase& reply, const std::weak_ptr<const Match>& match_wk) const
 {
-    ShowInfoHeader_(reply, match_wk, "已开始");
+    ShowInfoHeader_(reply, "已开始");
     auto sender = reply();
     const auto num = players_.size();
     sender << "\n玩家列表：" << num << "人";
     for (uint32_t pid = 0; pid < num; ++pid) {
-        sender << "\n" << pid << "号：" << Name(PlayerID{pid});
+        sender << "\n" << pid << "号：";
+        const auto& id = players_[pid].id_;
+        if (const auto pval = std::get_if<ComputerID>(&id)) {
+            sender << "机器人" << pval->Get() << "号";
+        } else {
+            sender << Name(std::get<UserID>(id));
+        }
     }
 }
 
-void Running::FetchHelp(MsgSenderBase& reply, const bool text_mode)
+void Running::FetchHelp(HostMsgSenderBase& reply, const bool text_mode)
 {
     if (!game_child_) {
         reply() << "[错误] 无法从游戏进程获取帮助信息";
@@ -243,7 +249,7 @@ void Running::FetchHelp(MsgSenderBase& reply, const bool text_mode)
     }
     std::string remote;
     HelpTextCollector help_collector(remote);
-    const auto stage = game_child_->FetchHelp(text_mode, help_collector);
+    const auto stage = game_child_->FetchHelp(text_mode, help_collector, this);
     if (!stage || *stage != lgtbot::ipc::ResultResp::STAGE_OK) {
         reply() << "[错误] 无法从游戏进程获取帮助信息";
         return;
@@ -263,17 +269,82 @@ void Running::FetchHelp(MsgSenderBase& reply, const bool text_mode)
 void Running::ApplyChildPushFrame(const PushFrame& frame)
 {
     std::visit(overloaded{
-        [this](const PostFrame& pf) { ApplyChildPost_(pf); },
-        [this](const PlayerStateFrame& psf) { ApplyChildPlayerState(psf.pid, psf.state); },
-        [this](const GameOverFrame& gof) { ApplyChildGameOverFromScores(gof); },
+        [this](const PostFrame& pf)        { ApplyChildPost_(pf); },
+        [this](const PlayerStateFrame& psf){ ApplyChildPlayerState(psf.pid, psf.state); },
+        [this](const GameOverFrame& gof)   { ApplyChildGameOverFromScores(gof); },
+        [this](const TimerStartFrame& tsf) { HandleTimerStart(tsf.duration_sec); },
+        [this](const TimerStopFrame&)      { HandleTimerStop(); },
     }, frame);
+}
+
+void Running::BindMatch(std::weak_ptr<Match> wk) { weak_match_ = std::move(wk); }
+
+void Running::HandleTimerStart(const uint64_t duration_sec)
+{
+    timer_is_over_ = std::make_shared<std::atomic<bool>>(false);
+    auto timeout_handler = [weak = weak_match_, tio = timer_is_over_]() {
+        // Early check before acquiring match lock so that HandleTimerStop (which sets
+        // *tio=true while holding the lock) can then safely join this thread.
+        if (tio->load(std::memory_order_acquire)) {
+            return;
+        }
+        auto match = weak.lock();
+        if (!match) {
+            return;
+        }
+        auto&& g = match->data_.lock();
+        if (tio->load(std::memory_order_acquire)) {
+            return;
+        }
+        auto& running = std::get<Running>(g->phase);
+        if (running.is_over()) {
+            return;
+        }
+        auto on_push = [&running](const PushFrame& f) { running.ApplyChildPushFrame(f); };
+        (void)g->game_child->SendTimeout(on_push, &running);
+        if (running.is_over()) {
+            auto child = match->CleanupRunning_(*g);
+            g = {};
+            match->Unbind_();
+        }
+    };
+    auto alert_handler = [weak = weak_match_, tio = timer_is_over_](const uint64_t remaining_sec) {
+        if (tio->load(std::memory_order_acquire)) {
+            return;
+        }
+        auto match = weak.lock();
+        if (!match) {
+            return;
+        }
+        auto&& g = match->data_.lock();
+        if (tio->load(std::memory_order_acquire)) {
+            return;
+        }
+        auto& running = std::get<Running>(g->phase);
+        if (running.is_over()) {
+            return;
+        }
+        auto on_push = [&running](const PushFrame& f) { running.ApplyChildPushFrame(f); };
+        (void)g->game_child->SendAlert(remaining_sec, on_push, &running);
+    };
+    game_timer_ = std::make_unique<Timer>(
+        BuildGameTimerTasks(duration_sec, std::move(alert_handler), std::move(timeout_handler)));
+}
+
+void Running::HandleTimerStop()
+{
+    if (timer_is_over_) {
+        timer_is_over_->store(true, std::memory_order_release);
+        timer_is_over_ = nullptr;
+    }
+    game_timer_.reset();
 }
 
 void Running::ApplyChildPost_(const PostFrame& frame)
 {
     using Channel = lgtbot::ipc::PostResp::Channel;
     const auto& post = frame.post;
-    MsgSenderBase::MsgSenderGuard sender = [&]() -> MsgSenderBase::MsgSenderGuard {
+    HostMsgSenderBase::MsgSenderGuard sender = [&]() -> HostMsgSenderBase::MsgSenderGuard {
         switch (post.channel()) {
         case Channel::PostResp_Channel_BROADCAST: return Boardcast();
         case Channel::PostResp_Channel_GROUP:     return MakeGroupGuard_();
@@ -282,7 +353,7 @@ void Running::ApplyChildPost_(const PostFrame& frame)
         }
     }();
     for (const auto& item : post.items()) {
-        AppendMsgItem(sender, item);
+        AppendMsgItem(sender, item, this);
     }
 }
 
@@ -320,8 +391,14 @@ void Running::ApplyChildGameOverFromScores(const GameOverFrame& frame)
         for (const auto& row : scores) {
             const auto pid = PlayerID{row.pid()};
             const auto score = static_cast<int64_t>(row.score());
-            sender << At(pid) << " " << score << "\n";
             const auto id = players_[pid.Get()].id_;
+            sender << "[" << pid.Get() << "号：";
+            if (const auto cval = std::get_if<ComputerID>(&id)) {
+                sender << "机器人" << cval->Get() << "号";
+            } else {
+                sender << At(std::get<UserID>(id));
+            }
+            sender << "] " << score << "\n";
             if (const auto pval = std::get_if<UserID>(&id); pval) {
                 user_game_scores.emplace_back(*pval, score);
                 for (const auto& ach_name : row.achievements()) {

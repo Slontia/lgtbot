@@ -46,7 +46,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
             VoidChecker("多人")),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly,
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly,
         MutableGenericOptions& generic_options)
 {
     return true;
@@ -104,7 +104,7 @@ class SubStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         ++computer_act_count_;
         if (to_computer_failed_[pid] > 0) {
@@ -138,42 +138,42 @@ class SubStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Ready_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Ready_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Over_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Over_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return StageErrCode::CHECKOUT;
     }
 
-    AtomReqErrCode ToResetTimer_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode ToResetTimer_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         to_reset_timer_ = true;
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode ToResetReadyAll_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t count)
+    AtomReqErrCode ToResetReadyAll_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t count)
     {
         to_reset_ready_ = count;
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode ToResetOthersReady_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode ToResetOthersReady_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         to_reset_others_ready_players_.emplace(pid);
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode ToComputerFailed_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode ToComputerFailed_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const PlayerID failed_pid, const uint32_t count)
     {
         to_computer_failed_[failed_pid] += count;
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode OutputComputerActCount_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode OutputComputerActCount_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const uint64_t expected)
     {
         reply() << "电脑行动次数=" << computer_act_count_;
@@ -181,24 +181,24 @@ class SubStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Eliminate_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Eliminate_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         Global().Eliminate(pid);
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Hook_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Hook_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         Global().Hook(pid);
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Crash_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Crash_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         _exit(1);
     }
 
-    AtomReqErrCode Block_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Block_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         {
             std::lock_guard<std::mutex> lk(g_block_mutex);
@@ -210,13 +210,13 @@ class SubStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode BlockAndOver_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode BlockAndOver_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         Block_(pid, is_public, reply);
         return StageErrCode::CHECKOUT;
     }
 
-    AtomReqErrCode BlockAndReady_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode BlockAndReady_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         Block_(pid, is_public, reply);
         return StageErrCode::READY;
@@ -264,19 +264,19 @@ class MainStage : public MainGameStage<SubStage>
     virtual int64_t PlayerScore(const PlayerID pid) const override { return scores_[pid]; };
 
   private:
-    CompReqErrCode ToCheckout_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t count)
+    CompReqErrCode ToCheckout_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t count)
     {
         to_checkout_ = count;
         return StageErrCode::OK;
     }
 
-    CompReqErrCode Score_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t score)
+    CompReqErrCode Score_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t score)
     {
         scores_[pid] = score;
         return StageErrCode::OK;
     }
 
-    CompReqErrCode Achievement_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint8_t count)
+    CompReqErrCode Achievement_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint8_t count)
     {
         for (uint8_t i = 0; i < count; ++i) {
             achievement_pids_.emplace_back(pid);
@@ -312,7 +312,7 @@ class AtomMainStage : public MainGameStage<>
     virtual int64_t PlayerScore(const PlayerID pid) const override { return 0; }
 
   private:
-    AtomReqErrCode BlockAndOver_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode BlockAndOver_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         {
             std::lock_guard<std::mutex> lk(g_block_mutex);

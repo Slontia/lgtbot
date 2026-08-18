@@ -64,7 +64,7 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, InitOption
     help_.help_command_info = [this](const bool with_example, const bool with_html_color) -> std::string {
         return help_cmd_.Info(with_example, with_html_color);
     };
-    help_.fetch_lobby_help = [this](MsgSenderBase& reply, const bool text_mode) {
+    help_.fetch_lobby_help = [this](HostMsgSenderBase& reply, const bool text_mode) {
         FetchHelp_(reply, text_mode);
     };
 }
@@ -89,15 +89,10 @@ void Match::CleanupRunningUsers_(MatchData& data)
     }
 }
 
-void Match::ReleaseGameChild_(MatchData& data)
-{
-    data.game_child.reset();
-}
-
-void Match::CleanupRunning_(MatchData& data)
+std::unique_ptr<MatchChildClient> Match::CleanupRunning_(MatchData& data)
 {
     CleanupRunningUsers_(data);
-    ReleaseGameChild_(data);
+    return std::move(data.game_child);
 }
 
 MatchManager& Match::match_manager()
@@ -105,17 +100,17 @@ MatchManager& Match::match_manager()
     return ctx_.bot.match_manager();
 }
 
-MsgSenderBase& Match::BoardcastMsgSender()
+HostMsgSenderBase& Match::BoardcastMsgSender()
 {
     return PhaseCommon(data_.lock()->phase).BoardcastMsgSender();
 }
 
-MsgSenderBase& Match::TellMsgSender(const PlayerID pid)
+HostMsgSenderBase& Match::TellMsgSender(const PlayerID pid)
 {
     return PhaseCommon(data_.lock()->phase).TellMsgSender(pid);
 }
 
-MsgSenderBase& Match::GroupMsgSender()
+HostMsgSenderBase& Match::GroupMsgSender()
 {
     return PhaseCommon(data_.lock()->phase).GroupMsgSender();
 }
@@ -130,7 +125,7 @@ const char* Match::PlayerAvatar(const PlayerID& pid, const int32_t size)
     return PhaseCommon(data_.lock()->phase).PlayerAvatar(pid, size);
 }
 
-MsgSenderBase::MsgSenderGuard Match::BoardcastAtAll()
+HostMsgSenderBase::MsgSenderGuard Match::BoardcastAtAll()
 {
     return PhaseCommon(data_.lock()->phase).BoardcastAtAll();
 }
@@ -155,7 +150,7 @@ void Match::BriefInfo(std::string& out) const
 
 
 
-ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_computers_to_player_num)
+ErrCode Match::SetBenchTo(const UserID uid, HostMsgSenderBase& reply, const uint64_t bench_computers_to_player_num)
 {
     auto&& g = data_.lock();
     auto* p = std::get_if<Lobby>(&g->phase);
@@ -166,7 +161,7 @@ ErrCode Match::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t
     return p->SetBenchTo(uid, reply, bench_computers_to_player_num);
 }
 
-ErrCode Match::SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_formal)
+ErrCode Match::SetFormal(const UserID uid, HostMsgSenderBase& reply, const bool is_formal)
 {
     auto&& g = data_.lock();
     auto* p = std::get_if<Lobby>(&g->phase);
@@ -177,7 +172,7 @@ ErrCode Match::SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_f
     return p->SetFormal(uid, reply, is_formal);
 }
 
-ErrCode Match::Join(const UserID uid, MsgSenderBase& reply)
+ErrCode Match::Join(const UserID uid, HostMsgSenderBase& reply)
 {
     auto&& g = data_.lock();
     auto* p = std::get_if<Lobby>(&g->phase);
@@ -217,16 +212,12 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
         return lobby->Request(uid, gid, msg, reply, weak_from_this(), *g->game_child);
     }
     auto& running = std::get<Running>(g->phase);
-    g = {};
     const auto rc = running.ExecuteRequest(uid, gid, msg, reply, weak_from_this());
-    {
-        auto&& g2 = data_.lock();
-        if (std::get<Running>(g2->phase).is_over()) {
-            CleanupRunning_(*g2);
-            g2 = {};
-            Unbind_();
-            return rc;
-        }
+    if (running.is_over()) {
+        auto child = CleanupRunning_(*g);
+        g = {};
+        Unbind_();
+        return rc;
     }
     if (rc == EC_GAME_REQUEST_NOT_FOUND) {
         reply() << "[错误] 未预料的游戏指令，您可以通过「帮助」（不带" META_COMMAND_SIGN
@@ -237,7 +228,7 @@ ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid, const
     return rc;
 }
 
-ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
+ErrCode Match::Leave(const UserID uid, HostMsgSenderBase& reply, const bool force)
 {
     auto&& g = data_.lock();
     if (auto* running = std::get_if<Running>(&g->phase)) {
@@ -247,7 +238,7 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
         }
         match_manager().UnbindMatch(uid);
         if (running->is_over()) {
-            CleanupRunning_(*g);
+            auto child = CleanupRunning_(*g);
             g = {};
             Unbind_();
         }
@@ -265,14 +256,14 @@ ErrCode Match::Leave(const UserID uid, MsgSenderBase& reply, const bool force)
     return rc;
 }
 
-ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel)
+ErrCode Match::UserInterrupt(const UserID uid, HostMsgSenderBase& reply, const bool cancel)
 {
     auto&& g = data_.lock();
     auto rc = PhaseCommon(g->phase).UserInterrupt(uid, reply, cancel);
     std::visit(overloaded{
         [&](Running& phase) {
             if (phase.is_over()) {
-                CleanupRunning_(*g);
+                auto child = CleanupRunning_(*g);
                 g = {};
                 Unbind_();
             }
@@ -282,7 +273,7 @@ ErrCode Match::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool 
     return rc;
 }
 
-void Match::ShowInfo(MsgSenderBase& reply) const
+void Match::ShowInfo(HostMsgSenderBase& reply) const
 {
     PhaseCommon(data_.lock()->phase).ShowInfo(reply, weak_from_this());
 }
@@ -304,7 +295,7 @@ ErrCode Match::Terminate(const bool is_force)
     std::visit(overloaded{
         [&](Running& phase) {
             if (phase.is_over()) {
-                CleanupRunning_(*g);
+                auto child = CleanupRunning_(*g);
                 g = {};
                 Unbind_();
             }
@@ -324,7 +315,7 @@ ErrCode Match::Terminate(const bool is_force)
     return rc;
 }
 
-ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
+ErrCode Match::GameStart(const UserID uid, HostMsgSenderBase& reply)
 {
     std::vector<lgtbot::ipc::PlayerInfo> players_for_child;
     uint32_t user_num = 0;
@@ -403,9 +394,8 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         auto&& g = data_.lock();
         auto* child_ptr = g->game_child.get();
         auto& running = std::get<Running>(g->phase);
-        g = {};
         auto on_push = [&running](const PushFrame& f) { running.ApplyChildPushFrame(f); };
-        const auto stage = child_ptr->SendStart(ctx_.mid.Get(), user_num, players_for_child, on_push);
+        const auto stage = child_ptr->SendStart(ctx_.mid.Get(), user_num, players_for_child, on_push, &running);
         start_ok = stage && *stage == lgtbot::ipc::ResultResp::STAGE_OK;
         if (!stage && !running.is_over()) {
             running.HandleChildEof();
@@ -414,7 +404,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
     if (!start_ok) {
         auto&& g2 = data_.lock();
         if (auto* r = std::get_if<Running>(&g2->phase); r && r->is_over()) {
-            CleanupRunning_(*g2);
+            auto child = CleanupRunning_(*g2);
             g2 = {};
             Unbind_();
         } else {
@@ -427,7 +417,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
         auto&& g = data_.lock();
         if (auto* running = std::get_if<Running>(&g->phase)) {
             if (running->is_over()) {
-                CleanupRunning_(*g);
+                auto child = CleanupRunning_(*g);
                 g = {};
                 Unbind_();
                 return EC_OK;
@@ -453,7 +443,7 @@ ErrCode Match::GameStart(const UserID uid, MsgSenderBase& reply)
     return EC_OK;
 }
 
-ErrCode Match::EnsureLobbyChild_(MsgSenderBase& reply)
+ErrCode Match::EnsureLobbyChild_(HostMsgSenderBase& reply)
 {
     auto g = data_.lock();
     const auto* lobby = std::get_if<Lobby>(&g->phase);
@@ -489,7 +479,7 @@ void Match::CommitRunning_(LobbyStartSnapshot snapshot)
     g->phase.template emplace<Running>(ctx_, &messaging_, &help_, g->users,
             g->players, std::move(snapshot), g->game_child.get(), std::move(gs));
     state_.store(MATCH_IS_STARTED, std::memory_order_release);
-    std::get<Running>(g->phase).BindMsgSenderMatch(weak_from_this());
+    std::get<Running>(g->phase).BindMatch(weak_from_this());
 }
 
 void Match::RollbackLobbyStart_(MatchData& data)
@@ -514,7 +504,7 @@ bool Match::LobbyStartAborted_()
 
 
 
-void Match::Help_(MsgSenderBase& reply, const bool text_mode)
+void Match::Help_(HostMsgSenderBase& reply, const bool text_mode)
 {
     auto&& g = data_.lock();
     if (auto* r = std::get_if<Running>(&g->phase)) {
@@ -526,7 +516,7 @@ void Match::Help_(MsgSenderBase& reply, const bool text_mode)
     FetchHelp_(reply, text_mode);
 }
 
-void Match::FetchHelp_(MsgSenderBase& reply, const bool text_mode)
+void Match::FetchHelp_(HostMsgSenderBase& reply, const bool text_mode)
 {
     const std::string remote_opts = ctx_.game_handle.ConfigClient().QueryOptionInfo(text_mode);
     std::string outstr = "## 当前可使用的游戏命令";
@@ -543,17 +533,6 @@ void Match::FetchHelp_(MsgSenderBase& reply, const bool text_mode)
     }
 }
 
-void Match::BindMsgSenderMatch_()
-{
-    const auto wk = weak_from_this();
-    auto&& g = data_.lock();
-    for (auto& [_, user_info] : g->users) {
-        user_info.sender_.SetMatch(wk);
-    }
-    if (group_sender_.has_value()) {
-        group_sender_->SetMatch(wk);
-    }
-}
 
 
 

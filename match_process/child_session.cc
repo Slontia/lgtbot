@@ -15,15 +15,13 @@
 
 namespace {
 
-class ErrCollector final : public MsgSenderBase
+class ErrCollector final : public ChildMsgSenderBase
 {
   public:
     mutable std::string text_;
 
   private:
-    void SetMatch(std::weak_ptr<const Match>) override {}
-
-    void Flush(std::vector<MsgFragment>&& messages) const override
+    void Flush(std::vector<ChildMsgFragment>&& messages) const override
     {
         for (const auto& frag : messages) {
             if (const auto* text = std::get_if<std::string>(&frag)) {
@@ -33,7 +31,7 @@ class ErrCollector final : public MsgSenderBase
     }
 };
 
-class ReplySender final : public MsgSenderBase
+class ReplySender final : public ChildMsgSenderBase
 {
   public:
     explicit ReplySender(ChildGameSession& session)
@@ -41,9 +39,7 @@ class ReplySender final : public MsgSenderBase
     {}
 
   private:
-    void SetMatch(std::weak_ptr<const Match>) override {}
-
-    void Flush(std::vector<MsgFragment>&& messages) const override
+    void Flush(std::vector<ChildMsgFragment>&& messages) const override
     {
         if (messages.empty()) {
             return;
@@ -364,6 +360,25 @@ bool ChildGameSession::HandleHelp(const lgtbot::ipc::HelpReq& req, std::string& 
     return true;
 }
 
+bool ChildGameSession::HandleTimeout(const lgtbot::ipc::TimeoutReq& /*req*/, std::string& /*err*/)
+{
+    if (main_stage_) {
+        main_stage_->HandleTimeout();
+        Routine();
+    }
+    SendResult(lgtbot::ipc::ResultResp::STAGE_OK);
+    return true;
+}
+
+bool ChildGameSession::HandleAlert(const lgtbot::ipc::AlertReq& req, std::string& /*err*/)
+{
+    if (env_ && env_->alert_cb()) {
+        env_->alert_cb()(env_->alert_arg(), req.remaining_sec());
+    }
+    SendResult(lgtbot::ipc::ResultResp::STAGE_OK);
+    return true;
+}
+
 int ChildGameSession::RunLoop()
 {
     for (;;) {
@@ -399,6 +414,12 @@ int ChildGameSession::RunLoop()
             break;
         case lgtbot::ipc::GameRequest::kHelp:
             HandleHelp(req.help(), err);
+            break;
+        case lgtbot::ipc::GameRequest::kTimeout:
+            HandleTimeout(req.timeout(), err);
+            break;
+        case lgtbot::ipc::GameRequest::kAlert:
+            HandleAlert(req.alert(), err);
             break;
         default: {
             SendResult(lgtbot::ipc::ResultResp::STAGE_FAILED);

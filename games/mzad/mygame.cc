@@ -35,7 +35,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "该游戏至少 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -137,14 +137,14 @@ class RoundStage : public SubGameStage<>
 
     // ========== 指令处理 ==========
 
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         string score_Board = Main().GetScoreBoard();
         reply() << Markdown(Main().T_Board + score_Board + Main().Board + "</table>" + Main().game_details, Main().image_width);
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Assassinate_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int, const int64_t target, const int64_t guess)
+    AtomReqErrCode Assassinate_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int, const int64_t target, const int64_t guess)
     {
         if (!Main().player_alive_[pid]) {
             reply() << "[错误] 您已被淘汰";
@@ -165,7 +165,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Counter_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int)
+    AtomReqErrCode Counter_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int)
     {
         if (!Main().player_alive_[pid]) {
             reply() << "[错误] 您已被淘汰";
@@ -178,7 +178,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Shield_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int)
+    AtomReqErrCode Shield_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int)
     {
         if (!Main().player_alive_[pid]) {
             reply() << "[错误] 您已被淘汰";
@@ -191,7 +191,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Destroy_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int)
+    AtomReqErrCode Destroy_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int)
     {
         if (!Main().player_alive_[pid]) {
             reply() << "[错误] 您已被淘汰";
@@ -204,7 +204,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Compete_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int, const int64_t target)
+    AtomReqErrCode Compete_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int, const int64_t target)
     {
         if (!Main().player_alive_[pid]) {
             reply() << "[错误] 您已被淘汰";
@@ -229,7 +229,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Discard_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int)
+    AtomReqErrCode Discard_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int)
     {
         if (!Main().player_alive_[pid]) {
             reply() << "[错误] 您已被淘汰";
@@ -246,7 +246,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Giant_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int)
+    AtomReqErrCode Giant_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int)
     {
         if (!Main().player_alive_[pid]) {
             reply() << "[错误] 您已被淘汰";
@@ -309,7 +309,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

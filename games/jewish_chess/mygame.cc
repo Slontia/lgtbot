@@ -29,7 +29,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {
   if (generic_options_readonly.PlayerNum() < 2) {
     reply() << "人数不足。";
     return false;
@@ -181,7 +181,7 @@ class RoundStage : public SubGameStage<> {
     return StageErrCode::CHECKOUT;
   }
 
-  virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override {
+  virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override {
     Global().Boardcast() << "笨笨的机器人选择认输。";
     Main().ended_ = true;
     Main().score_[!pid] = 1;
@@ -190,7 +190,7 @@ class RoundStage : public SubGameStage<> {
   }
 
  private:
-  AtomReqErrCode Concede_(const PlayerID pid, const bool is_public, MsgSenderBase& reply) {
+  AtomReqErrCode Concede_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply) {
     int current_player = Main().side_[Main().turn_ % 2];
     if (pid != current_player) {
       return StageErrCode::FAILED;
@@ -202,7 +202,7 @@ class RoundStage : public SubGameStage<> {
     return StageErrCode::OK;
   }
 
-  AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+  AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                       std::string str) {
     int current_player = Main().side_[Main().turn_ % 2];
     if (pid != current_player) {

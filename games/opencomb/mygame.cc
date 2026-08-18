@@ -37,7 +37,7 @@ uint32_t Multiple(const CustomOptions& options) { return GET_OPTION_VALUE(option
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {
     if (GET_OPTION_VALUE(game_options, 模式) == 1 && generic_options_readonly.PlayerNum() < 2) {
         reply() << "「云顶」对战模式至少需要 2 人参加游戏";
         return false;
@@ -327,7 +327,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage>
     decltype(cards2_)::iterator it2_;
 
   private:
-    CompReqErrCode InitInfo_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t null)
+    CompReqErrCode InitInfo_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t null)
     {
         html::Table table(2, 2);
         table.SetTableStyle("align=\"center\" cellpadding=\"10\" cellspacing=\"0\"");
@@ -433,7 +433,7 @@ class RoundStage : public SubGameStage<>
         }
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -449,7 +449,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t num)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t num)
     {
         if (Global().IsReady(pid)) {
             reply() << "您本回合已经行动完成，无法重复设置";
@@ -495,7 +495,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Move_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t from, const uint32_t to)
+    AtomReqErrCode Move_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t from, const uint32_t to)
     {
         if (Global().IsReady(pid)) {
             reply() << "您本回合已经行动完成，无法重复设置";
@@ -531,7 +531,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (Global().IsReady(pid)) {
             reply() << "您本回合已经行动完成，无法重复设置";
@@ -545,13 +545,13 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         SendInfo(reply);
         return StageErrCode::OK;
     }
 
-    void SendInfo(MsgSenderBase& sender)
+    void SendInfo(ChildMsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
         const std::string style = "<style>body{margin:0;}</style>" + GetStyle(Global().ResourceDir());
@@ -798,7 +798,7 @@ class SelectStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -816,7 +816,7 @@ class SelectStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Select_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t id, const uint32_t num)
+    AtomReqErrCode Select_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t id, const uint32_t num)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 当前并非您的选卡回合";
@@ -865,7 +865,7 @@ class SelectStage : public SubGameStage<>
         current_players.erase(current_players.begin());
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         SendInfo(reply);
         return StageErrCode::OK;
@@ -889,7 +889,7 @@ class SelectStage : public SubGameStage<>
         return style + avatar_table.ToString() + card_table.ToString();
     }
 
-    void SendInfo(MsgSenderBase& sender)
+    void SendInfo(ChildMsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
         sender() << Markdown(SelectCardHtml_(), 300);

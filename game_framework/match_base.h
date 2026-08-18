@@ -5,8 +5,7 @@
 #pragma once
 
 #include "bot_core/id.h"
-
-class MsgSenderBase;
+#include "bot_core/msg_sender.h"
 
 // Cross-module class interface for game level.
 class MatchBase
@@ -16,9 +15,9 @@ class MatchBase
     virtual ~MatchBase() {}
 
     // message senders
-    virtual MsgSenderBase& BoardcastMsgSender() = 0;
-    virtual MsgSenderBase& TellMsgSender(const PlayerID pid) = 0;
-    virtual MsgSenderBase& GroupMsgSender() = 0;
+    virtual ChildMsgSenderBase& BoardcastMsgSender() = 0;
+    virtual ChildMsgSenderBase& TellMsgSender(const PlayerID pid) = 0;
+    virtual ChildMsgSenderBase& GroupMsgSender() = 0;
 
     // player info
     virtual const char* PlayerName(const PlayerID& pid) = 0;

@@ -100,7 +100,7 @@ string cmpWordle(string a,string b)
 }
 
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏必须 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -183,7 +183,7 @@ class MainStage : public MainGameStage<RoundStage>
 
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
 //        reply() << "这里输出当前游戏情况";
         // Returning |OK| means the game stage
@@ -263,7 +263,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         string s = "";
         int l = Main().wordLength;
@@ -576,7 +576,7 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, string submission)
+    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, string submission)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 您本回合已经完成提交。";
@@ -625,7 +625,7 @@ class RoundStage : public SubGameStage<>
         return SubmitInternal_(pid, reply, submission);
     }
 
-    AtomReqErrCode SubmitInternal_(const PlayerID pid, MsgSenderBase& reply, const string submission)
+    AtomReqErrCode SubmitInternal_(const PlayerID pid, ChildMsgSenderBase& reply, const string submission)
     {
 //        auto& player_score = Main().player_scores_[pid];
 //        player_score += score;

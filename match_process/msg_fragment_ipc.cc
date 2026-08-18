@@ -9,7 +9,7 @@ namespace lgtbot::ipc {
 
 namespace {
 
-MsgItem MsgFragmentToItem(const MsgFragment& frag)
+MsgItem MsgFragmentToItem(const ChildMsgFragment& frag)
 {
     MsgItem proto;
     std::visit(Overload{
@@ -30,7 +30,7 @@ MsgItem MsgFragmentToItem(const MsgFragment& frag)
 
 } // namespace
 
-std::vector<MsgItem> MsgFragmentsToItems(std::vector<MsgFragment> fragments)
+std::vector<MsgItem> MsgFragmentsToItems(std::vector<ChildMsgFragment> fragments)
 {
     std::vector<MsgItem> items;
     items.reserve(fragments.size());

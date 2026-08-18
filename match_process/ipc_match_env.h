@@ -11,7 +11,6 @@
 #include "bot_core/id.h"
 #include "game_framework/match_base.h"
 #include "bot_core/msg_sender.h"
-#include "bot_core/timer.h"
 #include "game_framework/game_main.h"
 #include "match_process/match_ipc.pb.h"
 #include "utility/empty_func.h"
@@ -24,9 +23,9 @@ class IpcMatchEnv final : public MatchBase
   public:
     explicit IpcMatchEnv(ChildGameSession& session);
 
-    MsgSenderBase& BoardcastMsgSender() override;
-    MsgSenderBase& TellMsgSender(const PlayerID pid) override;
-    MsgSenderBase& GroupMsgSender() override;
+    ChildMsgSenderBase& BoardcastMsgSender() override;
+    ChildMsgSenderBase& TellMsgSender(const PlayerID pid) override;
+    ChildMsgSenderBase& GroupMsgSender() override;
 
     const char* PlayerName(const PlayerID& pid) override;
     const char* PlayerAvatar(const PlayerID& pid, const int32_t size) override;
@@ -54,6 +53,9 @@ class IpcMatchEnv final : public MatchBase
     [[nodiscard]] bool IsComputerAt(const uint32_t index) const;
     [[nodiscard]] bool IsEliminatedAt(const uint32_t index) const;
 
+    [[nodiscard]] void* alert_arg() const { return alert_arg_; }
+    [[nodiscard]] void (*alert_cb() const)(void*, uint64_t) { return alert_cb_; }
+
   private:
     struct PlayerSlot
     {
@@ -65,15 +67,6 @@ class IpcMatchEnv final : public MatchBase
     void SendPostFrame(lgtbot::ipc::PostResp::Channel channel, uint32_t target_pid,
                        std::vector<lgtbot::ipc::MsgItem> items);
 
-    struct TimerCtl
-    {
-        void Start(IpcMatchEnv& env, const uint64_t sec, void* alert_arg, void(*alert_cb)(void*, uint64_t));
-        void Stop(const IpcMatchEnv& env);
-
-        std::shared_ptr<bool> timer_is_over_;
-        std::unique_ptr<Timer> timer_;
-    };
-
     ChildGameSession& session_;
     uint64_t match_id_{0};
     std::string game_name_;
@@ -81,8 +74,10 @@ class IpcMatchEnv final : public MatchBase
     std::vector<std::string> player_avatars_;
     std::vector<PlayerSlot> players_;
     std::atomic<bool> is_in_deduction_{false};
+    void* alert_arg_{nullptr};
+    void (*alert_cb_)(void*, uint64_t){nullptr};
 
-    class IpcMsgSender final : public MsgSenderBase
+    class IpcMsgSender final : public ChildMsgSenderBase
     {
       public:
         IpcMsgSender(IpcMatchEnv& env, lgtbot::ipc::PostResp::Channel channel, const uint32_t target_pid)
@@ -92,8 +87,7 @@ class IpcMatchEnv final : public MatchBase
         {}
 
       private:
-        void SetMatch(std::weak_ptr<const Match> /*match*/) override {}
-        void Flush(std::vector<MsgFragment>&& messages) const override;
+        void Flush(std::vector<ChildMsgFragment>&& messages) const override;
 
         IpcMatchEnv& env_;
         lgtbot::ipc::PostResp::Channel channel_;
@@ -104,5 +98,4 @@ class IpcMatchEnv final : public MatchBase
     std::unique_ptr<IpcMsgSender> group_sender_;
     std::map<PlayerID, std::unique_ptr<IpcMsgSender>> tell_senders_;
 
-    TimerCtl timer_cntl_;
 };

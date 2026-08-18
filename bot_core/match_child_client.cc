@@ -76,11 +76,12 @@ ErrCode StageToErr(const lgtbot::ipc::ResultResp::Stage s)
     }
 }
 
-void ReplyRespToMsgSender(MsgSenderBase& reply, const lgtbot::ipc::ReplyResp& resp)
+void ReplyRespToMsgSender(HostMsgSenderBase& reply, const lgtbot::ipc::ReplyResp& resp,
+                          const MatchPhaseCommon* const phase)
 {
     auto g = reply();
     for (const auto& item : resp.items()) {
-        AppendMsgItem(g, item);
+        AppendMsgItem(g, item, phase);
     }
 }
 
@@ -141,7 +142,8 @@ bool MatchChildClient::WriteProto_(lgtbot::ipc::GameRequest req)
 }
 
 std::optional<MatchChildClient::IpcStage> MatchChildClient::SendRequestAndRead_(
-        lgtbot::ipc::GameRequest req, MsgSenderBase& reply_sender, const PushHandler& on_push)
+        lgtbot::ipc::GameRequest req, HostMsgSenderBase& reply_sender, const PushHandler& on_push,
+        const MatchPhaseCommon* const phase)
 {
     if (!WriteProto_(std::move(req))) {
         return std::nullopt;
@@ -150,7 +152,7 @@ std::optional<MatchChildClient::IpcStage> MatchChildClient::SendRequestAndRead_(
         std::string raw;
         if (!proc_.Read(raw)) {
             ErrorLog() << "MatchChildClient: Read failed unexpectedly";
-            ReplyRespToMsgSender(reply_sender, MakeGameOverReply());
+            ReplyRespToMsgSender(reply_sender, MakeGameOverReply(), phase);
             return std::nullopt;
         }
         lgtbot::ipc::GameResponse resp;
@@ -180,8 +182,18 @@ std::optional<MatchChildClient::IpcStage> MatchChildClient::SendRequestAndRead_(
                 on_push(f);
             }
             break;
+        case lgtbot::ipc::GameResponse::kTimerStart:
+            if (on_push) {
+                on_push(TimerStartFrame{resp.timer_start().duration_sec()});
+            }
+            break;
+        case lgtbot::ipc::GameResponse::kTimerStop:
+            if (on_push) {
+                on_push(TimerStopFrame{});
+            }
+            break;
         case lgtbot::ipc::GameResponse::kReply:
-            ReplyRespToMsgSender(reply_sender, resp.reply());
+            ReplyRespToMsgSender(reply_sender, resp.reply(), phase);
             break;
         case lgtbot::ipc::GameResponse::kResult:
             return resp.result().stage();
@@ -203,7 +215,7 @@ std::optional<MatchChildClient::IpcStage> MatchChildClient::SendInit_(const Runt
     init->set_bench(options.generic_options_.bench_computers_to_player_num_);
     init->set_is_formal(options.generic_options_.is_formal_);
     static const PushHandler kNoop = [](const PushFrame&) {};
-    return SendRequestAndRead_(std::move(req), EmptyMsgSender::Get(), kNoop);
+    return SendRequestAndRead_(std::move(req), HostEmptyMsgSender::Get(), kNoop, nullptr);
 }
 
 std::optional<MatchChildClient::IpcStage> MatchChildClient::SendSetOption(const std::string& text)
@@ -211,12 +223,12 @@ std::optional<MatchChildClient::IpcStage> MatchChildClient::SendSetOption(const 
     lgtbot::ipc::GameRequest req;
     req.mutable_set_option()->set_text(text);
     static const PushHandler kNoop = [](const PushFrame&) {};
-    return SendRequestAndRead_(std::move(req), EmptyMsgSender::Get(), kNoop);
+    return SendRequestAndRead_(std::move(req), HostEmptyMsgSender::Get(), kNoop, nullptr);
 }
 
 std::optional<MatchChildClient::IpcStage> MatchChildClient::SendStart(const uint64_t match_id,
         const uint32_t user_num, const std::vector<lgtbot::ipc::PlayerInfo>& players,
-        const PushHandler& on_push)
+        const PushHandler& on_push, const MatchPhaseCommon* const phase)
 {
     lgtbot::ipc::GameRequest req;
     auto* start = req.mutable_start();
@@ -225,19 +237,20 @@ std::optional<MatchChildClient::IpcStage> MatchChildClient::SendStart(const uint
     for (const auto& p : players) {
         *start->add_players() = p;
     }
-    return SendRequestAndRead_(std::move(req), EmptyMsgSender::Get(), on_push);
+    return SendRequestAndRead_(std::move(req), HostEmptyMsgSender::Get(), on_push, phase);
 }
 
 std::optional<ErrCode> MatchChildClient::SendExecute(const PlayerID player_id, const bool is_public,
                                                      const std::string& text, MsgSender& reply,
-                                                     const PushHandler& on_push)
+                                                     const PushHandler& on_push,
+                                                     const MatchPhaseCommon* const phase)
 {
     lgtbot::ipc::GameRequest req;
     auto* exec = req.mutable_execute();
     exec->set_text(text);
     exec->set_player_id(player_id.Get());
     exec->set_is_public(is_public);
-    const auto stage = SendRequestAndRead_(std::move(req), reply, on_push);
+    const auto stage = SendRequestAndRead_(std::move(req), reply, on_push, phase);
     if (!stage) {
         return std::nullopt;
     }
@@ -245,19 +258,37 @@ std::optional<ErrCode> MatchChildClient::SendExecute(const PlayerID player_id, c
 }
 
 std::optional<MatchChildClient::IpcStage> MatchChildClient::SendLeave(const PlayerID player_id,
-                                                                      const PushHandler& on_push)
+                                                                      const PushHandler& on_push,
+                                                                      const MatchPhaseCommon* const phase)
 {
     lgtbot::ipc::GameRequest req;
     req.mutable_leave()->set_player_id(player_id.Get());
-    static const PushHandler kNoop = [](const PushFrame&) {};
-    return SendRequestAndRead_(std::move(req), EmptyMsgSender::Get(), kNoop);
+    return SendRequestAndRead_(std::move(req), HostEmptyMsgSender::Get(), on_push, phase);
+}
+
+std::optional<MatchChildClient::IpcStage> MatchChildClient::SendTimeout(const PushHandler& on_push,
+                                                                        const MatchPhaseCommon* const phase)
+{
+    lgtbot::ipc::GameRequest req;
+    req.mutable_timeout();
+    return SendRequestAndRead_(std::move(req), HostEmptyMsgSender::Get(), on_push, phase);
+}
+
+std::optional<MatchChildClient::IpcStage> MatchChildClient::SendAlert(const uint64_t remaining_sec,
+                                                                       const PushHandler& on_push,
+                                                                       const MatchPhaseCommon* const phase)
+{
+    lgtbot::ipc::GameRequest req;
+    req.mutable_alert()->set_remaining_sec(remaining_sec);
+    return SendRequestAndRead_(std::move(req), HostEmptyMsgSender::Get(), on_push, phase);
 }
 
 std::optional<MatchChildClient::IpcStage> MatchChildClient::FetchHelp(const bool text_mode,
-                                                                      MsgSenderBase& reply_sender)
+                                                                      HostMsgSenderBase& reply_sender,
+                                                                      const MatchPhaseCommon* const phase)
 {
     lgtbot::ipc::GameRequest req;
     req.mutable_help()->set_text_mode(text_mode);
     static const PushHandler kNoop = [](const PushFrame&) {};
-    return SendRequestAndRead_(std::move(req), reply_sender, kNoop);
+    return SendRequestAndRead_(std::move(req), reply_sender, kNoop, phase);
 }

@@ -36,7 +36,7 @@ uint32_t Multiple(const CustomOptions& options) {
 const MutableGenericOptions k_default_generic_options{};
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -89,7 +89,7 @@ class MainStage : public MainGameStage<RoundStage>
     PlayerID currentPlayer;
     
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply){
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply){
         reply() << Markdown(board.GetMarkdown(round_, currentPlayer), (GAME_OPTION(边长) + 2) * 60 + 100);
         return StageErrCode::OK;
     }
@@ -137,7 +137,7 @@ class RoundStage : public SubGameStage<>
     }
 
    private:
-    AtomReqErrCode MoveAndPlace_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const string str, const Direct direction)
+    AtomReqErrCode MoveAndPlace_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const string str, const Direct direction)
     {
         if (pid != Main().currentPlayer) {
             reply() << "[错误] 本回合并非您的回合";
@@ -170,7 +170,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Concede_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t null) {
+    AtomReqErrCode Concede_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t null) {
         Main().player_scores_[pid] = -1;
         Global().Boardcast() << "玩家 " << At(PlayerID(pid)) << " 认输，游戏结束。";
         return StageErrCode::CHECKOUT;
@@ -213,7 +213,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
     
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

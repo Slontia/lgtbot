@@ -30,7 +30,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
@@ -204,7 +204,7 @@ class NumberStage : public SubGameStage<>
         Global().StartTimer(60);
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (questioner_ == pid) {
             actual_number_ = std::rand() % GAME_OPTION(数字种类) + 1;
@@ -216,7 +216,7 @@ class NumberStage : public SubGameStage<>
     }
 
    private:
-    AtomReqErrCode Number_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int actual_number,
+    AtomReqErrCode Number_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int actual_number,
             const int lie_number)
     {
         if (pid != questioner_) {
@@ -254,7 +254,7 @@ class GuessStage : public SubGameStage<>
         Global().StartTimer(60);
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (guesser_ == pid) {
             doubt_ = std::rand() % 2;
@@ -266,7 +266,7 @@ class GuessStage : public SubGameStage<>
     bool doubt() const { return doubt_; }
 
    private:
-    AtomReqErrCode Guess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool doubt)
+    AtomReqErrCode Guess_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool doubt)
     {
         if (pid != guesser_) {
             reply() << "[错误] 本回合您为提问者，无法猜测";

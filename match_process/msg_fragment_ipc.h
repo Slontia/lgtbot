@@ -11,6 +11,6 @@
 
 namespace lgtbot::ipc {
 
-std::vector<MsgItem> MsgFragmentsToItems(std::vector<MsgFragment> fragments);
+std::vector<MsgItem> MsgFragmentsToItems(std::vector<ChildMsgFragment> fragments);
 
 } // namespace lgtbot::ipc

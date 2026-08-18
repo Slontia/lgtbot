@@ -55,7 +55,9 @@ message ExecuteReq {
 
 message LeaveReq { uint32 player_id = 1; }
 
-message HelpReq { bool text_mode = 1; }
+message HelpReq  { bool   text_mode     = 1; }
+message TimeoutReq {}
+message AlertReq  { uint64 remaining_sec = 1; }
 
 message GameRequest {
   uint64 ipc_id = 8;
@@ -67,6 +69,8 @@ message GameRequest {
     LeaveReq     leave      = 5;
     HelpReq      help       = 6;
     bool         shutdown   = 7;  // true = terminate
+    TimeoutReq   timeout    = 9;
+    AlertReq     alert      = 10;
   }
 }
 
@@ -108,7 +112,9 @@ message ScoreEntry {
   repeated string achievements = 3;
 }
 
-message GameOverResp { repeated ScoreEntry scores = 1; }
+message GameOverResp    { repeated ScoreEntry scores = 1; }
+message TimerStartResp  { uint64 duration_sec = 1; }
+message TimerStopResp   {}
 
 message GameResponse {
   uint64 ipc_id = 7;
@@ -119,6 +125,8 @@ message GameResponse {
     PostResp        post         = 4;
     PlayerStateResp player_state = 5;
     GameOverResp    game_over    = 6;
+    TimerStartResp  timer_start  = 8;
+    TimerStopResp   timer_stop   = 9;
   }
 }
 

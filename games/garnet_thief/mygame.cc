@@ -29,7 +29,7 @@ const MutableGenericOptions k_default_generic_options{
 };
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 3) {
         reply() << "该游戏至少 3 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -91,7 +91,7 @@ class MainStage : public MainGameStage<RoundStage>
     string GetStatusBoard();
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         string status_Board = GetStatusBoard();
         reply() << Markdown(T_Board + status_Board + Board + "</table>", image_width);
@@ -168,7 +168,7 @@ class RoundStage : public SubGameStage<DeclareStage, SelectStage>
     void calc();
 
   private:
-    CompReqErrCode SendMsg_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t target, const vector<string> messages)
+    CompReqErrCode SendMsg_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t target, const vector<string> messages)
     {
         if (pid == target - 1) {
             reply() << "[错误] 不能向自己发送私信。";
@@ -254,7 +254,7 @@ class DeclareStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode DeclareRole_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const char role)
+    AtomReqErrCode DeclareRole_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const char role)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行声明。";
@@ -291,7 +291,7 @@ class DeclareStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -318,7 +318,7 @@ class SelectStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode SelectRole_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const char role)
+    AtomReqErrCode SelectRole_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const char role)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行提交。";
@@ -355,7 +355,7 @@ class SelectStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

@@ -18,9 +18,6 @@
 #include "bot_core/id.h"
 #include "bot_core/image.h"
 #include "bot_core/bot_core.h"
-#include "utility/atomic_weak_ptr.h"
-
-class Match;
 
 template <typename IdType> struct At { IdType id_; };
 template <typename IdType> struct Name { IdType id_; };
@@ -64,9 +61,11 @@ struct Markdown {
 
 template <typename T> concept CanToString = requires(T&& t) { std::to_string(std::forward<T>(t)); };
 
-using MsgFragment = std::variant<std::string, At<UserID>, At<PlayerID>, Name<UserID>, Name<PlayerID>, Image, Markdown>;
+template <typename IdType>
+using MsgFragmentT = std::variant<std::string, At<IdType>, Name<IdType>, Image, Markdown>;
 
-inline void AppendMsgFragmentText(std::vector<MsgFragment>& buf, std::string text)
+template <typename IdType>
+inline void AppendMsgFragmentText(std::vector<MsgFragmentT<IdType>>& buf, std::string text)
 {
     if (text.empty()) {
         return;
@@ -78,7 +77,9 @@ inline void AppendMsgFragmentText(std::vector<MsgFragment>& buf, std::string tex
     }
 }
 
-inline void AppendMsgFragmentText(std::vector<MsgFragment>& buf, const char* const data, const uint64_t len)
+template <typename IdType>
+inline void AppendMsgFragmentText(std::vector<MsgFragmentT<IdType>>& buf, const char* const data,
+        const uint64_t len)
 {
     if (len == 0) {
         return;
@@ -90,19 +91,23 @@ inline void AppendMsgFragmentText(std::vector<MsgFragment>& buf, const char* con
     }
 }
 
-inline void AppendMsgFragmentText(std::vector<MsgFragment>& buf, const std::string_view sv)
+template <typename IdType>
+inline void AppendMsgFragmentText(std::vector<MsgFragmentT<IdType>>& buf, const std::string_view sv)
 {
-    AppendMsgFragmentText(buf, sv.data(), sv.size());
+    AppendMsgFragmentText<IdType>(buf, sv.data(), sv.size());
 }
 
-class MsgSenderBase
+template <typename IdType>
+class MsgSenderBaseT
 {
   public:
+    using Fragment = MsgFragmentT<IdType>;
+
     class MsgSenderGuard
     {
       public:
-        explicit MsgSenderGuard(const MsgSenderBase& sender) : sender_(&sender) {}
-        explicit MsgSenderGuard(std::unique_ptr<MsgSenderBase> owned)
+        explicit MsgSenderGuard(const MsgSenderBaseT& sender) : sender_(&sender) {}
+        explicit MsgSenderGuard(std::unique_ptr<MsgSenderBaseT> owned)
             : owned_(std::move(owned))
             , sender_(owned_.get())
         {}
@@ -124,57 +129,62 @@ class MsgSenderBase
 
         MsgSenderGuard& operator<<(const char c) { return (*this) << std::string(1, c); }
 
-        MsgSenderGuard& operator<<(At<UserID> at) { messages_.emplace_back(std::move(at)); return *this; }
-        MsgSenderGuard& operator<<(At<PlayerID> at) { messages_.emplace_back(std::move(at)); return *this; }
-        MsgSenderGuard& operator<<(Name<UserID> name) { messages_.emplace_back(std::move(name)); return *this; }
-        MsgSenderGuard& operator<<(Name<PlayerID> name) { messages_.emplace_back(std::move(name)); return *this; }
+        MsgSenderGuard& operator<<(At<IdType> at) { messages_.emplace_back(std::move(at)); return *this; }
+        MsgSenderGuard& operator<<(Name<IdType> name) { messages_.emplace_back(std::move(name)); return *this; }
         MsgSenderGuard& operator<<(Image image) { messages_.emplace_back(std::move(image)); return *this; }
         MsgSenderGuard& operator<<(Markdown markdown) { messages_.emplace_back(std::move(markdown)); return *this; }
 
       private:
-        std::unique_ptr<MsgSenderBase> owned_;
-        const MsgSenderBase* sender_{nullptr};
-        std::vector<MsgFragment> messages_;
+        std::unique_ptr<MsgSenderBaseT> owned_;
+        const MsgSenderBaseT* sender_{nullptr};
+        std::vector<Fragment> messages_;
 
-        friend class MsgSenderBase;
+        friend class MsgSenderBaseT;
     };
 
   public:
-    virtual ~MsgSenderBase() = default;
+    virtual ~MsgSenderBaseT() = default;
     virtual MsgSenderGuard operator()() const { return MsgSenderGuard(*this); }
-    virtual void SetMatch(std::weak_ptr<const Match> match) = 0;
-    void DeliverMessages(std::vector<MsgFragment>&& messages) const { Flush(std::move(messages)); }
+    void DeliverMessages(std::vector<Fragment>&& messages) const { Flush(std::move(messages)); }
 
   protected:
-    virtual void Flush(std::vector<MsgFragment>&& messages) const = 0;
+    virtual void Flush(std::vector<Fragment>&& messages) const = 0;
 
     friend class MsgSenderGuard;
 };
 
-class EmptyMsgSender : public MsgSenderBase
+using HostMsgSenderBase  = MsgSenderBaseT<UserID>;
+using ChildMsgSenderBase = MsgSenderBaseT<PlayerID>;
+using HostMsgFragment    = MsgFragmentT<UserID>;
+using ChildMsgFragment   = MsgFragmentT<PlayerID>;
+
+template <typename IdType>
+class EmptyMsgSenderT : public MsgSenderBaseT<IdType>
 {
   public:
-    static MsgSenderBase& Get()
+    static MsgSenderBaseT<IdType>& Get()
     {
-        static EmptyMsgSender sender;
+        static EmptyMsgSenderT sender;
         return sender;
     }
 
   private:
-    void Flush(std::vector<MsgFragment>&&) const override {}
-    void SetMatch(std::weak_ptr<const Match>) override {}
+    void Flush(std::vector<MsgFragmentT<IdType>>&&) const override {}
 
-    EmptyMsgSender() = default;
-    ~EmptyMsgSender() = default;
+    EmptyMsgSenderT() = default;
+    ~EmptyMsgSenderT() = default;
 };
 
-class MsgSender : public MsgSenderBase
+using HostEmptyMsgSender  = EmptyMsgSenderT<UserID>;
+using ChildEmptyMsgSender = EmptyMsgSenderT<PlayerID>;
+
+class Match;
+
+class MsgSender : public HostMsgSenderBase
 {
   public:
-    MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const UserID& uid,
-            std::weak_ptr<Match> match = {});
-    MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const GroupID& gid,
-            std::weak_ptr<Match> match = {});
+    MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const UserID& uid);
+    MsgSender(void* handler, const std::string& image_path, const LGTBot_Callback& callbacks, const GroupID& gid);
 
     MsgSender(const MsgSender&) = delete;
     MsgSender(MsgSender&& o) noexcept;
@@ -183,23 +193,20 @@ class MsgSender : public MsgSenderBase
 
     ~MsgSender() override = default;
 
-    void SetMatch(std::weak_ptr<const Match> match) override;
-    MsgSenderBase::MsgSenderGuard operator()() const override;
+    HostMsgSenderBase::MsgSenderGuard operator()() const override;
 
   private:
-    void Flush(std::vector<MsgFragment>&& messages) const override;
-
-    std::shared_ptr<const Match> LockMatch_() const;
+    void Flush(std::vector<HostMsgFragment>&& messages) const override;
 
     void* handler_{nullptr};
     const std::string* image_path_{nullptr};
     const LGTBot_Callback* callbacks_{nullptr};
     std::string id_;
     bool is_to_user_{false};
-    AtomicWeakPtr<const Match> match_wk_;
 };
 
-inline MsgSenderBase::MsgSenderGuard::MsgSenderGuard(MsgSenderGuard&& other) noexcept
+template <typename IdType>
+inline MsgSenderBaseT<IdType>::MsgSenderGuard::MsgSenderGuard(MsgSenderGuard&& other) noexcept
     : owned_(std::move(other.owned_))
     , sender_(other.sender_)
     , messages_(std::move(other.messages_))
@@ -210,7 +217,9 @@ inline MsgSenderBase::MsgSenderGuard::MsgSenderGuard(MsgSenderGuard&& other) noe
     other.sender_ = nullptr;
 }
 
-inline MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator=(MsgSenderGuard&& other) noexcept
+template <typename IdType>
+inline typename MsgSenderBaseT<IdType>::MsgSenderGuard& MsgSenderBaseT<IdType>::MsgSenderGuard::operator=(
+        MsgSenderGuard&& other) noexcept
 {
     if (this != &other) {
         owned_ = std::move(other.owned_);
@@ -224,22 +233,26 @@ inline MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator=(M
     return *this;
 }
 
-inline MsgSenderBase::MsgSenderGuard::~MsgSenderGuard()
+template <typename IdType>
+inline MsgSenderBaseT<IdType>::MsgSenderGuard::~MsgSenderGuard()
 {
     if (sender_) {
         sender_->Flush(std::move(messages_));
     }
 }
 
-inline void MsgSenderBase::MsgSenderGuard::Release()
+template <typename IdType>
+inline void MsgSenderBaseT<IdType>::MsgSenderGuard::Release()
 {
     owned_.reset();
     sender_ = nullptr;
     messages_.clear();
 }
 
-inline MsgSenderBase::MsgSenderGuard& MsgSenderBase::MsgSenderGuard::operator<<(const std::string_view& sv)
+template <typename IdType>
+inline typename MsgSenderBaseT<IdType>::MsgSenderGuard& MsgSenderBaseT<IdType>::MsgSenderGuard::operator<<(
+        const std::string_view& sv)
 {
-    AppendMsgFragmentText(messages_, sv);
+    AppendMsgFragmentText<IdType>(messages_, sv);
     return *this;
 }

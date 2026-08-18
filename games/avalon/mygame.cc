@@ -83,7 +83,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
 
 // The function is invoked before a game starts. You can make final adaption for the options.
 // The return value of false denotes failure to start a game.
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 5) {
         reply() << "该游戏至少 5 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -336,14 +336,14 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
     }
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << "这里输出当前游戏情况";
         // Returning `OK` means the game stage
         return StageErrCode::OK;
     }
 
-    CompReqErrCode Assassin_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const PlayerID assassin_pid)
+    CompReqErrCode Assassin_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const PlayerID assassin_pid)
     {
         if (!players_[pid].can_assassin_) {
             reply() << "刺杀失败：你不具有刺杀能力";
@@ -484,7 +484,7 @@ class DetectStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(投票时限));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -510,7 +510,7 @@ class DetectStage : public SubGameStage<>
     PlayerID GetDetectedPid() const { return detected_pid_; }
 
   private:
-    AtomReqErrCode Detect_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t pid_to_detect)
+    AtomReqErrCode Detect_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t pid_to_detect)
     {
         if (pid != witch_pid_) {
             reply() << "组队失败：对不起，本轮的湖中仙女是" << ::Name(witch_pid_) << "，只有湖中仙女才可以验证玩家";
@@ -555,7 +555,7 @@ class ActStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(投票时限));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -599,7 +599,7 @@ class ActStage : public SubGameStage<>
         players_succ_[*reverse_pid_] = !players_succ_[*reverse_pid_];
     }
 
-    AtomReqErrCode ActInternal_(const PlayerID pid, MsgSenderBase& reply, const bool to_succ)
+    AtomReqErrCode ActInternal_(const PlayerID pid, ChildMsgSenderBase& reply, const bool to_succ)
     {
         if (Main().GetPlayers()[pid].team_ == Team::好 && !to_succ) {
             reply() << "行动失败：好人必须让任务成功";
@@ -609,7 +609,7 @@ class ActStage : public SubGameStage<>
         return AtomReqErrCode::READY;
     }
 
-    AtomReqErrCode Act_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool to_succ)
+    AtomReqErrCode Act_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool to_succ)
     {
         const auto ret = ActInternal_(pid, reply, to_succ);
         if (ret == AtomReqErrCode::FAILED) {
@@ -619,7 +619,7 @@ class ActStage : public SubGameStage<>
         return ret;
     }
 
-    AtomReqErrCode ActWithSword_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool to_succ, const PlayerID pid_to_reverse)
+    AtomReqErrCode ActWithSword_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool to_succ, const PlayerID pid_to_reverse)
     {
         if (!GAME_OPTION(王者之剑)) {
             reply() << "行动失败：当前游戏未启用王者之剑";
@@ -669,7 +669,7 @@ class VoteStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(投票时限));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -681,7 +681,7 @@ class VoteStage : public SubGameStage<>
     const std::vector<bool>& GetPlayersAgree() const { return players_agree_; }
 
   private:
-    AtomReqErrCode Vote_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool to_agree)
+    AtomReqErrCode Vote_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool to_agree)
     {
         players_agree_[pid] = to_agree;
         reply() << "行动成功，您" << (to_agree ? "同意" : "反对") << "了队长的组队提议";
@@ -725,7 +725,7 @@ class TeamUpStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(组队时限));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -762,7 +762,7 @@ class TeamUpStage : public SubGameStage<>
         return false;
     }
 
-    AtomReqErrCode TeamUp_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<uint32_t>& attempt_member_pids)
+    AtomReqErrCode TeamUp_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::vector<uint32_t>& attempt_member_pids)
     {
         if (pid != captain_pid_) {
             reply() << "组队失败：对不起，本轮的队长是 " << ::Name(captain_pid_) << "，只有队长才可以发起组队";

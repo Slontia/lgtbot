@@ -14,6 +14,7 @@
 #include "bot_core/match_env.h"
 #include "bot_core/match_phase_common.h"
 #include "bot_core/match_types.h"
+#include "bot_core/timer.h"
 #include "match_process/match_ipc.pb.h"
 
 class Running : public MatchPhaseCommon
@@ -43,10 +44,10 @@ class Running : public MatchPhaseCommon
 
     ErrCode ExecuteRequest(const UserID uid, const std::optional<GroupID> gid, const std::string& msg,
             MsgSender& reply, const std::weak_ptr<const class Match>& match_wk);
-    ErrCode LeaveBeforeChild(const UserID uid, MsgSenderBase& reply, const bool force);
-    ErrCode UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel) override;
+    ErrCode LeaveBeforeChild(const UserID uid, HostMsgSenderBase& reply, const bool force);
+    ErrCode UserInterrupt(const UserID uid, HostMsgSenderBase& reply, const bool cancel) override;
 
-    void ShowInfo(MsgSenderBase& reply, const std::weak_ptr<const class Match>& match_wk) const override;
+    void ShowInfo(HostMsgSenderBase& reply, const std::weak_ptr<const class Match>& match_wk) const override;
     bool SwitchHost() override;
 
     ErrCode Terminate(const bool is_force) override;
@@ -54,14 +55,14 @@ class Running : public MatchPhaseCommon
     UserID HostUserId() const override { return host_uid_; }
     bool is_over() const { return is_over_.load(std::memory_order_acquire); }
 
-    using MatchPhaseCommon::BindMsgSenderMatch;
 
-    void FetchHelp(MsgSenderBase& reply, const bool text_mode);
+    void FetchHelp(HostMsgSenderBase& reply, const bool text_mode);
     void ApplyChildPushFrame(const PushFrame& frame);
     void HandleChildEof();
+    void BindMatch(std::weak_ptr<class Match> wk);
 
   private:
-    MsgSenderBase* GroupSenderOrNull_() override;
+    HostMsgSenderBase* GroupSenderOrNull_() override;
     MatchVariantID HostVariantId_() const override;
     uint32_t ComputerNumImpl_() const override;
     const MatchRuntimeOptions& RuntimeOptions_() const override;
@@ -82,4 +83,11 @@ class Running : public MatchPhaseCommon
     std::atomic<bool> is_in_deduction_{false};
 
     MatchChildClient* game_child_{nullptr};
+
+    std::unique_ptr<Timer>              game_timer_;
+    std::shared_ptr<std::atomic<bool>> timer_is_over_;
+    std::weak_ptr<class Match> weak_match_;
+
+    void HandleTimerStart(uint64_t duration_sec);
+    void HandleTimerStop();
 };

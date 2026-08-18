@@ -71,6 +71,8 @@ class ChildGameSession
     bool HandleExecute(const lgtbot::ipc::ExecuteReq& req, std::string& err);
     bool HandleLeave(const lgtbot::ipc::LeaveReq& req, std::string& err);
     bool HandleHelp(const lgtbot::ipc::HelpReq& req, std::string& err);
+    bool HandleTimeout(const lgtbot::ipc::TimeoutReq& req, std::string& err);
+    bool HandleAlert(const lgtbot::ipc::AlertReq& req, std::string& err);
     void SendGameOver();
     void DrainAfterStageWork();
 

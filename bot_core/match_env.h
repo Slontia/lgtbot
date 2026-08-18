@@ -42,14 +42,14 @@ struct MatchCallbacks
 struct MatchMessaging
 {
     std::optional<MsgSender>* group_sender{nullptr};
-    std::unique_ptr<MsgSenderBase>* private_broadcast_scratch{nullptr};
+    std::unique_ptr<HostMsgSenderBase>* private_broadcast_scratch{nullptr};
 };
 
 struct MatchHelpServices
 {
     std::function<bool(MsgReader& reader, MsgSender& reply)> try_help_command;
     std::function<std::string(const bool with_example, const bool with_html_color)> help_command_info;
-    std::function<void(MsgSenderBase& reply, const bool text_mode)> fetch_lobby_help;
+    std::function<void(HostMsgSenderBase& reply, const bool text_mode)> fetch_lobby_help;
 };
 
 template <typename Logger>

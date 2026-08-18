@@ -39,9 +39,9 @@ class PublicStageUtility
 
     // Message functions
 
-    MsgSenderBase& BoardcastMsgSender() const;
-    MsgSenderBase& TellMsgSender(const PlayerID pid) const;
-    MsgSenderBase& GroupMsgSender() const;
+    ChildMsgSenderBase& BoardcastMsgSender() const;
+    ChildMsgSenderBase& TellMsgSender(const PlayerID pid) const;
+    ChildMsgSenderBase& GroupMsgSender() const;
 
     decltype(auto) Group() const { return GroupMsgSender()(); }
     decltype(auto) Boardcast() const { return BoardcastMsgSender()(); }

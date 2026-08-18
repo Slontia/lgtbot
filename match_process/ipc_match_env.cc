@@ -48,11 +48,11 @@ IpcMatchEnv::IpcMatchEnv(ChildGameSession& session)
     group_sender_     = std::make_unique<IpcMsgSender>(*this, Ch::PostResp_Channel_GROUP, 0);
 }
 
-MsgSenderBase& IpcMatchEnv::BoardcastMsgSender() { return *broadcast_sender_; }
+ChildMsgSenderBase& IpcMatchEnv::BoardcastMsgSender() { return *broadcast_sender_; }
 
-MsgSenderBase& IpcMatchEnv::GroupMsgSender() { return *group_sender_; }
+ChildMsgSenderBase& IpcMatchEnv::GroupMsgSender() { return *group_sender_; }
 
-MsgSenderBase& IpcMatchEnv::TellMsgSender(const PlayerID pid)
+ChildMsgSenderBase& IpcMatchEnv::TellMsgSender(const PlayerID pid)
 {
     const auto it = tell_senders_.find(pid);
     if (it != tell_senders_.end()) {
@@ -122,7 +122,7 @@ void IpcMatchEnv::SendPostFrame(lgtbot::ipc::PostResp::Channel channel, uint32_t
     session_.SendProto(resp);
 }
 
-void IpcMatchEnv::IpcMsgSender::Flush(std::vector<MsgFragment>&& messages) const
+void IpcMatchEnv::IpcMsgSender::Flush(std::vector<ChildMsgFragment>&& messages) const
 {
     if (!messages.empty()) {
         env_.SendPostFrame(channel_, target_pid_, lgtbot::ipc::MsgFragmentsToItems(std::move(messages)));
@@ -168,67 +168,23 @@ void IpcMatchEnv::Activate(const PlayerID pid)
     }
 }
 
-namespace {
-
-static const uint64_t kMinAlertSec = 10;
-
-} // namespace
-
-void IpcMatchEnv::TimerCtl::Start(IpcMatchEnv& env, const uint64_t sec, void* alert_arg, void(*alert_cb)(void*, uint64_t))
-{
-    if (sec == 0) {
-        return;
-    }
-    Stop(env);
-    timer_is_over_ = std::make_shared<bool>(false);
-
-    const auto timeout_handler = [timer_is_over = timer_is_over_, &env](const uint64_t /*sec*/)
-        {
-            if (!*timer_is_over) {
-                if (env.session().main_stage()) {
-                    env.session().main_stage()->HandleTimeout();
-                }
-                env.session().Routine();
-            }
-        };
-
-    const auto alert_handler = [alert_cb, alert_arg, timer_is_over = timer_is_over_, &env](const uint64_t alert_sec)
-        {
-            if (!*timer_is_over) {
-                alert_cb(alert_arg, alert_sec);
-            }
-        };
-
-    Timer::TaskSet timeup_tasks;
-    if (kMinAlertSec > sec / 2) {
-        timeup_tasks.emplace_front(sec, timeout_handler);
-    } else {
-        timeup_tasks.emplace_front(kMinAlertSec, timeout_handler);
-        uint64_t sum_alert_sec = kMinAlertSec;
-        for (uint64_t alert_sec = kMinAlertSec; sum_alert_sec < sec / 2; sum_alert_sec += alert_sec, alert_sec *= 2) {
-            timeup_tasks.emplace_front(alert_sec, alert_handler);
-        }
-        timeup_tasks.emplace_front(sec - sum_alert_sec, g_empty_func);
-    }
-    timer_ = std::make_unique<Timer>(std::move(timeup_tasks));
-}
-
-void IpcMatchEnv::TimerCtl::Stop(const IpcMatchEnv& /*env*/)
-{
-    if (timer_is_over_ == nullptr) {
-        return;
-    }
-    *timer_is_over_ = true;
-    timer_is_over_ = nullptr;
-    timer_ = nullptr;
-}
-
 void IpcMatchEnv::StartTimer(const uint64_t sec, void* const alert_arg, void (*alert_cb)(void*, uint64_t))
 {
-    timer_cntl_.Start(*this, sec, alert_arg, alert_cb);
+    alert_arg_ = alert_arg;
+    alert_cb_  = alert_cb;
+    lgtbot::ipc::GameResponse resp;
+    resp.mutable_timer_start()->set_duration_sec(sec);
+    session_.SendProto(resp);
 }
 
-void IpcMatchEnv::StopTimer() { timer_cntl_.Stop(*this); }
+void IpcMatchEnv::StopTimer()
+{
+    alert_arg_ = nullptr;
+    alert_cb_  = nullptr;
+    lgtbot::ipc::GameResponse resp;
+    resp.mutable_timer_stop();
+    session_.SendProto(resp);
+}
 
 uint32_t IpcMatchEnv::ComputerNum() const
 {

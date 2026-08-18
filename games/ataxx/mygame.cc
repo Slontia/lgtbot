@@ -44,7 +44,7 @@ const MutableGenericOptions k_default_generic_options{
 };
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "该游戏至少 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -148,7 +148,7 @@ class MainStage : public MainGameStage<RoundStage>
     }
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(GetBoardHtml());
         return StageErrCode::OK;
@@ -272,7 +272,7 @@ class RoundStage : public SubGameStage<>
 
   private:
     // Decode a coordinate string (e.g. "A1") to internal 0-based Coor. Returns nullopt on failure.
-    std::optional<Coor> DecodeCoor_(const std::string& str, MsgSenderBase& reply)
+    std::optional<Coor> DecodeCoor_(const std::string& str, ChildMsgSenderBase& reply)
     {
         const auto decode_result = DecodePos(str);
         if (const auto* errstr = std::get_if<std::string>(&decode_result)) {
@@ -292,7 +292,7 @@ class RoundStage : public SubGameStage<>
         return coor;
     }
 
-    AtomReqErrCode Clone_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& pos_str)
+    AtomReqErrCode Clone_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& pos_str)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 当前不是您的回合";
@@ -319,7 +319,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Jump_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode Jump_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                          const std::string& from_str, const std::string& to_str)
     {
         if (Global().IsReady(pid)) {
@@ -377,7 +377,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

@@ -27,7 +27,7 @@ class StageBaseInternal : public StageBase
     virtual std::string StageInfo() const = 0;
     virtual std::string CommandInfo(const bool text_mode) const = 0;
 
-    virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, MsgSenderBase& reply) = 0;
+    virtual StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, ChildMsgSenderBase& reply) = 0;
 
     virtual void Terminate() = 0;
 
@@ -54,7 +54,7 @@ class AtomicStage : public StageBaseInternal
 
     void HandleStageBegin() final;
     StageErrCode HandleTimeout() final;
-    StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, MsgSenderBase& reply) final;
+    StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, ChildMsgSenderBase& reply) final;
     StageErrCode HandleLeave(const PlayerID pid) final;
     StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) final;
 
@@ -139,7 +139,7 @@ class CompoundStage : public StageBaseInternal
 
     void HandleStageBegin() final;
     StageErrCode HandleTimeout() final;
-    StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, MsgSenderBase& reply) final;
+    StageErrCode HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, ChildMsgSenderBase& reply) final;
     StageErrCode HandleLeave(const PlayerID pid) final;
     StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) final;
 
@@ -211,7 +211,7 @@ class MainStage : public MainStageBase
 
     void HandleStageBegin() final;
     StageErrCode HandleTimeout() final;
-    StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public, MsgSenderBase& reply) final;
+    StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public, ChildMsgSenderBase& reply) final;
     StageErrCode HandleLeave(const PlayerID pid) final;
     StageErrCode HandleComputerAct(const uint64_t pid, const bool ready_as_user) final;
 

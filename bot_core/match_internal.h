@@ -13,34 +13,33 @@
 #include "bot_core/msg_sender.h"
 #include "match_process/match_ipc.pb.h"
 
-void AppendMsgItem(MsgSenderBase::MsgSenderGuard& g, const lgtbot::ipc::MsgItem& item);
+class MatchPhaseCommon;
+
+void AppendMsgItem(HostMsgSenderBase::MsgSenderGuard& g, const lgtbot::ipc::MsgItem& item,
+                   const MatchPhaseCommon* phase);
 
 std::filesystem::path ResolveRunnerExe();
 
-class HelpTextCollector final : public MsgSenderBase
+class HelpTextCollector final : public HostMsgSenderBase
 {
   public:
     explicit HelpTextCollector(std::string& out) : out_(out) {}
 
   private:
-    void SetMatch(std::weak_ptr<const class Match> /*match*/) override {}
-
-    void Flush(std::vector<MsgFragment>&& messages) const override;
+    void Flush(std::vector<HostMsgFragment>&& messages) const override;
 
     std::string& out_;
 };
 
-class PrivateBroadcastSender final : public MsgSenderBase
+class PrivateBroadcastSender final : public HostMsgSenderBase
 {
   public:
-    explicit PrivateBroadcastSender(std::vector<const MsgSenderBase*> targets);
+    explicit PrivateBroadcastSender(std::vector<const HostMsgSenderBase*> targets);
 
   private:
-    void SetMatch(std::weak_ptr<const class Match> /*match*/) override {}
+    void Flush(std::vector<HostMsgFragment>&& messages) const override;
 
-    void Flush(std::vector<MsgFragment>&& messages) const override;
-
-    std::vector<const MsgSenderBase*> targets_;
+    std::vector<const HostMsgSenderBase*> targets_;
 };
 
 std::filesystem::path GameLibraryPath(const BotCtx& bot, const GameHandle& gh);

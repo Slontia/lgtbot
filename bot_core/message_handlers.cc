@@ -64,7 +64,7 @@ static uint64_t DefaultMaxPlayer(const GameHandle& game_handle)
     return game_handle.CachedMaxPlayer();
 }
 
-static ErrCode help_internal(BotCtx& bot, MsgSenderBase& reply, const std::vector<MetaCommandGroup>& cmd_groups,
+static ErrCode help_internal(BotCtx& bot, HostMsgSenderBase& reply, const std::vector<MetaCommandGroup>& cmd_groups,
         const ShowCommandOption& option, const std::string& type_name)
 {
     std::string outstr = "## 可使用的" + type_name + "指令";
@@ -84,7 +84,7 @@ static ErrCode help_internal(BotCtx& bot, MsgSenderBase& reply, const std::vecto
 }
 
 template <bool IS_ADMIN = false>
-static ErrCode help(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply, const bool show_text) {
+static ErrCode help(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply, const bool show_text) {
     
     return help_internal(
             bot, reply, IS_ADMIN ? admin_cmds : meta_cmds,
@@ -93,7 +93,7 @@ static ErrCode help(BotCtx& bot, const UserID uid, const std::optional<GroupID> 
 }
 
 ErrCode HandleRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgReader& reader,
-                      MsgSenderBase& reply, const std::vector<MetaCommandGroup>& cmd_groups)
+                      HostMsgSenderBase& reply, const std::vector<MetaCommandGroup>& cmd_groups)
 {
     reader.Reset();
     for (const MetaCommandGroup& cmd_group : cmd_groups) {
@@ -108,7 +108,7 @@ ErrCode HandleRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID
 }
 
 ErrCode HandleMetaRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const std::string& msg,
-                          MsgSenderBase& reply)
+                          HostMsgSenderBase& reply)
 {
     MsgReader reader(msg);
     const auto ret = HandleRequest(bot, uid, gid, reader, reply, meta_cmds);
@@ -119,7 +119,7 @@ ErrCode HandleMetaRequest(BotCtx& bot, const UserID uid, const std::optional<Gro
 }
 
 ErrCode HandleAdminRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const std::string& msg,
-                           MsgSenderBase& reply)
+                           HostMsgSenderBase& reply)
 {
     MsgReader reader(msg);
     const auto ret = HandleRequest(bot, uid, gid, reader, reply, admin_cmds);
@@ -130,7 +130,7 @@ ErrCode HandleAdminRequest(BotCtx& bot, const UserID uid, const std::optional<Gr
 }
 
 static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid,
-                             MsgSenderBase& reply, const bool show_text)
+                             HostMsgSenderBase& reply, const bool show_text)
 {
     int i = 0;
     if (bot.game_handles().empty()) {
@@ -192,7 +192,7 @@ static ErrCode show_gamelist(BotCtx& bot, const UserID uid, const std::optional<
     return EC_OK;
 }
 
-static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, HostMsgSenderBase& reply,
                         const std::string& gamename, const std::vector<std::string>& args)
 {
     const auto it = bot.game_handles().find(gamename);
@@ -214,7 +214,7 @@ static ErrCode new_game(BotCtx& bot, const UserID uid, const std::optional<Group
 }
 
 template <typename Fn>
-static auto handle_match_by_user(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+static auto handle_match_by_user(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, HostMsgSenderBase& reply,
         const Fn& fn, const char* const action_name = "")
 {
     const auto match = bot.match_manager().GetMatch(uid);
@@ -229,21 +229,21 @@ static auto handle_match_by_user(BotCtx& bot, const UserID uid, const std::optio
     return fn(match);
 }
 
-static ErrCode set_bench_to(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+static ErrCode set_bench_to(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, HostMsgSenderBase& reply,
         const uint32_t bench_to_player_num)
 {
     return handle_match_by_user(bot, uid, gid, reply,
             [&](const auto& match) { return match->SetBenchTo(uid, reply, bench_to_player_num); }, "配置");
 }
 
-static ErrCode set_formal(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+static ErrCode set_formal(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, HostMsgSenderBase& reply,
         const bool is_formal)
 {
     return handle_match_by_user(bot, uid, gid, reply,
             [&](const auto& match) { return match->SetFormal(uid, reply, is_formal); }, "配置");
 }
 
-static ErrCode set_multiple(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+static ErrCode set_multiple(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, HostMsgSenderBase& reply,
         const uint32_t multiple)
 {
     reply() << "[错误] 配置失败：机器人已经不再支持自定义倍率，但您现在可以通过「" META_COMMAND_SIGN "计分 开启」和"
@@ -251,20 +251,20 @@ static ErrCode set_multiple(BotCtx& bot, const UserID uid, const std::optional<G
     return EC_INVALID_ARGUMENT;
 }
 
-static ErrCode start_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
+static ErrCode start_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, HostMsgSenderBase& reply)
 {
     return handle_match_by_user(bot, uid, gid, reply,
             [&](const auto& match) { return match->GameStart(uid, reply); }, "开始");
 }
 
-static ErrCode leave(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+static ErrCode leave(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, HostMsgSenderBase& reply,
         const bool force)
 {
     return handle_match_by_user(bot, uid, gid, reply,
             [&](const auto& match) { return match->Leave(uid, reply, force); }, "退出");
 }
 
-static ErrCode user_interrupt_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply,
+static ErrCode user_interrupt_game(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, HostMsgSenderBase& reply,
         const bool cancel)
 {
     return handle_match_by_user(bot, uid, gid, reply,
@@ -272,7 +272,7 @@ static ErrCode user_interrupt_game(BotCtx& bot, const UserID uid, const std::opt
 }
 
 static ErrCode join_private(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid,
-                            MsgSenderBase& reply, const MatchID mid)
+                            HostMsgSenderBase& reply, const MatchID mid)
 {
     if (gid.has_value()) {
         reply() << "[错误] 加入失败：请私信裁判加入私密游戏，或去掉比赛ID以加入当前房间游戏";
@@ -291,7 +291,7 @@ static ErrCode join_private(BotCtx& bot, const UserID uid, const std::optional<G
     return EC_OK;
 }
 
-static ErrCode join_public(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, MsgSenderBase& reply)
+static ErrCode join_public(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, HostMsgSenderBase& reply)
 {
     if (!gid.has_value()) {
         reply() << "[错误] 加入失败：若要加入私密游戏，请指明比赛ID";
@@ -307,7 +307,7 @@ static ErrCode join_public(BotCtx& bot, const UserID uid, const std::optional<Gr
     return EC_OK;
 }
 
-static ErrCode show_matches(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
+static ErrCode show_matches(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply)
 {
     const auto matches = bot.match_manager().Matches();
     const auto show_table = [&](const bool is_private)
@@ -348,7 +348,7 @@ static ErrCode show_matches(BotCtx& bot, const UserID uid, const std::optional<G
 }
 
 static ErrCode show_match_info(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                                 MsgSenderBase& reply)
+                                 HostMsgSenderBase& reply)
 {
     std::shared_ptr<Match> match;
     if (gid.has_value() && !(match = bot.match_manager().GetMatch(*gid))) {
@@ -362,7 +362,7 @@ static ErrCode show_match_info(BotCtx& bot, const UserID uid, const std::optiona
     return EC_OK;
 }
 
-static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply,
                          const std::string& gamename, const bool show_text)
 {
     const auto it = bot.game_handles().find(gamename);
@@ -387,7 +387,7 @@ static ErrCode show_rule(BotCtx& bot, const UserID uid, const std::optional<Grou
     return EC_OK;
 }
 
-static ErrCode show_custom_rule(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+static ErrCode show_custom_rule(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply,
                          const std::string& gamename, const std::vector<std::string>& args)
 {
     const auto it = bot.game_handles().find(gamename);
@@ -409,7 +409,7 @@ static ErrCode show_custom_rule(BotCtx& bot, const UserID uid, const std::option
     return EC_OK;
 }
 
-static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply,
                          const std::string& gamename)
 {
     if (!bot.db_manager()) {
@@ -448,7 +448,7 @@ static ErrCode show_achievement(BotCtx& bot, const UserID uid, const std::option
     return EC_OK;
 }
 
-static ErrCode show_game_options(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+static ErrCode show_game_options(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply,
         const std::string& gamename, const bool text_mode)
 {
     const auto it = bot.game_handles().find(gamename);
@@ -466,7 +466,7 @@ static ErrCode show_game_options(BotCtx& bot, const UserID uid, const std::optio
     return EC_OK;
 }
 
-static ErrCode about(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
+static ErrCode about(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply)
 {
     auto sender = reply();
     sender << "LGTBot ";
@@ -481,7 +481,7 @@ static ErrCode about(BotCtx& bot, const UserID uid, const std::optional<GroupID>
 }
 
 static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-                            MsgSenderBase& reply, const TimeRange time_range)
+                            HostMsgSenderBase& reply, const TimeRange time_range)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 查看失败：未连接数据库";
@@ -680,7 +680,7 @@ static ErrCode show_profile(BotCtx& bot, const UserID uid, const std::optional<G
     return EC_OK;
 }
 
-static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
+static ErrCode clear_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply)
 {
     static constexpr const uint32_t k_required_match_num = 3;
     if (!bot.db_manager()) {
@@ -731,7 +731,7 @@ static std::string print_score_in_table(BotCtx& bot, const std::string_view& sco
     return table.ToString();
 };
 
-static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply)
+static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 查看失败：未连接数据库";
@@ -755,7 +755,7 @@ static ErrCode show_rank(BotCtx& bot, const UserID uid, const std::optional<Grou
     return EC_OK;
 }
 
-static ErrCode show_rank_time_range(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+static ErrCode show_rank_time_range(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply,
         const TimeRange time_range)
 {
     if (!bot.db_manager()) {
@@ -770,7 +770,7 @@ static ErrCode show_rank_time_range(BotCtx& bot, const UserID uid, const std::op
     return EC_OK;
 }
 
-static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply,
         const std::string& game_name)
 {
     if (!bot.db_manager()) {
@@ -802,7 +802,7 @@ static ErrCode show_game_rank(BotCtx& bot, const UserID uid, const std::optional
     return EC_OK;
 }
 
-static ErrCode show_game_rank_range_time(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+static ErrCode show_game_rank_range_time(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply,
         const std::string& game_name, const TimeRange time_range)
 {
     if (!bot.db_manager()) {
@@ -821,7 +821,7 @@ static ErrCode show_game_rank_range_time(BotCtx& bot, const UserID uid, const st
     return EC_OK;
 }
 
-static ErrCode show_honors(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+static ErrCode show_honors(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply,
         const std::string& keyword)
 {
     static constexpr const uint32_t k_limit = 20;
@@ -909,7 +909,7 @@ const std::vector<MetaCommandGroup> meta_cmds = {
 };
 
 static ErrCode interrupt_game(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const std::optional<MatchID> mid)
+        HostMsgSenderBase& reply, const std::optional<MatchID> mid)
 {
     std::shared_ptr<Match> match;
     if (mid.has_value() && !(match = bot.match_manager().GetMatch(*mid))) {
@@ -928,7 +928,7 @@ static ErrCode interrupt_game(BotCtx& bot, const UserID uid, const std::optional
 }
 
 static ErrCode set_game_default_formal(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const std::string& gamename, const bool is_formal)
+        HostMsgSenderBase& reply, const std::string& gamename, const bool is_formal)
 {
     const auto it = bot.game_handles().find(gamename);
     if (it == bot.game_handles().end()) {
@@ -942,13 +942,13 @@ static ErrCode set_game_default_formal(BotCtx& bot, const UserID uid, const std:
 }
 
 static ErrCode show_others_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const std::string& others_uid, const TimeRange time_range)
+        HostMsgSenderBase& reply, const std::string& others_uid, const TimeRange time_range)
 {
     return show_profile(bot, others_uid, gid, reply, time_range);
 }
 
 static ErrCode clear_others_profile(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const std::string& others_uid, const std::string& reason)
+        HostMsgSenderBase& reply, const std::string& others_uid, const std::string& reason)
 {
     if (!bot.db_manager()) {
         reply() << "[错误] 清除失败：未连接数据库";
@@ -964,7 +964,7 @@ static ErrCode clear_others_profile(BotCtx& bot, const UserID uid, const std::op
 }
 
 static ErrCode set_bot_option(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const std::string& option_name, const std::vector<std::string>& option_args)
+        HostMsgSenderBase& reply, const std::string& option_name, const std::vector<std::string>& option_args)
 {
     MsgReader reader(option_args);
     auto locked_option = bot.option().lock(); // lock until updated config to ensure atomic write
@@ -978,7 +978,7 @@ static ErrCode set_bot_option(BotCtx& bot, const UserID uid, const std::optional
 }
 
 static ErrCode set_game_option(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const std::string& game_name, const std::string& option_name,
+        HostMsgSenderBase& reply, const std::string& game_name, const std::string& option_name,
         const std::vector<std::string>& option_args)
 {
     const auto game_handle_it = bot.game_handles().find(game_name);
@@ -1003,7 +1003,7 @@ static ErrCode set_game_option(BotCtx& bot, const UserID uid, const std::optiona
 }
 
 static ErrCode show_bot_options(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid,
-        MsgSenderBase& reply, const bool text_mode)
+        HostMsgSenderBase& reply, const bool text_mode)
 {
     const std::string outstr = "### 全局配置选项" + bot.option().lock()->Info(true, !text_mode, ADMIN_COMMAND_SIGN "全局配置 ");
     if (text_mode) {
@@ -1014,7 +1014,7 @@ static ErrCode show_bot_options(BotCtx& bot, const UserID uid, const std::option
     return EC_OK;
 }
 
-static ErrCode add_honor(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+static ErrCode add_honor(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply,
         const std::string& honor_uid, const std::string honor_desc)
 {
     if (!bot.db_manager()) {
@@ -1029,7 +1029,7 @@ static ErrCode add_honor(BotCtx& bot, const UserID uid, const std::optional<Grou
     return EC_OK;
 }
 
-static ErrCode delete_honor(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, MsgSenderBase& reply,
+static ErrCode delete_honor(BotCtx& bot, const UserID uid, const std::optional<GroupID> gid, HostMsgSenderBase& reply,
         const int32_t id)
 {
     if (!bot.db_manager()) {

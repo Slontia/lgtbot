@@ -53,7 +53,7 @@ Lobby::Lobby(const MatchContext& ctx, MatchMessaging* messaging,
         , applied_options_log_(std::move(init_options.applied_options_log_))
 {}
 
-MsgSenderBase* Lobby::GroupSenderOrNull_()
+HostMsgSenderBase* Lobby::GroupSenderOrNull_()
 {
     if ((*messaging_->group_sender).has_value()) {
         return &*(*messaging_->group_sender);
@@ -84,7 +84,7 @@ void Lobby::EmplaceUser_(const UserID uid)
 
 UserID Lobby::HostUserId() const { return host_uid_; }
 
-ErrCode Lobby::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_computers_to_player_num)
+ErrCode Lobby::SetBenchTo(const UserID uid, HostMsgSenderBase& reply, const uint64_t bench_computers_to_player_num)
 {
     if (uid != host_uid_) {
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << ctx_.HostUserName(host_uid_);
@@ -105,7 +105,7 @@ ErrCode Lobby::SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t
     return EC_OK;
 }
 
-ErrCode Lobby::SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_formal)
+ErrCode Lobby::SetFormal(const UserID uid, HostMsgSenderBase& reply, const bool is_formal)
 {
     if (uid != host_uid_) {
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << ctx_.HostUserName(host_uid_);
@@ -134,7 +134,6 @@ ErrCode Lobby::Request(const UserID uid, const std::optional<GroupID> gid, const
         reply() << "[错误] 您未处于游戏中或已经离开";
         return EC_MATCH_USER_NOT_IN_MATCH;
     }
-    reply.SetMatch(match_wk);
     if (uid != host_uid_) {
         reply() << "[错误] 您并非房主，没有变更游戏设置的权限，房主是" << ctx_.HostUserName(host_uid_);
         return EC_MATCH_NOT_HOST;
@@ -152,7 +151,7 @@ ErrCode Lobby::Request(const UserID uid, const std::optional<GroupID> gid, const
     return EC_GAME_REQUEST_OK;
 }
 
-std::optional<LobbyGameStartPlan> Lobby::BeginGameStart(const UserID uid, MsgSenderBase& reply,
+std::optional<LobbyGameStartPlan> Lobby::BeginGameStart(const UserID uid, HostMsgSenderBase& reply,
         const std::weak_ptr<const Match>& match_wk, ErrCode& err_out) &&
 {
     if (uid != host_uid_) {
@@ -164,7 +163,6 @@ std::optional<LobbyGameStartPlan> Lobby::BeginGameStart(const UserID uid, MsgSen
     players_.clear();
     for (auto& [user_id, user_info] : users_) {
         players_.emplace_back(user_id);
-        user_info.sender_.SetMatch(match_wk);
     }
     for (ComputerID cid = 0; cid < ComputerNumImpl_(); ++cid) {
         players_.emplace_back(cid);
@@ -234,7 +232,7 @@ std::optional<LobbyRunningHandoff> Lobby::IntoRunning() &&
     return handoff;
 }
 
-ErrCode Lobby::Join(const UserID uid, MsgSenderBase& reply)
+ErrCode Lobby::Join(const UserID uid, HostMsgSenderBase& reply)
 {
     if (const auto max_player = ctx_.MaxPlayerNum(); max_player != 0 && users_.size() >= max_player) {
         reply() << "[错误] 加入失败：比赛人数已达到游戏上限";
@@ -249,7 +247,7 @@ ErrCode Lobby::Join(const UserID uid, MsgSenderBase& reply)
     return EC_OK;
 }
 
-ErrCode Lobby::Leave(const UserID uid, MsgSenderBase& reply, const bool /*force*/)
+ErrCode Lobby::Leave(const UserID uid, HostMsgSenderBase& reply, const bool /*force*/)
 {
     const auto it = users_.find(uid);
     if (it == users_.end() || !UserIsActive(it->second)) {
@@ -268,7 +266,7 @@ ErrCode Lobby::Leave(const UserID uid, MsgSenderBase& reply, const bool /*force*
     return EC_OK;
 }
 
-ErrCode Lobby::UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel)
+ErrCode Lobby::UserInterrupt(const UserID uid, HostMsgSenderBase& reply, const bool cancel)
 {
     const auto it = users_.find(uid);
     const char* const operation_str = cancel ? "取消中断" : "确定中断";
@@ -299,9 +297,9 @@ bool Lobby::SwitchHost()
     return true;
 }
 
-void Lobby::ShowInfo(MsgSenderBase& reply, const std::weak_ptr<const Match>& match_wk) const
+void Lobby::ShowInfo(HostMsgSenderBase& reply, const std::weak_ptr<const Match>& match_wk) const
 {
-    ShowInfoHeader_(reply, match_wk, "未开始");
+    ShowInfoHeader_(reply, "未开始");
     auto sender = reply();
     sender << "\n当前报名玩家：" << users_.size() << "人";
     for (const auto& [uid, _] : users_) {

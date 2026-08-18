@@ -61,27 +61,27 @@ class Match : public std::enable_shared_from_this<Match>
     uint64_t MatchId() const { return ctx_.mid; }
     const char* GameName() const { return ctx_.game_handle.Info().name_; }
 
-    MsgSenderBase& BoardcastMsgSender();
-    MsgSenderBase& TellMsgSender(const PlayerID pid);
-    MsgSenderBase& GroupMsgSender();
+    HostMsgSenderBase& BoardcastMsgSender();
+    HostMsgSenderBase& TellMsgSender(const PlayerID pid);
+    HostMsgSenderBase& GroupMsgSender();
 
     const char* PlayerName(const PlayerID& pid);
     const char* PlayerAvatar(const PlayerID& pid, const int32_t size);
 
-    ErrCode SetBenchTo(const UserID uid, MsgSenderBase& reply, const uint64_t bench_computers_to_player_num);
-    ErrCode SetFormal(const UserID uid, MsgSenderBase& reply, const bool is_formal);
+    ErrCode SetBenchTo(const UserID uid, HostMsgSenderBase& reply, const uint64_t bench_computers_to_player_num);
+    ErrCode SetFormal(const UserID uid, HostMsgSenderBase& reply, const bool is_formal);
 
     ErrCode Request(const UserID uid, const std::optional<GroupID> gid, const std::string& msg, MsgSender& reply);
-    ErrCode GameStart(const UserID uid, MsgSenderBase& reply);
-    ErrCode Join(const UserID uid, MsgSenderBase& reply);
-    ErrCode Leave(const UserID uid, MsgSenderBase& reply, const bool force);
-    ErrCode UserInterrupt(const UserID uid, MsgSenderBase& reply, const bool cancel);
+    ErrCode GameStart(const UserID uid, HostMsgSenderBase& reply);
+    ErrCode Join(const UserID uid, HostMsgSenderBase& reply);
+    ErrCode Leave(const UserID uid, HostMsgSenderBase& reply, const bool force);
+    ErrCode UserInterrupt(const UserID uid, HostMsgSenderBase& reply, const bool cancel);
 
-    MsgSenderBase::MsgSenderGuard Boardcast() { return BoardcastMsgSender()(); }
-    MsgSenderBase::MsgSenderGuard BoardcastAtAll();
-    MsgSenderBase::MsgSenderGuard Tell(const PlayerID pid) { return TellMsgSender(pid)(); }
+    HostMsgSenderBase::MsgSenderGuard Boardcast() { return BoardcastMsgSender()(); }
+    HostMsgSenderBase::MsgSenderGuard BoardcastAtAll();
+    HostMsgSenderBase::MsgSenderGuard Tell(const PlayerID pid) { return TellMsgSender(pid)(); }
 
-    void ShowInfo(MsgSenderBase& reply) const;
+    void ShowInfo(HostMsgSenderBase& reply) const;
 
     bool SwitchHost();
 
@@ -100,23 +100,22 @@ class Match : public std::enable_shared_from_this<Match>
 
     void BriefInfo(std::string& out) const;
 
-    void BindMsgSenderMatch_();
+    friend class Running;
 
    private:
     void Unbind_();
-    void Help_(MsgSenderBase& reply, const bool text_mode);
-    void FetchHelp_(MsgSenderBase& reply, const bool text_mode);
-    ErrCode EnsureLobbyChild_(MsgSenderBase& reply);
+    void Help_(HostMsgSenderBase& reply, const bool text_mode);
+    void FetchHelp_(HostMsgSenderBase& reply, const bool text_mode);
+    ErrCode EnsureLobbyChild_(HostMsgSenderBase& reply);
     void CommitRunning_(LobbyStartSnapshot snapshot);
     [[nodiscard]] bool LobbyStartAborted_();
     void RollbackLobbyStart_(MatchData& data);
     void RollbackLobbyStart_();
-    void CleanupRunning_(MatchData& data);
+    [[nodiscard]] std::unique_ptr<MatchChildClient> CleanupRunning_(MatchData& data);
     void CleanupRunningUsers_(MatchData& data);
-    void ReleaseGameChild_(MatchData& data);
 
-    const Command<void(MsgSenderBase&)> help_cmd_{
-        Command<void(MsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"),
+    const Command<void(HostMsgSenderBase&)> help_cmd_{
+        Command<void(HostMsgSenderBase&)>("查看游戏帮助", std::bind_front(&Match::Help_, this), VoidChecker("帮助"),
                 OptionalDefaultChecker<BoolChecker>(false, "文字", "图片"))
     };
 
@@ -124,7 +123,7 @@ class Match : public std::enable_shared_from_this<Match>
     MatchMessaging messaging_;
     MatchHelpServices help_;
     std::optional<MsgSender> group_sender_;
-    mutable std::unique_ptr<MsgSenderBase> private_broadcast_scratch_;
+    mutable std::unique_ptr<HostMsgSenderBase> private_broadcast_scratch_;
 
     mutable mutex_protect_wrapper<MatchData, MatchPhaseMutex> data_;
 

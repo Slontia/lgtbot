@@ -37,7 +37,7 @@ uint32_t Multiple(const CustomOptions& options) { return GET_OPTION_VALUE(option
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
@@ -214,7 +214,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -227,7 +227,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t idx)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t idx)
     {
         auto& player = Main().players_[pid];
         if (Global().IsReady(pid)) {
@@ -249,7 +249,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool show_image)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool show_image)
     {
         if (show_image) {
             SendInfo(reply);
@@ -259,7 +259,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    void SendInfo(MsgSenderBase& sender)
+    void SendInfo(ChildMsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
         sender() << Image((Main().imageDir / std::filesystem::path(card_.ImageName() + ".png")).string());
