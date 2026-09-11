@@ -232,15 +232,20 @@ class RoundMove
                 }
                 if (count >= 3) {
                     if (is_html) {
-                        result += "<span class=\"move merge\">" + dirSymbol(mv.direct) + "*" + to_string(count) + "</span>";
+                        result += "<span class=\"move merge\">" + dirSymbol(mv.direct) + "×" + to_string(count) + "</span>";
                     } else {
-                        result += dirSymbol(mv.direct) + "*" + to_string(count);
+                        result += dirSymbol(mv.direct) + "×" + to_string(count);
                     }
                     i = j;
                     continue;
                 }
             }
-            result += formatSingle(mv, query_pid, is_public, is_html);
+            const string piece = formatSingle(mv, query_pid, is_public, is_html);
+            // 声响和撞墙间添加转义控制符，防止被解析为markdown链接
+            if (!is_html && !piece.empty() && piece.front() == '(' && !result.empty() && result.back() == ']') {
+                result += "\\";
+            }
+            result += piece;
             i++;
         }
         return result;

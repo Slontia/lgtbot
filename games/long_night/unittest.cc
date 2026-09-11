@@ -61,6 +61,57 @@ GAME_TEST(3, all_active_stop3)
     ASSERT_SCORE(0, 0, 0);
 }
 
+
+// 多BOSS：配置项可一次配置多个，同时生效
+GAME_TEST(2, multi_boss_option)
+{
+    ASSERT_PRI_MSG(OK, 0, "BOSS 米诺陶斯 邦邦");
+    START_GAME();
+
+    ASSERT_PUB_MSG(CONTINUE, 0, "停止");
+    ASSERT_PUB_MSG(CHECKOUT, 1, "停止");
+}
+
+// 多BOSS：一键指令分别配置不再互相覆盖
+GAME_TEST(2, multi_boss_init_command)
+{
+    ASSERT_PRI_MSG(OK, 0, "米诺陶斯 邦邦");
+    START_GAME();
+
+    ASSERT_PUB_MSG(CONTINUE, 0, "停止");
+    ASSERT_PUB_MSG(CHECKOUT, 1, "停止");
+}
+
+// 多BOSS：同类型可重复配置生成多只，[无]会被剔除
+GAME_TEST(2, multi_boss_duplicate)
+{
+    ASSERT_PRI_MSG(OK, 0, "BOSS 邦邦 无 邦邦 米诺陶斯");
+    START_GAME();
+
+    ASSERT_PUB_MSG(CONTINUE, 0, "停止");
+    ASSERT_PUB_MSG(CHECKOUT, 1, "停止");
+}
+
+// 多BOSS：一键指令重复配置同一BOSS也会叠加生成
+GAME_TEST(2, multi_boss_init_duplicate)
+{
+    ASSERT_PRI_MSG(OK, 0, "米诺陶斯 米诺陶斯 邦邦");
+    START_GAME();
+
+    ASSERT_PUB_MSG(CONTINUE, 0, "停止");
+    ASSERT_PUB_MSG(CHECKOUT, 1, "停止");
+}
+
+// 多BOSS：超出数量上限时丢弃多余BOSS，仍正常开局
+GAME_TEST(2, multi_boss_exceed_limit)
+{
+    ASSERT_PRI_MSG(OK, 0, "BOSS 邦邦 邦邦 邦邦 米诺陶斯 米诺陶斯 米诺陶斯 邦邦");
+    START_GAME();
+
+    ASSERT_PUB_MSG(CONTINUE, 0, "停止");
+    ASSERT_PUB_MSG(CHECKOUT, 1, "停止");
+}
+
 // 幻变模式正常开局
 GAME_TEST(2, twist_mode_start)
 {

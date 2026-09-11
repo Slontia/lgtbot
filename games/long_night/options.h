@@ -36,20 +36,26 @@ EXTEND_OPTION("[事件] 设置游戏特殊事件", 特殊事件, (AlterChecker(s
     {"雨天小故事", SpecialEvent::RAINSTORY},
 })), SpecialEvent::NONE)
 
-EXTEND_OPTION("[模式] BOSS：具体规则详见「#规则 漫漫长夜 BOSS」", BOSS, (AlterChecker(std::map<std::string, enum BossType>{
-    {"无", BossType::NONE},
-    {"米诺陶斯", BossType::MINOTAUR},
-    {"邦邦", BossType::BANGBANG},
-})), BossType::NONE)
+EXTEND_OPTION("[模式] BOSS：可空格分隔配置多个，详见「#规则 漫漫长夜 BOSS」", BOSS,
+    (RepeatableChecker<AlterChecker<BossType>>(std::map<std::string, enum BossType>{
+        {"无", BossType::NONE},
+        {"米诺陶斯", BossType::MINOTAUR},
+        {"邦邦", BossType::BANGBANG},
+    })), (std::vector<BossType>{}))
 EXTEND_OPTION("[模式] 点杀：捕捉改为仅在回合结束时触发，路过不会触发捕捉", 点杀, (BoolChecker("开启", "关闭")), true)
 EXTEND_OPTION("[模式] 隐匿：隐匿后私聊行动，可选回合和单步模式", 隐匿,
     (AlterChecker(std::map<std::string, enum HideMode>{{"关闭", HideMode::NONE}, {"回合", HideMode::TURN}, {"单步", HideMode::STEP}})), HideMode::NONE)
 EXTEND_OPTION("[模式] 大乱斗：逃生舱改为随机传送", 大乱斗, (BoolChecker("开启", "关闭")), false)
 EXTEND_OPTION("[模式] 谋定后动：每回合仅能执行一次移动，可使用多步行动指令", 谋定后动, (BoolChecker("开启", "关闭")), false)
 EXTEND_OPTION("[模式] 炸弹人：公开安置炸弹，任何人经过炸弹并离开会引爆炸弹并出局", 炸弹, (ArithChecker<uint32_t>(0, 3, "数量")), 0)
+EXTEND_OPTION("[模式] 静音：游戏中不存在任何声响，路过声响地形不会通知任何人", 静音, (BoolChecker("开启", "关闭")), false)
 
 EXTEND_OPTION("[时限] 行动前思考的时间限制", 思考时限, (ArithChecker<uint32_t>(30, 3600, "超时时间（秒）")), 120)
 EXTEND_OPTION("[时限] 开始行动后的总时间限制", 行动时限, (ArithChecker<uint32_t>(60, 3600, "超时时间（秒）")), 300)
 
 EXTEND_OPTION("[纹理] 设置游戏使用的图片素材&纹理", 纹理,
-    (AlterChecker(std::map<std::string, enum Texture>{{"经典", Texture::CLASSIC}, {"复古", Texture::RETRO}})), Texture::CLASSIC)
+    (AlterChecker(std::map<std::string, enum Texture>{
+        {"经典", Texture::CLASSIC},
+        {"复古", Texture::RETRO},
+        {"清新", Texture::FRESH},
+    })), Texture::CLASSIC)

@@ -34,7 +34,8 @@ class Board
     // 区块模板
     UnitMaps unitMaps;
     // BOSS
-    Boss boss{size, players};
+    vector<std::unique_ptr<Boss>> bosses;
+    bool HasBoss() const { return !bosses.empty(); }
     // 完整赛况额外信息
     string all_extra_record;
     // [巨大的心脏] 地图中是否存在心脏
@@ -94,8 +95,8 @@ class Board
                     }
                 } else if (options.with_player) {
                     string player_marks;
-                    if (boss.Enable() && boss.x == gridX && boss.y == gridY) {
-                        player_marks += boss.GetBossIcon();
+                    for (const auto& boss : bosses) {
+                        if (boss->x == gridX && boss->y == gridY) player_marks += boss->GetBossIcon();
                     }
                     for (auto pid: player_map[gridX][gridY]) {
                         player_marks += num[pid];
@@ -340,10 +341,16 @@ class Board
                 GetBoardOptions{.with_player = false, .with_content = true, .with_frame = false});
     }
 
+    // 地形图片完整路径（带纹理）
+    string GetGridImagePath(const GridType type) const
+    {
+        return image_path_ + GetImageTypeFolder() + GetGridImage(type);
+    }
+
     // 获取玩家信息
     string GetPlayerTable(const int round) const
     {
-        html::Table playerTable(playerNum + boss.Enable(), 6);
+        html::Table playerTable(playerNum + bosses.size(), 6);
         playerTable.SetTableStyle("align=\"center\" cellpadding=\"2\"");
         for (int pid = 0; pid < playerNum; pid++) {
             playerTable.Get(pid, 0).SetStyle("style=\"width:60px; text-align:right;\"").SetContent(to_string(pid) + "号：");
@@ -367,13 +374,15 @@ class Board
                 playerTable.Get(pid, 3).SetStyle("style=\"width:120px;\"").SetColor("#FFA07A").SetContent("[玩家状态错误]");
             }
         }
-        if (boss.Enable()) {
-            playerTable.Get(playerNum, 0).SetStyle("style=\"width:60px;\"").SetContent("<font size=\"5\">" + boss.GetBossIcon() + "</font>");
-            playerTable.MergeRight(playerNum, 1, 2);
-            playerTable.Get(playerNum, 1).SetStyle("style=\"width:290px;\"").SetColor("lavender").SetContent("[BOSS] " + boss.GetBossName());
-            playerTable.Get(playerNum, 3).SetStyle("style=\"width:40px;\"").SetContent("追击<br>目标");
-            playerTable.Get(playerNum, 4).SetStyle("style=\"width:40px;\"").SetContent("[" + to_string(boss.target) + "号]");
-            playerTable.Get(playerNum, 5).SetStyle("style=\"width:40px;\"").SetContent(players[boss.target].avatar);
+        for (size_t i = 0; i < bosses.size(); i++) {
+            const Boss& boss = *bosses[i];
+            const int row = playerNum + i;
+            playerTable.Get(row, 0).SetStyle("style=\"width:60px;\"").SetContent("<font size=\"5\">" + boss.GetBossIcon() + "</font>");
+            playerTable.MergeRight(row, 1, 2);
+            playerTable.Get(row, 1).SetStyle("style=\"width:290px;\"").SetColor("lavender").SetContent("[BOSS] " + boss.GetBossName());
+            playerTable.Get(row, 3).SetStyle("style=\"width:40px;\"").SetContent("追击<br>目标");
+            playerTable.Get(row, 4).SetStyle("style=\"width:40px;\"").SetContent("[" + to_string(boss.target) + "号]");
+            playerTable.Get(row, 5).SetStyle("style=\"width:40px;\"").SetContent(players[boss.target].avatar);
         }
         return (round > 0 ? "### 第 " + to_string(round) + " 回合" : "") + playerTable.ToString();
     }
@@ -390,9 +399,9 @@ class Board
             else if (players[pid].out == 0) players_string += "\n目标→ [" + to_string(players[pid].target) + "号]" + players[players[pid].target].name;
             else players_string += "[玩家状态错误]";
         }
-        if (boss.Enable()) {
-            players_string += "\n[BOSS] " + boss.GetBossName() + "\n";
-            players_string += "目标→ [" + to_string(boss.target) + "号]" + players[boss.target].name;
+        for (const auto& boss : bosses) {
+            players_string += "\n[BOSS] " + boss->GetBossName() + "\n";
+            players_string += "目标→ [" + to_string(boss->target) + "号]" + players[boss->target].name;
         }
         return players_string;
     }
@@ -473,11 +482,11 @@ class Board
             record_html += "</div>";
         }
         // BOSS 记录
-        if (boss.Enable()) {
+        for (const auto& boss : bosses) {
             record_html += "<div class='boss'>";
-            record_html += "<div class='boss-title'><b>[BOSS] " + boss.GetBossName() + " " + boss.GetBossIcon() + "</b></div>";
+            record_html += "<div class='boss-title'><b>[BOSS] " + boss->GetBossName() + " " + boss->GetBossIcon() + "</b></div>";
             record_html += "<div class='boss-record'>";
-            record_html += boss.GetBossRecord(query_pid, is_public);
+            record_html += boss->GetBossRecord(query_pid, is_public);
             record_html += "</div>";
             record_html += "</div>";
         }
@@ -506,9 +515,9 @@ class Board
             record_string += "\n" + players[pid].GetAllMoveRecord(query_pid, is_public, false) + "\n";
         }
         // BOSS 记录
-        if (boss.Enable()) {
-            record_string += "[BOSS] " + boss.GetBossName() + " " + boss.GetBossIcon();
-            record_string += boss.GetBossRecord(query_pid, is_public, false) + "\n";
+        for (const auto& boss : bosses) {
+            record_string += "[BOSS] " + boss->GetBossName() + " " + boss->GetBossIcon();
+            record_string += boss->GetBossRecord(query_pid, is_public, false) + "\n";
         }
         // 额外信息
         if (!all_extra_record.empty()) {
@@ -879,8 +888,8 @@ class Board
                 }
             }
         }
-        if (boss.Enable()) {
-            forbiddenSources.push_back({boss.x, boss.y});
+        for (const auto& boss : bosses) {
+            forbiddenSources.push_back({boss->x, boss->y});
         }
         for (const auto& player: players) {
             if (player.pid == pid || player.out > 0) continue;
@@ -898,14 +907,18 @@ class Board
                 }
             }
         }
-        // 过滤候选区域（同时去除BOSS可能到达的区域）
+        // 过滤候选区域（同时去除所有BOSS可能到达的区域）
         vector<pair<int, int>> finalCandidates;
         std::copy_if(
             candidates.begin(), candidates.end(),
             std::back_inserter(finalCandidates),
             [&](auto const& pos) {
                 auto [x, y] = pos;
-                return !forbidden[x][y] && (!boss.Enable() || ManhattanDistance(x, y, boss.x, boss.y, size) > boss.steps);
+                if (forbidden[x][y]) return false;
+                for (const auto& boss : bosses) {
+                    if (ManhattanDistance(x, y, boss->x, boss->y, size) <= boss->steps) return false;
+                }
+                return true;
             }
         );
     
@@ -1326,6 +1339,7 @@ class Board
         switch (image_texture_) {
             case Texture::CLASSIC:  return "classic/";
             case Texture::RETRO:    return "retro/";
+            case Texture::FRESH:    return "fresh/";
             default: return "";
         }
     }
