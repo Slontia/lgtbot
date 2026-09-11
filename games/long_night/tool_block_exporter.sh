@@ -7,7 +7,7 @@
 #
 # 参数（均可省略）：
 #     build_dir  构建目录，默认 build（需已构建出其中的 markdown2image）
-#     texture    材质，classic（默认）或 retro
+#     texture    材质，classic（默认）/ retro / fresh
 #     out_dir    输出目录，默认 <build_dir>/long_night_blocks
 #
 # 示例：
@@ -45,7 +45,7 @@ if [[ ! -d "${RESOURCE_DIR}" ]]; then
 fi
 
 echo "[1/3] 编译导出工具…"
-g++ -std=c++23 -I"${REPO}" -I"${REPO}/third_party" -O1 \
+g++ -std=c++23 -I"${REPO}" -I"${REPO}/third_party" -O1 -DGAME_MODULE_NAME=long_night \
     -o "${EXPORTER}" \
     "${REPO}/games/long_night/tool_block_exporter.cc" \
     "${REPO}/utility/html.cc"

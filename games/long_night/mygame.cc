@@ -2,6 +2,7 @@
 //
 // This source code is licensed under LGPLv2 (found in the LICENSE file).
 
+#include <memory>
 #include <random>
 #include <queue>
 #include <unordered_set>
@@ -158,6 +159,16 @@ bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const Gener
     if (GET_OPTION_VALUE(game_options, 特殊事件) == SpecialEvent::RANDOM) {
         GET_OPTION_VALUE(game_options, 特殊事件) = UnitMaps::GetRandomSpecialEvent();
     }
+    // BOSS 列表归一化：仅剔除[无]，允许重复配置（会各自独立生成）
+    {
+        auto& bosses = GET_OPTION_VALUE(game_options, BOSS);
+        std::erase(bosses, BossType::NONE);
+        // 超出数量上限时丢弃靠后的多余BOSS
+        if (bosses.size() > MAX_BOSS_COUNT) {
+            reply() << "[警告] BOSS数量 " << bosses.size() << " 超出上限 " << MAX_BOSS_COUNT << " 个，多余配置已丢弃";
+            bosses.resize(MAX_BOSS_COUNT);
+        }
+    }
     if (generic_options_readonly.PlayerNum() > 6 && GET_OPTION_VALUE(game_options, 边长) < 12) {
         GET_OPTION_VALUE(game_options, 边长) = 12;
         reply() << "[警告] 玩家数 " << generic_options_readonly.PlayerNum() << " 超出普通地图限制，自动将地图边长调整为 12*12";
@@ -194,6 +205,7 @@ enum class InitOption {
     MODE_NON_POINTKILL,
     MODE_PLANNING,
     MODE_BOMBER,
+    MODE_SILENCE,
 
     // ===== BOSS =====
     BOSS_MINOTAUR,
@@ -205,10 +217,17 @@ enum class InitOption {
     STOP_INFO_PRIVATE,
     STOP_INFO_PUBLIC,
     TEXTURE_RETRO,
+    TEXTURE_FRESH,
 
     // ===== 启动模式 =====
     SINGLE_USER,
 };
+
+// BOSS 一键配置：追加而非覆盖，多个 BOSS 可同时生效
+static void AddInitBoss(CustomOptions& game_options, const BossType type)
+{
+    GET_OPTION_VALUE(game_options, BOSS).push_back(type);
+}
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("一键设定特殊事件或游戏模式：空格分隔，冲突配置以靠后的为准",
@@ -241,15 +260,17 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
                         case InitOption::MODE_NON_POINTKILL:    GET_OPTION_VALUE(game_options, 点杀) = false; break;
                         case InitOption::MODE_PLANNING:         GET_OPTION_VALUE(game_options, 谋定后动) = true; break;
                         case InitOption::MODE_BOMBER:           GET_OPTION_VALUE(game_options, 炸弹) = 1; break;
+                        case InitOption::MODE_SILENCE:          GET_OPTION_VALUE(game_options, 静音) = true; break;
 
-                        case InitOption::BOSS_MINOTAUR:     GET_OPTION_VALUE(game_options, BOSS) = BossType::MINOTAUR; break;
-                        case InitOption::BOSS_BANGBANG:     GET_OPTION_VALUE(game_options, BOSS) = BossType::BANGBANG; break;
+                        case InitOption::BOSS_MINOTAUR:     AddInitBoss(game_options, BossType::MINOTAUR); break;
+                        case InitOption::BOSS_BANGBANG:     AddInitBoss(game_options, BossType::BANGBANG); break;
 
                         case InitOption::TARGET_PREVIOUS:   GET_OPTION_VALUE(game_options, 捕捉目标) = Target::PREVIOUS; break;
                         case InitOption::TARGET_NEXT:       GET_OPTION_VALUE(game_options, 捕捉目标) = Target::NEXT; break;
                         case InitOption::STOP_INFO_PRIVATE: GET_OPTION_VALUE(game_options, 停止信息) = StopInfo::PRIVATE; break;
                         case InitOption::STOP_INFO_PUBLIC:  GET_OPTION_VALUE(game_options, 停止信息) = StopInfo::PUBLIC; break;
                         case InitOption::TEXTURE_RETRO:     GET_OPTION_VALUE(game_options, 纹理) = Texture::RETRO; break;
+                        case InitOption::TEXTURE_FRESH:     GET_OPTION_VALUE(game_options, 纹理) = Texture::FRESH; break;
 
                         case InitOption::SINGLE_USER:       single_user = true; break;
                         default:;
@@ -283,6 +304,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
                 {"关闭点杀", InitOption::MODE_NON_POINTKILL},
                 {"谋定后动", InitOption::MODE_PLANNING},
                 {"炸弹人", InitOption::MODE_BOMBER},
+                {"静音", InitOption::MODE_SILENCE},
 
                 {"米诺陶斯", InitOption::BOSS_MINOTAUR},
                 {"邦邦", InitOption::BOSS_BANGBANG},
@@ -292,6 +314,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
                 {"停止私信", InitOption::STOP_INFO_PRIVATE},
                 {"停止公开", InitOption::STOP_INFO_PUBLIC},
                 {"复古", InitOption::TEXTURE_RETRO},
+                {"清新", InitOption::TEXTURE_FRESH},
 
                 {"单机", InitOption::SINGLE_USER},
             })),
@@ -340,6 +363,9 @@ class MainStage : public MainGameStage<RoundStage>
         if (GAME_OPTION(特殊事件) != SpecialEvent::NONE) {
             sender << UnitMaps::ShowSpecialEvent(GAME_OPTION(特殊事件)) << "\n";
         }
+        if (GAME_OPTION(静音)) {
+            sender << "【静音】一切归于死寂...\n";
+        }
         if (GAME_OPTION(边长) > 9) {
             sender << "本局游戏地图为 " << GAME_OPTION(边长) << "x" << GAME_OPTION(边长) << "\n";
         }
@@ -384,6 +410,10 @@ class MainStage : public MainGameStage<RoundStage>
                 case SpecialEvent::NONE: case SpecialEvent::RANDOM: break;
             }
             sender << UnitMaps::ShowSpecialEvent(GAME_OPTION(特殊事件)) << "\n\n";
+        }
+        if (GAME_OPTION(静音)) {      // 静音模式
+            board.unitMaps.MarkSilenceMode();
+            sender << "【静音】一切归于死寂...游戏中**不存在任何声响**。路过声响地形不会通知任何人（包括自己），巨大的心脏与BOSS同样被静音。\n\n";
         }
         if (GAME_OPTION(边长) == 10) {      // 边长10
             if (board.unitMaps.RandomizeBlockPosition(GAME_OPTION(边长))) {
@@ -441,11 +471,28 @@ class MainStage : public MainGameStage<RoundStage>
         board.Initialize();
         board.exit_num = board.TypeCount(GridType::EXIT);
 
-        if (GAME_OPTION(BOSS) != BossType::NONE) {
-            board.boss.BossInitialize(GAME_OPTION(BOSS));   // 初始化BOSS
-            board.boss.InitBossStartRecord();
-            sender << "【BOSS】" + board.boss.GetBossStartInfo() + "\n";
-            sender << "当前 BOSS 锁定的玩家为 " << At(board.boss.target) << "\n";
+        // 创建全部BOSS（允许同类型多只）
+        for (const BossType type : GAME_OPTION(BOSS)) {
+            if (auto boss = CreateBoss(type, board.size, board.players); boss) {
+                board.bosses.push_back(std::move(boss));
+            }
+        }
+        // 同类型存在多只时依次编号，便于赛况与私信区分
+        for (size_t i = 0; i < board.bosses.size(); i++) {
+            int total = 0, index = 0;
+            for (size_t j = 0; j < board.bosses.size(); j++) {
+                if (board.bosses[j]->type != board.bosses[i]->type) continue;
+                total++;
+                if (j <= i) index++;
+            }
+            if (total > 1) board.bosses[i]->index_label = to_string(index);
+        }
+        // 初始化并播报
+        for (auto& boss : board.bosses) {
+            boss->BossInitialize();
+            boss->InitBossStartRecord();
+            sender << "【BOSS】" + boss->GetBossStartInfo() + "\n";
+            sender << "当前 " << boss->GetBossIcon() << boss->GetBossName() << " 锁定的玩家为 " << At(boss->target) << "\n";
         }
 
         board.SaveGameStartMap();   // 保存初始盘面
@@ -581,8 +628,12 @@ class RoundStage : public SubGameStage<>
                 Global().Tell(pid) << Main().board.players[pid].private_record << "\n" << Markdown(md, (GRID_SIZE + WALL_SIZE * 2) + 40);
             }
             // [BOSS-米诺陶斯] 开局声音
-            if (GAME_OPTION(BOSS) == BossType::MINOTAUR) {
-                SendSoundMessage(Main().board.boss.x, Main().board.boss.y, Sound::BOSS, true);
+            if (!GAME_OPTION(静音)) {
+                for (const auto& boss : Main().board.bosses) {
+                    if (boss->Is(BossType::MINOTAUR)) {
+                        SendSoundMessage(boss->x, boss->y, Sound::BOSS, true, false, boss.get());
+                    }
+                }
             }
             // 开局帮助和模式信息播报
             const char* stop_info_msg;
@@ -874,6 +925,9 @@ class RoundStage : public SubGameStage<>
         if (GAME_OPTION(特殊事件) != SpecialEvent::NONE) {
             sender << UnitMaps::ShowSpecialEvent(GAME_OPTION(特殊事件)) << "\n";
         }
+        if (GAME_OPTION(静音)) {
+            sender << "【静音】一切归于死寂...\n";
+        }
         if (GAME_OPTION(边长) > 9) {
             sender << "本局游戏地图为 " << GAME_OPTION(边长) << "x" << GAME_OPTION(边长) << "\n";
         }
@@ -1022,16 +1076,15 @@ class RoundStage : public SubGameStage<>
             Main().board.all_extra_record += "<br>【第 " + to_string(Main().round_) + " 回合】门曾被按钮触发，发生 " + to_string(door_modified) + " 次变化";
             door_modified = 0;
         }
-        // BOSS相关结算
-        if (GAME_OPTION(BOSS) != BossType::NONE) {
+        // BOSS相关结算（按配置顺序依次行动）
+        for (const auto& boss_ptr : Main().board.bosses) {
+            Boss& boss = *boss_ptr;
             string boss_record = "【第 " + to_string(Main().round_) + " 回合】";
-            Boss& boss = Main().board.boss;
             boss.NewRecord("");
             auto sender = Global().Boardcast();
-            sender << "【回合结束[BOSS行动]】";
+            sender << "【回合结束[" << boss.GetBossIcon() << boss.GetBossName() << " 行动]】";
 
-            if (boss.Is(BossType::MINOTAUR)) HandleMinotaurBossAction(boss, boss_record, sender);
-            if (boss.Is(BossType::BANGBANG)) HandleBangBangBossAction(boss, boss_record, sender);
+            boss.HandleRoundAction(*this, boss_record, sender);
 
             boss.UpdateContentRecord(boss_record);
         }
@@ -1064,10 +1117,12 @@ class RoundStage : public SubGameStage<>
     bool PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& sender);
     bool HandleHeartBeat(Player& player, MsgSenderBase::MsgSenderGuard& sender);
     void AnnounceCoinGains();
-    void SendSoundMessage(const int fromX, const int fromY, const Sound sound, const bool to_all, const bool is_first_sound = false);
     void AppendSurroundingWalls(Player& player, MsgSenderBase::MsgSenderGuard& sender);
-    void HandleMinotaurBossAction(Boss& boss, string& boss_record, MsgSenderBase::MsgSenderGuard& sender);
-    void HandleBangBangBossAction(Boss& boss, string& boss_record, MsgSenderBase::MsgSenderGuard& sender);
+
+  public:
+    // 供各 BOSS 的回合结算行动调用（见 boss.h 中的 HandleRoundAction）
+    void SendSoundMessage(const int fromX, const int fromY, const Sound sound, const bool to_all,
+            const bool is_first_sound = false, Boss* const sound_boss = nullptr);
 };
 
 
@@ -1075,6 +1130,7 @@ class RoundStage : public SubGameStage<>
 // 第 1/4/7/10/13/16/19 步发出全图无方向心跳，共 7 次；不计入 trigger_sound
 bool RoundStage::HandleHeartBeat(Player& player, MsgSenderBase::MsgSenderGuard& sender)
 {
+    if (GAME_OPTION(静音)) return false;    // [静音] 心脏同样被静音（屏蔽器范围内也不再提示心跳）
     if (!Main().board.has_heart || step % 3 != 1 || step > 19) return false;
 
     const string beat_text = "❤️" PENGPENG_STR "——巨大的心跳声响彻了整个迷宫！";
@@ -1222,6 +1278,11 @@ bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderG
     }
     /* ========== Sound ========== */
     Sound sound = Main().board.GetSound(grid, GAME_OPTION(特殊事件));
+    // [静音] 一切归于死寂：不产生任何声响提示，但踩入声响地形仍计入[无声]相关成就
+    if (GAME_OPTION(静音) && sound != Sound::NONE) {
+        if (!hide) player.achievement.trigger_sound = true;
+        sound = Sound::NONE;
+    }
     if (sound == Sound::SHASHA || sound == Sound::PAPA) {
         const bool is_shasha = (sound == Sound::SHASHA);
         const char* terrain_label = is_shasha ? "【树丛】" : "【" PAPA_STR "声】";
@@ -1252,7 +1313,8 @@ bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderG
         }
         // [浆果丛] 私信告知踩入玩家
         if (grid.Type() == GridType::BERRY) {
-            Global().Tell(player.pid) << GetRandomHint(berry_hints);
+            Global().Tell(player.pid) << GetRandomHint(berry_hints) << "\n"
+                                      << Image(Main().board.GetGridImagePath(GridType::BERRY));
             if (!hide) {
                 if (heart_beat) player.NewExtraPriContent("浆果丛", "berry");   // 掩盖步：浆果丛独立显示
                 else player.UpdateExtraPriContent("浆果丛", "berry");
@@ -1261,6 +1323,7 @@ bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderG
     }
     // [热源]
     string step_info, heat_message;
+    bool heat_core_entered = false;     // 首次进入热源
     if (Main().board.HeatWaveNotice(player.pid)) {
         step_info = "[热浪(第" + to_string(step) + "步)]";
         heat_message = GetRandomHint(heat_wave_hints) + "\n移动进入【热浪范围】，当前位置附近存在热源";
@@ -1277,10 +1340,13 @@ bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderG
             step_info = "[热源(第" + to_string(step) + "步)]";
             heat_message = GetRandomHint(heat_core_hints) + "\n移动进入【热源】！请注意，在下一次进入热源时，将公开热源并强制停止行动";
             player.UpdateExtraPriContent("热源", "heat-core");
+            heat_core_entered = true;
         }
     }
     if (heat_message != "") {
-        Global().Tell(player.pid) << step_info << heat_message;
+        auto tell = Global().Tell(player.pid);
+        tell << step_info << heat_message;
+        if (heat_core_entered) tell << "\n" << Image(Main().board.GetGridImagePath(GridType::HEAT));
     }
 
     // 非点杀模式检测玩家捕捉（隐匿状态不能捕捉）
@@ -1410,17 +1476,24 @@ void RoundStage::AppendSurroundingWalls(Player& player, MsgSenderBase::MsgSender
 }
 
 // 私信其他玩家发送声响信息
-void RoundStage::SendSoundMessage(const int fromX, const int fromY, const Sound sound, const bool to_all, const bool is_first_sound)
+void RoundStage::SendSoundMessage(const int fromX, const int fromY, const Sound sound, const bool to_all,
+        const bool is_first_sound, Boss* const sound_boss)
 {
+    // 声响传播方向的归属：BOSS声响记入发声BOSS，其余记入当前行动玩家
+    const auto AddPropagation = [&](const string& direct_str) {
+        if (sound == Sound::BOSS) {
+            if (sound_boss != nullptr) sound_boss->AddSoundPropagation(direct_str);
+        } else {
+            Main().board.players[currentPlayer].AddSoundPropagation(direct_str);
+        }
+    };
+    // 发声BOSS的名称前缀（多BOSS时区分是谁发出的声响）
+    const string boss_tag = sound_boss != nullptr ? "[BOSS-" + sound_boss->GetBossName() + "]" : "[BOSS]";
     // 首次声响保护：仅占位填充传播记录（保持 propagation.size() == PlayerNum 不变量），不私信任何方向
     if (is_first_sound) {
         const auto n = Global().PlayerNum();
         for (PlayerID pid = 0; pid < n; ++pid) {
-            if (sound == Sound::BOSS) {
-                Main().board.boss.AddSoundPropagation("首次");
-            } else {
-                Main().board.players[currentPlayer].AddSoundPropagation("首次");
-            }
+            AddPropagation("首次");
         }
         return;
     }
@@ -1436,16 +1509,12 @@ void RoundStage::SendSoundMessage(const int fromX, const int fromY, const Sound 
                 switch (sound) {
                     case Sound::SHASHA: sound_message = step_info + "你感到地面有所振动，那是踩动草木（" SHASHA_STR "）特有的动静；但周围？却没有任何声音？"; break;
                     case Sound::PAPA:   sound_message = step_info + "你感到地面有所振动，那是踩动水体（" PAPA_STR "）特有的动静；但周围？却没有任何声音？"; break;
-                    case Sound::BOSS:   sound_message = "[BOSS-米诺陶斯] 你感到地面正在剧烈振动！但是，声响好像来自四面八方？"; break;
+                    case Sound::BOSS:   sound_message = boss_tag + " 你感到地面正在剧烈振动！但是，声响好像来自四面八方？"; break;
                     default:            sound_message = "[错误] 未知声音类型：被屏蔽的未知声音";
                 }
                 sound_message += "\n声响方向被屏蔽，当前位置附近存在【屏蔽器】";
                 // 声响传播方向被屏蔽
-                if (sound == Sound::BOSS) {
-                    Main().board.boss.AddSoundPropagation("被屏蔽");
-                } else {
-                    Main().board.players[currentPlayer].AddSoundPropagation("被屏蔽");
-                }
+                AddPropagation("被屏蔽");
             } else {
                 if (direction == "同格") {
                     if (Main().board.players[currentPlayer].target != pid || GAME_OPTION(点杀)) {
@@ -1459,16 +1528,12 @@ void RoundStage::SendSoundMessage(const int fromX, const int fromY, const Sound 
                     switch (sound) {
                         case Sound::SHASHA: sound_message = step_info + "你听见了来自【" + direction + "方】的" SHASHA_STR "声！"; break;
                         case Sound::PAPA:   sound_message = step_info + "你听见了来自【" + direction + "方】的" PAPA_STR "声！"; break;
-                        case Sound::BOSS:   sound_message = "[BOSS-米诺陶斯] 你听见了来自【" + direction + "方】的巨大响声！"; break;
+                        case Sound::BOSS:   sound_message = boss_tag + " 你听见了来自【" + direction + "方】的巨大响声！"; break;
                         default:            sound_message = "[错误] 未知声音类型：不同格子来自【" + direction + "方】的未知声音";
                     }
                 }
                 // 记录声响传播方向记录
-                if (sound == Sound::BOSS) {
-                    Main().board.boss.AddSoundPropagation(direction);
-                } else {
-                    Main().board.players[currentPlayer].AddSoundPropagation(direction);
-                }
+                AddPropagation(direction);
             }
             // 发送声响私信
             if (!sound_message.empty()) {
@@ -1480,97 +1545,6 @@ void RoundStage::SendSoundMessage(const int fromX, const int fromY, const Sound 
     }
 }
 
-// [BOSS-米诺陶斯] 行动
-void RoundStage::HandleMinotaurBossAction(Boss& boss, string& boss_record, MsgSenderBase::MsgSenderGuard& sender)
-{
-    if (boss.BossChangeTarget(false)) {
-        // 更换目标，重置步数
-        boss_record += "发现更近的目标，变更目标至 [" + to_string(boss.target) + "号]";
-        sender << "\n[BOSS-米诺陶斯] 发现了距离更近的玩家，变更锁定目标至 " << At(boss.target);
-    } else {
-        // 未更换目标，执行移动
-        if (boss.BossMove()) {
-            // 抓住玩家
-            for (const auto pid: Main().board.player_map[boss.x][boss.y]) {
-                Player& catched_player = Main().board.players[pid];
-                if (catched_player.out > 0) continue;
-                catched_player.NewContentRecord("(BOSS捕捉出局)", "end");
-                catched_player.all_record.back() = catched_player.move_record;  // 回合已经结束，需强制更新完整赛况
-                catched_player.out = 1;
-                if (Global().PlayerNum() > 1) Global().Eliminate(pid);
-                catched_player.score.catch_score -= 100;        // 抓人分
-                boss_record += "[" + to_string(pid) + "号] ";
-                sender << "\n" << At(pid);
-            }
-            boss_record += "被BOSS捕捉出局！";
-            sender << "\n被BOSS捕捉出局！";
-            if (Main().Alive_() > 1) {
-                boss.BossChangeTarget(true);    // 重置锁定目标
-                Main().board.UpdatePlayerTarget(GAME_OPTION(捕捉目标));     // 捕捉顺位变更
-                boss_record += "变更目标至 [" + to_string(boss.target) + "号]";
-                sender << "\n\nBOSS更换锁定目标至 " << At(boss.target) << "，同时玩家捕捉目标顺位发生变更！\n";
-                sender << Markdown(Main().board.GetPlayerTable(Main().round_));
-            }
-        } else {
-            // 未抓住玩家
-            boss_record += "向 [" + to_string(boss.target) + "号] 移动了 " + to_string(boss.steps) + " 步";
-            sender << "\n[BOSS-米诺陶斯] 向 " << At(boss.target) << " 移动了 " << boss.steps << " 步";
-            if (boss.steps == 3) Main().board.players[boss.target].achievement.boss_chase_four_steps = true;    // 成就【牛头魅魔】
-        }
-        // BOSS移动后发出巨响
-        if (Main().Alive_() > 1 || (Global().PlayerNum() == 1 && Main().board.players[0].out == 0)) {
-            boss.UpdateSoundRecord(Sound::BOSS);
-            sender << "\n\nBOSS发出震耳欲聋的巨响！请所有玩家留意私信声响信息！";
-            SendSoundMessage(boss.x, boss.y, Sound::BOSS, true);
-        }
-    }
-    // BOSS周围8格内获得喘息提示
-    for (auto& player : Main().board.players) {
-        if (boss.IsBossNearby(player) && player.out == 0) {
-            player.private_record += "\n[BOSS-米诺陶斯] 你听到来自BOSS沉重的喘息声！";
-            Global().Tell(player.pid) << "「呼……呼……」你听到来自[米诺陶斯]沉重的喘息声！";
-        }
-    }
-}
-
-// [BOSS-邦邦] 行动
-void RoundStage::HandleBangBangBossAction(Boss& boss, string& boss_record, MsgSenderBase::MsgSenderGuard& sender)
-{
-    // 更新目标
-    if (boss.BossChangeTarget(false)) {
-        boss_record += "变更目标至 [" + to_string(boss.target) + "号]，";
-        sender << "\nBOSS发现了距离更近的玩家，变更锁定目标至 " << At(boss.target);
-    }
-    // 每回合一定移动
-    boss_record += "BOSS 移动中...";
-    sender << "\n[BOSS-邦邦] 移动中...";
-    if (boss.BossMove()) {
-        // 到达玩家位置（不会捕捉）
-        boss_record += "追上了玩家 [" + to_string(boss.target) + "号]，";
-        sender << "\n【邦邦】追到你了 [" + to_string(boss.target) + "号]！你说邦邦不邦邦！";
-        boss.BossChangeTarget(true);    // 重置锁定目标
-        boss_record += "变更目标至 [" + to_string(boss.target) + "号]，";
-        sender << "\nBOSS抵达目标位置，更换新目标 " << At(boss.target);
-    }
-    // 放置炸弹
-    Grid& grid = Main().board.grid_map[boss.x][boss.y];
-    // [巨大的心脏] BOSS无视地形可站上心脏格：跳过放置炸弹与墙壁播报
-    if (grid.Type() == GridType::HEART) {
-        boss_record += "站上了巨大的心脏，未放置炸弹";
-        sender << "\n\n【邦邦】这个巨大的东西是什么？算了，这回合不放炸弹了~";
-        return;
-    }
-    if (grid.Attach() == AttachType::EMPTY) grid.SetAttach(AttachType::BOMB);
-    // 公屏展示炸弹墙壁信息
-    auto [info, md] = Main().board.GetBangBangSurroundingWalls(boss.x, boss.y);
-    string wall_info = "BOSS所在位置的四周墙壁信息，按照 上下左右 顺序分别是：\n" + info;
-    boss_record += "放置炸弹（" + info + "）";
-    sender << "\n\n【邦邦】哈哈，炸弹来喽~"
-           << "\n" << wall_info
-           << "\n" << Markdown(md, (GRID_SIZE + WALL_SIZE * 2) + 40);
-}
-
-
 auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>(); }
 
 } // namespace GAME_MODULE_NAME
@@ -1578,4 +1552,107 @@ auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>
 } // namespace game
 
 } // namespace lgtbot
+
+
+/* ========== BOSS 回合结算行动 ==========  */
+using namespace lgtbot::game::GAME_MODULE_NAME;
+
+// 【🐮米诺陶斯】回合结算行动
+void MinotaurBoss::HandleRoundAction(RoundStage& stage, string& boss_record, MsgSenderBase::MsgSenderGuard& sender)
+{
+    auto& Main = stage.Main();
+    auto& Global = stage.Global();
+    const bool silence = GET_OPTION_VALUE(Global.Options(), 静音);
+    const string boss_tag = GetBossTag();
+
+    if (BossChangeTarget(false)) {
+        // 更换目标，重置步数
+        boss_record += "发现更近的目标，变更目标至 [" + to_string(target) + "号]";
+        sender << "\n" << boss_tag << " 发现了距离更近的玩家，变更锁定目标至 " << At(target);
+    } else {
+        // 未更换目标，执行移动
+        if (BossMove()) {
+            // 抓住玩家
+            for (const auto pid: Main.board.player_map[x][y]) {
+                Player& catched_player = Main.board.players[pid];
+                if (catched_player.out > 0) continue;
+                catched_player.NewContentRecord("(" + GetBossName() + "捕捉出局)", "end");
+                catched_player.all_record.back() = catched_player.move_record;  // 回合已经结束，需强制更新完整赛况
+                catched_player.out = 1;
+                if (Global.PlayerNum() > 1) Global.Eliminate(pid);
+                catched_player.score.catch_score -= 100;        // 抓人分
+                boss_record += "[" + to_string(pid) + "号] ";
+                sender << "\n" << At(pid);
+            }
+            boss_record += "被BOSS捕捉出局！";
+            sender << "\n被BOSS捕捉出局！";
+            if (Main.Alive_() > 1) {
+                BossChangeTarget(true);    // 重置锁定目标
+                Main.board.UpdatePlayerTarget(GET_OPTION_VALUE(Global.Options(), 捕捉目标));    // 捕捉顺位变更
+                boss_record += "变更目标至 [" + to_string(target) + "号]";
+                sender << "\n\nBOSS更换锁定目标至 " << At(target) << "，同时玩家捕捉目标顺位发生变更！\n";
+                sender << Markdown(Main.board.GetPlayerTable(Main.round_));
+            }
+        } else {
+            // 未抓住玩家
+            boss_record += "向 [" + to_string(target) + "号] 移动了 " + to_string(steps) + " 步";
+            sender << "\n" << boss_tag << " 向 " << At(target) << " 移动了 " << steps << " 步";
+            if (steps == 3) Main.board.players[target].achievement.boss_chase_four_steps = true;    // 成就【牛头魅魔】
+        }
+        // BOSS移动后发出巨响（[静音] BOSS 同样无声）
+        if (!silence && (Main.Alive_() > 1 || (Global.PlayerNum() == 1 && Main.board.players[0].out == 0))) {
+            UpdateSoundRecord(Sound::BOSS);
+            sender << "\n\n" << GetBossName() << "发出震耳欲聋的巨响！请所有玩家留意私信声响信息！";
+            stage.SendSoundMessage(x, y, Sound::BOSS, true, false, this);
+        }
+    }
+    // BOSS周围8格内获得喘息提示（[静音] 喘息声同样消失）
+    for (auto& player : Main.board.players) {
+        if (!silence && IsBossNearby(player) && player.out == 0) {
+            player.private_record += "\n" + boss_tag + " 你听到来自BOSS沉重的喘息声！";
+            Global.Tell(player.pid) << "「呼……呼……」你听到来自[" << GetBossName() << "]沉重的喘息声！";
+        }
+    }
+}
+
+// 【💣邦邦】回合结算行动
+void BangBangBoss::HandleRoundAction(RoundStage& stage, string& boss_record, MsgSenderBase::MsgSenderGuard& sender)
+{
+    auto& Main = stage.Main();
+    const string boss_tag = GetBossTag();
+    const string boss_say = GetBossSay();
+
+    // 更新目标
+    if (BossChangeTarget(false)) {
+        boss_record += "变更目标至 [" + to_string(target) + "号]，";
+        sender << "\n" << boss_tag << " 发现了距离更近的玩家，变更锁定目标至 " << At(target);
+    }
+    // 每回合一定移动
+    boss_record += "BOSS 移动中...";
+    sender << "\n" << boss_tag << " 移动中...";
+    if (BossMove()) {
+        // 到达玩家位置（不会捕捉）
+        boss_record += "追上了玩家 [" + to_string(target) + "号]，";
+        sender << "\n" << boss_say << "追到你了 [" + to_string(target) + "号]！你说邦邦不邦邦！";
+        BossChangeTarget(true);    // 重置锁定目标
+        boss_record += "变更目标至 [" + to_string(target) + "号]，";
+        sender << "\n" << boss_tag << " 抵达目标位置，更换新目标 " << At(target);
+    }
+    // 放置炸弹
+    Grid& grid = Main.board.grid_map[x][y];
+    // [巨大的心脏] BOSS无视地形可站上心脏格：跳过放置炸弹与墙壁播报
+    if (grid.Type() == GridType::HEART) {
+        boss_record += "站上了巨大的心脏，未放置炸弹";
+        sender << "\n\n" << boss_say << "这个巨大的东西是什么？算了，这回合不放炸弹了~";
+        return;
+    }
+    if (grid.Attach() == AttachType::EMPTY) grid.SetAttach(AttachType::BOMB);
+    // 公屏展示炸弹墙壁信息
+    auto [info, md] = Main.board.GetBangBangSurroundingWalls(x, y);
+    string wall_info = GetBossName() + "所在位置的四周墙壁信息，按照 上下左右 顺序分别是：\n" + info;
+    boss_record += "放置炸弹（" + info + "）";
+    sender << "\n\n" << boss_say << "哈哈，炸弹来喽~"
+           << "\n" << wall_info
+           << "\n" << Markdown(md, (GRID_SIZE + WALL_SIZE * 2) + 40);
+}
 

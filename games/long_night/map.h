@@ -4,6 +4,7 @@ class UnitMaps {
     const int k_map_num = 12;
     const int k_exit_num = 4;
     const int k_special_num = 2;
+    static constexpr const char* k_event_mark = "？";
 
     vector<pair<int, int>> pos = {
         {0, 0}, {0, 3}, {0, 6},
@@ -472,7 +473,7 @@ class UnitMaps {
                 for (int k = 0; k < 9; ++k) {
                     int i = k / 3, j = k % 3;
                     if (map.block[i][j].Type() == GridType::GRASS || map.block[i][j].Type() == GridType::BERRY)
-                        map.block[i][j].SetContent("？");
+                        map.block[i][j].SetContent(k_event_mark);
                 }
             }
         };
@@ -510,7 +511,7 @@ class UnitMaps {
                 for (int k = 0; k < 9; ++k) {
                     int i = k / 3, j = k % 3;
                     if (map.block[i][j].CanGrow())
-                        map.block[i][j].SetContent("？");
+                        map.block[i][j].SetContent(k_event_mark);
                 }
             }
         };
@@ -567,6 +568,34 @@ class UnitMaps {
         ProcessMaps(exits);
         ProcessMaps(special_maps);
         ProcessMaps(all_special_maps);
+    }
+
+    // 静音模式：为所有会发出声响的地形标记叉号
+    void MarkSilenceMode()
+    {
+        auto IsSoundGrid = [](const GridType type) {
+            return type == GridType::GRASS || type == GridType::BERRY || type == GridType::WATER ||
+                   type == GridType::PORTAL || type == GridType::ONEWAYPORTAL ||
+                   type == GridType::TRAP || type == GridType::HEART;
+        };
+        auto MarkMaps = [&](auto& maps) {
+            for (auto& map : maps) {
+                for (int k = 0; k < 9; ++k) {
+                    int i = k / 3, j = k % 3;
+                    if (!IsSoundGrid(map.block[i][j].Type())) continue;
+                    // 已有字母代号（传送门配对等）保持原样，特殊事件的问号标记则被叉号覆盖
+                    const string content = map.block[i][j].GetContent().first;
+                    if (!content.empty() && content != k_event_mark) continue;
+                    map.block[i][j].SetContent("✗");
+                }
+            }
+        };
+        MarkMaps(all_maps);
+        MarkMaps(all_exits);
+        MarkMaps(all_special_maps);
+        MarkMaps(maps);
+        MarkMaps(exits);
+        MarkMaps(special_maps);
     }
 
     // 大地图区块位置随机
