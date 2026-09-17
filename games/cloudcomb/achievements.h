@@ -1,0 +1,8 @@
+EXTEND_ACHIEVEMENT(万线归巢, "在不指定种子的前提下，联通 15 条线路")
+EXTEND_ACHIEVEMENT(初入云端, "在不指定种子的前提下，获得 280 分及以上的总分")
+EXTEND_ACHIEVEMENT(扶摇直上, "在不指定种子的前提下，获得 320 分及以上的总分")
+EXTEND_ACHIEVEMENT(登顶云霄, "在不指定种子的前提下，获得 350 分及以上的总分")
+EXTEND_ACHIEVEMENT(常胜将军, "在不指定种子的前提下，获得最终胜利且从未在对战中失败")
+EXTEND_ACHIEVEMENT(命悬一线, "在不指定种子的前提下，获得最终胜利且剩余血量为 1")
+EXTEND_ACHIEVEMENT(云中彩桥, "在不指定种子的前提下，连成一条完全由癞子组成的线")
+EXTEND_ACHIEVEMENT(天选之数, "在不指定种子的前提下，盘面所有格子都包含同一个数字")
