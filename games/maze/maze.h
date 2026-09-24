@@ -64,6 +64,13 @@ inline bool IsAdjacentWall(const WallRef& ref, const Pos& cell, const int size)
     return false;
 }
 
+// 墙位的文字描述，形如「9 号格与 10 号格之间」
+inline std::string WallName(const WallRef& ref, const int size)
+{
+    const Pos side = ref.horizontal ? Pos{ref.c, ref.r + 1} : Pos{ref.c + 1, ref.r};
+    return std::to_string(PosToId(Pos{ref.c, ref.r}, size)) + " 号格与 " + std::to_string(PosToId(side, size)) + " 号格之间";
+}
+
 // 解析画墙指令的参数，每面墙形如「10左」「10 左」。解析失败时填入 err 并返回 false，成功时按输入顺序写入 out
 inline bool ParseWallTokens(const std::vector<std::string>& tokens, const int size, std::vector<WallRef>& out,
         std::string& err)
@@ -143,6 +150,21 @@ class Maze
                 wall_v_[c][r] = false;
                 revealed_v_[c][r] = false;
                 passed_v_[c][r] = false;
+            }
+        }
+        for (int c = 0; c < MAX_MAZE_SIZE; ++c) {
+            for (int r = 0; r < MAX_MAZE_SIZE; ++r) {
+                parity_known_[c][r] = false;
+            }
+        }
+        for (int c = 0; c < MAX_MAZE_SIZE; ++c) {
+            for (int r = 0; r + 1 < MAX_MAZE_SIZE; ++r) {
+                added_h_[c][r] = false;
+            }
+        }
+        for (int c = 0; c + 1 < MAX_MAZE_SIZE; ++c) {
+            for (int r = 0; r < MAX_MAZE_SIZE; ++r) {
+                added_v_[c][r] = false;
             }
         }
     }
@@ -229,11 +251,63 @@ class Maze
         (ref.horizontal ? passed_h_[ref.c][ref.r] : passed_v_[ref.c][ref.r]) = true;
     }
 
+    /* ========== 边走边画 ========== */
+    // 对战阶段追加的墙体，绘制阶段落下的墙不计入
+    bool IsAdded(const WallRef& ref) const
+    {
+        return ref.horizontal ? added_h_[ref.c][ref.r] : added_v_[ref.c][ref.r];
+    }
+
+    void MarkAdded(const WallRef& ref)
+    {
+        (ref.horizontal ? added_h_[ref.c][ref.r] : added_v_[ref.c][ref.r]) = true;
+    }
+
+    int AddedCount() const
+    {
+        int count = 0;
+        for (const auto& ref : AllWallSlots()) {
+            if (IsAdded(ref)) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
     // 该方向是否已经确定无法通行：地图边界，或已经被撞出来的墙体
     bool IsKnownBlocked(const Pos& pos, const Direct direct) const
     {
         const auto ref = WallAt(pos, direct, size);
         return !ref.has_value() || IsRevealed(*ref);
+    }
+
+    /* ========== 黑白信息 ========== */
+    // 该格四周可通行的方向数，地图边界视为不可通行。奇数为黑，偶数为白
+    int OpenDirectCount(const Pos& pos) const
+    {
+        int count = 0;
+        for (int d = 0; d < 4; ++d) {
+            if (!HasWall(pos, static_cast<Direct>(d))) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    bool IsBlackCell(const Pos& pos) const { return OpenDirectCount(pos) % 2 == 1; }
+
+    // 黑白信息一旦公布便永久保留，不随玩家移动而消失
+    bool IsParityKnown(const Pos& pos) const { return parity_known_[pos.c][pos.r]; }
+
+    void RevealParity(const Pos& pos) { parity_known_[pos.c][pos.r] = true; }
+
+    void RevealAllParity()
+    {
+        for (int c = 0; c < size; ++c) {
+            for (int r = 0; r < size; ++r) {
+                parity_known_[c][r] = true;
+            }
+        }
     }
 
     int RevealedCount() const
@@ -440,4 +514,24 @@ class Maze
 
     bool passed_h_[MAX_MAZE_SIZE][MAX_MAZE_SIZE - 1] = {};
     bool passed_v_[MAX_MAZE_SIZE - 1][MAX_MAZE_SIZE] = {};
+
+    bool parity_known_[MAX_MAZE_SIZE][MAX_MAZE_SIZE] = {};
+    bool added_h_[MAX_MAZE_SIZE][MAX_MAZE_SIZE - 1] = {};
+    bool added_v_[MAX_MAZE_SIZE - 1][MAX_MAZE_SIZE] = {};
 };
+
+
+// 按迷雾范围公布玩家所在格附近的黑白信息，公布后永久保留
+inline void RevealParityByFog(Maze& maze, const Pos& pos, const FogMode fog)
+{
+    maze.RevealParity(pos);
+    if (fog != FogMode::AROUND) {
+        return;
+    }
+    for (int d = 0; d < 4; ++d) {
+        const Pos next = MovePos(pos, static_cast<Direct>(d));
+        if (InMaze(next, maze.size)) {
+            maze.RevealParity(next);
+        }
+    }
+}

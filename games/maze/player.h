@@ -49,7 +49,7 @@ class Player
     // 本回合的行动轨迹，用于回合结算时的文字提示
     TurnRecord record;
 
-    // 对战开始：将小人放到起点
+    // 对战开始：将玩家放到起点
     void StartBattle(const Pos& start)
     {
         pawn = start;

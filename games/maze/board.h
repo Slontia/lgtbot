@@ -22,15 +22,16 @@ struct MazeOptions
 {
     int owner = 0;                      // 迷宫的绘制者
     WallView wall_view = WallView::PUBLIC;
-    bool with_pawn = true;              // 是否绘制挑战者的小人与足迹
+    bool with_pawn = true;              // 是否绘制挑战者的玩家与足迹
+    bool ignore_fog = false;            // 为真时忽略迷雾，全部黑白一律视为已知
 };
 
 
 class Board
 {
   public:
-    Board(const std::vector<Player>& players, const int& size, const Pos& start, const Pos& goal)
-        : players_(players), size_(size), start_(start), goal_(goal) {}
+    Board(const std::vector<Player>& players, const int& size, const Pos& start, const Pos& goal, const GameMode& mode)
+        : players_(players), size_(size), start_(start), goal_(goal), mode_(mode) {}
 
     /* ========== 图片宽度 ========== */
     static int MazeWidth(const int size) { return (GRID_SIZE + WALL_SIZE) * size + WALL_SIZE; }
@@ -54,7 +55,7 @@ class Board
         }
         tips += "</div>";
         return Style() + "<div class=\"title\">你绘制的迷宫</div>" + tips +
-                GetMaze(MazeOptions{static_cast<int>(pid), WallView::TRUTH, false}) + GetDrawLegend();
+                GetMaze(MazeOptions{static_cast<int>(pid), WallView::TRUTH, false, true}) + GetDrawLegend();
     }
 
     // 公屏：只展示提交进度与不含任何墙壁的空白底图
@@ -143,6 +144,10 @@ class Board
     static constexpr const char* COLOR_START = "#D6E7FF";       // 起点
     static constexpr const char* COLOR_GOAL = "#FFD9D9";        // 终点
     static constexpr const char* COLOR_HEADER = "#F2F2F2";
+    static constexpr const char* COLOR_BLACK_CELL = "#595959";  // 黑白模式：奇数通路
+    static constexpr const char* COLOR_WHITE_CELL = "#FFFFFF";  // 黑白模式：偶数通路
+    static constexpr const char* COLOR_FOG = "#9C9C9C";         // 黑白模式：尚未公布的格子，方块内画问号
+    static constexpr const char* COLOR_NEW_WALL = "#C06BD8";    // 边走边画：对战阶段追加、尚未被撞出的墙
 
     /* ========== 迷宫绘制 ========== */
     std::string GetMaze(const MazeOptions& options) const
@@ -202,7 +207,8 @@ class Board
                     color = COLOR_GOAL;
                     mark = "<b>终</b>";
                 }
-                map.Get(r * 2 + 1, c * 2 + 1).SetStyle("class=\"grid\"").SetColor(color).SetContent(CellBox(cell, mark));
+                map.Get(r * 2 + 1, c * 2 + 1).SetStyle("class=\"grid\"").SetColor(color)
+                    .SetContent(CellBox(cell, "", mark));
             }
         }
         for (int c = 0; c < size_; ++c) {
@@ -248,11 +254,31 @@ class Board
     }
 
     /* ========== 单元格 ========== */
-    // 格子内容：编号常驻左上角，标记居中
-    std::string CellBox(const Pos& cell, const std::string& mark) const
+    // 格子内容：编号常驻左上角，黑白方块在底层，玩家与地标压在上层
+    std::string CellBox(const Pos& cell, const std::string& square, const std::string& mark) const
     {
         return "<div class=\"cellbox\"><span class=\"num\">" + std::to_string(PosToId(cell, size_)) +
-                "</span><span class=\"mark\">" + mark + "</span></div>";
+                "</span>" + square + "<span class=\"mark\">" + mark + "</span></div>";
+    }
+
+    // 黑白模式的信息方块，起点与终点不展示
+    std::string ParitySquare(const Pos& cell, const MazeOptions& options) const
+    {
+        if (mode_ != GameMode::BLACK_WHITE) {
+            return "";
+        }
+        const Maze& maze = players_[options.owner].maze;
+        const bool known = (options.ignore_fog || maze.IsParityKnown(cell));
+        const char* color = COLOR_FOG;
+        std::string text;
+        if (!known) {
+            text = "?";
+        } else {
+            color = maze.IsBlackCell(cell) ? COLOR_BLACK_CELL : COLOR_WHITE_CELL;
+        }
+        const std::string px = std::to_string(PARITY_SQUARE_SIZE);
+        return "<span class=\"parity\"><span class=\"square\" style=\"width:" + px + "px; height:" + px +
+                "px; background:" + color + ";\">" + text + "</span></span>";
     }
 
     std::pair<std::string, std::string> GridStyle(const Pos& cell, const MazeOptions& options,
@@ -260,6 +286,7 @@ class Board
     {
         std::string color = COLOR_GRID;
         std::string mark;
+        const bool landmark = (cell == start_ || cell == goal_);
         if (cell == start_) {
             color = COLOR_START;
             mark = "<b>起</b>";
@@ -267,15 +294,18 @@ class Board
             color = COLOR_GOAL;
             mark = "<b>终</b>";
         }
+        bool visited = false;
         if (options.with_pawn) {
-            if (cell != start_ && cell != goal_ && challenger.visited[cell.c][cell.r]) {
+            if (!landmark && challenger.visited[cell.c][cell.r]) {
                 color = COLOR_VISITED;
+                visited = true;
             }
             if (challenger.pawn == cell) {
                 mark = challenger.avatar.empty() ? "<b>●</b>" : challenger.avatar;
             }
         }
-        return {color, CellBox(cell, mark)};
+        const std::string square = landmark ? "" : ParitySquare(cell, options);
+        return {color, CellBox(cell, square, mark)};
     }
 
     // 墙壁位置的颜色
@@ -285,7 +315,11 @@ class Board
             return COLOR_WALL;
         }
         if (view == WallView::TRUTH) {
-            return maze.WallValue(ref) ? COLOR_HIDDEN : COLOR_PASSABLE;
+            if (!maze.WallValue(ref)) {
+                return COLOR_PASSABLE;
+            }
+            // 对战阶段追加的墙单独着色，与绘制阶段的墙区分
+            return maze.IsAdded(ref) ? COLOR_NEW_WALL : COLOR_HIDDEN;
         }
         return maze.IsPassed(ref) ? COLOR_PASSABLE : COLOR_UNKNOWN;
     }
@@ -332,55 +366,76 @@ class Board
         FINAL,      // 终局：全部墙体公开，不存在未探明的位置
     };
 
-    static std::string GetDrawLegend()
+    using LegendItem = std::pair<const char*, const char*>;
+
+    // 黑白模式追加的三项格子信息
+    std::vector<LegendItem> ParityItems() const
     {
-        const std::pair<const char*, const char*> items[] = {
+        if (mode_ != GameMode::BLACK_WHITE) {
+            return {};
+        }
+        return {{COLOR_BLACK_CELL, "奇数通路"}, {COLOR_WHITE_CELL, "偶数通路"}};
+    }
+
+    // 能看到真实墙体的视角下，边走边画模式追加一项新墙图例
+    std::vector<LegendItem> NewWallItems() const
+    {
+        if (mode_ != GameMode::DRAW_WHILE_WALK) {
+            return {};
+        }
+        return {{COLOR_NEW_WALL, "新加的墙"}};
+    }
+
+    std::string GetDrawLegend() const
+    {
+        std::vector<LegendItem> items = {
             {COLOR_START, "起点"},
             {COLOR_GOAL, "终点"},
             {COLOR_HIDDEN, "你放置的墙"},
         };
-        return MakeLegend(items, sizeof(items) / sizeof(items[0]), 3);
+        return MakeLegend(Append(std::move(items), ParityItems()), 3);
     }
 
-    static std::string GetLegend(const LegendKind kind = LegendKind::PUBLIC)
+    std::string GetLegend(const LegendKind kind = LegendKind::PUBLIC) const
     {
-        if (kind == LegendKind::FINAL) {
-            const std::pair<const char*, const char*> items[] = {
-                {COLOR_START, "起点"},
-                {COLOR_GOAL, "终点"},
-                {COLOR_VISITED, "走过格子"},
-                {COLOR_WALL, "撞出的墙"},
-                {COLOR_HIDDEN, "隐藏的墙"},
-                {COLOR_PASSABLE, "无墙"},
-            };
-            return MakeLegend(items, sizeof(items) / sizeof(items[0]), 3);
-        }
-        if (kind == LegendKind::PRIVATE) {
-            const std::pair<const char*, const char*> items[] = {
-                {COLOR_START, "起点"},
-                {COLOR_GOAL, "终点"},
-                {COLOR_VISITED, "走过格子"},
-                {COLOR_WALL, "撞出的墙"},
-                {COLOR_HIDDEN, "绘制的墙"},
-                {COLOR_PASSABLE, "已知通路"},
-                {COLOR_UNKNOWN, "尚未探明"},
-            };
-            return MakeLegend(items, sizeof(items) / sizeof(items[0]), 4);
-        }
-        const std::pair<const char*, const char*> items[] = {
+        std::vector<LegendItem> items = {
             {COLOR_START, "起点"},
             {COLOR_GOAL, "终点"},
             {COLOR_VISITED, "走过格子"},
             {COLOR_WALL, "撞出的墙"},
-            {COLOR_PASSABLE, "已知通路"},
-            {COLOR_UNKNOWN, "尚未探明"},
         };
-        return MakeLegend(items, sizeof(items) / sizeof(items[0]), 3);
+        uint32_t column = 4;
+        switch (kind) {
+            case LegendKind::FINAL:
+                items.push_back({COLOR_HIDDEN, "隐藏的墙"});
+                items = Append(std::move(items), NewWallItems());
+                items.push_back({COLOR_PASSABLE, "无墙"});
+                break;
+            case LegendKind::PRIVATE:
+                items.push_back({COLOR_HIDDEN, "绘制的墙"});
+                items = Append(std::move(items), NewWallItems());
+                items.push_back({COLOR_PASSABLE, "已知通路"});
+                if (mode_ != GameMode::BLACK_WHITE) {
+                    items.push_back({COLOR_UNKNOWN, "尚未探明"});
+                }
+                break;
+            case LegendKind::PUBLIC:
+                items.push_back({COLOR_PASSABLE, "已知通路"});
+                items.push_back({COLOR_UNKNOWN, "尚未探明"});
+                break;
+        }
+        return MakeLegend(Append(std::move(items), ParityItems()), column);
     }
 
-    static std::string MakeLegend(const std::pair<const char*, const char*>* const items, const uint32_t item_num,
-            const uint32_t column)
+    static std::vector<LegendItem> Append(std::vector<LegendItem> items, const std::vector<LegendItem>& extra)
     {
+        items.insert(items.end(), extra.begin(), extra.end());
+        return items;
+    }
+
+    static std::string MakeLegend(const std::vector<LegendItem>& items, const uint32_t column)
+    {
+        const uint32_t item_num = static_cast<uint32_t>(items.size());
         html::Table legend((item_num + column - 1) / column, column);
         legend.SetTableStyle("align=\"center\" cellpadding=\"2\" cellspacing=\"0\"");
         const std::string width = std::to_string(column >= 4 ? 150 : 130);
@@ -411,11 +466,15 @@ class Board
     }
     .num {
         position: absolute;
-        top: 1px;
-        left: 4px;
+        top: 0;
+        left: 0;
+        z-index: 1;
+        padding: 1px 3px;
         font-size: 13px;
         line-height: 1;
-        color: #8A8A8A;
+        color: #6E6E6E;
+        background: #EFEFEF;
+        border-bottom-right-radius: 4px;
     }
     .mark {
         position: absolute;
@@ -428,6 +487,26 @@ class Board
         justify-content: center;
         line-height: 1;
         font-size: 24px;
+    }
+    .parity {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: )" + std::to_string(GRID_SIZE) + R"(px;
+        height: )" + std::to_string(GRID_SIZE) + R"(px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .square {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #8C8C8C;
+        font-size: 18px;
+        font-weight: bold;
+        line-height: 1;
+        color: #F5F5F5;
     }
     .wall-row {
         width: )" + std::to_string(GRID_SIZE) + R"(px;
@@ -480,4 +559,5 @@ class Board
     const int& size_;
     const Pos& start_;
     const Pos& goal_;
+    const GameMode& mode_;
 };
