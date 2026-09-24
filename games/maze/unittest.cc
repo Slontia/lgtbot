@@ -304,6 +304,119 @@ GAME_TEST(2, init_options_shortcut)
     ASSERT_FINISHED(false);
 }
 
+// 黑白模式 + 迷雾「当前」，双方持续行动直至分出胜负
+GAME_TEST(2, black_white_fog_current_play)
+{
+    ASSERT_PRI_MSG(OK, 0, "模式 黑白");
+    ASSERT_PRI_MSG(OK, 0, "迷雾 当前");
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, k_safe_walls);
+    ASSERT_PRI_MSG(OK, 1, k_safe_walls);
+    ASSERT_PRI_MSG(OK, 0, "提交");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "提交");
+
+    const char* const directions[] = {"上", "下", "左", "右"};
+    uint32_t seed = 19260817;
+    for (int i = 0; i < 8000 && !this->main_stage_->IsOver(); ++i) {
+        seed = seed * 1103515245u + 12345u;
+        const char* const direct = directions[(seed >> 16) % 4];
+        for (uint64_t pid = 0; pid < 2 && !this->main_stage_->IsOver(); ++pid) {
+            this->PrivateRequest(pid, direct);
+        }
+    }
+
+    ASSERT_FINISHED(true);
+}
+
+// 边走边画模式：对战阶段加墙的各项校验
+GAME_TEST(2, draw_while_walk_add_wall)
+{
+    ASSERT_PRI_MSG(OK, 0, "模式 边走边画");
+    ASSERT_PRI_MSG(OK, 0, "墙数 8");
+    START_GAME();
+
+    // 预留墙壁：只放 5 面，留 3 面给对战阶段
+    ASSERT_PRI_MSG(OK, 0, k_safe_walls);
+    ASSERT_PRI_MSG(OK, 1, k_safe_walls);
+    ASSERT_PRI_MSG(OK, 0, "提交");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "提交");
+
+    // 非行动方不能加墙；行动方必须私信
+    int accepted = 0;
+    for (uint64_t pid = 0; pid < 2; ++pid) {
+        ASSERT_PUB_MSG(FAILED, pid, "18右");
+        if (!CHECK_PRI_MSG(FAILED, pid, "18右")) {
+            ++accepted;
+        }
+    }
+    ASSERT_EQ(1, accepted);
+
+    ASSERT_FINISHED(false);
+}
+
+// 边走边画模式：超出墙壁上限与重复位置都会被拒绝
+GAME_TEST(2, draw_while_walk_add_wall_limit)
+{
+    ASSERT_PRI_MSG(OK, 0, "模式 边走边画");
+    ASSERT_PRI_MSG(OK, 0, "墙数 5");
+    START_GAME();
+
+    // 绘制阶段就把额度用满，对战阶段一面都加不了
+    ASSERT_PRI_MSG(OK, 0, k_safe_walls);
+    ASSERT_PRI_MSG(OK, 1, k_safe_walls);
+    ASSERT_PRI_MSG(OK, 0, "提交");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "提交");
+
+    ASSERT_PRI_MSG(FAILED, 0, "18右");
+    ASSERT_PRI_MSG(FAILED, 1, "18右");
+    // 已有墙的位置同样被拒绝
+    ASSERT_PRI_MSG(FAILED, 0, "7右");
+    ASSERT_PRI_MSG(FAILED, 1, "7右");
+
+    ASSERT_FINISHED(false);
+}
+
+// 普通模式与黑白模式下，对战阶段的加墙指令不可用
+GAME_TEST(2, add_wall_rejected_in_other_modes)
+{
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, "提交");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "提交");
+
+    ASSERT_PRI_MSG(FAILED, 0, "18右");
+    ASSERT_PRI_MSG(FAILED, 1, "18右");
+
+    ASSERT_FINISHED(false);
+}
+
+// 边走边画模式下，双方持续行动直至分出胜负
+GAME_TEST(2, draw_while_walk_play_until_game_over)
+{
+    ASSERT_PRI_MSG(OK, 0, "模式 边走边画");
+    START_GAME();
+
+    ASSERT_PRI_MSG(OK, 0, k_safe_walls);
+    ASSERT_PRI_MSG(OK, 1, k_safe_walls);
+    ASSERT_PRI_MSG(OK, 0, "提交");
+    ASSERT_PRI_MSG(CHECKOUT, 1, "提交");
+
+    const char* const directions[] = {"上", "下", "左", "右"};
+    uint32_t seed = 31415926;
+    for (int i = 0; i < 8000 && !this->main_stage_->IsOver(); ++i) {
+        seed = seed * 1103515245u + 12345u;
+        const char* const direct = directions[(seed >> 16) % 4];
+        for (uint64_t pid = 0; pid < 2 && !this->main_stage_->IsOver(); ++pid) {
+            // 行动之余不断尝试加墙，加不了的会被拒绝，不影响对局推进
+            this->PrivateRequest(pid, std::to_string((seed >> 8) % 25 + 1) + "右");
+            this->PrivateRequest(pid, direct);
+        }
+    }
+
+    ASSERT_FINISHED(true);
+}
+
 } // namespace GAME_MODULE_NAME
 
 } // namespace game

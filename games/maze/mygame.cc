@@ -48,6 +48,12 @@ bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const Gener
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
         return false;
     }
+    // 迷雾只在黑白模式下可启用，其余模式自动设回「无」
+    if (GET_OPTION_VALUE(game_options, 模式) != GameMode::BLACK_WHITE &&
+            GET_OPTION_VALUE(game_options, 迷雾) != FogMode::NONE) {
+        GET_OPTION_VALUE(game_options, 迷雾) = FogMode::NONE;
+        reply() << "[警告] 迷雾配置仅在黑白模式下生效，已自动设为「无」";
+    }
     // 墙壁较多时绘制耗时明显增加，时限仍为默认值则自动延长
     if (GET_OPTION_VALUE(game_options, 墙数) >= LONG_DRAW_WALL_NUM && GET_OPTION_VALUE(game_options, 绘制时限) == DEFAULT_DRAW_TIME) {
         GET_OPTION_VALUE(game_options, 绘制时限) = LONG_DRAW_TIME;
@@ -67,7 +73,34 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
             },
             ArithChecker<uint32_t>(5, 9, "边长"),
             OptionalDefaultChecker<ArithChecker<uint32_t>>(16, 5, 64, "墙壁数量")),
-    InitOptionsCommand("独自一人开始游戏，可设置边长与墙壁上限",
+    InitOptionsCommand("一键开始黑白模式对局，可同时启用迷雾模式",
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options,
+                const FogMode& fog, const uint32_t& size, const uint32_t& wall_num)
+            {
+                GET_OPTION_VALUE(game_options, 模式) = GameMode::BLACK_WHITE;
+                GET_OPTION_VALUE(game_options, 迷雾) = fog;
+                GET_OPTION_VALUE(game_options, 边长) = size;
+                GET_OPTION_VALUE(game_options, 墙数) = wall_num;
+                return NewGameMode::MULTIPLE_USERS;
+            },
+            VoidChecker("黑白"),
+            OptionalDefaultChecker<AlterChecker<FogMode>>(FogMode::NONE, map<string, FogMode>{
+                {"无", FogMode::NONE}, {"当前", FogMode::CURRENT}, {"四周", FogMode::AROUND}}),
+            OptionalDefaultChecker<ArithChecker<uint32_t>>(5, 5, 9, "边长"),
+            OptionalDefaultChecker<ArithChecker<uint32_t>>(16, 5, 64, "墙壁数量")),
+    InitOptionsCommand("一键开始边走边画模式对局",
+            [] (CustomOptions& game_options, MutableGenericOptions& generic_options,
+                const uint32_t& size, const uint32_t& wall_num)
+            {
+                GET_OPTION_VALUE(game_options, 模式) = GameMode::DRAW_WHILE_WALK;
+                GET_OPTION_VALUE(game_options, 边长) = size;
+                GET_OPTION_VALUE(game_options, 墙数) = wall_num;
+                return NewGameMode::MULTIPLE_USERS;
+            },
+            VoidChecker("边走边画"),
+            OptionalDefaultChecker<ArithChecker<uint32_t>>(5, 5, 9, "边长"),
+            OptionalDefaultChecker<ArithChecker<uint32_t>>(16, 5, 64, "墙壁数量")),
+    InitOptionsCommand("独自一人开始游戏，可设置边长与墙壁数量上限",
             [] (CustomOptions& game_options, MutableGenericOptions& generic_options,
                 const uint32_t& size, const uint32_t& wall_num)
             {
@@ -94,8 +127,10 @@ class MainStage : public MainGameStage<DrawStage, TurnStage>
         , g(std::random_device{}())
         , size_(static_cast<int>(GAME_OPTION(边长)))
         , wall_limit_(static_cast<int>(GAME_OPTION(墙数)))
+        , mode_(GAME_OPTION(模式))
+        , fog_(GAME_OPTION(迷雾))
         , player_scores_(Global().PlayerNum(), 0)
-        , board(players, size_, start_, goal_)
+        , board(players, size_, start_, goal_, mode_)
     {}
 
     virtual void FirstStageFsm(SubStageFsmSetter setter) override;
@@ -109,6 +144,9 @@ class MainStage : public MainGameStage<DrawStage, TurnStage>
     // 迷宫边长与每位玩家的墙壁数量上限
     int size_;
     int wall_limit_;
+    // 游戏模式与黑白信息的可见范围
+    GameMode mode_;
+    FogMode fog_;
     // 双方共用的起点与终点
     Pos start_;
     Pos goal_;
@@ -129,6 +167,15 @@ class MainStage : public MainGameStage<DrawStage, TurnStage>
 
     // 该玩家正在挑战的迷宫，即对手绘制的那一张
     Maze& ChallengedMaze(const PlayerID pid) { return players[Opponent(pid)].maze; }
+
+    // 黑白模式下公布玩家所在格附近的黑白信息
+    void RevealParity(Maze& maze, const Pos& pos)
+    {
+        if (mode_ != GameMode::BLACK_WHITE) {
+            return;
+        }
+        RevealParityByFog(maze, pos, fog_);
+    }
 
     int StartId() const { return PosToId(start_, size_); }
     int GoalId() const { return PosToId(goal_, size_); }
@@ -196,10 +243,13 @@ class DrawStage : public SubGameStage<>
                     "放置/移除墙体：<编号><方向>，可一次多面，如「10左 7s 3R」\n"
                     "清空全部墙体：「清空」\n"
                     "完成后「提交」，提交后不可修改\n"
+                    << (Main().mode_ == GameMode::DRAW_WHILE_WALK
+                            ? "\n[边走边画] 对战中可继续加墙，建议预留部分额度\n" : "")
                     << Markdown(Main().board.GetDrawView(pid, Main().wall_limit_), Board::ImageWidth(Main().size_));
         }
         Global().Boardcast() << "请双方私信裁判绘制自己的迷宫，时限 " << GAME_OPTION(绘制时限)
-                             << " 秒\n超时将自动提交当前迷宫，迷宫不合规则判负";
+                             << " 秒\n超时将自动提交当前迷宫，迷宫不合规则判负\n\n"
+                             << "网页草稿本：" << DRAFT_URL;
         Global().StartTimer(GAME_OPTION(绘制时限));
     }
 
@@ -372,8 +422,10 @@ class TurnStage : public SubGameStage<>
         : StageFsm(main_stage, "第 " + std::to_string(turn) + " 回合",
                 MakeStageCommand(*this, "查看当前局面：私信可查看自己绘制的迷宫",
                         &TurnStage::Status_, VoidChecker("赛况")),
+                MakeStageCommand(*this, "[边走边画] 私信在自己的迷宫中追加墙体，可一次追加多面",
+                        &TurnStage::AddWall_, TokenListChecker(true, "墙壁", "10左 7上")),
                 MakeStageCommand(*this, "移动自己，可一次输入多个方向连续移动",
-                        &TurnStage::Act_, RepeatableChecker<BasicChecker<string>>("移动方向", "上上左")))
+                        &TurnStage::Act_, TokenListChecker(false, "移动方向", "上上左")))
         , turn_(turn)
     {}
 
@@ -386,6 +438,8 @@ class TurnStage : public SubGameStage<>
         Global().Boardcast() << "轮到 " << At(cur) << " 移动\n"
                 "可一次输入多个方向连续移动。方向：上下左右 / UDLR / sxzy\n"
                 "每步时限 " << GAME_OPTION(行动时限) << " 秒，超时判负\n"
+                << (Main().mode_ == GameMode::DRAW_WHILE_WALK
+                        ? "\n[边走边画] 可私信「<编号><方向>」往继续加墙\n" : "")
                 << Markdown(Main().board.GetDualBoard(-1, turn_, static_cast<int>(cur)), Board::DualImageWidth(Main().size_));
         Global().StartTimer(GAME_OPTION(行动时限));
     }
@@ -395,6 +449,59 @@ class TurnStage : public SubGameStage<>
     {
         reply() << Markdown(Main().board.GetDualBoard(is_public ? -1 : static_cast<int>(pid), turn_,
                         static_cast<int>(Main().cur_pid_)), Board::DualImageWidth(Main().size_));
+        return StageErrCode::OK;
+    }
+
+    // 边走边画：自己回合可以往自己绘制的迷宫里追加墙体，位置允许是对手已经走通的路
+    AtomReqErrCode AddWall_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+            const vector<string>& tokens)
+    {
+        if (Main().mode_ != GameMode::DRAW_WHILE_WALK) {
+            reply() << "[错误] 只有「边走边画」模式才能在对战阶段加墙";
+            return StageErrCode::FAILED;
+        }
+        if (Global().IsReady(pid) || pid != Main().cur_pid_) {
+            reply() << "[错误] 当前不是您的回合，请等待对手行动";
+            return StageErrCode::FAILED;
+        }
+        if (is_public) {
+            reply() << "[错误] 请私信裁判加墙";
+            return StageErrCode::FAILED;
+        }
+        vector<WallRef> refs;
+        string err;
+        if (!ParseWallTokens(tokens, Main().size_, refs, err)) {
+            reply() << err;
+            return StageErrCode::FAILED;
+        }
+        Maze& maze = Main().players[pid].maze;
+        const int rest = Main().wall_limit_ - maze.WallCount();
+        if (static_cast<int>(refs.size()) > rest) {
+            reply() << "[错误] 本局墙壁上限 " << Main().wall_limit_ << " 面，当前还能追加 " << rest << " 面，本次添加将超出上限";
+            return StageErrCode::FAILED;
+        }
+        // 先在副本上试放：不得落在已有墙体上，也不得切断对手当前位置到终点的通路
+        Maze trial = maze;
+        for (const auto& ref : refs) {
+            if (trial.WallValue(ref)) {
+                reply() << "[错误] " << WallName(ref, Main().size_) << "已经有墙壁了，或本条指令内重复指定了同一面墙";
+                return StageErrCode::FAILED;
+            }
+            trial.SetWallValue(ref, true);
+        }
+        const Player& rival = Main().players[Main().Opponent(pid)];
+        if (!trial.Reachable(rival.pawn, Main().goal_)) {
+            reply() << "[错误] 加墙必须保留对手当前所在位置到终点的通路";
+            return StageErrCode::FAILED;
+        }
+        for (const auto& ref : refs) {
+            maze.SetWallValue(ref, true);
+            maze.MarkAdded(ref);
+        }
+        reply() << "已追加 " << refs.size() << " 面墙，当前共 " << maze.WallCount() << " / " << Main().wall_limit_
+                << " 面\n对手不会收到任何提示，新墙在被撞上之前保持隐藏\n"
+                << Markdown(Main().board.GetSingleBoard(Main().Opponent(pid), static_cast<int>(pid)),
+                        Board::ImageWidth(Main().size_));
         return StageErrCode::OK;
     }
 
@@ -463,6 +570,7 @@ class TurnStage : public SubGameStage<>
             }
             player.pawn = MovePos(player.pawn, direct);
             player.MarkVisited(player.pawn);
+            Main().RevealParity(maze, player.pawn);
             ++moved;
             if (player.pawn == Main().goal_) {
                 player.AddStep(direct, StepResult::GOAL);
@@ -567,6 +675,16 @@ void MainStage::NextStageFsm(DrawStage& sub_stage, const CheckoutReason reason, 
     if (game_over_) {
         EndGame();
         return;
+    }
+    // 黑白模式：无迷雾时开局即公布全部格子，有迷雾时先公布起点附近
+    if (mode_ == GameMode::BLACK_WHITE) {
+        for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+            if (fog_ == FogMode::NONE) {
+                players[pid].maze.RevealAllParity();
+            } else {
+                RevealParityByFog(players[pid].maze, start_, fog_);
+            }
+        }
     }
     // 系统随机决定先手玩家
     cur_pid_ = static_cast<PlayerID>(g() % 2);

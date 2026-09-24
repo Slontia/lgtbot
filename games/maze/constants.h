@@ -3,9 +3,12 @@
 
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include "utility/msg_checker.h"
 
 /* ========== 常量 ========== */
 inline constexpr int MAX_MAZE_SIZE = 9;
@@ -18,9 +21,28 @@ inline constexpr int MAX_MULTI_STEP = 50;
 
 // 电脑行动时改走次优路线的概率（百分比），其余情况按最优路线行动
 inline constexpr int COMPUTER_ALT_PATH_PERCENT = 25;
+
+// 网页草稿本
+inline constexpr const char* DRAFT_URL = "https://tdgame.tiedan.site/maze/";
+
+
+/* ========== 游戏模式 ========== */
+enum class GameMode {
+    NORMAL,         // 普通：不提供任何格子信息
+    BLACK_WHITE,    // 黑白：公布每个格子周边通路数的奇偶
+    DRAW_WHILE_WALK,// 边走边画：自己回合可以继续往自己的迷宫里加墙
+};
+
+// 黑白模式下格子信息的可见范围
+enum class FogMode {
+    NONE,       // 无：开局即公布全部格子的黑白
+    CURRENT,    // 当前：走到某格才公布该格
+    AROUND,     // 四周：走到某格则公布该格与其上下左右四格
+};
 // 绘图尺寸
 inline constexpr int GRID_SIZE = 56;
 inline constexpr int WALL_SIZE = 10;
+inline constexpr int PARITY_SQUARE_SIZE = GRID_SIZE - 14;   // 黑白信息方块的边长
 
 /* ========== 方向 ========== */
 enum class Direct { UP, DOWN, LEFT, RIGHT };
@@ -95,6 +117,61 @@ inline bool ParseDirectSequence(const std::string& text, std::vector<Direct>& ou
     }
     return true;
 }
+
+// 指令字符串校验器：以数字开头的是墙壁，其余的是移动方向。两者互斥且覆盖全部非空输入
+class TokenListChecker : public MsgArgChecker<std::vector<std::string>>
+{
+  public:
+    TokenListChecker(const bool leading_digit, const std::string& meaning, std::string example)
+        : leading_digit_(leading_digit)
+        , format_info_("<" + meaning + ">")
+        , escaped_format_info_(HTML_ESCAPE_LT + meaning + HTML_ESCAPE_GT)
+        , colored_format_info_(HTML_COLOR_FONT_HEADER(green) + escaped_format_info_ + HTML_FONT_TAIL)
+        , example_(std::move(example))
+    {}
+
+    virtual std::string FormatInfo() const override { return format_info_; }
+    virtual std::string EscapedFormatInfo() const override { return escaped_format_info_; }
+    virtual std::string ColoredFormatInfo() const override { return colored_format_info_; }
+    virtual std::string ExampleInfo() const override { return example_; }
+
+    virtual std::optional<std::vector<std::string>> Check(MsgReader& reader) const override
+    {
+        if (!reader.HasNext()) {
+            // 空输入交给方向指令兜底，由它给出格式提示
+            return leading_digit_ ? std::nullopt : std::optional<std::vector<std::string>>(std::in_place);
+        }
+        std::vector<std::string> tokens;
+        while (reader.HasNext()) {
+            tokens.push_back(reader.NextArg());
+        }
+        const std::string& first = tokens.front();
+        const bool leading_digit = !first.empty() && first[0] >= '0' && first[0] <= '9';
+        if (leading_digit != leading_digit_) {
+            return std::nullopt;
+        }
+        return tokens;
+    }
+
+    virtual std::string ArgString(const std::vector<std::string>& tokens) const override
+    {
+        std::string result;
+        for (const auto& token : tokens) {
+            if (!result.empty()) {
+                result += " ";
+            }
+            result += token;
+        }
+        return result;
+    }
+
+  private:
+    const bool leading_digit_;
+    const std::string format_info_;
+    const std::string escaped_format_info_;
+    const std::string colored_format_info_;
+    const std::string example_;
+};
 
 
 /* ========== 坐标 ========== */
