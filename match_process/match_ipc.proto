@@ -60,6 +60,7 @@ message HelpReq { bool text_mode = 1; }
 message ApplyInitOptionsReq { string args = 1; }
 
 message GameRequest {
+  uint64 ipc_id = 8;
   oneof req {
     InitReq             init               = 1;
     SetOptionReq        set_option         = 2;
@@ -68,7 +69,7 @@ message GameRequest {
     LeaveReq            leave              = 5;
     HelpReq             help               = 6;
     bool                shutdown           = 7;  // true = terminate
-    ApplyInitOptionsReq apply_init_options = 8;
+    ApplyInitOptionsReq apply_init_options = 9;  // 8 is taken by ipc_id above
   }
 }
 
@@ -114,8 +115,9 @@ message ScoreEntry {
 message GameOverResp { repeated ScoreEntry scores = 1; }
 
 message GameResponse {
+  uint64 ipc_id = 7;
+  reserved 1;
   oneof resp {
-    AckResp         ack          = 1;
     ReplyResp       reply        = 2;
     ResultResp      result       = 3;
     PostResp        post         = 4;

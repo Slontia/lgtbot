@@ -39,6 +39,9 @@ bool ReadAll(FILE* in, void* data, const size_t len)
 
 bool WriteFrame(FILE* const out, const std::string& payload)
 {
+    if (!IpcFramePayloadSizeValid(payload.size())) {
+        return false;
+    }
     const auto len = static_cast<uint32_t>(payload.size());
     unsigned char hdr[4] = {
         static_cast<unsigned char>(len >> 24),
@@ -56,7 +59,7 @@ bool ReadFrame(FILE* const in, std::string& payload_out)
         return false;
     }
     const uint32_t len = (uint32_t(hdr[0]) << 24) | (uint32_t(hdr[1]) << 16) | (uint32_t(hdr[2]) << 8) | uint32_t(hdr[3]);
-    if (len > 64 * 1024 * 1024) {
+    if (!IpcFramePayloadSizeValid(len)) {
         return false;
     }
     std::vector<char> buf(len);

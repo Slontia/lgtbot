@@ -42,9 +42,8 @@ class GameConfigClient
     // Returns empty string on failure.
     std::string QueryOptionInfo(bool text_mode);
 
-    // Returns the option info text for a match with its own applied_options_log
-    // and init_options_args applied on top of fresh defaults. Used by Match::Help_
-    // and Match::OptionInfo_ in the lobby state.
+    // Returns the option info text for a match with its own applied_options_log and init_options_args applied on top of fresh defaults.
+    // Used by Match::Help_ and Match::OptionInfo_ in the lobby state.
     std::string QueryMatchOptionInfo(bool text_mode,
                                      const std::vector<std::string>& applied_options_log,
                                      const std::string& init_options_args);
@@ -104,8 +103,6 @@ class GameConfigClient
 
     std::mutex mutex_;
     std::unique_ptr<Subprocess> proc_;
-    FILE* child_in_{nullptr};
-    FILE* child_out_{nullptr};
 
     // Idle-timeout tracking
     std::chrono::steady_clock::time_point last_use_;
