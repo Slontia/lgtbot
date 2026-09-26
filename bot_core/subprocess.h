@@ -1,44 +1,39 @@
 #pragma once
 
-#include <cstdio>
+#include <memory>
 #include <string>
 #include <vector>
 
-// Spawns a child process with stdin/stdout redirected to pipes (parent side: write to child stdin, read child stdout).
+struct reproc_t;
+
+// Spawns a child process: stdin/stdout reproc pipes for IPC; stderr inherited for logs.
 class Subprocess
 {
   public:
-    Subprocess(std::vector<std::string> argv, std::string& error_out);
+    Subprocess(const std::vector<std::string>& argv);
     ~Subprocess();
 
     Subprocess(const Subprocess&) = delete;
     Subprocess& operator=(const Subprocess&) = delete;
+    Subprocess(Subprocess&&) noexcept = default;
+    Subprocess& operator=(Subprocess&&) noexcept = default;
 
-    [[nodiscard]] bool ok() const { return ok_; }
+    [[nodiscard]] bool Ok() const { return static_cast<bool>(process_); }
 
-    [[nodiscard]] FILE* child_stdin() const { return child_stdin_; }
-    [[nodiscard]] FILE* child_stdout() const { return child_stdout_; }
+    // Length-prefixed frame write/read on stdin/stdout pipes.
+    [[nodiscard]] bool Write(const std::string& payload);
+    [[nodiscard]] bool Read(std::string& payload_out);
 
-    // Close the write end of the stdin pipe (causes the child to get EOF on its stdin).
-    // Safe to call multiple times.  ~Subprocess will not double-close.
-    void close_stdin()
-    {
-        if (child_stdin_) {
-            fclose(child_stdin_);
-            child_stdin_ = nullptr;
-        }
-    }
-
-    void request_stop();
-    void wait_exit();
+    // Close IPC stdin, terminate the child and reap. Does not close stdout; readers observe EOF/EPIPE.
+    void Close() noexcept;
 
   private:
-    bool ok_{false};
-    FILE* child_stdin_{nullptr};
-    FILE* child_stdout_{nullptr};
-#ifdef _WIN32
-    void* process_handle_{nullptr};
-#else
-    int pid_{-1};
-#endif
+    struct ReprocDeleter
+    {
+        void operator()(reproc_t* process) const noexcept;
+    };
+
+    [[nodiscard]] static std::unique_ptr<reproc_t, ReprocDeleter> Start_(const std::vector<std::string>& argv);
+
+    std::unique_ptr<reproc_t, ReprocDeleter> process_;
 };

@@ -19,6 +19,7 @@ add_executable(match_game_runner
   ${CMAKE_CURRENT_SOURCE_DIR}/game_runner_main.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/child_session.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/ipc_match_env.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/msg_fragment_ipc.cc
   ${CHILD_TRANSPORT}
 )
 target_include_directories(match_game_runner PRIVATE

@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.14)
 
 set(CMAKE_CXX_STANDARD 20)
 
+set(REPROC++ OFF CACHE BOOL "" FORCE)
+set(REPROC_TEST OFF CACHE BOOL "" FORCE)
+set(REPROC_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(REPROC_INSTALL OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../third_party/reproc
+                 ${CMAKE_CURRENT_BINARY_DIR}/reproc EXCLUDE_FROM_ALL)
+
 # protobuf: find_package in parent ../CMakeLists.txt (config and/or module).
 
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
@@ -50,7 +57,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "Windows")
 endif()
 
 find_package(Threads REQUIRED)
-list(APPEND THIRD_PARTIES Threads::Threads protobuf::libprotobuf)
+list(APPEND THIRD_PARTIES Threads::Threads protobuf::libprotobuf reproc)
 
 if (CMAKE_SYSTEM_NAME MATCHES "Linux")
   list(APPEND THIRD_PARTIES
@@ -212,6 +219,7 @@ if (WITH_TEST)
 
   add_executable(test_db test_db.cc db_manager.cc score_calculation.cc)
   target_link_libraries(test_db ${THIRD_PARTIES})
+  target_include_directories(test_db PRIVATE ${MATCH_PROCESS_PROTO_GEN_DIR}/..)
   add_test(NAME test_db COMMAND test_db)
 
   add_executable(test_match_score test_match_score.cc score_calculation.cc)

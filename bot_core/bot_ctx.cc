@@ -361,7 +361,7 @@ static void UpdateConfig_(nlohmann::json& json, const std::string& option_name, 
 bool BotCtx::UpdateBotConfig(const std::string& option_name, const std::vector<std::string>& option_args)
 {
     try {
-        auto locked_config_json = config_json_.Lock();
+        auto locked_config_json = config_json_.lock();
         UpdateConfig_((*locked_config_json)["bot"]["options"], option_name, option_args);
         return SaveConfig_((*locked_config_json), conf_path_);
     } catch (const std::exception& e) {
@@ -374,7 +374,7 @@ bool BotCtx::UpdateGameConfig(const std::string& game_name, const std::string& o
         const std::vector<std::string>& option_args)
 {
     try {
-        auto locked_config_json = config_json_.Lock();
+        auto locked_config_json = config_json_.lock();
         UpdateConfig_((*locked_config_json)["games"][game_name]["options"], option_name, option_args);
         return SaveConfig_((*locked_config_json), conf_path_);
     } catch (const std::exception& e) {
@@ -386,7 +386,7 @@ bool BotCtx::UpdateGameConfig(const std::string& game_name, const std::string& o
 bool BotCtx::UpdateGameDefaultFormal(const std::string& game_name, const bool is_formal)
 {
     try {
-        auto locked_config_json = config_json_.Lock();
+        auto locked_config_json = config_json_.lock();
         (*locked_config_json)["games"][game_name]["is_formal"] = is_formal;
         return SaveConfig_((*locked_config_json), conf_path_);
     } catch (const std::exception& e) {
@@ -407,12 +407,12 @@ std::string BotCtx::GetUserAvatar(const char* const user_id, const int32_t size)
         std::to_string(size) + "px; border-radius:50%; vertical-align: middle;\"/>";
 }
 
-MsgSender BotCtx::MakeMsgSender(const UserID& user_id, Match* const match) const
+MsgSender BotCtx::MakeMsgSender(const UserID& user_id) const
 {
-    return MsgSender(handler_, image_path_, callbacks_, user_id, match);
+    return MsgSender(handler_, image_path_, callbacks_, user_id);
 }
 
-MsgSender BotCtx::MakeMsgSender(const GroupID& group_id, Match* const match) const
+MsgSender BotCtx::MakeMsgSender(const GroupID& group_id) const
 {
-    return MsgSender(handler_, image_path_, callbacks_, group_id, match);
+    return MsgSender(handler_, image_path_, callbacks_, group_id);
 }

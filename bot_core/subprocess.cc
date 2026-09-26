@@ -1,226 +1,181 @@
 #include "bot_core/subprocess.h"
 
-#include <cstdint>
-#include <cstring>
-#include <utility>
+#include <reproc/reproc.h>
 
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#include <io.h>
-#include <fcntl.h>
-#else
-#include <unistd.h>
-#include <sys/wait.h>
-#include <signal.h>
-#endif
+#include <cstdint>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "match_process/ipc_frame.h"
+#include "utility/log.h"
 
 namespace {
 
-#ifdef _WIN32
-
-static std::wstring QuoteWinArg(const std::string& s)
+std::string JoinArgv(const std::vector<std::string>& argv)
 {
-    std::wstring r = L"\"";
-    for (const unsigned char c : s) {
-        if (c == '"') {
-            r += L"\\\"";
-        } else {
-            r += static_cast<wchar_t>(c);
-        }
-    }
-    r += L'"';
-    return r;
-}
-
-bool SpawnWindows(std::vector<std::string> argv, FILE** stdin_write, FILE** stdout_read, void** proc_out, std::string& error_out)
-{
-    SECURITY_ATTRIBUTES sa{};
-    sa.nLength = sizeof(sa);
-    sa.bInheritHandle = TRUE;
-
-    HANDLE stdin_rd = nullptr;
-    HANDLE stdin_wr = nullptr;
-    HANDLE stdout_rd = nullptr;
-    HANDLE stdout_wr = nullptr;
-    if (!CreatePipe(&stdin_rd, &stdin_wr, &sa, 0) || !CreatePipe(&stdout_rd, &stdout_wr, &sa, 0)) {
-        error_out = "CreatePipe failed";
-        return false;
-    }
-    if (!SetHandleInformation(stdin_wr, HANDLE_FLAG_INHERIT, 0) || !SetHandleInformation(stdout_rd, HANDLE_FLAG_INHERIT, 0)) {
-        error_out = "SetHandleInformation failed";
-        CloseHandle(stdin_rd);
-        CloseHandle(stdin_wr);
-        CloseHandle(stdout_rd);
-        CloseHandle(stdout_wr);
-        return false;
-    }
-
-    STARTUPINFOW si{};
-    si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = stdin_rd;
-    si.hStdOutput = stdout_wr;
-    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-
-    std::wstring cmd;
+    std::string joined;
     for (size_t i = 0; i < argv.size(); ++i) {
-        if (i) {
-            cmd += L' ';
+        if (i != 0) {
+            joined += ' ';
         }
-        cmd += QuoteWinArg(argv[i]);
+        joined += argv[i];
     }
-
-    PROCESS_INFORMATION pi{};
-    std::vector<wchar_t> mutable_cmd(cmd.begin(), cmd.end());
-    mutable_cmd.push_back(L'\0');
-    if (!CreateProcessW(nullptr, mutable_cmd.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi)) {
-        error_out = "CreateProcessW failed";
-        CloseHandle(stdin_rd);
-        CloseHandle(stdin_wr);
-        CloseHandle(stdout_rd);
-        CloseHandle(stdout_wr);
-        return false;
-    }
-    CloseHandle(stdin_rd);
-    CloseHandle(stdout_wr);
-    CloseHandle(pi.hThread);
-
-    const int fd_in = _open_osfhandle(reinterpret_cast<intptr_t>(stdin_wr), _O_WRONLY);
-    const int fd_out = _open_osfhandle(reinterpret_cast<intptr_t>(stdout_rd), _O_RDONLY);
-    if (fd_in < 0 || fd_out < 0) {
-        error_out = "_open_osfhandle failed";
-        TerminateProcess(pi.hProcess, 1);
-        CloseHandle(pi.hProcess);
-        CloseHandle(stdin_wr);
-        CloseHandle(stdout_rd);
-        return false;
-    }
-    *stdin_write = _fdopen(fd_in, "wb");
-    *stdout_read = _fdopen(fd_out, "rb");
-    *proc_out = pi.hProcess;
-    return *stdin_write && *stdout_read;
+    return joined;
 }
 
-#else
-
-bool SpawnPosix(std::vector<std::string> argv, FILE** stdin_write, FILE** stdout_read, int* pid_out, std::string& error_out)
+bool WriteAll(reproc_t* process, const void* data, const size_t len)
 {
-    int p2c[2];
-    int c2p[2];
-    if (pipe(p2c) != 0 || pipe(c2p) != 0) {
-        error_out = "pipe failed";
-        return false;
-    }
-    const pid_t pid = fork();
-    if (pid < 0) {
-        error_out = "fork failed";
-        close(p2c[0]);
-        close(p2c[1]);
-        close(c2p[0]);
-        close(c2p[1]);
-        return false;
-    }
-    if (pid == 0) {
-        close(p2c[1]);
-        close(c2p[0]);
-        dup2(p2c[0], STDIN_FILENO);
-        dup2(c2p[1], STDOUT_FILENO);
-        close(p2c[0]);
-        close(c2p[1]);
-
-        std::vector<char*> args;
-        args.reserve(argv.size() + 1);
-        for (auto& s : argv) {
-            args.push_back(s.data());
+    const auto* const p = static_cast<const uint8_t*>(data);
+    size_t off = 0;
+    while (off < len) {
+        const int r = reproc_write(process, p + off, len - off);
+        if (r <= 0) {
+            return false;
         }
-        args.push_back(nullptr);
-        execvp(args[0], args.data());
-        _exit(127);
+        off += static_cast<size_t>(r);
     }
-    close(p2c[0]);
-    close(c2p[1]);
-    *pid_out = static_cast<int>(pid);
-    *stdin_write = fdopen(p2c[1], "wb");
-    *stdout_read = fdopen(c2p[0], "rb");
-    if (!*stdin_write || !*stdout_read) {
-        error_out = "fdopen failed";
-        kill(pid, SIGKILL);
-        waitpid(pid, nullptr, 0);
+    return true;
+}
+
+bool ReadAll(reproc_t* process, void* data, const size_t len)
+{
+    auto* const p = static_cast<uint8_t*>(data);
+    size_t off = 0;
+    while (off < len) {
+        const int r = reproc_read(process, REPROC_STREAM_OUT, p + off, len - off);
+        if (r <= 0) {
+            return false;
+        }
+        off += static_cast<size_t>(r);
+    }
+    return true;
+}
+
+} // namespace
+
+std::unique_ptr<reproc_t, Subprocess::ReprocDeleter> Subprocess::Start_(const std::vector<std::string>& argv)
+{
+    std::vector<const char*> arg_ptrs;
+    arg_ptrs.reserve(argv.size() + 1);
+    for (const auto& s : argv) {
+        arg_ptrs.push_back(s.c_str());
+    }
+    arg_ptrs.push_back(nullptr);
+
+    std::unique_ptr<reproc_t, ReprocDeleter> process(reproc_new());
+    if (!process) {
+        ErrorLog() << "Subprocess: reproc_new failed, argv=" << JoinArgv(argv);
+        return {};
+    }
+
+    // stdin/stdout -> reproc pipes (IPC); stderr -> parent (logs).
+    // Note: nested designated initializers (.redirect.err.type = ...) are a C99/clang extension rejected by GCC in C++, so assign the fields instead.
+    reproc_options options{};
+    options.redirect.err.type = REPROC_REDIRECT_PARENT;
+    options.stop = reproc_stop_actions{
+        {REPROC_STOP_TERMINATE, 0},
+        {REPROC_STOP_KILL, 0},
+        {REPROC_STOP_WAIT, REPROC_INFINITE},
+    };
+    if (const int r = reproc_start(process.get(), arg_ptrs.data(), options); r < 0) {
+        ErrorLog() << "Subprocess: reproc_start failed, r=" << r << " (" << reproc_strerror(r) << "), argv=" << JoinArgv(argv);
+        return {};
+    }
+
+    return process;
+}
+
+void Subprocess::ReprocDeleter::operator()(reproc_t* const process) const noexcept
+{
+    reproc_destroy(process);
+}
+
+Subprocess::Subprocess(const std::vector<std::string>& argv) : process_(Start_(argv))
+{
+}
+
+Subprocess::~Subprocess()
+{
+    Close();
+}
+
+bool Subprocess::Write(const std::string& payload)
+{
+    if (!process_) {
+        ErrorLog() << "Subprocess: Write called with no running process";
+        return false;
+    }
+    if (!IpcFramePayloadSizeValid(payload.size())) {
+        ErrorLog() << "Subprocess: Write payload too large, pid=" << reproc_pid(process_.get())
+                   << ", payload_size=" << payload.size() << ", max=" << kMaxIpcFramePayloadSize;
+        return false;
+    }
+    const auto len = static_cast<uint32_t>(payload.size());
+    const unsigned char hdr[4] = {
+        static_cast<unsigned char>(len >> 24),
+        static_cast<unsigned char>(len >> 16),
+        static_cast<unsigned char>(len >> 8),
+        static_cast<unsigned char>(len),
+    };
+    if (!WriteAll(process_.get(), hdr, sizeof(hdr))) {
+        ErrorLog() << "Subprocess: Write failed (frame header), pid=" << reproc_pid(process_.get())
+                   << ", payload_size=" << payload.size();
+        return false;
+    }
+    if (!WriteAll(process_.get(), payload.data(), payload.size())) {
+        ErrorLog() << "Subprocess: Write failed (frame payload), pid=" << reproc_pid(process_.get())
+                   << ", payload_size=" << payload.size();
         return false;
     }
     return true;
 }
 
-#endif
-
-} // namespace
-
-Subprocess::Subprocess(std::vector<std::string> argv, std::string& error_out)
+bool Subprocess::Read(std::string& payload_out)
 {
-    if (argv.empty() || argv[0].empty()) {
-        error_out = "empty argv";
-        return;
+    if (!process_) {
+        ErrorLog() << "Subprocess: Read called with no running process";
+        return false;
     }
-#ifdef _WIN32
-    void* proc = nullptr;
-    if (!SpawnWindows(std::move(argv), &child_stdin_, &child_stdout_, &proc, error_out)) {
-        return;
+    unsigned char hdr[4];
+    if (!ReadAll(process_.get(), hdr, sizeof(hdr))) {
+        ErrorLog() << "Subprocess: Read failed (frame header), pid=" << reproc_pid(process_.get());
+        return false;
     }
-    process_handle_ = proc;
-#else
-    int pid = -1;
-    if (!SpawnPosix(std::move(argv), &child_stdin_, &child_stdout_, &pid, error_out)) {
-        return;
+    const uint32_t len = (uint32_t(hdr[0]) << 24) | (uint32_t(hdr[1]) << 16) | (uint32_t(hdr[2]) << 8) | uint32_t(hdr[3]);
+    if (!IpcFramePayloadSizeValid(len)) {
+        ErrorLog() << "Subprocess: Read frame length too large, len=" << len << ", pid=" << reproc_pid(process_.get())
+                   << ", max=" << kMaxIpcFramePayloadSize;
+        return false;
     }
-    pid_ = pid;
-#endif
-    ok_ = true;
+    std::vector<char> buf(len);
+    if (len != 0 && !ReadAll(process_.get(), buf.data(), len)) {
+        ErrorLog() << "Subprocess: Read failed (frame payload), pid=" << reproc_pid(process_.get()) << ", payload_len=" << len;
+        return false;
+    }
+    payload_out.assign(buf.begin(), buf.end());
+    return true;
 }
 
-Subprocess::~Subprocess()
+void Subprocess::Close() noexcept
 {
-    request_stop();
-    wait_exit();
-    if (child_stdin_) {
-        fclose(child_stdin_);
+    reproc_t* const process = process_.get();
+    if (!process) {
+        return;
     }
-    if (child_stdout_) {
-        fclose(child_stdout_);
-    }
-#ifdef _WIN32
-    if (process_handle_) {
-        CloseHandle(process_handle_);
-    }
-#endif
-}
+    const int pid = reproc_pid(process);
 
-void Subprocess::request_stop()
-{
-#ifdef _WIN32
-    if (process_handle_) {
-        TerminateProcess(process_handle_, 1);
+    if (const int close_in = reproc_close(process, REPROC_STREAM_IN); close_in < 0) {
+        ErrorLog() << "Subprocess: reproc_close(IN) failed, r=" << close_in << " (" << reproc_strerror(close_in)
+                   << "), pid=" << pid;
     }
-#else
-    if (pid_ > 0) {
-        kill(pid_, SIGTERM);
-    }
-#endif
-}
 
-void Subprocess::wait_exit()
-{
-#ifdef _WIN32
-    if (process_handle_) {
-        WaitForSingleObject(process_handle_, INFINITE);
+    const reproc_stop_actions stop{
+        {REPROC_STOP_TERMINATE, 1000},
+        {REPROC_STOP_KILL, 1000},
+        {REPROC_STOP_WAIT, 2000},
+    };
+    if (const int stop_r = reproc_stop(process, stop); stop_r < 0) {
+        ErrorLog() << "Subprocess: reproc_stop failed, r=" << stop_r << " (" << reproc_strerror(stop_r) << "), pid=" << pid;
     }
-#else
-    if (pid_ > 0) {
-        int st = 0;
-        waitpid(pid_, &st, 0);
-        pid_ = -1;
-    }
-#endif
 }
