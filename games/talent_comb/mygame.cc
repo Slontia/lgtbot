@@ -156,7 +156,7 @@ const std::vector<RuleCommand> k_rule_commands = {
                 AnyArg("天赋名", "绝地反击")),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "天赋云巢至少需要 2 人参加游戏";
@@ -381,7 +381,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
 
     // ===== Battle System (implemented in talent_impl.h) =====
     // sender 由调用方持有，DoBattle_ 与 DoEliminationAfterBattle_ 共用，使对战结果与玩家淘汰播报合并为一条消息。
-    bool DoBattle_(MsgSenderBase::MsgSenderGuard& sender);
+    bool DoBattle_(ChildMsgSenderBase::MsgSenderGuard& sender);
     // 返回 OnLethalDamage 触发的播报文本
     std::string ApplyDamage_(PlayerID pid, int32_t damage);
     void ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror, std::string& result,
@@ -396,7 +396,7 @@ class MainStage : public MainGameStage<RoundStage, SelectStage, ExtraCardStage, 
     void ApplyBattleEndTalents_(PlayerID pid, bool mirror,
                                 int64_t my_battle_score, int64_t opp_battle_score,
                                 int32_t outcome, std::string& result);
-    void DoEliminationAfterBattle_(MsgSenderBase::MsgSenderGuard& sender);
+    void DoEliminationAfterBattle_(ChildMsgSenderBase::MsgSenderGuard& sender);
     std::optional<PlayerID> FindKillerFromFightMap_(PlayerID victim) const;
     void DoPoison_();
 
@@ -768,7 +768,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) return StageErrCode::OK;
         auto& player = Main().players_[pid];
@@ -784,7 +784,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t idx)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t idx)
     {
         if (Global().IsReady(pid)) {
             reply() << "您已经设置过，无法重复设置";
@@ -829,7 +829,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    void SendInfo(MsgSenderBase& sender)
+    void SendInfo(ChildMsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
         if (is_initial_) {
@@ -845,7 +845,7 @@ class RoundStage : public SubGameStage<>
     }
 
     // 「赛况」回复：当前最新棋盘 + 本轮砖块图。盘面用 CombHtml 实时生成（不复用 comb_html_ 缓存）。
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown{Main().CombHtml("## 第 " + std::to_string(round_) + " 回合")};
         if (is_initial_) {
@@ -1030,7 +1030,7 @@ class SelectStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) return StageErrCode::OK;
         auto& player = Main().players_[pid];
@@ -1046,7 +1046,7 @@ class SelectStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Select_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t card_id, const uint32_t pos)
+    AtomReqErrCode Select_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t card_id, const uint32_t pos)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 当前并非您的选卡回合";
@@ -1138,14 +1138,14 @@ class SelectStage : public SubGameStage<>
         return style + avatar_table.ToString() + card_table.ToString();
     }
 
-    void SendInfo(MsgSenderBase& sender)
+    void SendInfo(ChildMsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
         sender() << Markdown(SelectCardHtml_(), 300);
     }
 
     // 「赛况」回复：当前最新棋盘 + 剩余待选卡总图（含选卡顺序头像）。
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown{Main().CombHtml("## 第 " + std::to_string(round_) + " 回合[公共配牌阶段]")};
         reply() << Markdown(SelectCardHtml_(), 300);
@@ -1279,7 +1279,7 @@ class ExtraCardStage : public SubGameStage<>
         SendCardPreview_(sender, entry.cards);
     }
 
-    void SendCardPreview_(MsgSenderBase::MsgSenderGuard& sender, const std::vector<AreaCard>& cards)
+    void SendCardPreview_(ChildMsgSenderBase::MsgSenderGuard& sender, const std::vector<AreaCard>& cards)
     {
         const std::string img_path = Global().ResourceDir();
         const std::string style = "<style>body{margin:0;}</style>" + GetStyle(img_path);
@@ -1298,7 +1298,7 @@ class ExtraCardStage : public SubGameStage<>
     }
 
     // 「赛况」回复：当前最新棋盘；若请求者正是 pending 队列首位且有待办，额外私聊行动提示与砖块图。
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown{Main().CombHtml("## 第 " + std::to_string(Main().round_) + " 回合[额外砖块选择阶段]")};
 
@@ -1459,7 +1459,7 @@ class ExtraCardStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) return StageErrCode::OK;
         auto& player = Main().players_[pid];
@@ -1496,7 +1496,7 @@ class ExtraCardStage : public SubGameStage<>
     }
 
     // Command: place single-card entry directly (位置, 0=discard)
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t idx)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t idx)
     {
         auto& player = Main().players_[pid];
         if (player.extra_card_queue_.empty()) {
@@ -1560,7 +1560,7 @@ class ExtraCardStage : public SubGameStage<>
     }
 
     // Command: choose from multi-card entry then place (砖块序号, 位置, 0=discard)
-    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                            const uint32_t card_id, const uint32_t pos)
     {
         auto& player = Main().players_[pid];
@@ -1772,7 +1772,7 @@ class TalentStage : public SubGameStage<>
 
     // 「赛况」回复：当前最新棋盘；若请求者自己的候选池非空再附自己的候选清单。
     // 没触发条件 / 已选完 / 被「我全都要」吞掉 → 候选池为空 → 无需追加。
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown{Main().CombHtml("## 第 " + std::to_string(Main().round_) + " 回合[天赋选择阶段]")};
 
@@ -1809,7 +1809,7 @@ class TalentStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) return StageErrCode::OK;
         auto& player = Main().players_[pid];
@@ -1820,7 +1820,7 @@ class TalentStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t choice)
+    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t choice)
     {
         auto& player = Main().players_[pid];
         if (player.talent_pool_.empty()) {
@@ -1907,7 +1907,7 @@ class ActiveTalentStage : public SubGameStage<>
     }
 
     // 「赛况」回复：当前最新棋盘；若请求者自己有待发动主动天赋再附自己的主动天赋提示与图片。
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown{Main().CombHtml("## 第 " + std::to_string(Main().round_) + " 回合[主动天赋阶段]")};
 
@@ -1933,7 +1933,7 @@ class ActiveTalentStage : public SubGameStage<>
     }
 
     // 只展示第一个待发动的主动天赋（提示文字 + 选项图），其余待发动的仅用天赋名称做文字说明。玩家处理完后依次推进。
-    void SendPendingActivePrompts_(PlayerID pid, MsgSenderBase::MsgSenderGuard& sender) const
+    void SendPendingActivePrompts_(PlayerID pid, ChildMsgSenderBase::MsgSenderGuard& sender) const
     {
         const auto& player = Main().players_[pid];
         std::vector<Talent> pending;
@@ -1958,7 +1958,7 @@ class ActiveTalentStage : public SubGameStage<>
     }
 
     // 连锁发动：某个主动天赋让玩家又多出待发动天赋（例如「关键选择」选到「乾坤大挪移」）时，补一条提示 + 待选图片，并重置本阶段计时器。
-    void PromptChainedAction_(const PlayerID pid, MsgSenderBase& reply)
+    void PromptChainedAction_(const PlayerID pid, ChildMsgSenderBase& reply)
     {
         auto sender = reply();
         sender << "您还有可继续发动的主动天赋，请继续选择：\n";
@@ -1966,7 +1966,7 @@ class ActiveTalentStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(局时));
     }
 
-    void PassPlayer_(PlayerID pid, MsgSenderBase& sender)
+    void PassPlayer_(PlayerID pid, ChildMsgSenderBase& sender)
     {
         auto& player = Main().players_[pid];
         bool any = false;
@@ -1990,7 +1990,7 @@ class ActiveTalentStage : public SubGameStage<>
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) continue;
             // 已退出的玩家静默放弃主动天赋
-            PassPlayer_(pid, Main().players_[pid].is_leave_ ? EmptyMsgSender::Get() : Global().BoardcastMsgSender());
+            PassPlayer_(pid, Main().players_[pid].is_leave_ ? ChildEmptyMsgSender::Get() : Global().BoardcastMsgSender());
             Global().SetReady(pid);
         }
         Global().HookUnreadyPlayers();
@@ -2014,14 +2014,14 @@ class ActiveTalentStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) return StageErrCode::OK;
         PassPlayer_(pid, reply);
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) {
             reply() << "[错误] 当前没有待发动的主动天赋";
@@ -2031,7 +2031,7 @@ class ActiveTalentStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode QiankunMove_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode QiankunMove_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                                 const uint32_t lhs, const uint32_t rhs)
     {
         if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) {
@@ -2060,7 +2060,7 @@ class ActiveTalentStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode NineMystery_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int choice)
+    AtomReqErrCode NineMystery_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int choice)
     {
         if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) {
             reply() << "[错误] 当前没有待发动的主动天赋";
@@ -2088,7 +2088,7 @@ class ActiveTalentStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode KeyChoice_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int talent_id)
+    AtomReqErrCode KeyChoice_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int talent_id)
     {
         if (Global().IsReady(pid) || !PlayerNeedsAction_(pid)) {
             reply() << "[错误] 当前没有待发动的主动天赋";

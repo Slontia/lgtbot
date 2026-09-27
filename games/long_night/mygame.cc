@@ -122,7 +122,7 @@ const std::vector<RuleCommand> k_rule_commands = {
             AlterChecker<int>({{"机制", 0}, {"地形", 1}, {"传送", 2}, {"成就", 3}, {"区块", 4}})),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(lgtbot::ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     auto& custom_blocks = GET_OPTION_VALUE(game_options, 区块);
     if (custom_blocks.empty()) {
@@ -357,7 +357,7 @@ class MainStage : public MainGameStage<RoundStage>
     int Alive_() const { return std::count_if(board.players.begin(), board.players.end(), [](const auto& player){ return player.out == 0; }); }
     
   private:
-    CompReqErrCode BlockInfo_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode BlockInfo_(const PlayerID pid, const bool is_public, lgtbot::ChildMsgSenderBase& reply)
     {
         auto sender = reply();
         if (GAME_OPTION(特殊事件) != SpecialEvent::NONE) {
@@ -373,7 +373,7 @@ class MainStage : public MainGameStage<RoundStage>
         return StageErrCode::OK;
     }
 
-    CompReqErrCode MapPreview_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const vector<string>& map_string)
+    CompReqErrCode MapPreview_(const PlayerID pid, const bool is_public, lgtbot::ChildMsgSenderBase& reply, const vector<string>& map_string)
     {
         vector<string> map_str = map_string;
         map_str.resize(board.unitMaps.pos.size(), "0");
@@ -670,7 +670,7 @@ class RoundStage : public SubGameStage<>
         }
     }
 
-    bool CheckCommon(const PlayerID pid, MsgSenderBase& reply)
+    bool CheckCommon(const PlayerID pid, lgtbot::ChildMsgSenderBase& reply)
     {
         Player& player = Main().board.players[pid];
         ActivatePlayerMovingTimer(pid);
@@ -685,7 +685,7 @@ class RoundStage : public SubGameStage<>
         return true;
     }
 
-    AtomReqErrCode MakeMove_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, Direct direction)
+    AtomReqErrCode MakeMove_(const PlayerID pid, const bool is_public, lgtbot::ChildMsgSenderBase& reply, Direct direction)
     {
         if (!CheckCommon(pid, reply)) return StageErrCode::FAILED;
 
@@ -736,7 +736,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode MakeMultipleMove_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const string& direction_str)
+    AtomReqErrCode MakeMultipleMove_(const PlayerID pid, const bool is_public, lgtbot::ChildMsgSenderBase& reply, const string& direction_str)
     {
         if (!CheckCommon(pid, reply)) return StageErrCode::FAILED;
 
@@ -797,7 +797,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Stop_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Stop_(const PlayerID pid, const bool is_public, lgtbot::ChildMsgSenderBase& reply)
     {
         if (!CheckCommon(pid, reply)) return StageErrCode::FAILED;
 
@@ -831,7 +831,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Hide_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Hide_(const PlayerID pid, const bool is_public, lgtbot::ChildMsgSenderBase& reply)
     {
         if (GAME_OPTION(隐匿) == HideMode::NONE) {
             reply() << "[错误] 本局游戏未开启隐匿技能";
@@ -866,7 +866,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode SetBomb_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode SetBomb_(const PlayerID pid, const bool is_public, lgtbot::ChildMsgSenderBase& reply)
     {
         if (GAME_OPTION(炸弹) == 0) {
             reply() << "[错误] 本局游戏未开启炸弹人模式";
@@ -894,7 +894,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool show_image)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, lgtbot::ChildMsgSenderBase& reply, const bool show_image)
     {
         ActivatePlayerMovingTimer(pid);
         auto sender = reply();
@@ -918,7 +918,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode AllStatus_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool show_image)
+    AtomReqErrCode AllStatus_(const PlayerID pid, const bool is_public, lgtbot::ChildMsgSenderBase& reply, const bool show_image)
     {
         ActivatePlayerMovingTimer(pid);
         auto sender = reply();
@@ -1092,7 +1092,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, lgtbot::ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -1113,11 +1113,11 @@ class RoundStage : public SubGameStage<>
     int TimerLeft() const { return std::chrono::duration_cast<std::chrono::seconds>(*Global().TimerFinishTime() - std::chrono::steady_clock::now()).count(); }
 
     // ========== 成员函数 ==========
-    bool HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderGuard& sender, const bool multiple_mode);
-    bool PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& sender);
-    bool HandleHeartBeat(Player& player, MsgSenderBase::MsgSenderGuard& sender);
+    bool HandleGridInteraction(Player& player, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender, const bool multiple_mode);
+    bool PlayerCatch(Player& player, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender);
+    bool HandleHeartBeat(Player& player, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender);
     void AnnounceCoinGains();
-    void AppendSurroundingWalls(Player& player, MsgSenderBase::MsgSenderGuard& sender);
+    void AppendSurroundingWalls(Player& player, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender);
 
   public:
     // 供各 BOSS 的回合结算行动调用（见 boss.h 中的 HandleRoundAction）
@@ -1128,7 +1128,7 @@ class RoundStage : public SubGameStage<>
 
 // [巨大的心脏] 心跳节拍（返回本步是否发出砰砰声）
 // 第 1/4/7/10/13/16/19 步发出全图无方向心跳，共 7 次；不计入 trigger_sound
-bool RoundStage::HandleHeartBeat(Player& player, MsgSenderBase::MsgSenderGuard& sender)
+bool RoundStage::HandleHeartBeat(Player& player, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender)
 {
     if (GAME_OPTION(静音)) return false;    // [静音] 心脏同样被静音（屏蔽器范围内也不再提示心跳）
     if (!Main().board.has_heart || step % 3 != 1 || step > 19) return false;
@@ -1152,7 +1152,7 @@ bool RoundStage::HandleHeartBeat(Player& player, MsgSenderBase::MsgSenderGuard& 
 }
 
 // 处理区块效果（返回玩家回合是否结束）
-bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderGuard& sender, const bool multiple_mode)
+bool RoundStage::HandleGridInteraction(Player& player, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender, const bool multiple_mode)
 {
     const string prefix = "\n";
 
@@ -1360,7 +1360,7 @@ bool RoundStage::HandleGridInteraction(Player& player, MsgSenderBase::MsgSenderG
 }
 
 // 捕捉：坐标重合，玩家没有隐匿且未出局
-bool RoundStage::PlayerCatch(Player& player, MsgSenderBase::MsgSenderGuard& sender)
+bool RoundStage::PlayerCatch(Player& player, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender)
 {
     vector<PlayerID> list = Main().board.player_map[player.x][player.y];
     PlayerID t = player.target;
@@ -1468,7 +1468,7 @@ void RoundStage::AnnounceCoinGains()
 }
 
 // 将玩家四周墙壁信息写入私信赛况并以流式输出到 sender
-void RoundStage::AppendSurroundingWalls(Player& player, MsgSenderBase::MsgSenderGuard& sender)
+void RoundStage::AppendSurroundingWalls(Player& player, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender)
 {
     auto [info, md] = Main().board.GetSurroundingWalls(player.pid);
     player.private_record = "【第 " + to_string(Main().round_) + " 回合】\n您所在位置的四周墙壁信息，按照 上下左右 顺序分别是：\n" + info;
@@ -1558,7 +1558,7 @@ auto* MakeMainStage(MainStageFactory factory) { return factory.Create<MainStage>
 using namespace lgtbot::game::GAME_MODULE_NAME;
 
 // 【🐮米诺陶斯】回合结算行动
-void MinotaurBoss::HandleRoundAction(RoundStage& stage, string& boss_record, MsgSenderBase::MsgSenderGuard& sender)
+void MinotaurBoss::HandleRoundAction(RoundStage& stage, string& boss_record, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender)
 {
     auto& Main = stage.Main();
     auto& Global = stage.Global();
@@ -1568,7 +1568,7 @@ void MinotaurBoss::HandleRoundAction(RoundStage& stage, string& boss_record, Msg
     if (BossChangeTarget(false)) {
         // 更换目标，重置步数
         boss_record += "发现更近的目标，变更目标至 [" + to_string(target) + "号]";
-        sender << "\n" << boss_tag << " 发现了距离更近的玩家，变更锁定目标至 " << At(target);
+        sender << "\n" << boss_tag << " 发现了距离更近的玩家，变更锁定目标至 " << lgtbot::At(target);
     } else {
         // 未更换目标，执行移动
         if (BossMove()) {
@@ -1582,7 +1582,7 @@ void MinotaurBoss::HandleRoundAction(RoundStage& stage, string& boss_record, Msg
                 if (Global.PlayerNum() > 1) Global.Eliminate(pid);
                 catched_player.score.catch_score -= 100;        // 抓人分
                 boss_record += "[" + to_string(pid) + "号] ";
-                sender << "\n" << At(pid);
+                sender << "\n" << lgtbot::At(pid);
             }
             boss_record += "被BOSS捕捉出局！";
             sender << "\n被BOSS捕捉出局！";
@@ -1590,13 +1590,13 @@ void MinotaurBoss::HandleRoundAction(RoundStage& stage, string& boss_record, Msg
                 BossChangeTarget(true);    // 重置锁定目标
                 Main.board.UpdatePlayerTarget(GET_OPTION_VALUE(Global.Options(), 捕捉目标));    // 捕捉顺位变更
                 boss_record += "变更目标至 [" + to_string(target) + "号]";
-                sender << "\n\nBOSS更换锁定目标至 " << At(target) << "，同时玩家捕捉目标顺位发生变更！\n";
-                sender << Markdown(Main.board.GetPlayerTable(Main.round_));
+                sender << "\n\nBOSS更换锁定目标至 " << lgtbot::At(target) << "，同时玩家捕捉目标顺位发生变更！\n";
+                sender << lgtbot::Markdown(Main.board.GetPlayerTable(Main.round_));
             }
         } else {
             // 未抓住玩家
             boss_record += "向 [" + to_string(target) + "号] 移动了 " + to_string(steps) + " 步";
-            sender << "\n" << boss_tag << " 向 " << At(target) << " 移动了 " << steps << " 步";
+            sender << "\n" << boss_tag << " 向 " << lgtbot::At(target) << " 移动了 " << steps << " 步";
             if (steps == 3) Main.board.players[target].achievement.boss_chase_four_steps = true;    // 成就【牛头魅魔】
         }
         // BOSS移动后发出巨响（[静音] BOSS 同样无声）
@@ -1616,7 +1616,7 @@ void MinotaurBoss::HandleRoundAction(RoundStage& stage, string& boss_record, Msg
 }
 
 // 【💣邦邦】回合结算行动
-void BangBangBoss::HandleRoundAction(RoundStage& stage, string& boss_record, MsgSenderBase::MsgSenderGuard& sender)
+void BangBangBoss::HandleRoundAction(RoundStage& stage, string& boss_record, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender)
 {
     auto& Main = stage.Main();
     const string boss_tag = GetBossTag();
@@ -1625,7 +1625,7 @@ void BangBangBoss::HandleRoundAction(RoundStage& stage, string& boss_record, Msg
     // 更新目标
     if (BossChangeTarget(false)) {
         boss_record += "变更目标至 [" + to_string(target) + "号]，";
-        sender << "\n" << boss_tag << " 发现了距离更近的玩家，变更锁定目标至 " << At(target);
+        sender << "\n" << boss_tag << " 发现了距离更近的玩家，变更锁定目标至 " << lgtbot::At(target);
     }
     // 每回合一定移动
     boss_record += "BOSS 移动中...";
@@ -1636,7 +1636,7 @@ void BangBangBoss::HandleRoundAction(RoundStage& stage, string& boss_record, Msg
         sender << "\n" << boss_say << "追到你了 [" + to_string(target) + "号]！你说邦邦不邦邦！";
         BossChangeTarget(true);    // 重置锁定目标
         boss_record += "变更目标至 [" + to_string(target) + "号]，";
-        sender << "\n" << boss_tag << " 抵达目标位置，更换新目标 " << At(target);
+        sender << "\n" << boss_tag << " 抵达目标位置，更换新目标 " << lgtbot::At(target);
     }
     // 放置炸弹
     Grid& grid = Main.board.grid_map[x][y];
@@ -1653,6 +1653,6 @@ void BangBangBoss::HandleRoundAction(RoundStage& stage, string& boss_record, Msg
     boss_record += "放置炸弹（" + info + "）";
     sender << "\n\n" << boss_say << "哈哈，炸弹来喽~"
            << "\n" << wall_info
-           << "\n" << Markdown(md, (GRID_SIZE + WALL_SIZE * 2) + 40);
+           << "\n" << lgtbot::Markdown(md, (GRID_SIZE + WALL_SIZE * 2) + 40);
 }
 

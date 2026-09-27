@@ -40,7 +40,7 @@ class Board
 
     /* ========== 绘制阶段 ========== */
     // 私信给绘制者本人：自己的迷宫全貌
-    std::string GetDrawView(const PlayerID pid, const int wall_limit) const
+    std::string GetDrawView(const lgtbot::PlayerID pid, const int wall_limit) const
     {
         const Player& self = players_[pid];
         const int count = self.maze.WallCount();
@@ -99,7 +99,7 @@ class Board
     }
 
     // 单张迷宫：challenger 正在挑战的那一张
-    std::string GetSingleBoard(const PlayerID challenger, const int viewer) const
+    std::string GetSingleBoard(const lgtbot::PlayerID challenger, const int viewer) const
     {
         const int owner = 1 - static_cast<int>(challenger);
         const bool truth = (viewer == owner);

@@ -31,7 +31,7 @@ uint32_t Multiple(const CustomOptions& options) { return 2; } // the default sco
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "该游戏至少 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -100,7 +100,7 @@ class MainStage : public MainGameStage<RoundStage>
     string GetScoreBoard();
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         string score_Board = GetScoreBoard();
         string X_Board = "<tr><td align=\"left\" colspan=" + to_string(Global().PlayerNum() + 1) + "><font size=5>· 本轮 X 为：" + to_string(X[round_ - 1]) + "</font></td></tr>";
@@ -149,7 +149,7 @@ class RoundStage : public SubGameStage<>
         Main().player_leftnum_[pid].erase(remove(Main().player_leftnum_[pid].begin(), Main().player_leftnum_[pid].end(), select), Main().player_leftnum_[pid].end());
     }
 
-    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t num)
+    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t num)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判提交数字";
@@ -193,7 +193,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

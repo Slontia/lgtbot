@@ -140,7 +140,7 @@ class MainStageBase : virtual public StageBase
 {
   public:
     virtual StageErrCode HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
-                                       MsgSenderBase& reply) = 0;
+                                       ChildMsgSenderBase& reply) = 0;
 
     virtual const char* StageInfoC() const = 0;
 

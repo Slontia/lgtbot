@@ -24,11 +24,11 @@ struct TurnRecord
 class Player
 {
   public:
-    Player(const PlayerID pid, const std::string& name, const std::string& avatar)
+    Player(const lgtbot::PlayerID pid, const std::string& name, const std::string& avatar)
         : pid(pid), name(name), avatar(avatar) {}
 
     /* ========== 基础信息 ========== */
-    const PlayerID pid;
+    const lgtbot::PlayerID pid;
     const std::string name;
     const std::string avatar;
 

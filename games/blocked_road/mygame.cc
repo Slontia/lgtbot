@@ -29,7 +29,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; } // the default sco
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -82,7 +82,7 @@ class MainStage : public MainGameStage<StartStage, RoundStage>
 	int round_;
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(board.GetUI(false));
         // Returning |OK| means the game stage
@@ -165,7 +165,7 @@ class StartStage : public SubGameStage<>
     }
 
    private:
-    AtomReqErrCode PlaceChess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const string str)
+    AtomReqErrCode PlaceChess_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const string str)
     {
         if (pid != Main().currentPlayer) {
             reply() << "[错误] 当前不是您的回合";
@@ -195,7 +195,7 @@ class StartStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (pid == Main().currentPlayer) {
             string result;
@@ -240,7 +240,7 @@ class RoundStage : public SubGameStage<>
     }
 
    private:
-    AtomReqErrCode MoveChess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const string str1, const string str2)
+    AtomReqErrCode MoveChess_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const string str1, const string str2)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 本回合您已经完成行动";
@@ -263,7 +263,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode GuessMove_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int guess)
+    AtomReqErrCode GuessMove_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int guess)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 本回合您已经完成行动";
@@ -348,7 +348,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
     
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

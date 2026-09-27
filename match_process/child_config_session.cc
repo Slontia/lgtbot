@@ -11,6 +11,8 @@
 #include "utility/log.h"
 #include "nlohmann/json.hpp"
 
+namespace lgtbot::game {
+
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -123,7 +125,7 @@ void ChildConfigSession::SendProto(const lgtbot::ipc::ConfigResponse& resp)
         ErrorLog() << "ConfigResponse::SerializeToString failed";
         return;
     }
-    if (!WriteFrame(out_, buf)) {
+    if (!ipc::WriteFrame(out_, buf)) {
         ErrorLog() << "ChildConfigSession::SendProto WriteFrame failed";
     }
 }
@@ -300,7 +302,7 @@ int ChildConfigSession::RunLoop()
 {
     for (;;) {
         std::string raw;
-        if (!ReadFrame(in_, raw)) {
+        if (!ipc::ReadFrame(in_, raw)) {
             return 0;
         }
         lgtbot::ipc::ConfigRequest req;
@@ -349,3 +351,5 @@ int ChildConfigSession::RunLoop()
         }
     }
 }
+
+} // namespace lgtbot::game

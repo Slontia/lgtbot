@@ -39,7 +39,7 @@ uint32_t Multiple(const CustomOptions& options) { return GET_OPTION_VALUE(option
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2 || generic_options_readonly.PlayerNum() > 4) {
         reply() << "该游戏为 2 - 4 人游戏，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -171,7 +171,7 @@ class MainStage : public MainGameStage<>
     }
 
     // 电脑行动：以随机选择为主，配合「步数越多越倾向停手」的简单判断，单次调用完成整个回合。
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK; // 非当前行动玩家
@@ -211,7 +211,7 @@ class MainStage : public MainGameStage<>
 
   private:
     // 赛况：重发当前棋盘图片（含玩家列表、各列进度、本回合跑子与可选走法）。
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << BoardMd_();
         if (pid.Get() == board_.turn_pid_) {
@@ -222,7 +222,7 @@ class MainStage : public MainGameStage<>
 
     // 选择走法：仅当前玩家可用。先推进所选走法，再按 stop 决定结算本回合或继续掷骰。
     //   「编号」/「编号 继续」→ stop=false；「编号 停止」→ stop=true。
-    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t index, const bool stop)
+    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t index, const bool stop)
     {
         if (pid.Get() != board_.turn_pid_) {
             reply() << "[错误] 现在不是您的回合，当前行动玩家是：" << Global().PlayerName(PlayerID(board_.turn_pid_));

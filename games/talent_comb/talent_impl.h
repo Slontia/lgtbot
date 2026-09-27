@@ -29,7 +29,7 @@ inline std::string MainStage::GetName(const std::string& x)
 
 // Build score display as two lines: "积分：120" and detail "(90+12+14+[4])"
 // Returns {score_line, detail_line}. detail_line is always present (empty string with &nbsp; if no detail).
-inline std::pair<std::string, std::string> MainStage::PlayerScoreDetail(const PlayerID pid) const
+inline std::pair<std::string, std::string> MainStage::PlayerScoreDetail(const lgtbot::PlayerID pid) const
 {
     const auto& player = players_[pid];
     int32_t base = player.base_score_;
@@ -71,7 +71,7 @@ inline std::pair<std::string, std::string> MainStage::PlayerScoreDetail(const Pl
     return {score_line, detail_line};
 }
 
-inline void MainStage::SetPlayerBoard(html::Table& table, const int pos, const PlayerID pid, const bool isEliminated)
+inline void MainStage::SetPlayerBoard(html::Table& table, const int pos, const lgtbot::PlayerID pid, const bool isEliminated)
 {
     // Build talent display string with extra info indicators
     // Sort display: A级 talents first, then B级
@@ -119,13 +119,13 @@ inline std::string MainStage::CombHtml(const std::string& str)
     table.SetTableStyle("align=\"center\" cellpadding=\"20\" cellspacing=\"0\"");
     int pos = 0;
     // Active players
-    for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
+    for (lgtbot::PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] == 0) {
             SetPlayerBoard(table, pos++, pid, false);
         }
     }
     // Eliminated players
-    for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
+    for (lgtbot::PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] > 0) {
             SetPlayerBoard(table, pos++, pid, true);
         }
@@ -139,7 +139,7 @@ inline std::string MainStage::CombHtml(const std::string& str)
 
 // Called after a card is placed to update score and check talents.
 // Returns {notification string, base score delta (board-only change)}.
-inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(PlayerID pid, uint32_t idx, const ScoreResult& result,
+inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(lgtbot::PlayerID pid, uint32_t idx, const ScoreResult& result,
                                                                 std::optional<Talent> source_talent,
                                                                 const AreaCard* previous_card,
                                                                 TalentCardPlacementSource placement_source)
@@ -209,7 +209,7 @@ inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(PlayerID pid, ui
 // Transform card based on active talents before placement.
 // Returns the transformed card and notification string.
 // is_normal_round: true if from RoundStage (for 三相之力 tracking)
-inline std::pair<AreaCard, std::string> MainStage::TransformCardForPlacement_(PlayerID pid, const AreaCard& card, bool is_normal_round)
+inline std::pair<AreaCard, std::string> MainStage::TransformCardForPlacement_(lgtbot::PlayerID pid, const AreaCard& card, bool is_normal_round)
 {
     auto& player = players_[pid];
     AreaCard actual = card;
@@ -224,7 +224,7 @@ inline std::pair<AreaCard, std::string> MainStage::TransformCardForPlacement_(Pl
 }
 
 // Handle discard (position 0) talent effects. Returns notification string.
-inline std::string MainStage::HandleDiscard_(PlayerID pid, const AreaCard& card, std::optional<Talent> source_talent)
+inline std::string MainStage::HandleDiscard_(lgtbot::PlayerID pid, const AreaCard& card, std::optional<Talent> source_talent)
 {
     auto& player = players_[pid];
     std::string notify;
@@ -240,7 +240,7 @@ inline std::string MainStage::HandleDiscard_(PlayerID pid, const AreaCard& card,
 
 // Apply "三年之期" storage for a player this round
 // Returns true if the card was stored (player skips placement)
-inline bool MainStage::HandleThreeYearStore_(PlayerID pid, const AreaCard& card)
+inline bool MainStage::HandleThreeYearStore_(lgtbot::PlayerID pid, const AreaCard& card)
 {
     auto& player = players_[pid];
     if (!player.HasTalent(Talent::三年之期)) return false;
@@ -257,7 +257,7 @@ inline bool MainStage::HandleThreeYearStore_(PlayerID pid, const AreaCard& card)
 
 // ===== Battle System =====
 
-inline bool MainStage::DoBattle_(MsgSenderBase::MsgSenderGuard& sender)
+inline bool MainStage::DoBattle_(ChildMsgSenderBase::MsgSenderGuard& sender)
 {
     if (alive_ <= 1) return false;
 
@@ -268,8 +268,8 @@ inline bool MainStage::DoBattle_(MsgSenderBase::MsgSenderGuard& sender)
     }
 
     std::string result;
-    std::vector<PlayerID> alive_players;
-    for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
+    std::vector<lgtbot::PlayerID> alive_players;
+    for (lgtbot::PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
         if (player_out_[pid] == 0) {
             alive_players.push_back(pid);
         }
@@ -282,8 +282,8 @@ inline bool MainStage::DoBattle_(MsgSenderBase::MsgSenderGuard& sender)
     }
 
     // Apply temporary battle score from talents
-    std::map<PlayerID, int32_t> temp_scores;
-    for (PlayerID pid : alive_players) {
+    std::map<lgtbot::PlayerID, int32_t> temp_scores;
+    for (lgtbot::PlayerID pid : alive_players) {
         int32_t temp = players_[pid].TempBattleScore();
         if (temp != 0) {
             temp_scores[pid] = temp;
@@ -294,13 +294,13 @@ inline bool MainStage::DoBattle_(MsgSenderBase::MsgSenderGuard& sender)
     // (e.g. 贪婪宝藏 transforming 000→wild after a real defeat) do not leak
     // into the mirror opponent's score this same battle round.
     std::unordered_map<int32_t, std::pair<int64_t, int32_t>> pre_battle_scores;
-    for (PlayerID pid : alive_players) {
+    for (lgtbot::PlayerID pid : alive_players) {
         pre_battle_scores[pid.Get()] = {PlayerBattleScore(pid), players_[pid].base_score_};
     }
 
     // Generate fight pairs (avoid recent repeats)
     std::unordered_map<int32_t, int32_t> fight_map;
-    std::vector<PlayerID> list = alive_players;
+    std::vector<lgtbot::PlayerID> list = alive_players;
     bool retry;
     int32_t max_attempts = 100;
     do {
@@ -334,13 +334,13 @@ inline bool MainStage::DoBattle_(MsgSenderBase::MsgSenderGuard& sender)
     for (const auto& entry : fight_map) {
         const int32_t pid1 = entry.first;
         const int32_t pid2 = entry.second;
-        ProcessBattle_(PlayerID(pid1), PlayerID(pid2), false, result);
+        ProcessBattle_(lgtbot::PlayerID(pid1), lgtbot::PlayerID(pid2), false, result);
     }
 
     // Mirror match for odd player
     if (list.size() % 2 == 1) {
-        PlayerID solo = list.back();
-        PlayerID mirror;
+        lgtbot::PlayerID solo = list.back();
+        lgtbot::PlayerID mirror;
         int32_t attempts = 0;
         do {
             mirror = list[RandInt(battle_rng_, 0, static_cast<uint32_t>(list.size() - 2))];
@@ -378,7 +378,7 @@ inline bool MainStage::DoBattle_(MsgSenderBase::MsgSenderGuard& sender)
 // 之后分发 OnDamageReceived：遍历 talent_states_ 而非 talents_，
 // 让「生命游戏」等需要从游戏开局就累计的"记账型 hook"在被玩家获取之前也能记账。
 // 返回 OnLethalDamage 累计的播报文本（不含玩家名/前缀），调用方负责拼前缀并写入 sender/result。
-inline std::string MainStage::ApplyDamage_(PlayerID pid, int32_t damage)
+inline std::string MainStage::ApplyDamage_(lgtbot::PlayerID pid, int32_t damage)
 {
     auto& player = players_[pid];
     std::string notify;
@@ -399,7 +399,7 @@ inline std::string MainStage::ApplyDamage_(PlayerID pid, int32_t damage)
     return notify;
 }
 
-inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror, std::string& result,
+inline void MainStage::ProcessBattle_(lgtbot::PlayerID pid1, lgtbot::PlayerID pid2, bool mirror, std::string& result,
                                      std::optional<int64_t> mirror_battle_score,
                                      std::optional<int32_t> mirror_base_score)
 {
@@ -490,7 +490,7 @@ inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror,
 }
 
 // 对该玩家所有已获取天赋分发 OnBattleEnd。任何 hook 返回的文本会以 "玩家名 文本" 形式追加到 result。
-inline void MainStage::ApplyBattleEndTalents_(PlayerID pid, bool mirror, int64_t my_score, int64_t opp_score,
+inline void MainStage::ApplyBattleEndTalents_(lgtbot::PlayerID pid, bool mirror, int64_t my_score, int64_t opp_score,
                                               int32_t outcome, std::string& result)
 {
     const TalentBattleEndContext context{mirror, HasValuableOne(special_event_), my_score, opp_score, outcome};
@@ -504,7 +504,7 @@ inline void MainStage::ApplyBattleEndTalents_(PlayerID pid, bool mirror, int64_t
 }
 
 // Returns extra damage from attacker's talents
-inline int32_t MainStage::ApplyAttackTalents_(PlayerID attacker, PlayerID defender, int32_t damage, std::string& result)
+inline int32_t MainStage::ApplyAttackTalents_(lgtbot::PlayerID attacker, lgtbot::PlayerID defender, int32_t damage, std::string& result)
 {
     int32_t extra = 0;
     for (const auto talent : k_attack_order) {
@@ -519,7 +519,7 @@ inline int32_t MainStage::ApplyAttackTalents_(PlayerID attacker, PlayerID defend
 }
 
 // Returns damage reduction (negative = less damage taken)
-inline int32_t MainStage::ApplyDefenseTalents_(PlayerID defender, int32_t damage)
+inline int32_t MainStage::ApplyDefenseTalents_(lgtbot::PlayerID defender, int32_t damage)
 {
     int32_t reduction = 0;
     for (const auto talent : k_defense_order) {
@@ -529,7 +529,7 @@ inline int32_t MainStage::ApplyDefenseTalents_(PlayerID defender, int32_t damage
     return reduction;
 }
 
-inline void MainStage::ApplyDefeatTalents_(PlayerID loser, bool mirror, int32_t& damage,
+inline void MainStage::ApplyDefeatTalents_(lgtbot::PlayerID loser, bool mirror, int32_t& damage,
                                             int64_t my_battle_score, int64_t opp_battle_score, std::string& result)
 {
     // 顺序定义在 talent_order.h 的 k_defeat_order；
@@ -545,7 +545,7 @@ inline void MainStage::ApplyDefeatTalents_(PlayerID loser, bool mirror, int32_t&
     players_[loser].UpdateZeroRiskMaxScore();
 }
 
-inline void MainStage::ApplyVictoryTalents_(PlayerID winner, bool mirror,
+inline void MainStage::ApplyVictoryTalents_(lgtbot::PlayerID winner, bool mirror,
                                              int64_t my_battle_score, int64_t opp_battle_score, std::string& result)
 {
     for (const auto talent : k_victory_order) {
@@ -560,9 +560,9 @@ inline void MainStage::ApplyVictoryTalents_(PlayerID winner, bool mirror,
 
 // Process deaths and eliminations after battle. 共用 sender，将淘汰播报与击杀触发型天赋（如劫掠）合并播报。
 // 注：致死救援（绝地反击 等 OnLethalDamage）已在 ApplyDamage_ 内处理，到达这里的玩家是真正死亡的。
-inline void MainStage::DoEliminationAfterBattle_(MsgSenderBase::MsgSenderGuard& sender)
+inline void MainStage::DoEliminationAfterBattle_(ChildMsgSenderBase::MsgSenderGuard& sender)
 {
-    for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
+    for (lgtbot::PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0 || players_[pid].hp_ > 0) continue;
 
         // Player dies in battle phase. phase=1 排名差于同回合中毒淘汰（phase=2）。
@@ -573,7 +573,7 @@ inline void MainStage::DoEliminationAfterBattle_(MsgSenderBase::MsgSenderGuard& 
         Global().Eliminate(pid);
 
         // 通用 dispatch：让 killer（同对对战中存活的对手）已获取的天赋有机会响应"击杀对手"。
-        std::optional<PlayerID> killer = FindKillerFromFightMap_(pid);
+        std::optional<lgtbot::PlayerID> killer = FindKillerFromFightMap_(pid);
         if (killer.has_value()) {
             auto& k_player = players_[*killer];
             for (const auto talent : k_player.talents_) {
@@ -587,14 +587,14 @@ inline void MainStage::DoEliminationAfterBattle_(MsgSenderBase::MsgSenderGuard& 
 }
 
 // 从当前对战 fight_map 中查找击杀 victim 的存活对手；若 victim 是镜像对战/无配对则返回空。
-inline std::optional<PlayerID> MainStage::FindKillerFromFightMap_(PlayerID victim) const
+inline std::optional<lgtbot::PlayerID> MainStage::FindKillerFromFightMap_(lgtbot::PlayerID victim) const
 {
     for (const auto& [p1, p2] : current_fight_map_) {
-        if (PlayerID(p1) == victim && player_out_[PlayerID(p2)] == 0) {
-            return PlayerID(p2);
+        if (lgtbot::PlayerID(p1) == victim && player_out_[lgtbot::PlayerID(p2)] == 0) {
+            return lgtbot::PlayerID(p2);
         }
-        if (PlayerID(p2) == victim && player_out_[PlayerID(p1)] == 0) {
-            return PlayerID(p1);
+        if (lgtbot::PlayerID(p2) == victim && player_out_[lgtbot::PlayerID(p1)] == 0) {
+            return lgtbot::PlayerID(p1);
         }
     }
     return std::nullopt;
@@ -605,7 +605,7 @@ inline void MainStage::DoPoison_()
     bool any_poisoned = false;
     std::string poison_msg;
     std::string lethal_msg;  // 中毒致死时 OnLethalDamage 的累积播报，在 sender 创建后一并输出
-    for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
+    for (lgtbot::PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0) continue;
         if (players_[pid].poison_layers_ > 0) {
             const int32_t original_damage = players_[pid].poison_layers_;
@@ -632,7 +632,7 @@ inline void MainStage::DoPoison_()
     auto sender = Global().Boardcast();
     sender << "中毒结算：\n" << poison_msg;
     if (!lethal_msg.empty()) sender << lethal_msg;
-    for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
+    for (lgtbot::PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0 || players_[pid].hp_ > 0) continue;
         // 中毒淘汰：phase=2 在同回合内排名优于对战阶段淘汰（phase=1），因结算时序更晚。
         alive_--;
@@ -646,7 +646,7 @@ inline void MainStage::DoPoison_()
 // Collect pre-battle extra cards
 inline void MainStage::CollectPreBattleExtras_()
 {
-    for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
+    for (lgtbot::PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0) continue;
         auto& player = players_[pid];
 
@@ -702,7 +702,7 @@ inline void MainStage::CollectPreBattleExtras_()
 // Collect post-battle extra cards (三年之期)
 inline void MainStage::CollectPostBattleExtras_()
 {
-    for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
+    for (lgtbot::PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0) continue;
         auto& player = players_[pid];
 

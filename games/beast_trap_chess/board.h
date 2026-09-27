@@ -62,7 +62,7 @@ class Board
     }
 
     // 获取玩家和地图的markdown字符串
-    string GetMarkdown(const int round, const PlayerID currentPlayer) const
+    string GetMarkdown(const int round, const lgtbot::PlayerID currentPlayer) const
     {
         return GetPlayerTable(round, currentPlayer) + GetBoard();
     }
@@ -129,7 +129,7 @@ class Board
     }
 
     // 获取玩家信息
-    string GetPlayerTable(const int round, const PlayerID currentPlayer) const
+    string GetPlayerTable(const int round, const lgtbot::PlayerID currentPlayer) const
     {
         html::Table playerTable(2, 3);
         playerTable.SetTableStyle("align=\"center\" cellpadding=\"2\"");
@@ -182,7 +182,7 @@ class Board
 	}
 
     // 检查移动（返回所需要的步数，无法抵达返回-1）
-    int CheckMoveStep(const PlayerID pid, const pair<int, int> target) const
+    int CheckMoveStep(const lgtbot::PlayerID pid, const pair<int, int> target) const
     {
         int sx = players[pid].x, sy = players[pid].y;
         int ex = target.first, ey = target.second;
@@ -263,7 +263,7 @@ class Board
     }
 
     // 执行移动和放置墙壁
-    void MoveAndPlace(const PlayerID pid, const pair<int, int> pos, const Direct direction)
+    void MoveAndPlace(const lgtbot::PlayerID pid, const pair<int, int> pos, const Direct direction)
     {
         players[pid].SetPos(pos);
         switch (direction) {

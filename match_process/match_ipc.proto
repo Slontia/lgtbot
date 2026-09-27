@@ -42,9 +42,11 @@ message PlayerInfo {
 }
 
 message StartReq {
-  uint64              match_id = 1;
-  uint32              user_num = 2;
-  repeated PlayerInfo players  = 3;
+  uint64              match_id  = 1;
+  uint32              user_num  = 2;
+  repeated PlayerInfo players   = 3;
+  uint32              bench     = 4;
+  bool                is_formal = 5;
 }
 
 message ExecuteReq {
@@ -55,21 +57,22 @@ message ExecuteReq {
 
 message LeaveReq { uint32 player_id = 1; }
 
-message HelpReq { bool text_mode = 1; }
-
-message ApplyInitOptionsReq { string args = 1; }
+message HelpReq  { bool   text_mode     = 1; }
+message TimeoutReq {}
+message AlertReq  { uint64 remaining_sec = 1; }
 
 message GameRequest {
   uint64 ipc_id = 8;
   oneof req {
-    InitReq             init               = 1;
-    SetOptionReq        set_option         = 2;
-    StartReq            start              = 3;
-    ExecuteReq          execute            = 4;
-    LeaveReq            leave              = 5;
-    HelpReq             help               = 6;
-    bool                shutdown           = 7;  // true = terminate
-    ApplyInitOptionsReq apply_init_options = 9;  // 8 is taken by ipc_id above
+    InitReq      init       = 1;
+    SetOptionReq set_option = 2;
+    StartReq     start      = 3;
+    ExecuteReq   execute    = 4;
+    LeaveReq     leave      = 5;
+    HelpReq      help       = 6;
+    bool         shutdown   = 7;  // true = terminate
+    TimeoutReq   timeout    = 9;
+    AlertReq     alert      = 10;
   }
 }
 
@@ -94,7 +97,6 @@ message PostResp {
     BROADCAST = 0;
     GROUP     = 1;
     TELL      = 2;
-    AI        = 3;
   }
   Channel          channel    = 1;
   uint32           target_pid = 2;  // valid for TELL
@@ -112,7 +114,9 @@ message ScoreEntry {
   repeated string achievements = 3;
 }
 
-message GameOverResp { repeated ScoreEntry scores = 1; }
+message GameOverResp    { repeated ScoreEntry scores = 1; }
+message TimerStartResp  { uint64 duration_sec = 1; }
+message TimerStopResp   {}
 
 message GameResponse {
   uint64 ipc_id = 7;
@@ -123,6 +127,8 @@ message GameResponse {
     PostResp        post         = 4;
     PlayerStateResp player_state = 5;
     GameOverResp    game_over    = 6;
+    TimerStartResp  timer_start  = 8;
+    TimerStopResp   timer_stop   = 9;
   }
 }
 
@@ -134,21 +140,15 @@ message SetFormalReq        { bool value = 1; }
 message InitOptionsReq      { string args = 1; }
 message HandleRuleCommandReq { string args = 1; }
 
-// Compute option info as if a match started with the given log + init args.
-// Used in lobby state, where the match has its own view of the options state.
 message QueryMatchOptionInfoReq {
   bool            text_mode           = 1;
   repeated string applied_options_log = 2;
   string          init_options_args   = 3;
 }
-
-// Validate an option string against [applied_options_log + text].
-// Returns ok + max_player/multiple without mutating global defaults.
 message TryMatchOptionReq {
   repeated string applied_options_log = 1;
   string          text                = 2;
 }
-
 message ConfigRequest {
   oneof req {
     QueryOptionInfoReq      query_option_info       = 1;

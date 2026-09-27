@@ -9,6 +9,8 @@
 #include <iostream>
 #include <limits>
 
+namespace lgtbot {
+
 #define DEFINE_INTEGER_ID(idname, type) \
 struct idname \
 { \
@@ -84,3 +86,5 @@ struct idname \
 
 DEFINE_STRING_ID(UserID);
 DEFINE_STRING_ID(GroupID);
+
+} // namespace lgtbot

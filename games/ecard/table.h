@@ -32,8 +32,8 @@ public:
     // 开局设定的目标分
     int targetScore[2];
     // 进攻方ID & 防守方ID 默认为1 0（用于其他模式）
-    PlayerID attacker = 0;
-    PlayerID defender = 1;
+    lgtbot::PlayerID attacker = 0;
+    lgtbot::PlayerID defender = 1;
     /*
         记录表格数据 -1为空数据
         1、胜负：0胜利 1失败
@@ -214,7 +214,7 @@ public:
     }
 
     // [点球模式]获取玩家剩余回合数（胜负判定用）
-    int GetPlayerLeftRound(PlayerID player) const
+    int GetPlayerLeftRound(lgtbot::PlayerID player) const
     {
         for (int i = 0; i < 5; i++) {
             if (shootoutRecord[player][i + 1] == 2) {

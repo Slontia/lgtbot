@@ -17,6 +17,8 @@
 #include "game_framework/game_main.h"
 #include "bot_core/subprocess.h"
 
+namespace lgtbot::core {
+
 // Parent-side client for the per-game config_runner subprocess.
 //
 // The subprocess is lazily started on first use and automatically shut down
@@ -111,3 +113,5 @@ class GameConfigClient
     std::mutex watchdog_cv_mutex_;
     std::thread watchdog_thread_;
 };
+
+} // namespace lgtbot::core

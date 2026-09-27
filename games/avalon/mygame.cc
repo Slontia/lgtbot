@@ -85,7 +85,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
 
 // The function is invoked before a game starts. You can make final adaption for the options.
 // The return value of false denotes failure to start a game.
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 5) {
         reply() << "该游戏至少 5 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -352,7 +352,7 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
         return html;
     }
 
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(MakeHtml_(cur_title_), 800);
         if (!is_public) {
@@ -362,7 +362,7 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
         return StageErrCode::OK;
     }
 
-    CompReqErrCode Assassin_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const PlayerID target_pid)
+    CompReqErrCode Assassin_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const PlayerID target_pid)
     {
         if (!players_[pid].can_assassin_) {
             reply() << "刺杀失败：你不具有刺杀能力";
@@ -378,7 +378,7 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
     {
         {
             auto sender = Global().Boardcast();
-            sender << ::Name(pid) << "选择刺杀" << ::Name(target_pid) << "，";
+            sender << lgtbot::Name(pid) << "选择刺杀" << lgtbot::Name(target_pid) << "，";
             if (players_[target_pid].occupation_ == Occupation::梅林) {
                 sender << "成功，坏人阵营胜利";
                 winner_team_ = Team::坏;
@@ -401,7 +401,7 @@ class MainStage : public MainGameStage<TeamUpStage, VoteStage, ActStage, DetectS
         std::ranges::transform(member_pids_, std::back_inserter(members_succ), [&](const PlayerID pid) { return players_succ[pid]; });
     }
 
-    void AppendOccupationInfo_(const PlayerID pid, MsgSenderBase::MsgSenderGuard& sender) const;
+    void AppendOccupationInfo_(const PlayerID pid, ChildMsgSenderBase::MsgSenderGuard& sender) const;
     void UpdateTeamUpTable_(const std::vector<bool>& players_agree);
     void UpdateMissionTable_(const int32_t failure_num, const std::optional<PlayerID> target_pid);
     void ShowFinalHtml_();
@@ -533,7 +533,7 @@ class DetectStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(投票时限));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -559,10 +559,10 @@ class DetectStage : public SubGameStage<>
     PlayerID GetDetectedPid() const { return detected_pid_; }
 
   private:
-    AtomReqErrCode Detect_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t pid_to_detect)
+    AtomReqErrCode Detect_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t pid_to_detect)
     {
         if (pid != witch_pid_) {
-            reply() << "组队失败：对不起，本轮的湖中仙女是" << ::Name(witch_pid_) << "，只有湖中仙女才可以验证玩家";
+            reply() << "组队失败：对不起，本轮的湖中仙女是" << lgtbot::Name(witch_pid_) << "，只有湖中仙女才可以验证玩家";
             return StageErrCode::FAILED;
         }
         if (Main().GetPlayers()[pid_to_detect].has_been_witch_) {
@@ -604,7 +604,7 @@ class ActStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(投票时限));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -644,13 +644,13 @@ class ActStage : public SubGameStage<>
             return;
         }
         const PlayerID sword_pid = member_pids_.front();
-        Global().Boardcast() << ::Name(sword_pid) << "反转了" << ::Name(*reverse_pid_) << "的行动";
-        Global().Tell(sword_pid) << ::Name(*reverse_pid_) << "原本的行动是："
+        Global().Boardcast() << lgtbot::Name(sword_pid) << "反转了" << lgtbot::Name(*reverse_pid_) << "的行动";
+        Global().Tell(sword_pid) << lgtbot::Name(*reverse_pid_) << "原本的行动是："
                                  << (players_succ_[*reverse_pid_] ? "成功" : "失败");
         players_succ_[*reverse_pid_] = !players_succ_[*reverse_pid_];
     }
 
-    AtomReqErrCode ActInternal_(const PlayerID pid, MsgSenderBase& reply, const bool to_succ)
+    AtomReqErrCode ActInternal_(const PlayerID pid, ChildMsgSenderBase& reply, const bool to_succ)
     {
         if (Main().GetPlayers()[pid].team_ == Team::好 && !to_succ) {
             reply() << "行动失败：好人必须让任务成功";
@@ -660,7 +660,7 @@ class ActStage : public SubGameStage<>
         return AtomReqErrCode::READY;
     }
 
-    AtomReqErrCode Act_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool to_succ)
+    AtomReqErrCode Act_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool to_succ)
     {
         const auto ret = ActInternal_(pid, reply, to_succ);
         if (ret == AtomReqErrCode::FAILED) {
@@ -670,7 +670,7 @@ class ActStage : public SubGameStage<>
         return ret;
     }
 
-    AtomReqErrCode ActWithSword_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool to_succ, const PlayerID pid_to_reverse)
+    AtomReqErrCode ActWithSword_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool to_succ, const PlayerID pid_to_reverse)
     {
         if (!GAME_OPTION(王者之剑)) {
             reply() << "行动失败：当前游戏未启用王者之剑";
@@ -694,7 +694,7 @@ class ActStage : public SubGameStage<>
         }
         reverse_pid_ = pid_to_reverse;
         reply() << "行动成功，您选择了让此次任务" << (to_succ ? "成功" : "失败") << "，并反转了"
-                << ::Name(pid_to_reverse) << "的行动，其原本的行动在阶段结束后将被私信给您";
+                << lgtbot::Name(pid_to_reverse) << "的行动，其原本的行动在阶段结束后将被私信给您";
         return ret;
     }
 
@@ -721,7 +721,7 @@ class VoteStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(投票时限));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -733,7 +733,7 @@ class VoteStage : public SubGameStage<>
     const std::vector<bool>& GetPlayersAgree() const { return players_agree_; }
 
   private:
-    AtomReqErrCode Vote_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool to_agree)
+    AtomReqErrCode Vote_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool to_agree)
     {
         players_agree_[pid] = to_agree;
         reply() << "行动成功，您" << (to_agree ? "同意" : "反对") << "了队长的组队提议";
@@ -777,7 +777,7 @@ class TeamUpStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(组队时限));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -814,10 +814,10 @@ class TeamUpStage : public SubGameStage<>
         return false;
     }
 
-    AtomReqErrCode TeamUp_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<uint32_t>& attempt_member_pids)
+    AtomReqErrCode TeamUp_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::vector<uint32_t>& attempt_member_pids)
     {
         if (pid != captain_pid_) {
-            reply() << "组队失败：对不起，本轮的队长是 " << ::Name(captain_pid_) << "，只有队长才可以发起组队";
+            reply() << "组队失败：对不起，本轮的队长是 " << lgtbot::Name(captain_pid_) << "，只有队长才可以发起组队";
             return StageErrCode::FAILED;
         }
         if (attempt_member_pids.size() != member_num_) {
@@ -859,7 +859,7 @@ class AssassinStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(投票时限));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -892,14 +892,14 @@ void MainStage::NextStageFsm(AssassinStage& sub_stage, const CheckoutReason reas
     ShowFinalHtml_();
 }
 
-void MainStage::AppendOccupationInfo_(const PlayerID pid, MsgSenderBase::MsgSenderGuard& sender) const
+void MainStage::AppendOccupationInfo_(const PlayerID pid, ChildMsgSenderBase::MsgSenderGuard& sender) const
 {
     const auto append_bad_team_players = [&](const Occupation except_occupation)
         {
             sender << "- 除【" << except_occupation << "】以外的「坏人阵营」玩家包括 ";
             for (PlayerID other_pid = 0; other_pid < Global().PlayerNum(); ++other_pid) {
                 if (players_[other_pid].team_ == Team::坏 && players_[other_pid].occupation_ != except_occupation) {
-                    sender << ::Name(other_pid) << " ";
+                    sender << lgtbot::Name(other_pid) << " ";
                 }
             }
         };
@@ -933,7 +933,7 @@ void MainStage::AppendOccupationInfo_(const PlayerID pid, MsgSenderBase::MsgSend
                     if (players_[other_pid].occupation_ != Occupation::梅林 && players_[other_pid].occupation_ != Occupation::莫甘娜) {
                         continue;
                     }
-                    sender << ::Name(other_pid);
+                    sender << lgtbot::Name(other_pid);
                     if (std::exchange(found_one, true) == false) {
                         sender << "和";
                     }
@@ -956,7 +956,7 @@ void MainStage::AppendOccupationInfo_(const PlayerID pid, MsgSenderBase::MsgSend
                     sender << "另一名【兰斯洛特】是";
                     for (PlayerID other_pid = 0; other_pid < Global().PlayerNum(); ++other_pid) {
                         if (players_[other_pid].occupation_ == Occupation::兰斯洛特 && pid != other_pid) {
-                            sender << ::Name(other_pid);
+                            sender << lgtbot::Name(other_pid);
                             break;
                         }
                     }
@@ -1179,7 +1179,7 @@ void MainStage::NextStageFsm(ActStage& sub_stage, const CheckoutReason reason, S
 void MainStage::NextStageFsm(DetectStage& sub_stage, const CheckoutReason reason, SubStageFsmSetter setter)
 {
     const auto detected_pid = sub_stage.GetDetectedPid();
-    Global().Tell(*witch_pid_) << ::Name(sub_stage.GetDetectedPid()) << "当前的阵营是「"
+    Global().Tell(*witch_pid_) << lgtbot::Name(sub_stage.GetDetectedPid()) << "当前的阵营是「"
                                << players_[detected_pid].team_.ToString() << "」";
     {
         auto sender = Global().Boardcast();

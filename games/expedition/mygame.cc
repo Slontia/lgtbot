@@ -44,7 +44,7 @@ std::map<std::string, int> char_op = {
     {"＞", 3}, {"大", 3}, {"<", 4},  {"＜", 4}, {"小", 4},
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) { return true; }
 
 const std::vector<InitOptionsCommand> k_init_options_commands = {
     InitOptionsCommand("独自一人开始游戏",
@@ -443,11 +443,11 @@ class RoundStage : public SubGameStage<> {
     return StageErrCode::CHECKOUT;
   }
 
-  virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override {
+  virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override {
     return StageErrCode::READY;
   }
 
-  AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply) {
+  AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply) {
     if (Global().IsReady(pid)) {
       reply() << "跳过失败：您已经完成落子，无法跳过";
       return StageErrCode::FAILED;
@@ -456,7 +456,7 @@ class RoundStage : public SubGameStage<> {
     return StageErrCode::READY;
   }
 
-  AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+  AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                       const std::string& pos, const int op) {
     if (Global().IsReady(pid)) {
       reply() << "您已经设置过，无法重复设置";

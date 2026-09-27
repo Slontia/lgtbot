@@ -38,7 +38,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -106,7 +106,7 @@ class MainStage : public MainGameStage<RoundStage>
     std::string GetFinalBoardHtml() const { return GetHeaderHtml_() + board_.ToHtml(k_empty, win_coors_); }
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(IsResultDecided() ? GetFinalBoardHtml() : GetBoardHtml(), k_image_width);
         return StageErrCode::OK;
@@ -235,7 +235,7 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Move_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t number,
+    AtomReqErrCode Move_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t number,
                          const Direct direct)
     {
         if (Global().IsReady(pid)) {
@@ -262,7 +262,7 @@ class RoundStage : public SubGameStage<>
         return DoMove_(pid, index, direct);
     }
 
-    AtomReqErrCode MoveCompact_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str)
+    AtomReqErrCode MoveCompact_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& str)
     {
         if (str.size() < 2 || str[0] < '1' || str[0] > static_cast<char>('0' + k_piece_num)) {
             reply() << "[错误] 格式错误，正确格式为「棋子编号 方向」，如「3 左上」或「3左上」";
@@ -277,7 +277,7 @@ class RoundStage : public SubGameStage<>
         return Move_(pid, is_public, reply, static_cast<uint32_t>(str[0] - '0'), it->second);
     }
 
-    AtomReqErrCode Concede_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t)
+    AtomReqErrCode Concede_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t)
     {
         Global().Boardcast() << At(pid) << "（" << k_side_names[pid] << "方）认输，判负";
         Main().SetLoserByDefault(pid);
@@ -311,7 +311,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

@@ -41,7 +41,7 @@ uint32_t Multiple(const CustomOptions& options) {
 const MutableGenericOptions k_default_generic_options{};
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "该游戏至少 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -140,7 +140,7 @@ class MainStage : public MainGameStage<RoundStage>
     
     
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << Markdown(table.GetTable(true, players, current_players));
@@ -270,7 +270,7 @@ class CardStage : public SubGameStage<>
     }
 
    private:
-    AtomReqErrCode PlayCard_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int card)
+    AtomReqErrCode PlayCard_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int card)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判出牌";
@@ -334,7 +334,7 @@ class CardStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
     
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -380,7 +380,7 @@ class PlaceStage : public SubGameStage<>
     }
 
    private:
-    AtomReqErrCode PlaceCard_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int line)
+    AtomReqErrCode PlaceCard_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int line)
     {
         if (line > GAME_OPTION(行数)) {
             reply() << "[错误] 行号不存在，本局游戏仅可在 1~" + to_string(GAME_OPTION(行数)) + " 中放置卡牌";
@@ -505,7 +505,7 @@ class PlaceStage : public SubGameStage<>
         return HandleStageOver_();
     }
     
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

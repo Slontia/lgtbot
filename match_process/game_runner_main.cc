@@ -24,7 +24,7 @@ int main(const int argc, char** argv)
     if (argc < 2) {
         return 2;
     }
-    ChildGameSession session(stdin, stdout);
+    lgtbot::game::ChildGameSession session(stdin, stdout);
     std::string err;
     if (!session.LoadModule(argv[1], err)) {
         std::fprintf(stderr, "%s\n", err.c_str());

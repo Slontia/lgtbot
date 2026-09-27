@@ -29,7 +29,7 @@ uint32_t Multiple(const CustomOptions& options) { return 2; } // the default sco
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
@@ -96,7 +96,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -156,7 +156,7 @@ class MainStage : public MainGameStage<>
     }
 
   private:
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (pid != turn_pid_) {
             reply() << "pass 失败：不是您的回合";
@@ -167,7 +167,7 @@ class MainStage : public MainGameStage<>
         return RoundOver_(to_continue);
     }
 
-    std::optional<std::pair<uint32_t, uint32_t>> DecodePos_(const std::string& str, MsgSenderBase& reply)
+    std::optional<std::pair<uint32_t, uint32_t>> DecodePos_(const std::string& str, ChildMsgSenderBase& reply)
     {
         const auto decode_res = DecodePos<Board::k_size_, Board::k_size_>(str);
         if (const auto* const errstr = std::get_if<std::string>(&decode_res)) {
@@ -182,7 +182,7 @@ class MainStage : public MainGameStage<>
         return coor;
     }
 
-    AtomReqErrCode InitSet_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode InitSet_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const std::string& black_1_pos_str, const std::string& white_pos_str, const std::string& black_2_pos_str)
     {
         if (pid != turn_pid_) {
@@ -211,7 +211,7 @@ class MainStage : public MainGameStage<>
         return RoundOver_(true);
     }
 
-    AtomReqErrCode Swap1Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode Swap1Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const std::string& white_pos_str, const std::string& black_pos_str)
     {
         if (pid != turn_pid_) {
@@ -238,7 +238,7 @@ class MainStage : public MainGameStage<>
         return RoundOver_(true); // the board must not be filled and any color must not achiave line
     }
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& pos_str)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& pos_str)
     {
         if (pid != turn_pid_) {
             reply() << "落子失败：不是您的回合";
@@ -267,7 +267,7 @@ class MainStage : public MainGameStage<>
         return RoundOver_(result == Result::CONTINUE_OK);
     }
 
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(HtmlHead_() + board_.ToHtml());
         return StageErrCode::OK;

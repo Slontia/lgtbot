@@ -15,7 +15,7 @@ class Boss
     const BossType type;
     int x = 0, y = 0;
     int steps = -1;
-    PlayerID target = 0;
+    lgtbot::PlayerID target = 0;
     // 同类型BOSS存在多个时的编号后缀
     string index_label;
 
@@ -36,7 +36,7 @@ class Boss
     string GetBossSay() const { return "【" + GetBossName() + "】"; }
 
     // 回合结算行动：由各 BOSS 自行实现（函数体见 mygame.cc）
-    virtual void HandleRoundAction(RoundStage& stage, string& boss_record, MsgSenderBase::MsgSenderGuard& sender) = 0;
+    virtual void HandleRoundAction(RoundStage& stage, string& boss_record, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender) = 0;
 
     // BOSS行为信息
     struct BossMoveRecord {
@@ -215,7 +215,7 @@ class MinotaurBoss : public Boss
         return "现身于地图中，会在回合结束时追击最近的玩家。BOSS发出震耳欲聋的巨响！请所有玩家留意BOSS开局所在的方位！";
     }
 
-    void HandleRoundAction(RoundStage& stage, string& boss_record, MsgSenderBase::MsgSenderGuard& sender) override;
+    void HandleRoundAction(RoundStage& stage, string& boss_record, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender) override;
 
   protected:
     int InitialSteps() const override { return 0; }
@@ -239,7 +239,7 @@ class BangBangBoss : public Boss
         return "带着[炸弹]现身于地图中，会在回合结束时追击最近玩家，并在结束位置放置[炸弹]。玩家经过并离开会炸飞并出局！";
     }
 
-    void HandleRoundAction(RoundStage& stage, string& boss_record, MsgSenderBase::MsgSenderGuard& sender) override;
+    void HandleRoundAction(RoundStage& stage, string& boss_record, lgtbot::ChildMsgSenderBase::MsgSenderGuard& sender) override;
 
   protected:
     int InitialSteps() const override { return rand() % 3 + 3; }    // 固定速度 3-5 随机

@@ -11,10 +11,12 @@
 #include <cmath>
 
 #include "utility/log.h"
-#include "bot_core/match.h"
+#include "bot_core/match/match.h"
 #include "bot_core/score_calculation.h"
 
 #include "sqlite_modern_cpp.h"
+
+namespace lgtbot::core {
 
 static void HandleError(const sqlite::sqlite_exception& e)
 {
@@ -449,7 +451,7 @@ std::vector<ScoreInfo> SQLiteDBManager::RecordMatch(const std::string& game_name
         {
             auto user_infos = GetUserInfoForCalScore(db, game_name, game_score_infos);
             score_infos = CalScores(user_infos, multiple);
-            ::RecordMatch(db, game_name, gid, host_uid, multiple, score_infos, achievements);
+            lgtbot::core::RecordMatch(db, game_name, gid, host_uid, multiple, score_infos, achievements);
             return true;
         }) ? score_infos : std::vector<ScoreInfo>();
 }
@@ -589,7 +591,7 @@ AchievementStatisticInfo SQLiteDBManager::GetAchievementStatistic(const UserID& 
     AchievementStatisticInfo info;
     ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            auto result = ::GetAchievementStatistic(db, uid, game_name, std::string(achievement_name));
+            auto result = lgtbot::core::GetAchievementStatistic(db, uid, game_name, std::string(achievement_name));
             info.first_achieve_time_ = std::move(result.first_achieve_time_);
             info.count_ = result.count_;
             info.achieved_user_num_ = GetAchievedUserNumber(db, game_name, achievement_name);
@@ -603,7 +605,7 @@ bool SQLiteDBManager::AddHonor(const UserID& uid, const std::string_view& descri
     return ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
             const auto birth_count = GetBirthCountOfUser(db, uid);
-            ::AddHonor(db, description, uid, birth_count);
+            lgtbot::core::AddHonor(db, description, uid, birth_count);
             return true;
         });
 }
@@ -612,7 +614,7 @@ bool SQLiteDBManager::DeleteHonor(const int32_t id)
 {
     return ExecuteTransaction(db_name_, [&](sqlite::database& db)
         {
-            ::DeleteHonor(db, id);
+            lgtbot::core::DeleteHonor(db, id);
             return true;
         });
 }
@@ -682,5 +684,7 @@ std::unique_ptr<DBManagerBase> SQLiteDBManager::UseDB(const char* const db_name)
     }
     return nullptr;
 }
+
+} // namespace lgtbot::core
 
 #endif

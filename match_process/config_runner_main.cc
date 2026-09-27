@@ -20,8 +20,8 @@
 int main(const int argc, char** argv)
 {
     lgtbot::InstallDefaultSignalHandlersOnce();
-    // Game option handlers loaded into this subprocess may call rand()
-    // seed it like the match runner does so their behavior is not fixed across runs.
+    // Each match runs in a fresh subprocess, so the C PRNG must be re-seeded here.
+    // Otherwise, every game library calling rand() without srand() gets the same sequence (default seed 1).
     std::srand(std::chrono::steady_clock::now().time_since_epoch().count());
 #ifdef _WIN32
     _setmode(_fileno(stdin), _O_BINARY);
@@ -33,7 +33,7 @@ int main(const int argc, char** argv)
     const std::string lib_path = argv[1];
     const std::string conf_path = (argc >= 3) ? argv[2] : "";
 
-    ChildConfigSession session(stdin, stdout);
+    lgtbot::game::ChildConfigSession session(stdin, stdout);
     std::string err;
     if (!session.LoadModule(lib_path, conf_path, err)) {
         std::fprintf(stderr, "config_runner: failed to load module: %s\n", err.c_str());

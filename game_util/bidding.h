@@ -52,7 +52,7 @@ class BiddingManager
         return true;
     }
 
-    std::pair<std::optional<Chip>, std::vector<PlayerID>> BidOver(MsgSenderBase& sender)
+    std::pair<std::optional<Chip>, std::vector<PlayerID>> BidOver(ChildMsgSenderBase& sender)
     {
         sender() << "投标结束，下面公布结果：";
         std::map<Chip, std::vector<PlayerID>> chips;

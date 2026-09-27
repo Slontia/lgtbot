@@ -69,7 +69,7 @@ StageErrCode AtomicStage::HandleTimeout()
     return Handle_(fsm_.OnStageTimeout());
 }
 
-StageErrCode AtomicStage::HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, MsgSenderBase& reply)
+StageErrCode AtomicStage::HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, ChildMsgSenderBase& reply)
 {
     for (const auto& cmd : fsm_.Commands()) {
         if (const auto rc = cmd.CallIfValid(reader, pid, is_public, reply); rc.has_value()) {
@@ -96,7 +96,7 @@ StageErrCode AtomicStage::HandleLeave(const PlayerID pid)
 
 StageErrCode AtomicStage::HandleComputerAct(const uint64_t pid, const bool ready_as_user)
 {
-    // For run_game_xxx, the tell msg will be output, so do not use EmptyMsgSender here.
+    // For run_game_xxx, the tell msg will be output, so do not use ChildEmptyMsgSender here.
     StageLog_(InfoLog()) << "HandleComputerAct begin pid=" << pid << " ready_as_user=" << Bool2Str(ready_as_user);
     return Handle_(pid, ready_as_user, fsm_.OnComputerAct(pid, fsm_.Global().TellMsgSender(pid)));
 }
@@ -168,7 +168,7 @@ StageErrCode CompoundStage::HandleTimeout()
     return PassToSubStage_([](StageBaseInternal& sub_stage) { return sub_stage.HandleTimeout(); }, CheckoutReason::BY_TIMEOUT);
 }
 
-StageErrCode CompoundStage::HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, MsgSenderBase& reply)
+StageErrCode CompoundStage::HandleRequest(MsgReader& reader, const uint64_t pid, const bool is_public, ChildMsgSenderBase& reply)
 {
     for (const auto& cmd : fsm_.Commands()) {
         const auto rc = cmd.CallIfValid(reader, pid, is_public, reply);
@@ -206,7 +206,7 @@ StageErrCode CompoundStage::HandleLeave(const PlayerID pid)
 
 StageErrCode CompoundStage::HandleComputerAct(const uint64_t pid, const bool ready_as_user)
 {
-    // For run_game_xxx, the tell msg will be output, so do not use EmptyMsgSender here.
+    // For run_game_xxx, the tell msg will be output, so do not use ChildEmptyMsgSender here.
     StageLog_(InfoLog()) << "HandleComputerAct begin pid=" << pid << " ready_as_user=" << Bool2Str(ready_as_user);
     const auto rc = fsm_.OnComputerAct(pid, fsm_.Global().TellMsgSender(pid));
     if (rc == StageErrCode::CHECKOUT) {
@@ -278,7 +278,7 @@ StageErrCode MainStage::HandleComputerAct(const uint64_t pid, const bool ready_a
 bool MainStage::IsOver() const { return Stage_().IsOver(); }
 
 StageErrCode MainStage::HandleRequest(const char* const msg, const uint64_t player_id, const bool is_public,
-                                    MsgSenderBase& reply)
+                                    ChildMsgSenderBase& reply)
 {
     fsm_->Global().Activate(player_id);
     MsgReader reader(msg);

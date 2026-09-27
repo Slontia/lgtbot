@@ -11,13 +11,19 @@
 #include "bot_core/bot_core.h"
 #include "bot_core/msg_sender.h"
 
+namespace lgtbot::core {
 class BotCtx;
+} // namespace lgtbot::core
 
-using MetaUserFuncType = ErrCode(BotCtx&, const UserID, const std::optional<GroupID>&, MsgSenderBase& reply);
+namespace lgtbot::core {
+
+using MetaUserFuncType = ErrCode(BotCtx&, const UserID, const std::optional<GroupID>&, HostMsgSenderBase& reply);
 using MetaCommand = Command<MetaUserFuncType>;
 
 ErrCode HandleMetaRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const std::string& msg,
-                          MsgSenderBase& reply);
+                          HostMsgSenderBase& reply);
 
 ErrCode HandleAdminRequest(BotCtx& bot, const UserID uid, const std::optional<GroupID>& gid, const std::string& msg,
-                           MsgSenderBase& reply);
+                           HostMsgSenderBase& reply);
+
+} // namespace lgtbot::core

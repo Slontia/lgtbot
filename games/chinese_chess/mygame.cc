@@ -39,7 +39,7 @@ uint32_t Multiple(const CustomOptions& options) { return GET_OPTION_VALUE(option
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() == 5) {
         reply() << "不好意思，该游戏允许 2、3、4、6 人参加，但唯独不允许 5 人参加";
@@ -102,7 +102,7 @@ class MainStage : public MainGameStage<>
         ResetTimer_(Global().Boardcast());
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         return StageErrCode::READY;
     }
@@ -115,7 +115,7 @@ class MainStage : public MainGameStage<>
   private:
     std::string RoundTitleHtml_() const { return "## 第 " + std::to_string(round_) + " 回合\n\n"; }
 
-    AtomReqErrCode ShowImage_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const KingdomId kingdom_id_1,
+    AtomReqErrCode ShowImage_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const KingdomId kingdom_id_1,
             const KingdomId kingdom_id_2)
     {
         const auto html = RoundTitleHtml_() + board_.ToHtml(kingdom_id_1, kingdom_id_2);
@@ -128,7 +128,7 @@ class MainStage : public MainGameStage<>
         }
     }
 
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const KingdomId kingdom_id)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const KingdomId kingdom_id)
     {
         if (is_public) {
             reply() << "行动失败：请私信裁判行动";
@@ -143,7 +143,7 @@ class MainStage : public MainGameStage<>
         return CheckoutErrCode::Condition(TellUnreadyKingdoms_(pid, sender), StageErrCode::READY, StageErrCode::OK);
     }
 
-    AtomReqErrCode Move_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t board_id,
+    AtomReqErrCode Move_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t board_id,
             const std::string& src_coor_str, const std::string& dst_coor_str)
     {
         if (is_public) {
@@ -190,7 +190,7 @@ class MainStage : public MainGameStage<>
         return unready_kingdoms.empty();
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(cur_html_);
         return StageErrCode::OK;

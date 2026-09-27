@@ -37,7 +37,7 @@ uint32_t Multiple(const CustomOptions& options)
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -175,7 +175,7 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
     // BOSS挑战
     Boss boss;
 
-    CompReqErrCode ShapeInfo_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode ShapeInfo_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         ShowPlaneShape(reply);
         return StageErrCode::OK;
@@ -190,7 +190,7 @@ class MainStage : public MainGameStage<PrepareStage, AttackStage>
         return allmap;
 	}
 
-    void ShowPlaneShape(MsgSenderBase& msgSender)
+    void ShowPlaneShape(ChildMsgSenderBase& msgSender)
     {
         auto sender = msgSender();
         if (GAME_OPTION(形状).size() != 1) {
@@ -409,7 +409,7 @@ class PrepareStage : public SubGameStage<>
     }
 
    private:
-    AtomReqErrCode Add_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str, const int64_t direction)
+    AtomReqErrCode Add_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& str, const int64_t direction)
     {
         if (is_public) {
             reply() << "[错误] 放置失败，请私信裁判";
@@ -439,7 +439,7 @@ class PrepareStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Remove_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str)
+    AtomReqErrCode Remove_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& str)
     {
         if (is_public) {
             reply() << "[错误] 移除失败，请私信裁判";
@@ -461,7 +461,7 @@ class PrepareStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-	AtomReqErrCode RemoveALL_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+	AtomReqErrCode RemoveALL_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "[错误] 清空失败，请私信裁判";
@@ -479,7 +479,7 @@ class PrepareStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Finish_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Finish_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 您已经确认过了，请等待对手确认行动";
@@ -493,7 +493,7 @@ class PrepareStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "请私信裁判查看当前布置的地图";
@@ -525,7 +525,7 @@ class PrepareStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -622,7 +622,7 @@ class AttackStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Attack_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str)
+    AtomReqErrCode Attack_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& str)
     {
         if (Global().IsReady(pid)) {
             reply() << "您本回合已行动完成，请等待对手操作";
@@ -713,7 +713,7 @@ class AttackStage : public SubGameStage<>
         return StageErrCode::FAILED;
     }
 
-    AtomReqErrCode Scout_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Scout_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (GAME_OPTION(要害) != 3) {
             reply() << "[错误] 本局游戏未启用侦察技能";
@@ -734,7 +734,7 @@ class AttackStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode AddMark_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str, const int64_t direction)
+    AtomReqErrCode AddMark_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& str, const int64_t direction)
     {
         string result = Main().board[!pid].AddMark(str, direction);
         if (result != "OK") {
@@ -745,7 +745,7 @@ class AttackStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode RemoveMark_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str, const int64_t direction)
+    AtomReqErrCode RemoveMark_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& str, const int64_t direction)
     {
         string result = Main().board[!pid].RemoveMark(str, direction);
         if (result != "OK") {
@@ -756,14 +756,14 @@ class AttackStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-	AtomReqErrCode RemoveALLMark_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+	AtomReqErrCode RemoveALLMark_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         Main().board[!pid].RemoveAllMark();
         reply() << Markdown(Main().GetAllMap(!pid && !is_public, pid && !is_public, GAME_OPTION(要害))) << "\n清空标记成功！";
         return StageErrCode::OK;
     }
 
-	AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+	AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << Markdown(Main().GetAllMap(0, 0, GAME_OPTION(要害)));
@@ -790,7 +790,7 @@ class AttackStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

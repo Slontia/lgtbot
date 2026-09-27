@@ -71,7 +71,7 @@ const std::vector<RuleCommand> k_rule_commands = {
             AlterChecker<int>({{"判定", 0}, {"撤离", 1}, {"捡金币", 2}, {"夺血条", 3}, {"守金币", 4}, {"抢金币", 5}, {"爆金币", 6}})),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 4) {
         reply() << "该游戏至少 4 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -161,7 +161,7 @@ class MainStage : public MainGameStage<RoundStage>
     string GetStatusBoard();
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         string status_Board = GetStatusBoard();
         reply() << Markdown(T_Board + status_Board + Board + "</table>" + game_details, image_width);
@@ -207,7 +207,7 @@ class RoundStage : public SubGameStage<>
         return "OK";
     }
 
-    AtomReqErrCode Pick_Up_Coins_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t coinselect)
+    AtomReqErrCode Pick_Up_Coins_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t coinselect)
     {
         string ret = Check_PublicIsReadyPlayerout(is_public, pid, pid + 1);
         if (ret != "OK") {
@@ -218,7 +218,7 @@ class RoundStage : public SubGameStage<>
         return Selected_(pid, reply, 'P', pid + 1, coinselect);
     }
 
-    AtomReqErrCode Snatch_Coins_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t target, const int64_t coinselect)
+    AtomReqErrCode Snatch_Coins_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t target, const int64_t coinselect)
     {
         string ret = Check_PublicIsReadyPlayerout(is_public, pid, target);
         if (ret != "OK") {
@@ -233,7 +233,7 @@ class RoundStage : public SubGameStage<>
         return Selected_(pid, reply, 'S', target, coinselect);
     }
 
-    AtomReqErrCode Guard_Coins_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t target, const int64_t coinselect)
+    AtomReqErrCode Guard_Coins_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t target, const int64_t coinselect)
     {
         string ret = Check_PublicIsReadyPlayerout(is_public, pid, target);
         if (ret != "OK") {
@@ -252,7 +252,7 @@ class RoundStage : public SubGameStage<>
         return Selected_(pid, reply, 'G', target, coinselect);
     }
 
-    AtomReqErrCode Take_HP_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t target, const int64_t coinselect)
+    AtomReqErrCode Take_HP_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t target, const int64_t coinselect)
     {
         string ret = Check_PublicIsReadyPlayerout(is_public, pid, target);
         if (ret != "OK") {
@@ -275,7 +275,7 @@ class RoundStage : public SubGameStage<>
         return Selected_(pid, reply, 'T', target, coinselect);
     }
 
-    AtomReqErrCode Leave_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Leave_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         string ret = Check_PublicIsReadyPlayerout(is_public, pid, pid + 1);
         if (ret != "OK") {
@@ -286,7 +286,7 @@ class RoundStage : public SubGameStage<>
         return Selected_(pid, reply, 'L', pid + 1, 0);
     }
 
-    AtomReqErrCode Selected_(const PlayerID pid, MsgSenderBase& reply, const char action, const int64_t target, const int64_t coinselect)
+    AtomReqErrCode Selected_(const PlayerID pid, ChildMsgSenderBase& reply, const char action, const int64_t target, const int64_t coinselect)
     {
         Main().player_action_[pid] = action;
         Main().player_target_[pid] = target - 1;
@@ -331,7 +331,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

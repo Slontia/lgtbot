@@ -31,7 +31,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     uint32_t& map_option = GET_OPTION_VALUE(game_options, 地图);
     const int32_t size_option = GET_OPTION_VALUE(game_options, 边长);
@@ -180,7 +180,7 @@ class MainStage : public MainGameStage<RoundStage>
     string round_status_;
     
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply){
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply){
         reply() << Markdown(round_status_, max(600, (board.size + 2) * 43));
         return StageErrCode::OK;
     }
@@ -259,7 +259,7 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Action_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const string str)
+    AtomReqErrCode Action_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const string str)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行行动";
@@ -313,7 +313,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
     
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

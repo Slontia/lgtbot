@@ -24,20 +24,20 @@ DEFINE_bool(gen_image, false, "Whether generate image or not");
 DEFINE_string(image_dir, "./.lgtbot_image/", "The path of directory to store generated images");
 DEFINE_bool(input_options, false, "Input the game options by stdin");
 
-extern bool enable_markdown_to_image;
+extern bool lgtbot::enable_markdown_to_image;
 
-class RunGameMockMatch : public MockMatch
+class RunGameMockMatch : public lgtbot::game::MockMatch
 {
   public:
-    using MockMatch::MockMatch;
+    using lgtbot::game::MockMatch::MockMatch;
 
-    virtual const char* PlayerAvatar(const PlayerID& pid, const int32_t size) override
+    virtual const char* PlayerAvatar(const lgtbot::PlayerID& pid, const int32_t size) override
     {
         if (!FLAGS_gen_image) {
             return "";
         }
         const std::string avatar_filename = (image_dir() / ("avatar_" + std::to_string(pid) + ".png")).string();
-        CharToImage('0' + pid, avatar_filename);
+        lgtbot::CharToImage('0' + pid, avatar_filename);
         thread_local static std::string str;
         str = "<img src=\"file:///" + avatar_filename + "\" style=\"width:" + std::to_string(size) + "px; height:" +
             std::to_string(size) + "px; border-radius:50%; vertical-align: middle;\"/>";
@@ -205,7 +205,7 @@ int main(int argc, char** argv)
 #endif
     gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-    enable_markdown_to_image = FLAGS_gen_image && !FLAGS_image_dir.empty();
+    lgtbot::enable_markdown_to_image = FLAGS_gen_image && !FLAGS_image_dir.empty();
 
     try {
         for (uint64_t i = 0; i < FLAGS_repeat; ++i) {

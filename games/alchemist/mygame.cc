@@ -42,7 +42,7 @@ const std::vector<RuleCommand> k_rule_commands = {};
 
 static int WinScoreThreshold(const bool mode) { return mode ? 200 : 10; }
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     const auto card_num = GET_OPTION_VALUE(game_options, 颜色) * GET_OPTION_VALUE(game_options, 点数) * GET_OPTION_VALUE(game_options, 副数);
     if (GET_OPTION_VALUE(game_options, 回合数) > card_num && GET_OPTION_VALUE(game_options, 副数) > 0) {
@@ -210,7 +210,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    std::optional<std::pair<uint32_t, uint32_t>> ToCoor(MsgSenderBase& reply, const std::string& coor_str)
+    std::optional<std::pair<uint32_t, uint32_t>> ToCoor(ChildMsgSenderBase& reply, const std::string& coor_str)
     {
         if (coor_str.size() != 2) {
             reply() << "[错误] 非法的坐标长度 " << coor_str.size() << " ，应为 2";
@@ -238,7 +238,7 @@ class RoundStage : public SubGameStage<>
         return coor;
     }
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& coor_str)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& coor_str)
     {
         auto& player = Main().players_[pid];
         if (Global().IsReady(pid)) {
@@ -279,13 +279,13 @@ class RoundStage : public SubGameStage<>
         }
     }
 
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << "您选择跳过该回合";
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         SendInfo(reply);
         return StageErrCode::OK;
@@ -296,7 +296,7 @@ class RoundStage : public SubGameStage<>
         return card_.has_value() ? card_->ImageName() : "erase";
     }
 
-    void SendInfo(MsgSenderBase& sender)
+    void SendInfo(ChildMsgSenderBase& sender)
     {
         sender() << Markdown(board_html_);
         sender() << Image(std::string(Global().ResourceDir() + ImageName()) + ".png");

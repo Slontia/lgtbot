@@ -18,8 +18,6 @@
 #error GAME_MODULE_NAME is not defined
 #endif
 
-class MsgSenderBase;
-
 namespace lgtbot {
 
 namespace game {
@@ -93,8 +91,8 @@ lgtbot::game::GameOptionsBase* NewGameOptions() { return new this_module::GameOp
 
 void DeleteGameOptions(lgtbot::game::GameOptionsBase* const game_options) { delete game_options; }
 
-lgtbot::game::MainStageBase* NewMainStage(MsgSenderBase* const reply, lgtbot::game::GameOptionsBase* const game_options,
-        lgtbot::game::GenericOptions* const generic_options, MatchBase* const match)
+lgtbot::game::MainStageBase* NewMainStage(lgtbot::ChildMsgSenderBase* const reply, lgtbot::game::GameOptionsBase* const game_options,
+        lgtbot::game::GenericOptions* const generic_options, lgtbot::game::MatchBase* const match)
 {
     assert(game_options);
     assert(generic_options);

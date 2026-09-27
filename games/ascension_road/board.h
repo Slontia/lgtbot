@@ -10,7 +10,7 @@
 // 一座待触发的血祭大阵
 struct BloodArray
 {
-    PlayerID caster;    // 施术者，触发时对其豁免
+    lgtbot::PlayerID caster;    // 施术者，触发时对其豁免
     int region;         // 所在区域
 };
 
@@ -23,7 +23,7 @@ class Board
     /* ===== 全局状态 ===== */
     // 本局生效的规则数值，来自配置项
     Config cfg;
-    // 所有玩家，下标即 PlayerID
+    // 所有玩家，下标即 lgtbot::PlayerID
     std::vector<Player> players;
     // 各区域是否已被摧毁，中央区域永远为 false
     std::vector<bool> destroyed = std::vector<bool>(REGION_NUM, false);
@@ -58,9 +58,9 @@ class Board
     }
 
     // 区域内的存活玩家
-    std::vector<PlayerID> AliveInRegion(const int region) const
+    std::vector<lgtbot::PlayerID> AliveInRegion(const int region) const
     {
-        std::vector<PlayerID> list;
+        std::vector<lgtbot::PlayerID> list;
         for (const Player& p : players) {
             if (p.Alive() && p.region == region) {
                 list.push_back(p.pid);
@@ -70,7 +70,7 @@ class Board
     }
 
     // 区域内除指定玩家外是否还有其他存活玩家
-    bool RegionEmptyExcept(const int region, const PlayerID pid) const
+    bool RegionEmptyExcept(const int region, const lgtbot::PlayerID pid) const
     {
         for (const Player& p : players) {
             if (p.Alive() && p.region == region && p.pid != pid) {
@@ -876,7 +876,7 @@ inline std::string Board::MyStatusHtml(const int pid, const int round) const
         html += "<div class='sect'>同区域的修士</div><div class='mates'>";
         const CellLayout mate_layout{15, 26, 26, 11, false};
         int count = 0;
-        for (const PlayerID mate : AliveInRegion(p.region)) {
+        for (const lgtbot::PlayerID mate : AliveInRegion(p.region)) {
             if (mate == p.pid) {
                 continue;
             }
@@ -1133,7 +1133,7 @@ inline std::string Board::LihuaHtml(const int holder) const
     html += "<table class='roster'><tr><th style='width:42px'>编号</th>"
             "<th style='width:236px'>修士</th><th style='width:52px'>境界</th>"
             "<th style='width:106px'>血量</th><th style='width:148px'>本回合行动</th></tr>";
-    for (const PlayerID mate : AliveInRegion(owner.region)) {
+    for (const lgtbot::PlayerID mate : AliveInRegion(owner.region)) {
         const Player& p = P(mate.Get());
         const bool self = (mate.Get() == static_cast<uint32_t>(holder));
         html += std::string("<tr") + (self ? " class='win'>" : ">");

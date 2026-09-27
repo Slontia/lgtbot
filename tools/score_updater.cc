@@ -9,6 +9,9 @@
 
 #include "bot_core/score_calculation.h"
 
+using namespace lgtbot;
+using namespace lgtbot::core;
+
 #include "sqlite_modern_cpp.h"
 
 DEFINE_string(db_path, "", "The path of db file");

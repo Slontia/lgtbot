@@ -16,11 +16,15 @@
 #include "utility/process_signals.h"
 #include "game_framework/game_main.h"
 #include "bot_core/db_manager.h"
-#include "bot_core/match.h"
+#include "bot_core/match/match.h"
 #include "bot_core/message_handlers.h"
 #include "bot_core/msg_sender.h"
 
 #include "sqlite_modern_cpp.h"
+
+using namespace lgtbot::core;
+using namespace lgtbot;
+using namespace lgtbot::core::match;
 
 static_assert(sizeof(META_COMMAND_SIGN) == 2, "The META_COMMAND_SIGN string must contain one character");
 static_assert(sizeof(ADMIN_COMMAND_SIGN) == 2, "The ADMIN_COMMAND_SIGN string must contain one character");
@@ -109,7 +113,7 @@ int LGTBot_ReleaseIfNoProcessingGames(void* const bot_p)
     }
     BotCtx& bot = *static_cast<BotCtx*>(bot_p);
     const auto matches = bot.match_manager().Matches();
-    if (std::ranges::any_of(matches, [](const auto& match) { return match->state() == Match::State::IS_STARTED; })) {
+    if (std::ranges::any_of(matches, [](const auto& match) { return match->state() == Match::IS_STARTED; })) {
         InfoLog() << "ReleaseIfNoProcessingGames failed because there are processing games";
         return false;
     }
@@ -136,9 +140,9 @@ class PublicReplyMsgSender : public MsgSender
   public:
     PublicReplyMsgSender(MsgSender&& msg_sender, UserID uid) : MsgSender(std::move(msg_sender)), uid_(std::move(uid)) {}
 
-    MsgSenderBase::MsgSenderGuard operator()() const override
+    HostMsgSenderBase::MsgSenderGuard operator()() const override
     {
-        MsgSenderBase::MsgSenderGuard guard(*this);
+        HostMsgSenderBase::MsgSenderGuard guard(*this);
         // TODO: quote the message
         guard << At(uid_) << "\n";
         return guard;

@@ -327,11 +327,11 @@ class RoundMove
 class Player
 {
   public:
-    Player(const PlayerID pid, const string &name, const string &avatar, const int size, const vector<pair<int, int>>& pos)
+    Player(const lgtbot::PlayerID pid, const string &name, const string &avatar, const int size, const vector<pair<int, int>>& pos)
         : pid(pid), name(name), avatar(avatar), score(size), achievement(pos) {}
 
     // 玩家信息
-    const PlayerID pid;     // 玩家ID
+    const lgtbot::PlayerID pid;     // 玩家ID
     const string name;      // 玩家名字
     const string avatar;    // 玩家头像
     // 出局（1被抓 2出口）
@@ -339,7 +339,7 @@ class Player
     // 当前坐标
     int x, y;
     // 抓捕目标
-    PlayerID target;
+    lgtbot::PlayerID target;
     // 移动相关
     RoundMove move_record;          // 当前回合完整记录
     vector<RoundMove> all_record;   // 历史回合完整记录

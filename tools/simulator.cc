@@ -111,7 +111,7 @@ void GetUserNameInGroup(void* handler, char* const buffer, const size_t size, co
 
 int DownloadUserAvatar(void* handler, const char* const uid_str, const char* const dest_filename)
 {
-    if (CharToImage(uid_str[0], dest_filename) != 0) {
+    if (lgtbot::CharToImage(uid_str[0], dest_filename) != 0) {
         std::cerr << "Generate avatar failed for user: " << uid_str << std::endl;
         return false;
     }

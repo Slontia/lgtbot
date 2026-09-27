@@ -18,6 +18,12 @@
 #include "bot_core/game_config_client.h"
 #include "utility/lock_wrapper.h"
 
+namespace lgtbot::game {
+class MatchBase;
+} // namespace lgtbot::game
+
+namespace lgtbot::core {
+
 class GameHandle
 {
   public:
@@ -81,7 +87,7 @@ class GameHandle
     // These type aliases are still needed by match_game_runner (child process),
     // but NOT by bot_core (parent process). The function pointers themselves are
     // never stored in GameHandle.
-    using main_stage_allocator = lgtbot::game::MainStageBase*(*)(MsgSenderBase*, lgtbot::game::GameOptionsBase*, lgtbot::game::GenericOptions*, MatchBase*);
+    using main_stage_allocator = lgtbot::game::MainStageBase*(*)(ChildMsgSenderBase*, lgtbot::game::GameOptionsBase*, lgtbot::game::GenericOptions*, lgtbot::game::MatchBase*);
     using main_stage_deleter   = void(*)(const lgtbot::game::MainStageBase*);
     using game_options_allocator = lgtbot::game::GameOptionsBase*(*)();
     using game_options_deleter   = void(*)(const lgtbot::game::GameOptionsBase*);
@@ -128,3 +134,5 @@ class GameHandle
 };
 
 using GameHandleMap = std::map<std::string, GameHandle>;
+
+} // namespace lgtbot::core

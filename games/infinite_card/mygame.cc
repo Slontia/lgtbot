@@ -50,7 +50,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
             VoidChecker("单机")),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != k_player_num) {
         reply() << "该游戏为 " << k_player_num << " 人游戏，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -792,7 +792,7 @@ class MainStage : public MainGameStage<RoundStage>
     }
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             Global().Boardcast() << Markdown(GetBoard_(), k_board_width);
@@ -846,7 +846,7 @@ class SelectGroupStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Select_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int group)
+    AtomReqErrCode Select_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int group)
     {
         Player& player = Main().players_[pid];
         if (player.groups_[static_cast<size_t>(group - 1)].empty()) {
@@ -870,7 +870,7 @@ class SelectGroupStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid) || Main().players_[pid].eliminated_) {
             return StageErrCode::OK;
@@ -917,7 +917,7 @@ class OrderStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Order_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const vector<Card>& cards)
+    AtomReqErrCode Order_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const vector<Card>& cards)
     {
         Player& player = Main().players_[pid];
         if (!player.TakeFromHand(cards)) {
@@ -945,7 +945,7 @@ class OrderStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid) || Main().players_[pid].eliminated_) {
             return StageErrCode::OK;
@@ -990,7 +990,7 @@ class PickCardStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Pick_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Card& card)
+    AtomReqErrCode Pick_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Card& card)
     {
         Player& player = Main().players_[pid];
         if (!player.TakeFromHand(vector<Card>{card})) {
@@ -1015,7 +1015,7 @@ class PickCardStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid) || Main().players_[pid].eliminated_) {
             return StageErrCode::OK;
@@ -1068,7 +1068,7 @@ class BetStage : public SubGameStage<>
     int acted_{0};              // 自上一次加码以来连续行动的人数，双方均观望即揭示
 
     // 校验是否轮到该玩家行动
-    bool CheckTurn_(const PlayerID pid, MsgSenderBase& reply) const
+    bool CheckTurn_(const PlayerID pid, ChildMsgSenderBase& reply) const
     {
         if (Main().game_over_ || finished_) {
             reply() << "[错误] 本小局已经结束";
@@ -1134,7 +1134,7 @@ class BetStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Check_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Check_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (!CheckTurn_(pid, reply)) {
             return StageErrCode::FAILED;
@@ -1152,7 +1152,7 @@ class BetStage : public SubGameStage<>
         return SwitchTurn_();
     }
 
-    AtomReqErrCode Raise_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int amount)
+    AtomReqErrCode Raise_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int amount)
     {
         if (!CheckTurn_(pid, reply)) {
             return StageErrCode::FAILED;
@@ -1181,7 +1181,7 @@ class BetStage : public SubGameStage<>
         return SwitchTurn_();
     }
 
-    AtomReqErrCode Call_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Call_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (!CheckTurn_(pid, reply)) {
             return StageErrCode::FAILED;
@@ -1201,7 +1201,7 @@ class BetStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    AtomReqErrCode Fold_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Fold_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (!CheckTurn_(pid, reply)) {
             return StageErrCode::FAILED;
@@ -1229,7 +1229,7 @@ class BetStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         // 非当前行动方已被标记为已完成，直接返回 OK 让推演循环跳过
         if (Main().game_over_ || finished_ || Global().IsReady(pid) || Main().players_[pid].eliminated_) {

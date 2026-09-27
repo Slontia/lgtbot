@@ -46,7 +46,7 @@ const MutableGenericOptions k_default_generic_options;
 
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "云顶之巢至少需要 2 人参加游戏";
@@ -236,9 +236,9 @@ class MainStage : public MainGameStage<RoundStage, SelectStage>
 
     // ===== Battle System =====
     // sender 由调用方持有，DoBattle_ 与 DoEliminationAfterBattle_ 共用，使对战结果与玩家淘汰播报合并为一条消息。
-    void DoBattle_(MsgSenderBase::MsgSenderGuard& sender);
+    void DoBattle_(ChildMsgSenderBase::MsgSenderGuard& sender);
     void ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror, std::string& result);
-    void DoEliminationAfterBattle_(MsgSenderBase::MsgSenderGuard& sender);
+    void DoEliminationAfterBattle_(ChildMsgSenderBase::MsgSenderGuard& sender);
 
     // ===== Scoring =====
     // 放置砖块后刷新分数。返回 {播报文本, 盘面得分变化}。
@@ -381,7 +381,7 @@ inline std::pair<std::string, int32_t> MainStage::OnCardPlaced_(PlayerID pid, co
 
 // ==================== Battle System ====================
 
-inline void MainStage::DoBattle_(MsgSenderBase::MsgSenderGuard& sender)
+inline void MainStage::DoBattle_(ChildMsgSenderBase::MsgSenderGuard& sender)
 {
     if (alive_ <= 1) return;
 
@@ -502,7 +502,7 @@ inline void MainStage::ProcessBattle_(PlayerID pid1, PlayerID pid2, bool mirror,
 }
 
 // Process deaths and eliminations after battle. 共用 sender，与对战结果合并播报。
-inline void MainStage::DoEliminationAfterBattle_(MsgSenderBase::MsgSenderGuard& sender)
+inline void MainStage::DoEliminationAfterBattle_(ChildMsgSenderBase::MsgSenderGuard& sender)
 {
     for (PlayerID pid = 0; pid.Get() < players_.size(); ++pid) {
         if (player_out_[pid] != 0 || players_[pid].hp_ > 0) continue;
@@ -723,7 +723,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) return StageErrCode::OK;
         auto& player = Main().players_[pid];
@@ -735,7 +735,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t idx)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t idx)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 您已经设置过，无法重复设置";
@@ -768,7 +768,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    void SendInfo(MsgSenderBase& sender)
+    void SendInfo(ChildMsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
         if (is_initial_) {
@@ -784,7 +784,7 @@ class RoundStage : public SubGameStage<>
     }
 
     // 「赛况」回复：当前最新棋盘 + 本轮砖块图。盘面用 CombHtml 实时生成（不复用 comb_html_ 缓存）。
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown{Main().CombHtml("## 第 " + std::to_string(round_) + " 回合")};
         if (is_initial_) {
@@ -943,7 +943,7 @@ class SelectStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) return StageErrCode::OK;
         auto& player = Main().players_[pid];
@@ -956,7 +956,7 @@ class SelectStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Select_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t card_id, const uint32_t pos)
+    AtomReqErrCode Select_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t card_id, const uint32_t pos)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 当前并非您的选卡回合";
@@ -1015,14 +1015,14 @@ class SelectStage : public SubGameStage<>
         return style + avatar_table.ToString() + card_table.ToString();
     }
 
-    void SendInfo(MsgSenderBase& sender)
+    void SendInfo(ChildMsgSenderBase& sender)
     {
         sender() << Markdown{comb_html_};
         sender() << Markdown(SelectCardHtml_(), 300);
     }
 
     // 「赛况」回复：当前最新棋盘 + 剩余待选卡总图（含选卡顺序头像）。
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown{Main().CombHtml("## 第 " + std::to_string(round_) + " 回合[公共配牌阶段]")};
         reply() << Markdown(SelectCardHtml_(), 300);

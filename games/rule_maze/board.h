@@ -64,7 +64,7 @@ class Board
     static int TextImageWidth() { return 700; }
 
     // 玩家私人视角：状态表 + 自己已探明的迷宫
-    std::string GetPlayerView(const PlayerID pid, const ViewInfo& info) const
+    std::string GetPlayerView(const lgtbot::PlayerID pid, const ViewInfo& info) const
     {
         MazeOptions options{static_cast<int>(pid), static_cast<int>(pid), info.treasure_at_center};
         // 戒指被取得之后，回合开始尚未行动时可以看到对手上回合结束的位置，一旦行动便不再显示
@@ -100,7 +100,7 @@ class Board
     }
 
     // 夺宝公屏提醒图：仅公开取得戒指的玩家位于中心格，不公开对手位置与任何墙壁信息
-    std::string GetTreasureBoard(const PlayerID pid, const ViewInfo& info) const
+    std::string GetTreasureBoard(const lgtbot::PlayerID pid, const ViewInfo& info) const
     {
         const MazeOptions options{-1, -1, info.treasure_at_center, true, 1u << pid};
         return Style() + "<div class=\"title\">水晶戒指已被取得</div>" + GetPublicTable(info, false) +
@@ -228,7 +228,7 @@ class Board
     }
 
     // 是否应向该玩家展示对手上回合结束的位置：已进入公开阶段、有记录、且本回合尚未行动
-    bool ShowRivalGhost(const PlayerID pid, const ViewInfo& info) const
+    bool ShowRivalGhost(const lgtbot::PlayerID pid, const ViewInfo& info) const
     {
         const Player& self = players_[pid];
         const Player& rival = players_[1 - pid];
@@ -380,7 +380,7 @@ class Board
     }
 
     // 玩家私人视角的状态表
-    std::string GetPlayerStatus(const PlayerID pid, const ViewInfo& info) const
+    std::string GetPlayerStatus(const lgtbot::PlayerID pid, const ViewInfo& info) const
     {
         const Player& self = players_[pid];
         const Player& rival = players_[1 - pid];
