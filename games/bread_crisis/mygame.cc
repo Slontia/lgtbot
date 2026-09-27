@@ -28,7 +28,7 @@ uint32_t Multiple(const CustomOptions& options) { return 2; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {
   if (generic_options_readonly.PlayerNum() < 2) {
     reply() << "该游戏至少 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
     return false;
@@ -90,7 +90,7 @@ class MainStage : public MainGameStage<RoundStage> {
   std::string GetName(std::string x);
 
  private:
-  CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply) {
+  CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply) {
     //        reply() << "当前游戏情况：未设置";
 
     std::string PreBoard = "";
@@ -180,7 +180,7 @@ class RoundStage : public SubGameStage<> {
     return StageErrCode::CONTINUE;
   }
 
-  virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override {
+  virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override {
     int i = pid;
     Main().player_select_[i] = 'N';
     Main().player_number_[i] = rand() % 4 + 2;
@@ -285,7 +285,7 @@ class RoundStage : public SubGameStage<> {
   }
 
  private:
-  AtomReqErrCode Select_N_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+  AtomReqErrCode Select_N_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                            const int64_t number) {
     if (is_public) {
       reply() << "[错误] 请私信裁判进行选择。";
@@ -298,7 +298,7 @@ class RoundStage : public SubGameStage<> {
     return Selected_(pid, reply, 'N', number);
   }
 
-  AtomReqErrCode Select_S_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+  AtomReqErrCode Select_S_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                            const int64_t target, const int64_t number) {
     if (is_public) {
       reply() << "[错误] 请私信裁判进行选择。";
@@ -316,7 +316,7 @@ class RoundStage : public SubGameStage<> {
     return Selected_(pid, reply, 'S', number, target);
   }
 
-  AtomReqErrCode Selected_(const PlayerID pid, MsgSenderBase& reply, char type,
+  AtomReqErrCode Selected_(const PlayerID pid, ChildMsgSenderBase& reply, char type,
                            const int64_t number, const int64_t target = 0) {
     if (type != 'S' && type != 'N' && type != 'P') {
       Global().Boardcast() << "Wrong input on pid = " << std::to_string(pid) << std::to_string(type)

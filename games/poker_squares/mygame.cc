@@ -51,7 +51,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
 
 // The function is invoked before a game starts. You can make final adaption for the options.
 // The return value of false denotes failure to start a game.
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     return true;
 }
@@ -102,7 +102,7 @@ class MainStage : public MainGameStage<>
         return CheckoutErrCode::Condition(FinishRound_(), CheckoutErrCode::CHECKOUT, CheckoutErrCode::CONTINUE);
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -156,13 +156,13 @@ class MainStage : public MainGameStage<>
         return result;
     }
 
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown{html_};
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Fill_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& position)
+    AtomReqErrCode Fill_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& position)
     {
         if (Global().IsReady(pid)) {
             reply() << "执行失败：您正处于过牌状态或已经完成行动";

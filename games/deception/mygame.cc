@@ -40,7 +40,7 @@ static const int k_max_fake = 7;
 // 超出此回合数后电脑不再进行质疑行为，防止游戏无法结束
 static const int k_ai_no_challenge_round = 15;
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "该游戏至少 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -112,7 +112,7 @@ class MainStage : public MainGameStage<RoundStage>
     string GetStatusBoard();
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         string status_Board = GetStatusBoard();
         reply() << Markdown(T_Board + status_Board + Board + "</table>" + game_details, image_width);
@@ -156,7 +156,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -355,7 +355,7 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode PlayTrue_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode PlayTrue_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行行动。";
@@ -371,7 +371,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode PlayFake_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode PlayFake_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行行动。";
@@ -387,7 +387,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Challenge_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t target)
+    AtomReqErrCode Challenge_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t target)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行行动。";

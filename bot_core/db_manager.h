@@ -33,6 +33,8 @@ ENUM_END(TimeRange)
 #include "utility/log.h"
 #include "bot_core/id.h"
 
+namespace lgtbot::core {
+
 #define ENUM_FILE "../bot_core/db_manager.h"
 #include "../utility/extend_enum.h"
 
@@ -180,5 +182,7 @@ class SQLiteDBManager : public DBManagerBase
 };
 
 #endif // WITH_SQLITE
+
+} // namespace lgtbot::core
 
 #endif // DB_MANAGER_H

@@ -36,7 +36,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
             VoidChecker("单机")),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (const auto player_num = generic_options_readonly.PlayerNum(); player_num < 3) {
         reply() << "该游戏至少 3 人参加，当前玩家数为 " << player_num;
@@ -330,7 +330,7 @@ class TableStage : public SubGameStage<>
         return CheckoutErrCode::Condition(OnOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         table_.Players()[pid].PerformAi();
         return StageErrCode::READY;
@@ -418,7 +418,7 @@ class TableStage : public SubGameStage<>
     }
 
     template <typename Func, typename ...Args>
-    AtomReqErrCode HandleAction_(const PlayerID pid, MsgSenderBase& reply, const Func func, const Args& ...args) {
+    AtomReqErrCode HandleAction_(const PlayerID pid, ChildMsgSenderBase& reply, const Func func, const Args& ...args) {
         auto& player = table_.Players()[pid];
         if (!(player.*func)(args...)) {
             reply() << "[错误] 行动失败：" << player.ErrorString();
@@ -435,7 +435,7 @@ class TableStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(is_public ? BoardcastHtml_() : PlayerHtml_(table_.Players()[pid]));
         return StageErrCode::OK;
@@ -488,73 +488,73 @@ class TableStage : public SubGameStage<>
                "您不需要做任何行动";
     }
 
-    AtomReqErrCode GetTile_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode GetTile_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::GetTile);
     }
 
-    AtomReqErrCode Chi_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& my_tile_str, const std::string& chi_tile_str)
+    AtomReqErrCode Chi_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& my_tile_str, const std::string& chi_tile_str)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Chi, my_tile_str, chi_tile_str);
     }
 
-    AtomReqErrCode Pon_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& tile_str)
+    AtomReqErrCode Pon_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& tile_str)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Pon, tile_str);
     }
 
-    AtomReqErrCode Kan_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& tile_str)
+    AtomReqErrCode Kan_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& tile_str)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Kan, tile_str);
     }
 
-    AtomReqErrCode Kita_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool use_tsumo)
+    AtomReqErrCode Kita_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool use_tsumo)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Kita, use_tsumo);
     }
 
-    AtomReqErrCode Nagashi_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Nagashi_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Nagashi);
     }
 
-    AtomReqErrCode Tsumo_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Tsumo_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Tsumo);
     }
 
-    AtomReqErrCode Ron_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Ron_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Ron);
     }
 
-    AtomReqErrCode RichiiKiriTsumo_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode RichiiKiriTsumo_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Kiri, "", true);
     }
 
-    AtomReqErrCode KiriTsumo_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode KiriTsumo_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Kiri, "", false);
     }
 
-    AtomReqErrCode RichiiKiri_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& tile_str)
+    AtomReqErrCode RichiiKiri_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& tile_str)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Kiri, tile_str, true);
     }
 
-    AtomReqErrCode Kiri_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& tile_str)
+    AtomReqErrCode Kiri_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& tile_str)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Kiri, tile_str, false);
     }
 
-    AtomReqErrCode Over_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Over_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return HandleAction_(pid, reply, &lgtbot::game_util::mahjong::SyncMahjongGamePlayer::Over);
     }
 
     template <game_util::mahjong::AutoOption OPTION>
-    AtomReqErrCode SetAutoOption_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool enable)
+    AtomReqErrCode SetAutoOption_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool enable)
     {
         auto& player = table_.Players()[pid];
         player.SetAutoOption(OPTION, enable);

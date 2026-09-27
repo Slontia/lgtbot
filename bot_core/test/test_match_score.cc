@@ -12,6 +12,11 @@
 
 #include "bot_core/score_calculation.h"
 
+using namespace lgtbot::core;
+using namespace lgtbot;
+
+namespace lgtbot::core::test {
+
 class TestMatchScore : public testing::Test
 {
 };
@@ -137,6 +142,8 @@ TEST_F(TestMatchScore, four_user_complex)
     ASSERT_SCORE_INFO(ret[2], UserID("3"), 4, 800, 0);
     ASSERT_SCORE_INFO(ret[3], UserID("4"), 6, 1200, 40);
 }
+
+} // namespace lgtbot::core::test
 
 int main(int argc, char** argv)
 {

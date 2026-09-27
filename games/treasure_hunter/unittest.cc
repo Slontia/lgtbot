@@ -207,7 +207,7 @@ GAME_TEST(4, extract_nickname)
 }
 
 // 昵称长度不可控，检查超长昵称不会撑破状态栏
-static void BoardcastLongNameTable(const std::string& resource_dir, MsgSenderBase& sender, const size_t player_num)
+static void BoardcastLongNameTable(const std::string& resource_dir, ChildMsgSenderBase& sender, const size_t player_num)
 {
     Board board(resource_dir);
     board.Initialize();

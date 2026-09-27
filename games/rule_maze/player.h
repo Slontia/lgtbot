@@ -28,11 +28,11 @@ struct RoundRecord
 class Player
 {
   public:
-    Player(const PlayerID pid, const std::string& name, const std::string& avatar, const int index)
+    Player(const lgtbot::PlayerID pid, const std::string& name, const std::string& avatar, const int index)
         : pid(pid), name(name), avatar(avatar), index(index), pos(k_start[index]) {}
 
     /* ========== 基础信息 ========== */
-    const PlayerID pid;
+    const lgtbot::PlayerID pid;
     const std::string name;
     const std::string avatar;
     const int index;            // 起点编号：0 为 A3，1 为 G5

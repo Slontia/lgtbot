@@ -34,7 +34,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
@@ -338,7 +338,7 @@ class MainStage : public MainGameStage<RoundStage>
                 ++(players_[winner].win_count_);
                 players_[1 - winner].win_count_ = 0;
                 players_[winner].score_ += point;
-                sender << ::Name(winner) << "胜利，获得 " << point << " 分";
+                sender << lgtbot::Name(winner) << "胜利，获得 " << point << " 分";
                 if (has_star) {
                     sender << "和 1 颗星";
                     players_[winner].stars_++;
@@ -407,13 +407,13 @@ class MainStage : public MainGameStage<RoundStage>
         return "## 手牌使用情况\n\n" + user_card_info_table.ToString();
     }
 
-    CompReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         auto sender = reply();
         const auto show_info = [&](const PlayerID pid)
             {
                 const auto& player = players_[pid];
-                sender << ::Name(pid) << "\n积分：" << player.score_
+                sender << lgtbot::Name(pid) << "\n积分：" << player.score_
                                       << "\n连胜：" << player.win_count_
                                       << "\n可用卡牌：" << AvailableCards<true>(player.cards_);
             };
@@ -441,7 +441,7 @@ class ChooseStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(时限));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -477,7 +477,7 @@ class ChooseStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Card& card)
+    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Card& card)
     {
         // TODO: test repeat choose
         auto& player = Main().players_[pid];
@@ -531,7 +531,7 @@ class AlterStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(时限));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -554,7 +554,7 @@ class AlterStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Alter_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Card& card)
+    AtomReqErrCode Alter_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Card& card)
     {
         // TODO: test repeat choose
         auto& player = Main().players_[pid];

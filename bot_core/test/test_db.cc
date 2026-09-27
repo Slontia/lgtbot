@@ -13,6 +13,11 @@
 #include "bot_core/db_manager.h"
 #include "sqlite_modern_cpp.h"
 
+using namespace lgtbot::core;
+using namespace lgtbot;
+
+namespace lgtbot::core::test {
+
 #ifdef _WIN32
 static const char* const k_db_path = "TEMP_test_db.db";
 #else
@@ -59,19 +64,24 @@ class TestDB : public testing::Test
     ASSERT_EQ((top), profile.top_score_); \
 }()
 
+} // namespace lgtbot::core::test
+
+namespace lgtbot::core {
 void RecordMatch(sqlite::database& db, const std::string& game_name, const std::optional<GroupID> gid,
         const UserID host_uid, const uint64_t multiple, const std::vector<ScoreInfo>& score_infos,
         const std::vector<std::pair<UserID, std::string>>& achievements);
-
 void RecordMatch(const std::string& game_name, const std::optional<GroupID> gid,
         const UserID host_uid, const uint64_t multiple, const std::vector<ScoreInfo>& score_infos,
         const std::vector<std::pair<UserID, std::string>>& achievements = std::vector<std::pair<UserID, std::string>>{})
 {
-    sqlite::database db(k_db_path);
+    sqlite::database db(test::k_db_path);
     db << "BEGIN;";
     RecordMatch(db, game_name, gid, host_uid, multiple, score_infos, achievements);
     db << "COMMIT;";
 }
+} // namespace lgtbot::core
+
+namespace lgtbot::core::test {
 
 TEST_F(TestDB, get_user_profile_empty)
 {
@@ -82,7 +92,7 @@ TEST_F(TestDB, get_user_profile_empty)
 TEST_F(TestDB, get_user_profile_one_match)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("mygame", std::nullopt, "1", 1,
+    lgtbot::core::RecordMatch("mygame", std::nullopt, "1", 1,
             std::vector<ScoreInfo>{ScoreInfo(UserID("2"), 30, 40, 50), ScoreInfo(UserID("3"), 10, 10, 10)});
     ASSERT_USER_PROFILE(UserID("1"), 0, 0, 0, 0, 0);
     const auto profile_2 = ASSERT_USER_PROFILE(UserID("2"), 40, 50, 1, 1, 0);
@@ -94,8 +104,8 @@ TEST_F(TestDB, get_user_profile_one_match)
 TEST_F(TestDB, get_user_profile_two_matches)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 30, 40, 50)});
-    RecordMatch("g2", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), -20, -10, 0)});
+    lgtbot::core::RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 30, 40, 50)});
+    lgtbot::core::RecordMatch("g2", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), -20, -10, 0)});
     const auto profile = ASSERT_USER_PROFILE(UserID("1"), 30, 50, 2, 2, 0);
     ASSERT_MATCH_PROFILE(profile.recent_matches_[0], "g2", 1, -20, -10, 0);
     ASSERT_MATCH_PROFILE(profile.recent_matches_[1], "g1", 1, 30, 40, 50);
@@ -105,7 +115,7 @@ TEST_F(TestDB, get_user_profile_more_than_ten_matches)
 {
     ASSERT_TRUE(UseDB_());
     for (int i = 0; i < 15; ++i) {
-        RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
+        lgtbot::core::RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
     }
     const auto profile = ASSERT_USER_PROFILE(UserID("1"), 150, 150, 15, 10, 0);
     for (int i = 0; i < 10; ++i) {
@@ -122,16 +132,16 @@ TEST_F(TestDB, cannot_suicide_at_first)
 TEST_F(TestDB, suicide_only_achieve_required_match_num)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
+    lgtbot::core::RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
     ASSERT_FALSE(db_manager_->Suicide(UserID("1"), 2));
-    RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
+    lgtbot::core::RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
     ASSERT_TRUE(db_manager_->Suicide(UserID("1"), 2));
 }
 
 TEST_F(TestDB, cannot_suicide_repeatedly)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
+    lgtbot::core::RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 10, 10, 10)});
     ASSERT_TRUE(db_manager_->Suicide(UserID("1"), 1));
     ASSERT_FALSE(db_manager_->Suicide(UserID("1"), 1));
 }
@@ -139,7 +149,7 @@ TEST_F(TestDB, cannot_suicide_repeatedly)
 TEST_F(TestDB, check_suicide)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 99, 99, 99)});
+    lgtbot::core::RecordMatch("g1", std::nullopt, "1", 1, std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 99, 99, 99)});
     ASSERT_TRUE(db_manager_->Suicide(UserID("1"), 1));
     ASSERT_USER_PROFILE(UserID("1"), 0, 0, 0, 0, 0);
 }
@@ -147,7 +157,7 @@ TEST_F(TestDB, check_suicide)
 TEST_F(TestDB, reopen_db)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("mygame", std::nullopt, "1", 1,
+    lgtbot::core::RecordMatch("mygame", std::nullopt, "1", 1,
             std::vector<ScoreInfo>{ScoreInfo(UserID("2"), 30, 40, 50), ScoreInfo(UserID("3"), 10, 10, 10)});
 
     db_manager_.reset();
@@ -163,7 +173,7 @@ TEST_F(TestDB, reopen_db)
 TEST_F(TestDB, get_recent_achievements_from_user_profile)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("mygame", std::nullopt, "1", 1,
+    lgtbot::core::RecordMatch("mygame", std::nullopt, "1", 1,
             std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 30, 40, 50), ScoreInfo(UserID("2"), 10, 10, 10)},
             std::vector<std::pair<UserID, std::string>>{{UserID("1"), "myachievement"}});
     ASSERT_USER_PROFILE(UserID("1"), 40, 50, 1, 1, 1);
@@ -173,10 +183,10 @@ TEST_F(TestDB, get_recent_achievements_from_user_profile)
 TEST_F(TestDB, get_achievement_statisic)
 {
     ASSERT_TRUE(UseDB_());
-    RecordMatch("mygame", std::nullopt, "1", 1,
+    lgtbot::core::RecordMatch("mygame", std::nullopt, "1", 1,
             std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 30, 40, 50), ScoreInfo(UserID("2"), 10, 10, 10)},
             std::vector<std::pair<UserID, std::string>>{{UserID("1"), "myachievement"}});
-    RecordMatch("mygame", std::nullopt, "1", 1,
+    lgtbot::core::RecordMatch("mygame", std::nullopt, "1", 1,
             std::vector<ScoreInfo>{ScoreInfo(UserID("1"), 30, 40, 50), ScoreInfo(UserID("3"), 10, 10, 10)},
             std::vector<std::pair<UserID, std::string>>{{UserID("1"), "myachievement"}, {UserID("3"), "myachievement"}});
     AchievementStatisticInfo result {"", 0, 0};
@@ -193,6 +203,8 @@ TEST_F(TestDB, get_achievement_statisic)
     ASSERT_EQ(0, result.count_);
     ASSERT_EQ(0, result.achieved_user_num_);
 }
+
+} // namespace lgtbot::core::test
 
 int main(int argc, char** argv)
 {

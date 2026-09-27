@@ -29,7 +29,7 @@ uint32_t Multiple(const CustomOptions& options) { return 2; } // the default sco
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "该游戏至少 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -99,13 +99,13 @@ class MainStage : public MainGameStage<>
     }
 
   private:
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(ToHtml_());
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Place_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& coor_str)
+    AtomReqErrCode Place_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& coor_str)
     {
         if (is_public) {
             reply() << "落子失败：请私信裁判落子";
@@ -141,7 +141,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::READY;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -159,15 +159,11 @@ class MainStage : public MainGameStage<>
 
     virtual CheckoutErrCode OnStageOver() override
     {
-        nlohmann::json json_array;
         const auto result = board_.Settlement();
         for (auto pid : {PlayerID{0}, PlayerID{1}}) {
             auto& coor = placed_coors_[pid];
             if (coor.has_value()) {
-                json_array.push_back(std::string(1, 'A' + coor->first) + std::to_string(coor->second));
                 coor.reset();
-            } else {
-                json_array.push_back(nullptr);
             }
             player_scores_[pid] = result[static_cast<uint8_t>(PlayerIDToChessType_(pid))];
             if (!board_.PlacablePositions(PlayerIDToChessType_(pid)).empty()) {
@@ -175,10 +171,6 @@ class MainStage : public MainGameStage<>
             }
         }
         Global().Boardcast() << "双方落子成功";
-        Global().BoardcastAiInfo(nlohmann::json{
-                    { "player_coordinates", std::move(json_array) },
-                    { "board", board_.ToString() }
-                });
         ++round_;
         Global().Group() << Markdown(ToHtml_());
         Global().Tell(0) << Markdown(ToHtml_());

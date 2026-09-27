@@ -29,7 +29,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -219,7 +219,7 @@ class TargetStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode SetTargetScore_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t score)
+    AtomReqErrCode SetTargetScore_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t score)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行设置";
@@ -277,7 +277,7 @@ class TargetStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         Main().table.targetScore[pid] = 500;
         return StageErrCode::READY;
@@ -296,7 +296,7 @@ class RoundStage : public SubGameStage<BitStage, GameStage>
     {}
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (GAME_OPTION(模式) == 0) {
             reply() << "当前回合：" << Main().round_ << " / " << GAME_OPTION(回合数) << " 回合\n"
@@ -368,7 +368,7 @@ class BitStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode SetBitting_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t bit)
+    AtomReqErrCode SetBitting_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t bit)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 您本局为防守方，无需进行下注";
@@ -405,7 +405,7 @@ class BitStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -475,7 +475,7 @@ class GameStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode ChooseCard_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t card)
+    AtomReqErrCode ChooseCard_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t card)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行出牌";
@@ -591,7 +591,7 @@ class GameStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

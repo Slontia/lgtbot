@@ -38,7 +38,7 @@ uint32_t Multiple(const CustomOptions& options) {
 }
 const MutableGenericOptions k_default_generic_options;
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options,
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options,
                   const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     uint8_t player_num = generic_options_readonly.PlayerNum();
@@ -329,7 +329,7 @@ class MainStage : public MainGameStage<RoundStage>
     }
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         BroadcastStatus_();
         return StageErrCode::OK;
@@ -434,7 +434,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         return StageErrCode::OK;
     }
@@ -445,7 +445,7 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Play_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode Play_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                          const CardId card,
                          const std::optional<uint32_t>& target_opt,
                          const std::optional<uint32_t>& extra_opt)
@@ -839,7 +839,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode BishopChoice_(PlayerID pid, const bool is_public, MsgSenderBase& reply, bool choice)
+    AtomReqErrCode BishopChoice_(PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, bool choice)
     {
         if (pid != Main().bishop_target_) {
             Global().Tell(pid) << "[错误] 当前没有需要你做选择";

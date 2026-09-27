@@ -38,7 +38,7 @@ uint32_t Multiple(const CustomOptions& options)
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() == 1) {
         reply() << "该游戏至少 2 名玩家参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -150,7 +150,7 @@ class PrepareStage : public SubGameStage<>
    private:
     // PrepareStage timeout do not hook players
 
-    AtomReqErrCode Add_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str)
+    AtomReqErrCode Add_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& str)
     {
         if (is_public) {
             reply() << "[错误] 添加失败，请私信裁判进行添加";
@@ -165,7 +165,7 @@ class PrepareStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Remove_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str)
+    AtomReqErrCode Remove_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& str)
     {
         if (is_public) {
             reply() << "[错误] 移除失败，请私信裁判进行移除";
@@ -184,7 +184,7 @@ class PrepareStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Finish_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Finish_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 您已经立直过一次了，即便再立直一次，番数也不会增加哦~";
@@ -198,7 +198,7 @@ class PrepareStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool show_image)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool show_image)
     {
         if (is_public) {
             reply() << "请私信裁判查看手牌和牌山情况";
@@ -243,7 +243,7 @@ class KiriStage : public SubGameStage<>
         return CheckoutErrCode::Condition(OnOver_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
-    AtomReqErrCode Kiri_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& str)
+    AtomReqErrCode Kiri_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& str)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 您已经切过牌了";
@@ -257,7 +257,7 @@ class KiriStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool show_image)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool show_image)
     {
         if (is_public && show_image) {
             reply() << Markdown(game_table_.PublicHtml());

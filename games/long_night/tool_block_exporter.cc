@@ -58,7 +58,7 @@
 #include <vector>
 
 #include "bot_core/id.h"
-#include "bot_core/msg_sender.h"   // MsgSenderBase
+#include "bot_core/msg_sender.h"   // ChildMsgSenderBase
 #include "utility/html.h"
 
 using namespace std;

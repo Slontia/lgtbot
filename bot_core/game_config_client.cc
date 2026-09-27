@@ -8,6 +8,8 @@
 #include "match_process/match_ipc.pb.h"
 #include "utility/log.h"
 
+namespace lgtbot::core {
+
 namespace {
 
 void DestroyConfigRunnerProc(std::unique_ptr<Subprocess>& proc)
@@ -391,3 +393,5 @@ void GameConfigClient::WatchdogRun_()
         }
     }
 }
+
+} // namespace lgtbot::core

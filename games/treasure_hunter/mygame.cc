@@ -41,7 +41,7 @@ const std::vector<RuleCommand> k_rule_commands = {};
 
 const uint32_t k_min_player_num = 4;
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < k_min_player_num) {
         reply() << "该游戏至少 " << k_min_player_num << " 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -87,7 +87,7 @@ class MainStage : public MainGameStage<ChoiceStage>
     string board_status_;
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(board_status_, board_.TableWidth());
         return StageErrCode::OK;
@@ -563,7 +563,7 @@ class ChoiceStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -628,18 +628,18 @@ class ChoiceStage : public SubGameStage<>
     static constexpr int k_retreat_chance_scale_ = 45; // 收益风险比换算成撤离概率的系数
     static constexpr int k_max_retreat_chance_ = 92;   // 撤离概率上限
 
-    AtomReqErrCode Continue_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Continue_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return MakeChoice_(pid, reply, Choice::CONTINUE);
     }
 
-    AtomReqErrCode Retreat_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Retreat_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return MakeChoice_(pid, reply, Choice::RETREAT);
     }
 
     // 开启后每回合自动继续探险，其他玩家行动完毕即进入下一回合；再次执行可关闭
-    AtomReqErrCode AutoExplore_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode AutoExplore_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         Player& player = Main().board_.players[pid];
         if (!player.IsExploring()) {
@@ -663,7 +663,7 @@ class ChoiceStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode MakeChoice_(const PlayerID pid, MsgSenderBase& reply, const Choice choice)
+    AtomReqErrCode MakeChoice_(const PlayerID pid, ChildMsgSenderBase& reply, const Choice choice)
     {
         Player& player = Main().board_.players[pid];
         if (!player.IsExploring()) {

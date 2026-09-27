@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <vector>
 
+namespace lgtbot::ipc {
+
 namespace {
 
 bool WriteAll(FILE* out, const void* data, const size_t len)
@@ -69,3 +71,5 @@ bool ReadFrame(FILE* const in, std::string& payload_out)
     payload_out.assign(buf.begin(), buf.end());
     return true;
 }
+
+} // namespace lgtbot::ipc

@@ -38,7 +38,7 @@ uint32_t Multiple(const CustomOptions& options) { return std::min(3U, GET_OPTION
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
@@ -103,7 +103,7 @@ class MainStage : public MainGameStage<>
                     << "秒未行动自动 pass\n格式：棋子位置 行动方式";
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -112,7 +112,7 @@ class MainStage : public MainGameStage<>
             {
                 while (true) {
                     const Coor coor(rand() % board_.max_m(), rand() % board_.max_n());
-                    if (Act_(pid, coor, static_cast<Choise>(rand() % static_cast<uint32_t>(Choise::_MAX)), EmptyMsgSender::Get())) {
+                    if (Act_(pid, coor, static_cast<Choise>(rand() % static_cast<uint32_t>(Choise::_MAX)), ChildEmptyMsgSender::Get())) {
                         return coor;
                     }
                 }
@@ -127,7 +127,7 @@ class MainStage : public MainGameStage<>
     }
 
   private:
-    bool Act_(const PlayerID pid, const Coor& coor, const Choise choise, MsgSenderBase& reply)
+    bool Act_(const PlayerID pid, const Coor& coor, const Choise choise, ChildMsgSenderBase& reply)
     {
         const auto coor_to_str = [](const Coor& coor) { return char('A' + coor.m_) + std::to_string(coor.n_); };
         if (choise == Choise::CLOCKWISE || choise == Choise::ANTICLOCKWISE) {
@@ -157,7 +157,7 @@ class MainStage : public MainGameStage<>
         return true;
     }
 
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "行动失败：请私信裁判行动";
@@ -171,7 +171,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& coor_str, const Choise choise)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& coor_str, const Choise choise)
     {
         if (is_public) {
             reply() << "行动失败：请私信裁判行动";
@@ -193,7 +193,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(ShowInfo_());
         return StageErrCode::OK;

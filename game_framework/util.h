@@ -4,10 +4,9 @@
 
 #pragma once
 
+#include "bot_core/msg_sender.h"
 #include "game_framework/game_properties.h"
 #include "utility/msg_checker.h"
-
-class MsgSenderBase;
 
 namespace lgtbot {
 
@@ -50,7 +49,7 @@ extern const std::vector<InitOptionsCommand> k_init_options_commands;
 // Validate the options and adapt them if not valid.
 // The return value of false indicates the options are not valid and fail to adapt. In this scenario, the game will fail
 // to start.
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options);
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options);
 
 // Get the maximum player numbers under the current options.
 // The return value of 0 indicates there are no player number limits.

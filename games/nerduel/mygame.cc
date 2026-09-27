@@ -29,7 +29,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options) {
   if (generic_options_readonly.PlayerNum() < 2) {
     reply() << "人数不足。";
     return false;
@@ -199,7 +199,7 @@ class SettingStage : public SubGameStage<> {
   }
 
  private:
-  AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+  AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                       std::string str) {
     if (is_public) {
       reply() << "请私信设置等式。";
@@ -250,7 +250,7 @@ class GuessingStage : public SubGameStage<> {
   }
 
  private:
-  AtomReqErrCode Guess_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+  AtomReqErrCode Guess_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
                         std::string str) {
     if (str.length() != GAME_OPTION(等式长度)) {
       reply() << "输入长度不正确。本局游戏设定的等式长度为：" +
@@ -281,7 +281,7 @@ class GuessingStage : public SubGameStage<> {
     return StageErrCode::OK;
   }
 
-  AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply) {
+  AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply) {
     std::string response = "等式长度：" + std::to_string(GAME_OPTION(等式长度)) +
                            "，游戏模式：" + (GAME_OPTION(游戏模式) ? "标准" : "狂野");
     for (int i = 0; i < 2; i++) {

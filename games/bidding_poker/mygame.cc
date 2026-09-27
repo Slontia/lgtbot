@@ -34,7 +34,7 @@ uint32_t Multiple(const CustomOptions& options)
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 3) {
         reply() << "该游戏至少 3 人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
@@ -280,7 +280,7 @@ class MainStage : public MainGameStage<k_type, MainBidStage<k_type>, RoundStage<
     }
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         auto sender = reply();
         sender << "奖池金币数：" << BonusCoins_() << "枚\n";
@@ -339,7 +339,7 @@ class BidStage : public SubGameStage<k_type>
         this->Global().StartTimer(GAME_OPTION(投标时间));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         const auto max_bid_coins = this->Main().players()[pid].coins_ / 4;
         if (max_bid_coins > 0) {
@@ -404,7 +404,7 @@ class BidStage : public SubGameStage<k_type>
         }
     }
 
-    AtomReqErrCode Bid_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t chip)
+    AtomReqErrCode Bid_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t chip)
     {
         if (discarder_.has_value() && pid == *discarder_) {
             reply() << "投标失败：您是该商品的拍卖者，不可以参与投标";
@@ -429,7 +429,7 @@ class BidStage : public SubGameStage<k_type>
         return AtomReqErrCode::Condition(bidding_manager_.Bid(pid, chip, reply()), StageErrCode::READY, StageErrCode::FAILED);
     }
 
-    AtomReqErrCode Cancel_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Cancel_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (discarder_.has_value() && pid == *discarder_) {
             reply() << "跳过失败：您是该商品的拍卖者，本来就无法参与投标，不需要跳过";
@@ -500,7 +500,7 @@ class MainBidStage : public SubGameStage<k_type, BidStage<k_type>>
         return this->Main().TitleHtml() + "\n\n" + this->Main().ItemInfoHtml(index_) + "\n\n" + this->Main().PlayerInfoHtml();
     }
 
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         this->Global().Boardcast() << Markdown(InfoHtml_());
         return StageErrCode::OK;
@@ -542,7 +542,7 @@ class DiscardStage : public SubGameStage<k_type>
         }
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (std::rand() % 2) {
             return StageErrCode::READY;
@@ -570,13 +570,13 @@ class DiscardStage : public SubGameStage<k_type>
         return this->Main().TitleHtml() + "\n\n" + this->Main().NonPlayerItemInfoHtml() + "\n\n" + this->Main().PlayerInfoHtml();
     }
 
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         this->Global().Boardcast() << Markdown(InfoHtml_());
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Discard_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<std::string>& poker_strs)
+    AtomReqErrCode Discard_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::vector<std::string>& poker_strs)
     {
         if (is_public) {
             reply() << "弃牌失败：请私信裁判进行弃牌";
@@ -614,7 +614,7 @@ class DiscardStage : public SubGameStage<k_type>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Cancel_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Cancel_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "失败：请私信裁判取消弃牌";

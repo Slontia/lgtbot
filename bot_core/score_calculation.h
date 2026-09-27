@@ -9,6 +9,8 @@
 #include "bot_core/id.h"
 #include "bot_core/db_manager.h"
 
+namespace lgtbot::core {
+
 static constexpr const auto k_zero_sum_score_multi = 1000;
 static constexpr const auto k_top_score_multi = 10;
 
@@ -36,3 +38,5 @@ struct UserInfoForCalScore
 };
 
 std::vector<ScoreInfo> CalScores(std::vector<UserInfoForCalScore>& scores, const uint16_t multiple = 1);
+
+} // namespace lgtbot::core

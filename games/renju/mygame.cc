@@ -35,7 +35,7 @@ uint32_t Multiple(const CustomOptions& options) { return 2; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
@@ -86,7 +86,7 @@ class MainStage : public MainGameStage<>
         Global().Boardcast() << "请私信裁判落子位置";
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         uint32_t x, y;
         do {
@@ -103,7 +103,7 @@ class MainStage : public MainGameStage<>
     }
 
   private:
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "跳过失败：请私信裁判决定跳过";
@@ -118,7 +118,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::vector<std::string>& pos_strs)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::vector<std::string>& pos_strs)
     {
         if (is_public) {
             reply() << "落子失败：请私信裁判选择落子位置";
@@ -166,7 +166,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(HtmlHead_() + board_.ToHtml());
         return StageErrCode::OK;
@@ -229,7 +229,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    Result SetProperPieceToBoard_(MsgSenderBase& reply, const size_t idx = 0)
+    Result SetProperPieceToBoard_(ChildMsgSenderBase& reply, const size_t idx = 0)
     {
         const std::array<bool, 2> no_more_choise { player_pos_[0].size() == idx + 1, player_pos_[1].size() == idx + 1 };
         if (player_pos_[0][idx] != player_pos_[1][idx] || (round_ > 0 && no_more_choise[0] && no_more_choise[1])) {
@@ -250,7 +250,7 @@ class MainStage : public MainGameStage<>
         }
     }
 
-    bool SetToBoard_(MsgSenderBase& reply)
+    bool SetToBoard_(ChildMsgSenderBase& reply)
     {
         board_.ClearHighlight();
         const auto ret =

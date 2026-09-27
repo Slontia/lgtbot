@@ -38,7 +38,7 @@ uint32_t Multiple(const CustomOptions& options) { return 2; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -109,7 +109,7 @@ class MainStage : public MainGameStage<>
     }
 
     // 电脑行动：用带 Alpha-Beta 剪枝的 Negamax 搜索选出最佳落子
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK; // 非当前回合或已行动
@@ -128,14 +128,14 @@ class MainStage : public MainGameStage<>
 
   private:
     // 赛况：重发当前棋盘图片（reply 回显至指令来源，同 hex / normal_renju）
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(BoardMarkdown_(turn_pid_));
         return StageErrCode::OK;
     }
 
     // 认输 / 投降：该玩家判负，对手获胜，本局立即结束
-    AtomReqErrCode Concede_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t)
+    AtomReqErrCode Concede_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t)
     {
         player_scores_[pid] = -1;
         player_scores_[1 - pid] = 1;
@@ -144,7 +144,7 @@ class MainStage : public MainGameStage<>
     }
 
     // 落子：校验回合，解析坐标后交由 HandleMove_ 做合法性校验与落子
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& coor_str)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& coor_str)
     {
         if (pid != turn_pid_) {
             reply() << "[错误] 落子失败：现在不是您的回合";
@@ -158,7 +158,7 @@ class MainStage : public MainGameStage<>
     }
 
     // 合法性校验（逐条对应 Java input 中的三项校验）→ 落子 → 推进回合
-    AtomReqErrCode HandleMove_(const PlayerID pid, const int big, const int idx, MsgSenderBase& reply)
+    AtomReqErrCode HandleMove_(const PlayerID pid, const int big, const int idx, ChildMsgSenderBase& reply)
     {
         // 1) 强制宫格限制（Java: last != -1 && last != bigIndex）
         if (board_.forced != -1 && board_.forced != big) {
@@ -207,7 +207,7 @@ class MainStage : public MainGameStage<>
 
     // 解析两位坐标「大格号 + 小格号」（各为 1-9）→ big / idx（0-8）。
     // 失败时回复错误并返回 false。对应 Java：text.length()!=2 与 charAt(0/1)-'1'。
-    bool ParseCoor_(const std::string& s, MsgSenderBase& reply, int& big, int& idx)
+    bool ParseCoor_(const std::string& s, ChildMsgSenderBase& reply, int& big, int& idx)
     {
         if (s.size() != 2 || s[0] < '1' || s[0] > '9' || s[1] < '1' || s[1] > '9') {
             reply() << "[错误] 落子失败：" << s << " 不是有效的坐标，应为两位 1-9 的数字（大格号 + 小格号，如 53）";

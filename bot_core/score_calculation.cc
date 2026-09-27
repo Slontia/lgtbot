@@ -9,6 +9,8 @@
 #include <cmath>
 #include <iostream>
 
+namespace lgtbot::core {
+
 static void CalZeroSumScore(std::vector<UserInfoForCalScore>& user_infos)
 {
     const int64_t user_num = user_infos.size();
@@ -114,4 +116,6 @@ std::vector<ScoreInfo> CalScores(std::vector<UserInfoForCalScore>& user_infos, c
     CalLevelScore(user_infos);
     return MakeScoreInfo(user_infos, multiple);
 }
+
+} // namespace lgtbot::core
 

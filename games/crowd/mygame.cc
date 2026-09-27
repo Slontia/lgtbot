@@ -287,7 +287,7 @@ const std::vector<RuleCommand> k_rule_commands = {
         AnyArg("关键字 / #题号", "#30")),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 4) {
         reply() << "该游戏至少 4 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -339,7 +339,7 @@ class MainStage : public MainGameStage<RoundStage>
 //---------------------------------------------------------------------------//
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool show_image){
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool show_image){
 
          string s = "";
          s += "乌合之众: \n第" + str(round_) + " / " + str(GAME_OPTION(回合数)) + " 回合\n\n";
@@ -453,7 +453,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         string x = "A";
         Question *& q = Main().question;
@@ -566,7 +566,7 @@ class RoundStage : public SubGameStage<>
 
 
   private:
-    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, string submission)
+    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, string submission)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判选择";
@@ -607,7 +607,7 @@ class RoundStage : public SubGameStage<>
         return SubmitInternal_(pid, reply, submission);
     }
 
-    AtomReqErrCode SubmitInternal_(const PlayerID pid, MsgSenderBase& reply, string submission)
+    AtomReqErrCode SubmitInternal_(const PlayerID pid, ChildMsgSenderBase& reply, string submission)
     {
         Main().players[pid].select = submission[0] - 'A';
         return StageErrCode::READY;

@@ -4,18 +4,29 @@
 
 #include <filesystem>
 #include <thread>
+#include <cstdlib>
 #include <chrono>
+#include <future>
 
 #include <gtest/gtest.h>
 #include <gflags/gflags.h>
+
+DEFINE_string(image_path, "/tmp/lgtbot_test_bot", "Path for storing game images");
 
 #include "bot_core/msg_sender.h"
 #include "bot_core/bot_core.h"
 #include "bot_core/bot_ctx.h"
 #include "bot_core/db_manager.h"
 #include "bot_core/score_calculation.h"
-#include "bot_core/match.h"
+#include "bot_core/match/match.h"
+#include "bot_core/match/match_manager.h"
 #include "utility/process_signals.h"
+
+using namespace lgtbot::core;
+using namespace lgtbot;
+using namespace lgtbot::core::match;
+
+namespace lgtbot::core::test {
 
 static_assert(TEST_BOT);
 
@@ -138,12 +149,16 @@ class TestBot : public testing::Test
   public:
     virtual void SetUp() override
     {
+        const char* tmp_dir = std::getenv("TMPDIR");
+        const std::string tmp_base = tmp_dir ? tmp_dir : "/tmp";
+        conf_dir_ = tmp_base + "/lgtbot_test_" + std::to_string(std::rand());
+        std::filesystem::create_directories(conf_dir_);
         auto game_handles = BotCtx::LoadGameModules(TEST_GAME_PLUGIN_DIR);
         ASSERT_TRUE(std::holds_alternative<GameHandleMap>(game_handles)) << "Failed to load test game plugin";
         bot_.reset(new BotCtx(
                     TEST_GAME_PLUGIN_DIR, // game_path
-                    "", // conf_path
-                    "/tmp/lgtbot_test_bot", // image_path
+                    conf_dir_ + "/config.json", // conf_path
+                    FLAGS_image_path, // image_path
                     LGTBot_Callback{
                         .get_user_name = GetUserName,
                         .get_user_name_in_group = GetUserNameInGroup,
@@ -156,14 +171,23 @@ class TestBot : public testing::Test
                     std::make_unique<MockDBManager>(),
 #endif
                     MutableBotOption{},
-                    nlohmann::json{},
+                    nlohmann::json::object(),
                     nullptr));
+    }
+
+    virtual void TearDown() override
+    {
+        bot_.reset();
+        if (!conf_dir_.empty()) {
+            std::filesystem::remove_all(conf_dir_);
+        }
     }
 
     MockDBManager& db_manager() { return *static_cast<MockDBManager*>(bot_->db_manager()); }
 
   protected:
     std::unique_ptr<BotCtx, void(*)(void*)> bot_{nullptr, &LGTBot_Release};
+    std::string conf_dir_;
 
 };
 
@@ -691,6 +715,30 @@ TEST_F(TestBot, config_game_kick_joined_player)
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
   ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "时限 1");
   ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
+}
+
+// BindMatch failure must not fall through to MatchLobby::Join: if the uid is already
+// bound to this match but not in the lobby (stale binding), Join would re-add the
+// player instead of reporting they are already associated with the match.
+TEST_F(TestBot, join_rejects_when_bound_without_lobby_membership)
+{
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%配置 测试游戏 最大玩家数 2");
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "时限 1"); // kicks user 2 and unbinds
+
+  const auto match = bot_->match_manager().GetMatch(MatchID{1});
+  ASSERT_TRUE(match);
+  ASSERT_TRUE(bot_->match_manager().BindMatch(UserID{"2"}, match)); // stale bind, not in lobby
+
+  std::vector<std::string> msgs;
+  g_captured_messages = &msgs;
+  ASSERT_PRI_MSG(EC_MATCH_USER_ALREADY_IN_MATCH, "2", "#加入 1");
+  g_captured_messages = nullptr;
+
+  for (const auto& m : msgs) {
+    EXPECT_EQ(m.find("加入了游戏"), std::string::npos) << m;
+  }
 }
 
 // Player Limit
@@ -1253,6 +1301,20 @@ TEST_F(TestBot, pub_game_request_reply_has_no_extra_bare_at_message)
   }
 }
 
+// MatchLobby option should apply to the game via lazy game_runner creation
+
+TEST_F(TestBot, lobby_option_should_apply_to_game)
+{
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%配置 测试游戏 最大玩家数 2");
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+  ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
+  ASSERT_PRI_MSG(EC_GAME_REQUEST_OK, "1", "直接结束");
+  ASSERT_PRI_MSG(EC_OK, "1", "#开始");
+  // Game starts and finishes immediately because 直接结束 is set
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  ASSERT_PRI_MSG(EC_OK, "1", "#新游戏 测试游戏");
+}
+
 // Subprocess Kill
 
 TEST_F(TestBot, subprocess_killed_during_game)
@@ -1287,12 +1349,30 @@ TEST_F(TestBot, custom_rule_invalid_command)
   ASSERT_PRI_MSG(EC_INVALID_ARGUMENT, "1", "#规则 测试游戏 不存在的指令");
 }
 
+TEST_F(TestBot, GameStart_AdaptOptionsFail_ReturnToLobby)
+{
+  // Enable the reject-start option so AdaptOptions returns false.
+  ASSERT_PRI_MSG(EC_OK, k_admin_qq, "%配置 测试游戏 拒绝开始 开启");
+  ASSERT_PUB_MSG(EC_OK, "1", "1", "#新游戏 测试游戏");
+  ASSERT_PUB_MSG(EC_OK, "1", "2", "#加入");
+  // Start should fail because AdaptOptions rejects it.
+  ASSERT_PUB_MSG(EC_MATCH_UNEXPECTED_CONFIG, "1", "1", "#开始");
+  // Match must still be alive in lobby state — not destroyed. Host can flip the
+  // rejecting option off in-match; that goes straight to the (already-spawned) game
+  // child via MatchLobby::Request → SendSetOption, so the retry succeeds without any
+  // buffered replay or respawn.
+  ASSERT_PUB_MSG(EC_GAME_REQUEST_OK, "1", "1", "拒绝开始 关闭");
+  ASSERT_PUB_MSG(EC_OK, "1", "1", "#开始");
+}
+
+} // namespace lgtbot::core::test
+
 int main(int argc, char** argv)
 {
   lgtbot::InstallDefaultSignalHandlersOnce();
   testing::InitGoogleTest(&argc, argv);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  g_argc = argc;
-  g_argv = argv;
+  lgtbot::core::test::g_argc = argc;
+  lgtbot::core::test::g_argv = argv;
   return RUN_ALL_TESTS();
 }

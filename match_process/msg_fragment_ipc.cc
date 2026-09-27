@@ -9,7 +9,7 @@ namespace lgtbot::ipc {
 
 namespace {
 
-MsgItem MsgFragmentToItem(const MsgFragment& frag)
+MsgItem MsgFragmentToItem(const ChildMsgFragment& frag)
 {
     MsgItem proto;
     std::visit(Overload{
@@ -18,8 +18,8 @@ MsgItem MsgFragmentToItem(const MsgFragment& frag)
         [&](const Name<UserID>& name) { proto.set_user_id(name.id_.GetStr()); },
         [&](const At<PlayerID>& at) { proto.set_at_player_id(at.id_.Get()); },
         [&](const Name<PlayerID>& name) { proto.set_at_player_id(name.id_.Get()); },
-        [&](const ::Image& image) { proto.set_image_path(image.path_); },
-        [&](const ::Markdown& markdown) {
+        [&](const Image& image) { proto.set_image_path(image.path_); },
+        [&](const lgtbot::Markdown& markdown) {
             auto* md = proto.mutable_markdown();
             md->set_text(markdown.content_);
             md->set_width(markdown.width_);
@@ -30,7 +30,7 @@ MsgItem MsgFragmentToItem(const MsgFragment& frag)
 
 } // namespace
 
-std::vector<MsgItem> MsgFragmentsToItems(std::vector<MsgFragment> fragments)
+std::vector<MsgItem> MsgFragmentsToItems(std::vector<ChildMsgFragment> fragments)
 {
     std::vector<MsgItem> items;
     items.reserve(fragments.size());
