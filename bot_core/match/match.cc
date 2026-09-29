@@ -44,8 +44,8 @@ void Match::Internal::BriefInfo(std::string& out) const
     PhaseCommon(phase_).BriefInfo(out);
 }
 
-ErrCode Match::Internal::SetBenchTo(UserID uid, HostMsgSenderBase& reply,
-                               uint64_t bench_computers_to_player_num)
+ErrCode Match::Internal::SetBenchTo(const UserID uid, HostMsgSenderBase& reply,
+                               const uint64_t bench_computers_to_player_num)
 {
     auto* p = std::get_if<MatchLobby>(&phase_);
     if (!p) {
@@ -55,7 +55,7 @@ ErrCode Match::Internal::SetBenchTo(UserID uid, HostMsgSenderBase& reply,
     return p->SetBenchTo(uid, reply, bench_computers_to_player_num);
 }
 
-ErrCode Match::Internal::SetFormal(UserID uid, HostMsgSenderBase& reply, bool is_formal)
+ErrCode Match::Internal::SetFormal(const UserID uid, HostMsgSenderBase& reply, const bool is_formal)
 {
     auto* p = std::get_if<MatchLobby>(&phase_);
     if (!p) {
@@ -65,7 +65,7 @@ ErrCode Match::Internal::SetFormal(UserID uid, HostMsgSenderBase& reply, bool is
     return p->SetFormal(uid, reply, is_formal);
 }
 
-ErrCode Match::Internal::Join(UserID uid, HostMsgSenderBase& reply)
+ErrCode Match::Internal::Join(const UserID uid, HostMsgSenderBase& reply)
 {
     auto* p = std::get_if<MatchLobby>(&phase_);
     if (!p) {
@@ -75,12 +75,9 @@ ErrCode Match::Internal::Join(UserID uid, HostMsgSenderBase& reply)
     return p->Join(uid, reply);
 }
 
-template <std::invocable<UserID> Unbind>
 Match::Internal::PhaseResult Match::Internal::ExecuteRequest(
-    UserID uid, std::optional<GroupID> gid,
-    const std::string& msg, MsgSender& reply,
-    std::atomic<MatchState>& state,
-    Match& match, Unbind&& unbind_user)
+    const UserID uid, const std::optional<GroupID> gid,
+    const std::string& msg, MsgSender& reply)
 {
     {
         // Route the in-game help command before phase dispatch. The callback must not
@@ -88,8 +85,8 @@ Match::Internal::PhaseResult Match::Internal::ExecuteRequest(
         // directly instead of Match::Help_ which locks again.
         MsgReader reader(msg);
         Command<void(HostMsgSenderBase&)> help_cmd("查看游戏帮助",
-                [this, &match](HostMsgSenderBase& reply, const bool text_mode) {
-                    Help(reply, text_mode, [&match, &reply, text_mode] { match.FetchHelp_(reply, text_mode); });
+                [this](HostMsgSenderBase& reply, const bool text_mode) {
+                    Help(reply, text_mode, [&match = this->match_, &reply, text_mode] { match.FetchHelp_(reply, text_mode); });
                 },
                 VoidChecker("帮助"), OptionalDefaultChecker<BoolChecker>(false, "文字", "图片"));
         if (help_cmd.CallIfValid(reader, reply)) {
@@ -102,20 +99,14 @@ Match::Internal::PhaseResult Match::Internal::ExecuteRequest(
     auto& running = std::get<MatchRunning>(phase_);
     const auto rc = running.ExecuteRequest(uid, gid, msg, reply, MakeCallback(running));
     if (running.is_over()) {
-        CleanupRunning(state, std::forward<Unbind>(unbind_user));
+        CleanupRunning_();
         return {rc, true};
     }
     return {rc, false};
 }
 
-template <std::invocable<UserID> Unbind>
 Match::Internal::PhaseResult Match::Internal::ExecuteGameStart(
-    const UserID uid, HostMsgSenderBase& reply,
-    std::atomic<MatchState>& state,
-    const MatchContext& ctx, MatchMessaging* messaging,
-    MatchHelpServices* help,
-    std::optional<MsgSender> group_sender,
-    Match& match, Unbind&& unbind_user)
+    const UserID uid, HostMsgSenderBase& reply)
 {
     auto* const lobby = std::get_if<MatchLobby>(&phase_);
     if (!lobby) {
@@ -133,17 +124,17 @@ Match::Internal::PhaseResult Match::Internal::ExecuteGameStart(
     // list. `players_for_child` is a copy; `MatchLobby::PlayerIds()` and RuntimeOptions
     // will be read again inside EnsureRunningPhase — cheap, and keeps this function
     // free of the moved-in plan bookkeeping the old ensure_running lambda required.
-    auto players_for_child = lobby->PlayersForChild();
+    const auto players_for_child = lobby->PlayersForChild();
     const auto user_num = static_cast<uint32_t>(users_.size());
     const auto& generic = lobby->RuntimeOptions().generic_options_;
     const auto bench = generic.bench_computers_to_player_num_;
     const auto is_formal = generic.is_formal_;
 
-    const auto get_running = [this, &match]() -> MatchRunning& {
-        EnsureRunningPhase(match);
+    const auto get_running = [this]() -> MatchRunning& {
+        EnsureRunningPhase();
         return std::get<MatchRunning>(phase_);
     };
-    const auto stage = game_child_->SendStart(ctx.mid.Get(), user_num,
+    const auto stage = game_child_->SendStart(match_.ctx_.mid.Get(), user_num,
                                               players_for_child, bench, is_formal,
                                               MakeCallback(get_running));
 
@@ -155,7 +146,7 @@ Match::Internal::PhaseResult Match::Internal::ExecuteGameStart(
             running->HandleChildEof();
         }
         if (std::holds_alternative<MatchRunning>(phase_)) {
-            CleanupRunning(state, std::forward<Unbind>(unbind_user));
+            CleanupRunning_();
             return {EC_UNEXPECTED_ERROR, true};
         }
         reply() << "[错误] 开始失败：游戏已被中断";
@@ -171,10 +162,10 @@ Match::Internal::PhaseResult Match::Internal::ExecuteGameStart(
     }
 
     // STAGE_OK: commit to MatchRunning if push frames did not already do so.
-    EnsureRunningPhase(match);
+    EnsureRunningPhase();
     auto& running = std::get<MatchRunning>(phase_);
     if (running.is_over()) {
-        CleanupRunning(state, std::forward<Unbind>(unbind_user));
+        CleanupRunning_();
         return {EC_OK, true};
     }
     running.BoardcastAtAll()
@@ -185,14 +176,14 @@ Match::Internal::PhaseResult Match::Internal::ExecuteGameStart(
                                                    : nlohmann::json{{"display_name", pi.display_name()}});
     }
     running.Boardcast()
-        << nlohmann::json{{"match_id", ctx.mid.Get()},
+        << nlohmann::json{{"match_id", match_.ctx_.mid.Get()},
                           {"state", "started"},
                           {"players", std::move(players_json_array)}}.dump();
     return {EC_OK, false};
 }
 
-void Match::Internal::ExecuteAlert(uint64_t remaining_sec,
-                              const std::shared_ptr<std::atomic<bool>>& tio, Match& match)
+void Match::Internal::ExecuteAlert(const uint64_t remaining_sec,
+                              const std::shared_ptr<std::atomic<bool>>& tio)
 {
     if (tio->load(std::memory_order_acquire)) {
         return;
@@ -204,7 +195,7 @@ void Match::Internal::ExecuteAlert(uint64_t remaining_sec,
     (void)game_child_->SendAlert(remaining_sec, MakeCallback(running));
 }
 
-void Match::Internal::EnsureRunningPhase(Match& match)
+void Match::Internal::EnsureRunningPhase()
 {
     auto* const lobby = std::get_if<MatchLobby>(&phase_);
     if (!lobby) {
@@ -219,18 +210,18 @@ void Match::Internal::EnsureRunningPhase(Match& match)
     MatchRuntimeOptions options = lobby->RuntimeOptions();       // copy
     std::vector<MatchVariantID> player_ids = lobby->PlayerIds(); // copy
 
-    phase_.emplace<MatchRunning>(match.ctx_, &match.messaging_, &match.help_, users_,
+    phase_.emplace<MatchRunning>(match_.ctx_, &match_.messaging_, &match_.help_, users_,
                             host_uid, std::move(options), std::move(player_ids),
                             game_child_.get(),
-                            std::move(match.group_sender_),
-                            MatchTimerFactory(match));
-    match.state_.store(MATCH_IS_STARTED, std::memory_order_release);
+                            std::move(match_.group_sender_),
+                            MatchTimerFactory(match_));
+    match_.state_.store(MATCH_IS_STARTED, std::memory_order_release);
 }
 
-template <std::invocable<UserID> F>
-void Match::Internal::CleanupRunning(std::atomic<MatchState>& state, F&& unbind_user)
+void Match::Internal::CleanupRunning_()
 {
-    state.store(MATCH_IS_OVER, std::memory_order_release);
+    match_.state_.store(MATCH_IS_OVER, std::memory_order_release);
+    const auto unbind_user = match_.MakeUnbindCallback_();
     for (auto& [uid, user] : users_) {
         if (user.presence_.load(std::memory_order_acquire) != UserPresence::LEFT) {
             unbind_user(uid);
@@ -241,11 +232,10 @@ void Match::Internal::CleanupRunning(std::atomic<MatchState>& state, F&& unbind_
     }
 }
 
-template <std::invocable<UserID> F>
 Match::Internal::PhaseResult Match::Internal::ExecuteLeave(
-    UserID uid, HostMsgSenderBase& reply, bool force,
-    std::atomic<MatchState>& state, Match& match, F&& unbind_user)
+    const UserID uid, HostMsgSenderBase& reply, const bool force)
 {
+    const auto unbind_user = match_.MakeUnbindCallback_();
     if (auto* running = std::get_if<MatchRunning>(&phase_)) {
         const auto rc = running->LeaveBeforeChild(uid, reply, force, MakeCallback(*running));
         if (rc != EC_OK) {
@@ -253,7 +243,7 @@ Match::Internal::PhaseResult Match::Internal::ExecuteLeave(
         }
         unbind_user(uid);
         if (running->is_over()) {
-            CleanupRunning(state, std::forward<F>(unbind_user));
+            CleanupRunning_();
             return {EC_OK, true};
         }
         return {EC_OK, false};
@@ -269,15 +259,13 @@ Match::Internal::PhaseResult Match::Internal::ExecuteLeave(
     return {EC_OK, false};
 }
 
-template <std::invocable<UserID> F>
 Match::Internal::PhaseResult Match::Internal::ExecuteUserInterrupt(
-    UserID uid, HostMsgSenderBase& reply, bool cancel,
-    std::atomic<MatchState>& state, F&& unbind_user)
+    const UserID uid, HostMsgSenderBase& reply, const bool cancel)
 {
     if (auto* running = std::get_if<MatchRunning>(&phase_)) {
         const auto rc = running->UserInterrupt(uid, reply, cancel);
         if (running->is_over()) {
-            CleanupRunning(state, std::forward<F>(unbind_user));
+            CleanupRunning_();
             return {rc, true};
         }
         return {rc, false};
@@ -286,14 +274,13 @@ Match::Internal::PhaseResult Match::Internal::ExecuteUserInterrupt(
     return {rc, false};
 }
 
-template <std::invocable<UserID> F>
-Match::Internal::PhaseResult Match::Internal::ExecuteTerminate(
-    bool is_force, std::atomic<MatchState>& state, F&& unbind_user)
+Match::Internal::PhaseResult Match::Internal::ExecuteTerminate(const bool is_force)
 {
+    const auto unbind_user = match_.MakeUnbindCallback_();
     if (auto* running = std::get_if<MatchRunning>(&phase_)) {
         const auto rc = running->Terminate(is_force);
         if (running->is_over()) {
-            CleanupRunning(state, std::forward<F>(unbind_user));
+            CleanupRunning_();
             return {rc, true};
         }
         return {rc, false};
@@ -307,10 +294,8 @@ Match::Internal::PhaseResult Match::Internal::ExecuteTerminate(
     return {rc, true};
 }
 
-template <std::invocable<UserID> F>
 Match::Internal::PhaseResult Match::Internal::ExecuteTimeout(
-    const std::shared_ptr<std::atomic<bool>>& tio,
-    std::atomic<MatchState>& state, Match& match, F&& unbind_user)
+    const std::shared_ptr<std::atomic<bool>>& tio)
 {
     if (tio->load(std::memory_order_acquire)) {
         return {EC_OK, false};
@@ -321,7 +306,7 @@ Match::Internal::PhaseResult Match::Internal::ExecuteTimeout(
     }
     (void)game_child_->SendTimeout(MakeCallback(running));
     if (running.is_over()) {
-        CleanupRunning(state, std::forward<F>(unbind_user));
+        CleanupRunning_();
         return {EC_OK, true};
     }
     return {EC_OK, false};
@@ -342,7 +327,7 @@ Match::Match(BotCtx& bot, const MatchID mid, GameHandle& game_handle, InitOption
         std::unique_ptr<MatchChildClient> game_child)
     : ctx_{bot, mid, game_handle, gid}
     , group_sender_{}
-    , data_{ctx_, &messaging_, host_uid, std::move(init_options), std::move(game_child)}
+    , data_{*this, host_uid, std::move(init_options), std::move(game_child)}
 {
     // The child is a Match invariant now: spawned by match_manager before Match
     // creation, kept alive until ~Match. Binding the terminator once here means Cancel
@@ -391,7 +376,7 @@ HostMsgSenderBase& Match::BoardcastMsgSender()
 
 HostMsgSenderBase& Match::TellMsgSender(const PlayerID pid)
 {
-    auto locked = data_.lock();
+    const auto locked = data_.lock();
     return locked->VisitPhase([&](auto& p) -> decltype(auto) {
         using T = std::decay_t<decltype(p)>;
         if constexpr (std::is_same_v<T, MatchRunning>) {
@@ -411,7 +396,7 @@ HostMsgSenderBase& Match::GroupMsgSender()
 
 const char* Match::PlayerName(const PlayerID& pid)
 {
-    auto locked = data_.lock();
+    const auto locked = data_.lock();
     return locked->VisitPhase([&](auto& p) -> const char* {
         using T = std::decay_t<decltype(p)>;
         if constexpr (std::is_same_v<T, MatchRunning>) {
@@ -424,7 +409,7 @@ const char* Match::PlayerName(const PlayerID& pid)
 
 const char* Match::PlayerAvatar(const PlayerID& pid, const int32_t size)
 {
-    auto locked = data_.lock();
+    const auto locked = data_.lock();
     return locked->VisitPhase([&](auto& p) -> const char* {
         using T = std::decay_t<decltype(p)>;
         if constexpr (std::is_same_v<T, MatchRunning>) {
@@ -447,7 +432,7 @@ size_t Match::UserNum() const
 
 Match::VariantID Match::ConvertPid(const PlayerID pid) const
 {
-    auto locked = data_.lock();
+    const auto locked = data_.lock();
     return locked->VisitPhase([&](const auto& p) -> Match::VariantID {
         using T = std::decay_t<decltype(p)>;
         if constexpr (std::is_same_v<T, MatchRunning>) {
@@ -497,24 +482,16 @@ ErrCode Match::Join(const UserID uid, HostMsgSenderBase& reply)
 ErrCode Match::Request(const UserID uid, const std::optional<GroupID> gid,
                         const std::string& msg, MsgSender& reply)
 {
-    auto unbind = [this](UserID u) { match_manager().UnbindMatch(u); };
-    auto result = data_.lock()->ExecuteRequest(uid, gid, msg, reply, state_, *this, unbind);
+    const auto result = data_.lock()->ExecuteRequest(uid, gid, msg, reply);
     if (result.is_over) {
         Unbind_();
-    }
-    if (result.rc == EC_GAME_REQUEST_NOT_FOUND) {
-        reply() << "[错误] 未预料的游戏指令，您可以通过「帮助」（不带" META_COMMAND_SIGN
-                   "号）查看所有支持的游戏指令\n"
-                   "若您想执行元指令，请尝试在请求前加「" META_COMMAND_SIGN "」，或通过「" META_COMMAND_SIGN
-                   "帮助」查看所有支持的元指令";
     }
     return result.rc;
 }
 
 ErrCode Match::Leave(const UserID uid, HostMsgSenderBase& reply, const bool force)
 {
-    auto unbind = [this](UserID u) { match_manager().UnbindMatch(u); };
-    auto result = data_.lock()->ExecuteLeave(uid, reply, force, state_, *this, unbind);
+    const auto result = data_.lock()->ExecuteLeave(uid, reply, force);
     if (result.is_over) {
         Unbind_();
     }
@@ -523,8 +500,7 @@ ErrCode Match::Leave(const UserID uid, HostMsgSenderBase& reply, const bool forc
 
 ErrCode Match::UserInterrupt(const UserID uid, HostMsgSenderBase& reply, const bool cancel)
 {
-    auto unbind = [this](UserID u) { match_manager().UnbindMatch(u); };
-    auto result = data_.lock()->ExecuteUserInterrupt(uid, reply, cancel, state_, unbind);
+    const auto result = data_.lock()->ExecuteUserInterrupt(uid, reply, cancel);
     if (result.is_over) {
         Unbind_();
     }
@@ -557,8 +533,7 @@ ErrCode Match::Terminate(const bool is_force)
     // Phase 2 (single data_.lock()): tear down state and detach users. Cleanup is
     // idempotent — if another thread's error path already ran CleanupRunning,
     // ExecuteTerminate observes MATCH_IS_OVER / no MatchRunning and returns EC_OK.
-    auto unbind = [this](UserID u) { match_manager().UnbindMatch(u); };
-    auto result = data_.lock()->ExecuteTerminate(is_force, state_, unbind);
+    const auto result = data_.lock()->ExecuteTerminate(is_force);
     if (result.is_over) {
         Unbind_();
     }
@@ -567,10 +542,7 @@ ErrCode Match::Terminate(const bool is_force)
 
 ErrCode Match::GameStart(const UserID uid, HostMsgSenderBase& reply)
 {
-    auto unbind = [this](UserID u) { match_manager().UnbindMatch(u); };
-    auto result = data_.lock()->ExecuteGameStart(
-                uid, reply, state_,
-                ctx_, &messaging_, &help_, std::move(group_sender_), *this, unbind);
+    const auto result = data_.lock()->ExecuteGameStart(uid, reply);
     if (result.is_over) {
         Unbind_();
         if (result.rc != EC_OK) {
@@ -582,8 +554,7 @@ ErrCode Match::GameStart(const UserID uid, HostMsgSenderBase& reply)
 
 void Match::HandleGameTimeout_(const std::shared_ptr<std::atomic<bool>>& tio)
 {
-    auto unbind = [this](UserID u) { match_manager().UnbindMatch(u); };
-    auto result = data_.lock()->ExecuteTimeout(tio, state_, *this, unbind);
+    const auto result = data_.lock()->ExecuteTimeout(tio);
     if (result.is_over) {
         // Route mid/gid unbind through MatchManager's worker thread. This handler
         // runs on Timer::thread_ (the loop thread under the new sync-handle design),

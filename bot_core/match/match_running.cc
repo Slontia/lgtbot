@@ -206,17 +206,22 @@ ErrCode MatchRunning::ExecuteRequest(const UserID uid, const std::optional<Group
         return EC_MATCH_ELIMINATED;
     }
     if (!game_child_) {
-        return EC_MATCH_UNEXPECTED_CONFIG;
+        return EC_UNEXPECTED_ERROR;
     }
     ChildMessageReplyHandler handler(reply, this);
     const auto result = game_child_->SendExecute(pid, gid.has_value(), msg, handler, on_push);
     if (!result) {
         HandleChildEof();
-        return EC_MATCH_UNEXPECTED_CONFIG;
+        return EC_UNEXPECTED_ERROR;
     }
     ErrCode out = *result;
     if (out == EC_GAME_REQUEST_FAILED && is_over_.load(std::memory_order_acquire)) {
-        out = EC_MATCH_UNEXPECTED_CONFIG;
+        out = EC_UNEXPECTED_ERROR;
+    } else if (out == EC_GAME_REQUEST_NOT_FOUND) {
+        reply() << "[错误] 未预料的游戏指令，您可以通过「帮助」（不带" META_COMMAND_SIGN
+                   "号）查看所有支持的游戏指令\n"
+                   "若您想执行元指令，请尝试在请求前加「" META_COMMAND_SIGN "」，或通过「" META_COMMAND_SIGN
+                   "帮助」查看所有支持的元指令";
     }
     return out;
 }
@@ -391,7 +396,7 @@ void MatchTimerFactory::Start(const uint64_t duration_sec)
         if (tio->load(std::memory_order_acquire)) {
             return;
         }
-        match_ptr->data_.lock()->ExecuteAlert(remaining_sec, tio, *match_ptr);
+        match_ptr->data_.lock()->ExecuteAlert(remaining_sec, tio);
     };
     Retire_(std::move(game_timer_));
     game_timer_ = std::make_unique<Timer>(

@@ -110,7 +110,7 @@ std::unique_ptr<MatchChildClient> MakeMatchChildClient(const std::filesystem::pa
         return nullptr;
     }
     auto client = std::unique_ptr<MatchChildClient>(new MatchChildClient(std::move(proc)));
-    auto init_stage = client->SendInit_(options);
+    const auto init_stage = client->SendInit_(options);
     if (!init_stage || *init_stage != lgtbot::ipc::ResultResp::STAGE_OK) {
         ErrorLog() << "MatchChildClient: SendInit failed, stage="
                    << (init_stage ? static_cast<int>(*init_stage) : -1) << ", " << client_ctx;
