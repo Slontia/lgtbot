@@ -1324,7 +1324,7 @@ TEST_F(TestBot, subprocess_killed_during_game)
   ASSERT_PRI_MSG(EC_OK, "2", "#加入 1");
   ASSERT_PRI_MSG(EC_OK, "1", "#开始");
   // "崩溃" triggers _exit(1) in the subprocess; the IPC returns an error.
-  ASSERT_PRI_MSG(EC_MATCH_UNEXPECTED_CONFIG, "1", "崩溃");
+  ASSERT_PRI_MSG(EC_UNEXPECTED_ERROR, "1", "崩溃");
   // Wait for the read thread's OnEof to finish cleaning up the match.
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
   // Match is now terminated; players can start a new game.

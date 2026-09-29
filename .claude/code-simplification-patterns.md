@@ -5,6 +5,22 @@ Each entry is a generalizable rule, not a one-off fix.
 
 <!-- New entries go below this line, most recent first. -->
 
+## Mark by-value parameters and read-only locals `const` by default
+
+**Before:** `ExecuteLeave(UserID uid, ..., bool force)` and locals like `auto result = data_.lock()->ExecuteLeave(...)` — read-only values were mutable, so every reader had to verify the function body to know the value never changes. Parameter constness was inconsistent: outer `Match` methods wrote `const bool force`, while nested `Internal` methods wrote `bool force`.
+
+**After:** Every by-value parameter that the body does not modify is `const` (`const UserID uid`, `const bool force`, `const uint64_t remaining_sec`, ...). Every local that is only read — `const auto result`, `const auto locked`, `const auto players_for_child` — is `const`. Exceptions: values that are moved (`auto child = MakeMatchClient(...)` later `std::move`d) or mutated through non-const operators (`auto sender = reply()` — `operator<<` is non-const on the guard); and return-by-value locals keep no top-level const (NRVO is unaffected either way, but the convention keeps signatures uniform).
+
+**Lesson:** `const` on by-value params and read-only locals is free documentation: the signature alone tells the reader the value is fixed. Apply it mechanically except where the value is moved or mutated — those cases stay visibly non-const, which makes them stand out as the interesting spots.
+
+## Store an owner back-reference instead of threading `self` through nested-helper methods
+
+**Before:** Every `Match::Internal::ExecuteXxx` took `Match& match` plus an `Unbind&& unbind_user` callback and a `std::atomic<MatchState>& state` as parameters; `ExecuteGameStart` additionally took `ctx`, `messaging`, `help`, `group_sender` (the latter three dead after an earlier refactor). Every `Match` caller declared `auto unbind = [this](UserID u) { ... };` locally before each call, and `CleanupRunning_` was a template purely to carry the callback's type.
+
+**After:** `Internal` holds `Match& match_` (its lifetime is strictly enclosed by `Match`, which owns it via `data_`). Each `ExecuteXxx` derives everything it needs from `match_` — `match_.state_`, `match_.ctx_`, `match_.MakeUnbindCallback_()` — and its signature keeps only genuine request arguments (uid, reply, force, ...). `CleanupRunning_()` became a plain no-arg method that makes its own callback; every `template <std::invocable<UserID> F>` disappeared.
+
+**Lesson:** When a nested or owned helper always operates on its enclosing/owning object, store a back-reference once and derive ALL reachable state from it — not just the owner reference itself but also its members (state atomics, contexts) and ancillary callbacks. Dead parameters that survive an earlier refactor are the first to cut; a helper whose every call site passes the same derivable pair is a no-arg helper in disguise.
+
 ## Return `std::variant<Success, ErrCode>` instead of `std::optional<Success>` with an out-param
 
 **Before:** `std::optional<LobbyGameStartPlan> BeginGameStart(uid, reply, self, ErrCode& err_out)` — callers had to declare an `ErrCode err_out = EC_OK;` local before the call, then decide which of `optional` / `err_out` to inspect. The `self` parameter existed only so the callee could log via the Match, adding coupling.

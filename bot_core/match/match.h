@@ -63,16 +63,17 @@ class Match : public std::enable_shared_from_this<Match>
     class Internal
     {
       public:
-        Internal(const MatchContext& ctx, MatchMessaging* messaging,
+        Internal(Match& match,
                 const UserID host_uid, MatchInitOptions init_options,
                 std::unique_ptr<MatchChildClient> game_child)
-            : users_([&ctx, host_uid]() {
+            : match_(match)
+            , users_([&match, host_uid]() {
                 std::map<UserID, MatchParticipantUser> m;
-                m.emplace(host_uid, MatchParticipantUser(host_uid, ctx.bot.MakeMsgSender(host_uid)));
+                m.emplace(host_uid, MatchParticipantUser(host_uid, match.ctx_.bot.MakeMsgSender(host_uid)));
                 return m;
             }())
             , game_child_(std::move(game_child))
-            , phase_(std::in_place_type<MatchLobby>, ctx, messaging, users_, host_uid, std::move(init_options))
+            , phase_(std::in_place_type<MatchLobby>, match.ctx_, &match.messaging_, users_, host_uid, std::move(init_options))
         {}
 
         // Raw pointer to the eagerly-spawned child; used by Match to bind the terminator
@@ -86,30 +87,21 @@ class Match : public std::enable_shared_from_this<Match>
 
         void BriefInfo(std::string& out) const;
 
-        ErrCode SetBenchTo(UserID uid, HostMsgSenderBase& reply,
-                           uint64_t bench_computers_to_player_num);
-        ErrCode SetFormal(UserID uid, HostMsgSenderBase& reply, bool is_formal);
-        ErrCode Join(UserID uid, HostMsgSenderBase& reply);
+        ErrCode SetBenchTo(const UserID uid, HostMsgSenderBase& reply,
+                           const uint64_t bench_computers_to_player_num);
+        ErrCode SetFormal(const UserID uid, HostMsgSenderBase& reply, const bool is_formal);
+        ErrCode Join(const UserID uid, HostMsgSenderBase& reply);
 
         // Dispatches the request to MatchLobby or MatchRunning using the eagerly-spawned child.
-        template <std::invocable<UserID> Unbind>
-        PhaseResult ExecuteRequest(UserID uid, std::optional<GroupID> gid,
-                                   const std::string& msg, MsgSender& reply,
-                                   std::atomic<MatchState>& state,
-                                   Match& match, Unbind&& unbind_user);
+        PhaseResult ExecuteRequest(const UserID uid, const std::optional<GroupID> gid,
+                                   const std::string& msg, MsgSender& reply);
 
         // Merged game-start: validates host, prepares plan, sends Start IPC and either
-        // commits MatchRunning or rolls back. unbind_user must not reacquire data_.
-        template <std::invocable<UserID> Unbind>
-        PhaseResult ExecuteGameStart(UserID uid, HostMsgSenderBase& reply,
-                                     std::atomic<MatchState>& state,
-                                     const MatchContext& ctx, MatchMessaging* messaging,
-                                     MatchHelpServices* help,
-                                     std::optional<MsgSender> group_sender,
-                                     Match& match, Unbind&& unbind_user);
+        // commits MatchRunning or rolls back.
+        PhaseResult ExecuteGameStart(const UserID uid, HostMsgSenderBase& reply);
 
-        void ExecuteAlert(uint64_t remaining_sec,
-                          const std::shared_ptr<std::atomic<bool>>& tio, Match& match);
+        void ExecuteAlert(const uint64_t remaining_sec,
+                          const std::shared_ptr<std::atomic<bool>>& tio);
 
         // Commits the MatchLobby -&gt; MatchRunning transition by reading MatchLobby's cached snapshot
         // (via its const accessors) and constructing MatchRunning in place. Idempotent:
@@ -117,28 +109,15 @@ class Match : public std::enable_shared_from_this<Match>
         // get_running callback on the first push frame arriving during SendStart,
         // and (b) explicitly by ExecuteGameStart when SendStart returned STAGE_OK
         // without producing any push frames.
-        void EnsureRunningPhase(Match& match);
+        void EnsureRunningPhase();
 
-        template <std::invocable<UserID> F>
-        void CleanupRunning(std::atomic<MatchState>& state, F&& unbind_user);
+        PhaseResult ExecuteLeave(const UserID uid, HostMsgSenderBase& reply, const bool force);
 
-        template <std::invocable<UserID> F>
-        PhaseResult ExecuteLeave(UserID uid, HostMsgSenderBase& reply, bool force,
-                                 std::atomic<MatchState>& state,
-                                 Match& match, F&& unbind_user);
+        PhaseResult ExecuteUserInterrupt(const UserID uid, HostMsgSenderBase& reply, const bool cancel);
 
-        template <std::invocable<UserID> F>
-        PhaseResult ExecuteUserInterrupt(UserID uid, HostMsgSenderBase& reply, bool cancel,
-                                         std::atomic<MatchState>& state, F&& unbind_user);
+        PhaseResult ExecuteTerminate(const bool is_force);
 
-        template <std::invocable<UserID> F>
-        PhaseResult ExecuteTerminate(bool is_force, std::atomic<MatchState>& state,
-                                     F&& unbind_user);
-
-        template <std::invocable<UserID> F>
-        PhaseResult ExecuteTimeout(const std::shared_ptr<std::atomic<bool>>& tio,
-                                   std::atomic<MatchState>& state,
-                                   Match& match, F&& unbind_user);
+        PhaseResult ExecuteTimeout(const std::shared_ptr<std::atomic<bool>>& tio);
 
         template <std::invocable<> F>
         void Help(HostMsgSenderBase& reply, bool text_mode, F&& lobby_help);
@@ -158,6 +137,9 @@ class Match : public std::enable_shared_from_this<Match>
         bool IsLobby() const { return std::holds_alternative<MatchLobby>(phase_); }
 
       private:
+        void CleanupRunning_();
+
+        Match& match_;
         std::map<UserID, MatchParticipantUser> users_;
         std::unique_ptr<MatchChildClient> game_child_;
         std::variant<MatchLobby, MatchRunning> phase_;
@@ -222,6 +204,7 @@ class Match : public std::enable_shared_from_this<Match>
     friend class MatchTimerFactory;
 
    private:
+    auto MakeUnbindCallback_() { return [this](const UserID u) { match_manager().UnbindMatch(u); }; }
     void Unbind_();
     void Help_(HostMsgSenderBase& reply, const bool text_mode);
     void FetchHelp_(HostMsgSenderBase& reply, const bool text_mode);
