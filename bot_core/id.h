@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <compare>
 #include <cstdint>
 #include <string>
 #include <iostream>
@@ -26,6 +27,7 @@ struct idname \
   constexpr idname& operator=(const idname&) = default; \
   operator type() const { return id_; } \
   auto operator<=>(const type id) const { return id_ <=> id; } \
+  auto operator<=>(const idname& rhs) const { return id_ <=> rhs.id_; } \
   idname& operator++() \
   { \
     id_ += 1; \
