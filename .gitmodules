@@ -23,4 +23,4 @@
 	url = git@github.com:slontia/necessary-and-unnecessary-tiles.git
 [submodule "third_party/reproc"]
 	path = third_party/reproc
-	url = git@github.com:DaanDeMeyer/reproc.git
+	url = git@github.com:slontia/reproc
