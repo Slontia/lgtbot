@@ -73,7 +73,7 @@ std::unique_ptr<reproc_t, Subprocess::ReprocDeleter> Subprocess::Start_(const st
 
     // stdin/stdout -> reproc pipes (IPC); stderr -> parent (logs).
     const reproc_options options{
-        .redirect.err.type = REPROC_REDIRECT_PARENT,
+        .redirect = {.err = {.type = REPROC_REDIRECT_PARENT}},
         .stop = {
             {REPROC_STOP_TERMINATE, 0},
             {REPROC_STOP_KILL, 0},
