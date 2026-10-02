@@ -10,6 +10,8 @@
 #include "match_process/ipc_frame.h"
 #include "utility/log.h"
 
+namespace lgtbot::core {
+
 namespace {
 
 std::string JoinArgv(const std::vector<std::string>& argv)
@@ -38,21 +40,17 @@ bool WriteAll(reproc_t* process, const void* data, const size_t len)
     return true;
 }
 
-// consumed_out receives the bytes actually read, so callers can tell a clean EOF from a mid-frame break.
-bool ReadAll(reproc_t* process, void* data, const size_t len, size_t& consumed_out)
+bool ReadAll(reproc_t* process, void* data, const size_t len)
 {
     auto* const p = static_cast<uint8_t*>(data);
     size_t off = 0;
-    consumed_out = 0;
     while (off < len) {
         const int r = reproc_read(process, REPROC_STREAM_OUT, p + off, len - off);
         if (r <= 0) {
-            consumed_out = off;
             return false;
         }
         off += static_cast<size_t>(r);
     }
-    consumed_out = off;
     return true;
 }
 
@@ -74,13 +72,13 @@ std::unique_ptr<reproc_t, Subprocess::ReprocDeleter> Subprocess::Start_(const st
     }
 
     // stdin/stdout -> reproc pipes (IPC); stderr -> parent (logs).
-    // Note: nested designated initializers (.redirect.err.type = ...) are a C99/clang extension rejected by GCC in C++, so assign the fields instead.
-    reproc_options options{};
-    options.redirect.err.type = REPROC_REDIRECT_PARENT;
-    options.stop = reproc_stop_actions{
-        {REPROC_STOP_TERMINATE, 0},
-        {REPROC_STOP_KILL, 0},
-        {REPROC_STOP_WAIT, REPROC_INFINITE},
+    const reproc_options options{
+        .redirect = {.err = {.type = REPROC_REDIRECT_PARENT}},
+        .stop = {
+            {REPROC_STOP_TERMINATE, 0},
+            {REPROC_STOP_KILL, 0},
+            {REPROC_STOP_WAIT, REPROC_INFINITE},
+        },
     };
     if (const int r = reproc_start(process.get(), arg_ptrs.data(), options); r < 0) {
         ErrorLog() << "Subprocess: reproc_start failed, r=" << r << " (" << reproc_strerror(r) << "), argv=" << JoinArgv(argv);
@@ -110,9 +108,9 @@ bool Subprocess::Write(const std::string& payload)
         ErrorLog() << "Subprocess: Write called with no running process";
         return false;
     }
-    if (!IpcFramePayloadSizeValid(payload.size())) {
+    if (!lgtbot::ipc::IpcFramePayloadSizeValid(payload.size())) {
         ErrorLog() << "Subprocess: Write payload too large, pid=" << reproc_pid(process_.get())
-                   << ", payload_size=" << payload.size() << ", max=" << kMaxIpcFramePayloadSize;
+                   << ", payload_size=" << payload.size() << ", max=" << lgtbot::ipc::kMaxIpcFramePayloadSize;
         return false;
     }
     const auto len = static_cast<uint32_t>(payload.size());
@@ -142,29 +140,39 @@ bool Subprocess::Read(std::string& payload_out)
         return false;
     }
     unsigned char hdr[4];
-    size_t consumed = 0;
-    if (!ReadAll(process_.get(), hdr, sizeof(hdr), consumed)) {
-        if (consumed == 0) {
-            // Clean EOF at a frame boundary: the child exited normally; this is the expected end of stream, not an error.
-            DebugLog() << "Subprocess: stream closed, pid=" << reproc_pid(process_.get());
-        } else {
-            ErrorLog() << "Subprocess: Read failed (frame header), pid=" << reproc_pid(process_.get());
-        }
+    if (!ReadAll(process_.get(), hdr, sizeof(hdr))) {
+        ErrorLog() << "Subprocess: Read failed (frame header), pid=" << reproc_pid(process_.get());
         return false;
     }
     const uint32_t len = (uint32_t(hdr[0]) << 24) | (uint32_t(hdr[1]) << 16) | (uint32_t(hdr[2]) << 8) | uint32_t(hdr[3]);
-    if (!IpcFramePayloadSizeValid(len)) {
+    if (!lgtbot::ipc::IpcFramePayloadSizeValid(len)) {
         ErrorLog() << "Subprocess: Read frame length too large, len=" << len << ", pid=" << reproc_pid(process_.get())
-                   << ", max=" << kMaxIpcFramePayloadSize;
+                   << ", max=" << lgtbot::ipc::kMaxIpcFramePayloadSize;
         return false;
     }
     std::vector<char> buf(len);
-    if (len != 0 && !ReadAll(process_.get(), buf.data(), len, consumed)) {
+    if (len != 0 && !ReadAll(process_.get(), buf.data(), len)) {
         ErrorLog() << "Subprocess: Read failed (frame payload), pid=" << reproc_pid(process_.get()) << ", payload_len=" << len;
         return false;
     }
     payload_out.assign(buf.begin(), buf.end());
     return true;
+}
+
+void Subprocess::Cancel() noexcept
+{
+    if (cancelled_.exchange(true, std::memory_order_acq_rel)) {
+        return;
+    }
+    reproc_t* const process = process_.get();
+    if (!process) {
+        return;
+    }
+    const int pid = reproc_pid(process);
+    if (const int r = reproc_terminate(process); r < 0) {
+        ErrorLog() << "Subprocess: reproc_terminate failed, r=" << r << " (" << reproc_strerror(r)
+                   << "), pid=" << pid;
+    }
 }
 
 void Subprocess::Close() noexcept
@@ -180,14 +188,14 @@ void Subprocess::Close() noexcept
                    << "), pid=" << pid;
     }
 
-    // Give the child a moment to exit on its own after stdin EOF before escalating:
-    // a clean exit closes its stdout at a frame boundary.
     const reproc_stop_actions stop{
-        {REPROC_STOP_WAIT, 500},
         {REPROC_STOP_TERMINATE, 1000},
         {REPROC_STOP_KILL, 1000},
+        {REPROC_STOP_WAIT, 2000},
     };
     if (const int stop_r = reproc_stop(process, stop); stop_r < 0) {
         ErrorLog() << "Subprocess: reproc_stop failed, r=" << stop_r << " (" << reproc_strerror(stop_r) << "), pid=" << pid;
     }
 }
+
+} // namespace lgtbot::core

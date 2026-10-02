@@ -376,7 +376,7 @@ class Board
 	}
 
     // 玩家行动
-    pair<bool, string> PlayerAction(const PlayerID pid, string s, const int round)
+    pair<bool, string> PlayerAction(const lgtbot::PlayerID pid, string s, const int round)
     {
         string result = CheckCoordinate(s);
 		if (result != "OK") return make_pair(false, result);
@@ -389,7 +389,7 @@ class Board
         return Action(pid, X, Y, round);
     }
 
-    pair<bool, string> Action(const PlayerID pid, const int X, const int Y, const int round) {
+    pair<bool, string> Action(const lgtbot::PlayerID pid, const int X, const int Y, const int round) {
         Player& p = players[pid];
         bool stain = CountSurroundingHiddenInks(X, Y) > 0;
         Grid& grid = grid_map[X][Y];

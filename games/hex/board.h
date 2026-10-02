@@ -9,7 +9,7 @@ public:
 	// 玩家昵称
 	string name[2];
 	// 颜色对应的玩家编号
-	PlayerID player_color[2];
+	lgtbot::PlayerID player_color[2];
 	// 棋盘边长
 	int size = 9;
 	// 棋盘
@@ -159,7 +159,7 @@ public:
 		return {-1, -1};
 	}
 
-	string PlaceChess(int num, PlayerID player)
+	string PlaceChess(int num, lgtbot::PlayerID player)
 	{
 		if (num > size * size || num < 1) {
 			return "[错误] 数字位置超出棋盘大小";

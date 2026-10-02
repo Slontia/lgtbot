@@ -33,7 +33,7 @@ uint32_t Multiple(const CustomOptions& options) { return 2; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为" << generic_options_readonly.PlayerNum();
@@ -79,7 +79,7 @@ class MainStage : public MainGameStage<>
                     << "秒未行动自动判负\n格式：移动前位置 移动后位置";
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (pid != cur_pid()) {
             return StageErrCode::OK;
@@ -103,7 +103,7 @@ class MainStage : public MainGameStage<>
     }
 
   private:
-    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const uint32_t src, const uint32_t dst)
+    AtomReqErrCode Set_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const uint32_t src, const uint32_t dst)
     {
         if (pid != cur_pid()) {
             reply() << "在您的对手行动完毕前，您无法行动";
@@ -129,7 +129,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Info_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(ShowInfo_());
         return StageErrCode::OK;

@@ -32,3 +32,10 @@ Do not mix phrase and sentence styles in the same bullet list. Git trailer lines
 ## Git hook
 
 Run `./scripts/setup-git-hooks.sh` once per clone to install the `commit-msg` hook (`core.hooksPath=githooks`). It enforces the rules above on every commit.
+
+
+## Code Simplification Patterns
+
+Before writing any non-trivial code, read `.claude/code-simplification-patterns.md`.
+This file records lessons from past user edits that simplified Claude-written code.
+Apply these patterns proactively.

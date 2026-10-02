@@ -13,9 +13,27 @@
 #include <dlfcn.h>
 #endif
 
+namespace lgtbot::game {
+
 namespace {
 
-class ReplySender final : public MsgSenderBase
+class ErrCollector final : public ChildMsgSenderBase
+{
+  public:
+    mutable std::string text_;
+
+  private:
+    void Flush(std::vector<ChildMsgFragment>&& messages) const override
+    {
+        for (const auto& frag : messages) {
+            if (const auto* text = std::get_if<std::string>(&frag)) {
+                text_.append(*text);
+            }
+        }
+    }
+};
+
+class ReplySender final : public ChildMsgSenderBase
 {
   public:
     explicit ReplySender(ChildGameSession& session)
@@ -23,9 +41,7 @@ class ReplySender final : public MsgSenderBase
     {}
 
   private:
-    void SetMatch(std::weak_ptr<const Match>) override {}
-
-    void Flush(std::vector<MsgFragment>&& messages) const override
+    void Flush(std::vector<ChildMsgFragment>&& messages) const override
     {
         if (messages.empty()) {
             return;
@@ -105,23 +121,19 @@ bool ChildGameSession::LoadModule(const std::string& lib_path, std::string& erro
             return p;
         };
     error_out.clear();
-    module_.alloc_opt_ = reinterpret_cast<GameHandle::game_options_allocator>(sym("NewGameOptions"));
+    module_.alloc_opt_ = reinterpret_cast<core::GameHandle::game_options_allocator>(sym("NewGameOptions"));
     if (!error_out.empty()) {
         return false;
     }
-    module_.del_opt_ = reinterpret_cast<GameHandle::game_options_deleter>(sym("DeleteGameOptions"));
+    module_.del_opt_ = reinterpret_cast<core::GameHandle::game_options_deleter>(sym("DeleteGameOptions"));
     if (!error_out.empty()) {
         return false;
     }
-    module_.alloc_stage_ = reinterpret_cast<GameHandle::main_stage_allocator>(sym("NewMainStage"));
+    module_.alloc_stage_ = reinterpret_cast<core::GameHandle::main_stage_allocator>(sym("NewMainStage"));
     if (!error_out.empty()) {
         return false;
     }
-    module_.del_stage_ = reinterpret_cast<GameHandle::main_stage_deleter>(sym("DeleteMainStage"));
-    if (!error_out.empty()) {
-        return false;
-    }
-    module_.init_options_ = reinterpret_cast<init_options_command_handler>(sym("HandleInitOptionsCommand"));
+    module_.del_stage_ = reinterpret_cast<core::GameHandle::main_stage_deleter>(sym("DeleteMainStage"));
     if (!error_out.empty()) {
         return false;
     }
@@ -144,7 +156,7 @@ void ChildGameSession::SendProto(lgtbot::ipc::GameResponse resp)
         return;
     }
     const std::lock_guard lock(write_mutex_);
-    if (!WriteFrame(out_, buf)) {
+    if (!ipc::WriteFrame(out_, buf)) {
         ErrorLog() << "WriteFrame failed";
     }
 }
@@ -219,7 +231,7 @@ bool ChildGameSession::HandleInit(const lgtbot::ipc::InitReq& req, std::string& 
 {
     resource_dir_ = req.resource_dir();
     saved_image_dir_ = req.saved_image_dir();
-    game_options_ = GameHandle::game_options_ptr(module_.alloc_opt_(), module_.del_opt_);
+    game_options_ = core::GameHandle::game_options_ptr(module_.alloc_opt_(), module_.del_opt_);
     if (!game_options_) {
         err = "NewGameOptions returned null";
         SendResult(lgtbot::ipc::ResultResp::STAGE_FAILED);
@@ -241,28 +253,6 @@ bool ChildGameSession::HandleInit(const lgtbot::ipc::InitReq& req, std::string& 
 bool ChildGameSession::HandleSetOption(const lgtbot::ipc::SetOptionReq& req, std::string& /*err*/)
 {
     const bool ok = game_options_ && game_options_->SetOption(req.text().c_str());
-    SendResult(ok ? lgtbot::ipc::ResultResp::STAGE_OK : lgtbot::ipc::ResultResp::STAGE_FAILED);
-    return true;
-}
-
-bool ChildGameSession::HandleApplyInitOptions(const lgtbot::ipc::ApplyInitOptionsReq& req, std::string& /*err*/)
-{
-    bool ok = false;
-    if (game_options_ && module_.init_options_) {
-        lgtbot::game::MutableGenericOptions mut{};
-        mut.bench_computers_to_player_num_ = generic_options_.bench_computers_to_player_num_;
-        mut.is_formal_ = generic_options_.is_formal_;
-        const auto result = module_.init_options_(req.args().c_str(), game_options_.get(), &mut);
-        if (result != lgtbot::game::INVALID_INIT_OPTIONS_COMMAND) {
-            ok = true;
-            lgtbot::game::ImmutableGenericOptions imm{};
-            imm.public_timer_alert_ = generic_options_.public_timer_alert_;
-            imm.user_num_ = generic_options_.user_num_;
-            imm.resource_dir_ = resource_dir_.c_str();
-            imm.saved_image_dir_ = saved_image_dir_.c_str();
-            generic_options_ = lgtbot::game::GenericOptions(imm, mut);
-        }
-    }
     SendResult(ok ? lgtbot::ipc::ResultResp::STAGE_OK : lgtbot::ipc::ResultResp::STAGE_FAILED);
     return true;
 }
@@ -294,19 +284,20 @@ bool ChildGameSession::HandleStart(const lgtbot::ipc::StartReq& req, std::string
     imm.user_num_ = req.user_num();
     imm.resource_dir_ = resource_dir_.c_str();
     imm.saved_image_dir_ = saved_image_dir_.c_str();
+    // bench_computers_to_player_num_ and is_formal_ come from the parent's live MatchLobby
+    // state at Start time (not from the child's stored init options), so mid-lobby
+    // changes to these propagate without extra IPC.
     lgtbot::game::MutableGenericOptions mut{};
-    mut.bench_computers_to_player_num_ = generic_options_.bench_computers_to_player_num_;
-    mut.is_formal_ = generic_options_.is_formal_;
+    mut.bench_computers_to_player_num_ = req.bench();
+    mut.is_formal_ = req.is_formal();
     generic_options_ = lgtbot::game::GenericOptions(imm, mut);
 
-    // Ship whatever the game writes during stage creation
-    // back to the starter as a reply frame; it used to be collected locally and dropped.
-    ReplySender start_reply(*this);
-    main_stage_ = GameHandle::main_stage_ptr(
-            module_.alloc_stage_(&start_reply, game_options_.get(), &generic_options_, env_.get()),
+    ErrCollector err_reply;
+    main_stage_ = core::GameHandle::main_stage_ptr(
+            module_.alloc_stage_(&err_reply, game_options_.get(), &generic_options_, env_.get()),
             module_.del_stage_);
     if (!main_stage_) {
-        err = "NewMainStage failed";
+        err = err_reply.text_.empty() ? "NewMainStage failed" : err_reply.text_;
         SendResult(lgtbot::ipc::ResultResp::STAGE_FAILED);
         env_.reset();
         return false;
@@ -374,11 +365,30 @@ bool ChildGameSession::HandleHelp(const lgtbot::ipc::HelpReq& req, std::string& 
     return true;
 }
 
+bool ChildGameSession::HandleTimeout(const lgtbot::ipc::TimeoutReq& /*req*/, std::string& /*err*/)
+{
+    if (main_stage_) {
+        main_stage_->HandleTimeout();
+        Routine();
+    }
+    SendResult(lgtbot::ipc::ResultResp::STAGE_OK);
+    return true;
+}
+
+bool ChildGameSession::HandleAlert(const lgtbot::ipc::AlertReq& req, std::string& /*err*/)
+{
+    if (env_ && env_->alert_cb()) {
+        env_->alert_cb()(env_->alert_arg(), req.remaining_sec());
+    }
+    SendResult(lgtbot::ipc::ResultResp::STAGE_OK);
+    return true;
+}
+
 int ChildGameSession::RunLoop()
 {
     for (;;) {
         std::string raw;
-        if (!ReadFrame(in_, raw)) {
+        if (!ipc::ReadFrame(in_, raw)) {
             return 0;
         }
         lgtbot::ipc::GameRequest req;
@@ -398,9 +408,6 @@ int ChildGameSession::RunLoop()
         case lgtbot::ipc::GameRequest::kSetOption:
             HandleSetOption(req.set_option(), err);
             break;
-        case lgtbot::ipc::GameRequest::kApplyInitOptions:
-            HandleApplyInitOptions(req.apply_init_options(), err);
-            break;
         case lgtbot::ipc::GameRequest::kStart:
             HandleStart(req.start(), err);
             break;
@@ -413,6 +420,12 @@ int ChildGameSession::RunLoop()
         case lgtbot::ipc::GameRequest::kHelp:
             HandleHelp(req.help(), err);
             break;
+        case lgtbot::ipc::GameRequest::kTimeout:
+            HandleTimeout(req.timeout(), err);
+            break;
+        case lgtbot::ipc::GameRequest::kAlert:
+            HandleAlert(req.alert(), err);
+            break;
         default: {
             SendResult(lgtbot::ipc::ResultResp::STAGE_FAILED);
             break;
@@ -420,3 +433,5 @@ int ChildGameSession::RunLoop()
         }
     }
 }
+
+} // namespace lgtbot::game

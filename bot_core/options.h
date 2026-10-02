@@ -12,10 +12,14 @@ EXTEND_OPTION("AI 玩家列表，当这些玩家加入游戏时，会输出 json
 
 #include "utility/msg_checker.h"
 
+namespace lgtbot::core {
+
 #define OPTION_CLASSNAME MutableBotOption
 #define OPTION_FILENAME "bot_core/options.h"
 #include "utility/extend_option.h"
 #undef OPTION_CLASSNAME
 #undef OPTION_FILENAME
+
+} // namespace lgtbot::core
 
 #endif

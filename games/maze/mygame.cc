@@ -42,7 +42,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options{};
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -254,7 +254,7 @@ class DrawStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << Markdown(Main().board.GetDrawPublic(), Board::ImageWidth(Main().size_));
@@ -264,7 +264,7 @@ class DrawStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Place_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const vector<string>& tokens)
+    AtomReqErrCode Place_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const vector<string>& tokens)
     {
         vector<WallRef> refs;
         string err;
@@ -296,7 +296,7 @@ class DrawStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Clear_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Clear_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (!CheckEditable_(pid, is_public, reply)) {
             return StageErrCode::FAILED;
@@ -307,7 +307,7 @@ class DrawStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 您已经提交迷宫，无法修改";
@@ -331,7 +331,7 @@ class DrawStage : public SubGameStage<>
     }
 
     // 改动墙体的指令的公共校验：必须私信，且尚未提交
-    bool CheckEditable_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    bool CheckEditable_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判绘制迷宫";
@@ -400,7 +400,7 @@ class DrawStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -445,7 +445,7 @@ class TurnStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(Main().board.GetDualBoard(is_public ? -1 : static_cast<int>(pid), turn_,
                         static_cast<int>(Main().cur_pid_)), Board::DualImageWidth(Main().size_));
@@ -453,7 +453,7 @@ class TurnStage : public SubGameStage<>
     }
 
     // 边走边画：自己回合可以往自己绘制的迷宫里追加墙体，位置允许是对手已经走通的路
-    AtomReqErrCode AddWall_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode AddWall_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const vector<string>& tokens)
     {
         if (Main().mode_ != GameMode::DRAW_WHILE_WALK) {
@@ -505,7 +505,7 @@ class TurnStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Act_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const vector<string>& tokens)
+    AtomReqErrCode Act_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const vector<string>& tokens)
     {
         if (Global().IsReady(pid) || pid != Main().cur_pid_) {
             reply() << "[错误] 当前不是您的回合，请等待对手行动";
@@ -615,7 +615,7 @@ class TurnStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid) || pid != Main().cur_pid_) {
             return StageErrCode::OK;

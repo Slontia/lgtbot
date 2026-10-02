@@ -25,6 +25,8 @@
 #include <thread>
 #endif
 
+namespace lgtbot {
+
 #ifdef TEST_BOT
 inline bool enable_markdown_to_image = false;
 #else
@@ -194,3 +196,5 @@ inline int CharToImage(const char ch, const std::string& path)
 {
     return MarkdownToImage(std::string("<style>html,body{color:#fdf3dd; background:#783623;}</style> <p align=\"middle\"><font size=\"6\"><b>") + ch + "</b></font></p>", path, 85);
 }
+
+} // namespace lgtbot

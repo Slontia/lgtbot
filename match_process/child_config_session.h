@@ -31,6 +31,8 @@ using DynModule = HMODULE;
 using DynModule = void*;
 #endif
 
+namespace lgtbot::game {
+
 // Owns dlopen'd game options and handles config-related IPC requests in the child process.
 class ChildConfigSession
 {
@@ -91,3 +93,5 @@ class ChildConfigSession
     std::vector<std::string> applied_options_log_; // Options set via set_default_option
     bool default_is_formal_{true}; // Tracks the formal/informal default set via set_formal
 };
+
+} // namespace lgtbot::game

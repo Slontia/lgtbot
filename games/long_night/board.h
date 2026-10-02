@@ -23,7 +23,7 @@ class Board
     uint32_t playerNum;
     vector<Player> players;
     // 地图内的玩家
-    vector<vector<vector<PlayerID>>> player_map;
+    vector<vector<vector<lgtbot::PlayerID>>> player_map;
     // 地图大小
     int size = 9;
     // 地图
@@ -60,7 +60,7 @@ class Board
         has_heart = TypeCount(GridType::HEART) > 0;     // [巨大的心脏] 存在判定
 
         // 成就辅助：记录玩家初始位置
-        for (PlayerID pid = 0; pid < playerNum; ++pid) {
+        for (lgtbot::PlayerID pid = 0; pid < playerNum; ++pid) {
             players[pid].achievement.MakeStep(players[pid].x, players[pid].y);
         }
     }
@@ -560,7 +560,7 @@ class Board
 
     // 玩家移动
     // last_direct：本回合上一次成功移动的方向，-1 表示无，用于树篱冲刺判定
-    bool MakeMove(const PlayerID pid, const Direct direction, const bool hide, int& last_direct)
+    bool MakeMove(const lgtbot::PlayerID pid, const Direct direction, const bool hide, int& last_direct)
     {
         int d = static_cast<int>(direction);
         int cx = players[pid].x;
@@ -676,7 +676,7 @@ class Board
     }
 
     // 玩家从地图中移除（辅助功能）
-    void RemovePlayerFromMap(const PlayerID pid)
+    void RemovePlayerFromMap(const lgtbot::PlayerID pid)
     {
         int cx = players[pid].x;
         int cy = players[pid].y;
@@ -776,7 +776,7 @@ class Board
     }
 
     // 热浪提示（返回true提示热浪）
-    bool HeatWaveNotice(const PlayerID pid)
+    bool HeatWaveNotice(const lgtbot::PlayerID pid)
     {
         int cx = players[pid].x;
         int cy = players[pid].y;
@@ -818,7 +818,7 @@ class Board
     }
 
     // 玩家是否在屏蔽器附近
-    bool IsNearJammer(const PlayerID pid)
+    bool IsNearJammer(const lgtbot::PlayerID pid)
     {
         int cx = players[pid].x;
         int cy = players[pid].y;
@@ -841,7 +841,7 @@ class Board
     }
 
     // 获取四周墙壁信息（仅显示墙壁，不展示详细颜色）
-    pair<string, string> GetSurroundingWalls(const PlayerID pid) const
+    pair<string, string> GetSurroundingWalls(const lgtbot::PlayerID pid) const
     {
         Grid grid = grid_map[players[pid].x][players[pid].y];
         if (players[pid].InSubspace()) {
@@ -872,7 +872,7 @@ class Board
     }
 
     // 玩家随机传送
-    void TeleportPlayer(const PlayerID pid)
+    void TeleportPlayer(const lgtbot::PlayerID pid)
     {
         players[pid].subspace = -1;         // 移除亚空间状态
         players[pid].in_heat_zone = false;  // 移除热浪区域状态
@@ -940,9 +940,9 @@ class Board
     // 捕捉顺位变更
     void UpdatePlayerTarget(const Target type)
     {
-        for (PlayerID pid = 0; pid < playerNum; ++pid) {
+        for (lgtbot::PlayerID pid = 0; pid < playerNum; ++pid) {
             if (players[pid].out > 0) continue;
-            PlayerID target = type == Target::NEXT ? (pid + 1) % playerNum : (playerNum + pid - 1) % playerNum;
+            lgtbot::PlayerID target = type == Target::NEXT ? (pid + 1) % playerNum : (playerNum + pid - 1) % playerNum;
             while (players[target].out > 0 && target != pid) {
                 players[target].target = -1;
                 target = type == Target::NEXT ? (target + 1) % playerNum : (playerNum + target - 1) % playerNum;

@@ -45,7 +45,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
             AlterChecker<uint32_t>({{"快速", 0}, {"高级", 1}, {"实时", 2}, {"单机", 100}})),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -178,14 +178,14 @@ class MainStage : public MainGameStage<>
         Global().StartTimer(GAME_OPTION(时限));
     }
 
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(GetTable());
         return StageErrCode::OK;
     }
 
     // 实时模式指令
-    AtomReqErrCode RealTimeMode_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t type)
+    AtomReqErrCode RealTimeMode_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t type)
     {
         if (GAME_OPTION(模式) != 2) {
             reply() << "[错误] 当前模式非实时模式，请直接发送数字代表行动的时机";
@@ -202,7 +202,7 @@ class MainStage : public MainGameStage<>
         return SetTime_(pid, is_public, reply, 0);
     }
 
-    AtomReqErrCode SetTime_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t time)
+    AtomReqErrCode SetTime_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t time)
     {
         if ((is_public && GAME_OPTION(模式) != 2) || (is_public && GAME_OPTION(模式) == 2 && pid != lookback_player)) {
             reply() << "[错误] 请私信裁判选择行动时间";
@@ -356,7 +356,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

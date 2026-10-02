@@ -48,7 +48,7 @@ const std::vector<RuleCommand> k_rule_commands = {
             VoidChecker("情报")),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为2人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -355,7 +355,7 @@ class MainStage : public MainGameStage<SetupStage, IntelStage, RoundStage>
     }
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << Markdown(board.GetPublicStatus(MakeViewInfo(), public_record_), Board::TextImageWidth());
@@ -396,7 +396,7 @@ class SetupStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int info_a, const int info_b)
+    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int info_a, const int info_b)
     {
         Player& player = Main().players[pid];
         player.info_a = info_a;
@@ -422,7 +422,7 @@ class SetupStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -460,7 +460,7 @@ class IntelStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const Intel first, const Intel second, const Intel third)
     {
         if (first == second || first == third || second == third) {
@@ -490,7 +490,7 @@ class IntelStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -556,7 +556,7 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Act_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Direct direct)
+    AtomReqErrCode Act_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Direct direct)
     {
         Player& player = Main().players[pid];
         if (player.quit) {
@@ -626,7 +626,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

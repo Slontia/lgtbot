@@ -45,7 +45,7 @@ const MutableGenericOptions k_default_generic_options{
     .is_formal_ = false,
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < MIN_PLAYER) {
         reply() << "该游戏至少 " << MIN_PLAYER << " 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -223,13 +223,13 @@ class MainStage : public MainGameStage<PathStage, LandingStage, MoveStage, Actio
     static int ImageWidth() { return Board::ImageWidth(); }
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(BoardHtml(cur_phase_), ImageWidth());
         return StageErrCode::OK;
     }
 
-    CompReqErrCode MyStatus_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode MyStatus_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "[错误] 修行方向乃身家性命所系，岂可当众自陈？请私信裁判查看自身状态";
@@ -239,7 +239,7 @@ class MainStage : public MainGameStage<PathStage, LandingStage, MoveStage, Actio
         return StageErrCode::OK;
     }
 
-    CompReqErrCode Atlas_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Atlas_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(Board::AtlasHtml(), Board::AtlasWidth());
         return StageErrCode::OK;
@@ -314,7 +314,7 @@ class PathStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -355,7 +355,7 @@ class PathStage : public SubGameStage<>
         }
     }
 
-    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Path path)
+    AtomReqErrCode Choose_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Path path)
     {
         if (is_public) {
             reply() << "[错误] 道途乃身家性命所系，岂能当众剖白？请私信裁判择定你的修行方向";
@@ -428,7 +428,7 @@ class LandingStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -453,7 +453,7 @@ class LandingStage : public SubGameStage<>
         }
     }
 
-    AtomReqErrCode Land_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int region)
+    AtomReqErrCode Land_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int region)
     {
         if (is_public) {
             reply() << "[错误] 落身之处一旦声张，便是引刀自戮。请私信裁判择定你的降临之地";
@@ -468,7 +468,7 @@ class LandingStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode LandShort_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int region)
+    AtomReqErrCode LandShort_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int region)
     {
         return Land_(pid, is_public, reply, region);
     }
@@ -532,7 +532,7 @@ class MoveStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid) || !Main().P(pid).Alive()) {
             return StageErrCode::OK;
@@ -573,7 +573,7 @@ class MoveStage : public SubGameStage<>
         }
     }
 
-    AtomReqErrCode Move_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int region)
+    AtomReqErrCode Move_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int region)
     {
         if (is_public) {
             reply() << "[错误] 行踪泄于人前，与自寻死路无异。请私信裁判择定你的去向";
@@ -611,12 +611,12 @@ class MoveStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode MoveShort_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int region)
+    AtomReqErrCode MoveShort_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int region)
     {
         return Move_(pid, is_public, reply, region);
     }
 
-    AtomReqErrCode Stay_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Stay_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return Move_(pid, is_public, reply, Main().P(pid).region);
     }
@@ -683,7 +683,7 @@ class ActionStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid) || !Main().P(pid).Alive()) {
             return StageErrCode::OK;
@@ -716,7 +716,7 @@ class ActionStage : public SubGameStage<>
         }
     }
 
-    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Action& action)
+    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Action& action)
     {
         std::string err;
         if (!ValidateAction(Main().board, pid, action, err)) {
@@ -728,7 +728,7 @@ class ActionStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    bool CheckReady_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    bool CheckReady_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "[错误] 出手之前先泄了机锋，还谈什么厮杀？请私信裁判决定本回合的行动";
@@ -745,7 +745,7 @@ class ActionStage : public SubGameStage<>
         return true;
     }
 
-    AtomReqErrCode Simple_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act)
+    AtomReqErrCode Simple_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act)
     {
         if (!CheckReady_(pid, is_public, reply)) {
             return StageErrCode::FAILED;
@@ -755,7 +755,7 @@ class ActionStage : public SubGameStage<>
         return Submit_(pid, is_public, reply, action);
     }
 
-    AtomReqErrCode Target_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act, const int64_t target)
+    AtomReqErrCode Target_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act, const int64_t target)
     {
         if (!CheckReady_(pid, is_public, reply)) {
             return StageErrCode::FAILED;
@@ -766,7 +766,7 @@ class ActionStage : public SubGameStage<>
         return Submit_(pid, is_public, reply, action);
     }
 
-    AtomReqErrCode Region_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act, const int region)
+    AtomReqErrCode Region_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act, const int region)
     {
         if (!CheckReady_(pid, is_public, reply)) {
             return StageErrCode::FAILED;
@@ -777,7 +777,7 @@ class ActionStage : public SubGameStage<>
         return Submit_(pid, is_public, reply, action);
     }
 
-    AtomReqErrCode Direct_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act, const int direct)
+    AtomReqErrCode Direct_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act, const int direct)
     {
         if (!CheckReady_(pid, is_public, reply)) {
             return StageErrCode::FAILED;
@@ -788,7 +788,7 @@ class ActionStage : public SubGameStage<>
         return Submit_(pid, is_public, reply, action);
     }
 
-    AtomReqErrCode DirectNoArg_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act)
+    AtomReqErrCode DirectNoArg_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act)
     {
         if (!CheckReady_(pid, is_public, reply)) {
             return StageErrCode::FAILED;
@@ -803,7 +803,7 @@ class ActionStage : public SubGameStage<>
         return Submit_(pid, is_public, reply, action);
     }
 
-    AtomReqErrCode Code_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act, const std::string& arg)
+    AtomReqErrCode Code_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act, const std::string& arg)
     {
         if (!CheckReady_(pid, is_public, reply)) {
             return StageErrCode::FAILED;
@@ -871,7 +871,7 @@ class LihuaStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid) || !Main().P(pid).Alive()) {
             return StageErrCode::OK;
@@ -897,7 +897,7 @@ class LihuaStage : public SubGameStage<>
         }
     }
 
-    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Action& action)
+    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Action& action)
     {
         if (is_public) {
             reply() << "[错误] 璃花所照乃是众生之念，岂可宣于人前？请私信裁判决定追加的行动";
@@ -921,14 +921,14 @@ class LihuaStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Simple_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act)
+    AtomReqErrCode Simple_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act)
     {
         Action action;
         action.act = act;
         return Submit_(pid, is_public, reply, action);
     }
 
-    AtomReqErrCode Target_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act, const int64_t target)
+    AtomReqErrCode Target_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act, const int64_t target)
     {
         Action action;
         action.act = act;
@@ -936,7 +936,7 @@ class LihuaStage : public SubGameStage<>
         return Submit_(pid, is_public, reply, action);
     }
 
-    AtomReqErrCode Region_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act, const int region)
+    AtomReqErrCode Region_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act, const int region)
     {
         Action action;
         action.act = act;
@@ -944,7 +944,7 @@ class LihuaStage : public SubGameStage<>
         return Submit_(pid, is_public, reply, action);
     }
 
-    AtomReqErrCode Direct_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act, const int direct)
+    AtomReqErrCode Direct_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act, const int direct)
     {
         Action action;
         action.act = act;
@@ -952,12 +952,12 @@ class LihuaStage : public SubGameStage<>
         return Submit_(pid, is_public, reply, action);
     }
 
-    AtomReqErrCode DirectNoArg_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act)
+    AtomReqErrCode DirectNoArg_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act)
     {
         return Code_(pid, is_public, reply, act, "");
     }
 
-    AtomReqErrCode Code_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Act act, const std::string& arg)
+    AtomReqErrCode Code_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Act act, const std::string& arg)
     {
         Action action;
         action.act = act;

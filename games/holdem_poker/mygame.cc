@@ -35,7 +35,7 @@ uint32_t Multiple(const CustomOptions& options)
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (GET_OPTION_VALUE(game_options, 幸存) >= generic_options_readonly.PlayerNum()) {
         reply() << "幸存玩家数 " << GET_OPTION_VALUE(game_options, 幸存) << " 必须小于参赛玩家数 " << generic_options_readonly.PlayerNum();
@@ -188,7 +188,7 @@ class MainStage : public MainGameStage<RoundStage<poker::CardType::POKER>, Round
     std::vector<PlayerChipInfo> player_chip_infos_;
 };
 
-static void ConsumeAndReply(const int32_t chips, PlayerChipInfo& chip_info, MsgSenderBase& reply)
+static void ConsumeAndReply(const int32_t chips, PlayerChipInfo& chip_info, ChildMsgSenderBase& reply)
 {
     Consume(chip_info, chips);
     if (chip_info.remain_chips_ == 0) {
@@ -226,7 +226,7 @@ class RaiseStage : public SubGameStage<>
     {
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             if (!Global().IsReady(pid)) {
-                Fold_(pid, false, EmptyMsgSender::Get());
+                Fold_(pid, false, ChildEmptyMsgSender::Get());
                 Global().Tell(pid) << "您超时未行动，自动按照 fold 处理";
             }
         }
@@ -259,7 +259,7 @@ class RaiseStage : public SubGameStage<>
         Global().Boardcast() << "请未达到最高下注额的玩家，私信裁判行动，您的行动可以是 <call> <raise 加注部分筹码数> <fold> <allin> 中的一种";
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -276,7 +276,7 @@ class RaiseStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode AllIn_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode AllIn_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         auto& chip_info = Main().GetPlayerChipInfo(pid);
         if (const int32_t total_chips = chip_info.remain_chips_ + chip_info.bet_chips_; total_chips > bet_chips_) {
@@ -286,7 +286,7 @@ class RaiseStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Raise_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int32_t chips)
+    AtomReqErrCode Raise_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int32_t chips)
     {
         auto& chip_info = Main().GetPlayerChipInfo(pid);
         assert(bet_chips_ > chip_info.bet_chips_); // if equal, the status of the player should be READY and can not execute any commands
@@ -306,7 +306,7 @@ class RaiseStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Call_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Call_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         auto& chip_info = Main().GetPlayerChipInfo(pid);
         const int32_t chips = std::min(chip_info.remain_chips_, bet_chips_ - chip_info.bet_chips_);
@@ -315,7 +315,7 @@ class RaiseStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Fold_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Fold_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         auto& chip_info = Main().GetPlayerChipInfo(pid);
         chip_info.last_bet_chips_ = chip_info.bet_chips_;
@@ -353,7 +353,7 @@ class BetStage : public SubGameStage<>
     {
         for (PlayerID pid = 0; pid < Global().PlayerNum(); ++pid) {
             if (!Global().IsReady(pid)) {
-                Check_(pid, false, EmptyMsgSender::Get());
+                Check_(pid, false, ChildEmptyMsgSender::Get());
                 Global().Tell(pid) << "您超时未行动，自动按照 check 处理";
             }
         }
@@ -386,7 +386,7 @@ class BetStage : public SubGameStage<>
         Global().Boardcast() << "请私信裁判行动，您的行动可以是 <check> <bet 筹码数> <allin> 中的一种";
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -397,7 +397,7 @@ class BetStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode AllIn_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode AllIn_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         auto& chip_info = Main().GetPlayerChipInfo(pid);
         max_raise_chips_ = std::max(max_raise_chips_, chip_info.remain_chips_);
@@ -405,7 +405,7 @@ class BetStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Bet_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int32_t chips)
+    AtomReqErrCode Bet_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int32_t chips)
     {
         auto& chip_info = Main().GetPlayerChipInfo(pid);
         if (chips > chip_info.remain_chips_) {
@@ -423,7 +423,7 @@ class BetStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Check_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Check_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         auto& chip_info = Main().GetPlayerChipInfo(pid);
         chip_info.last_bet_chips_ = chip_info.bet_chips_;
@@ -533,7 +533,7 @@ class RoundStage : public SubGameStage<RaiseStage, BetStage>
 
     const char* StateName_() const { return k_state_names_[open_public_cards_num_]; }
 
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (html_.empty()) {
             reply() << "本局还未开始下注";

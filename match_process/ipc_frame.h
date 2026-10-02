@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <string>
 
+namespace lgtbot::ipc {
+
 inline constexpr uint32_t kMaxIpcFramePayloadSize = 64u * 1024u * 1024u;
 
 [[nodiscard]] inline bool IpcFramePayloadSizeValid(const size_t nbytes)
@@ -18,3 +20,5 @@ bool WriteFrame(FILE* out, const std::string& payload);
 
 // Returns false on EOF or malformed length.
 bool ReadFrame(FILE* in, std::string& payload_out);
+
+} // namespace lgtbot::ipc

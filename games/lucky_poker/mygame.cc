@@ -39,7 +39,7 @@ uint32_t Multiple(const CustomOptions& options)
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "该游戏至少 2 人参加";
@@ -403,7 +403,7 @@ class BetStage : public SubGameStage<>
         Global().StartTimer(GAME_OPTION(下注时间));
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         player_round_infos_[pid].RandomAct(is_first_);
         return StageErrCode::READY;
@@ -427,7 +427,7 @@ class BetStage : public SubGameStage<>
         }
     }
 
-    AtomReqErrCode Bet_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& hand_id_str,
+    AtomReqErrCode Bet_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& hand_id_str,
             const uint32_t coins)
     {
         const auto hand_id = ParseHandIdIfValid_(pid, is_public, reply, hand_id_str);
@@ -444,7 +444,7 @@ class BetStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode BetAndChoose_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode BetAndChoose_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const std::string& hand_id_str, const uint32_t coins, const std::string& poker_str)
     {
         const auto hand_id = ParseHandIdIfValid_(pid, is_public, reply, hand_id_str);
@@ -484,7 +484,7 @@ class BetStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Fold_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::string& hand_id_str)
+    AtomReqErrCode Fold_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::string& hand_id_str)
     {
         const auto hand_id = ParseHandIdIfValid_(pid, is_public, reply, hand_id_str);
         if (!hand_id.has_value()) {
@@ -502,7 +502,7 @@ class BetStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    std::optional<uint32_t> ParseHandIdIfValid_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    std::optional<uint32_t> ParseHandIdIfValid_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const std::string& hand_id_str)
     {
         if (is_public) {
@@ -521,7 +521,7 @@ class BetStage : public SubGameStage<>
         return hand_id;
     }
 
-    AtomReqErrCode Prepare_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Prepare_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (Global().IsReady(pid)) {
             reply() << "[错误] 您已经完成准备，无法重复准备";
@@ -738,7 +738,7 @@ class RoundStage : public SubGameStage<BetStage<k_type>>
         return s;
     }
 
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << Markdown{MiddleHtml_(is_first_), k_markdown_width_};

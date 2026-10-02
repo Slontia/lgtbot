@@ -29,7 +29,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; } // the default sco
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 3) {
         reply() << "该游戏至少 3 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -97,7 +97,7 @@ class MainStage : public MainGameStage<RoundStage>
     string GetName(std::string x);
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         string HP_Board = "";
         HP_Board += "<tr bgcolor=\""+ HP_color +"\"><th>血量</th>";
@@ -160,7 +160,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         int num, x0;
         const int max = GAME_OPTION(最大数字);
@@ -474,7 +474,7 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t num)
+    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t num)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判提交数字";
@@ -491,7 +491,7 @@ class RoundStage : public SubGameStage<>
         return SubmitInternal_(pid, reply, num);
     }
 
-    AtomReqErrCode SubmitInternal_(const PlayerID pid, MsgSenderBase& reply, const int64_t num)
+    AtomReqErrCode SubmitInternal_(const PlayerID pid, ChildMsgSenderBase& reply, const int64_t num)
     {
         Main().player_select_[pid] = num;
         reply() << "提交数字成功";

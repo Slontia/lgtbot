@@ -169,7 +169,7 @@ static const std::vector<Occupation>& GetOccupationList(const CustomOptions& opt
     return GetOccupationList(const_cast<CustomOptions&>(option), player_num);
 }
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 5) {
         reply() << "该游戏至少 5 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -462,66 +462,66 @@ class RoleBase
   public:
     virtual ~RoleBase() {}
 
-    virtual bool Act(const AttackAction& action, MsgSenderBase& reply, StageUtility& utility);
+    virtual bool Act(const AttackAction& action, ChildMsgSenderBase& reply, StageUtility& utility);
 
-    virtual bool Act(const CureAction& action, MsgSenderBase& reply, StageUtility& utility);
+    virtual bool Act(const CureAction& action, ChildMsgSenderBase& reply, StageUtility& utility);
 
-    virtual bool Act(const CurseAction& action, MsgSenderBase& reply, StageUtility& utility)
+    virtual bool Act(const CurseAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
     {
         reply() << "攻击失败：您无法使用魔法攻击";
         return false;
     }
 
-    virtual bool Act(const SevereInjuryAction& action, MsgSenderBase& reply, StageUtility& utility)
+    virtual bool Act(const SevereInjuryAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
     {
         reply() << "重伤失败：您无法执行该类型行动";
         return false;
     }
 
-    virtual bool Act(const BlockAttackAction& action, MsgSenderBase& reply, StageUtility& utility)
+    virtual bool Act(const BlockAttackAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
     {
         reply() << "侦查失败：您无法执行该类型行动";
         return false;
     }
 
-    virtual bool Act(const DetectAction& action, MsgSenderBase& reply, StageUtility& utility)
+    virtual bool Act(const DetectAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
     {
         reply() << "侦查失败：您无法执行该类型行动";
         return false;
     }
 
-    virtual bool Act(const ExocrismAction& action, MsgSenderBase& reply, StageUtility& utility)
+    virtual bool Act(const ExocrismAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
     {
         reply() << "通灵失败：您无法执行该类型行动";
         return false;
     }
 
-    virtual bool Act(const PassAction& action, MsgSenderBase& reply, StageUtility& utility)
+    virtual bool Act(const PassAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
     {
         reply() << "您本回合决定不行动";
         cur_action_ = action;
         return true;
     }
 
-    virtual bool Act(const ShieldAntiAction& action, MsgSenderBase& reply, StageUtility& utility)
+    virtual bool Act(const ShieldAntiAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
     {
         reply() << "盾反失败：您无法执行该类型行动";
         return false;
     }
 
-    virtual bool Act(const AssignHiddenDamangeAction& action, MsgSenderBase& reply, StageUtility& utility)
+    virtual bool Act(const AssignHiddenDamangeAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
     {
         reply() << "蓄力失败：您无法执行该类型行动";
         return false;
     }
 
-    virtual bool Act(const FlushHiddenDamangeAction& action, MsgSenderBase& reply, StageUtility& utility)
+    virtual bool Act(const FlushHiddenDamangeAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
     {
         reply() << "释放失败：您无法执行该类型行动";
         return false;
     }
 
-    virtual bool Act(const GoodNightAction& action, MsgSenderBase& reply, StageUtility& utility)
+    virtual bool Act(const GoodNightAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
     {
         if (team_ != Team::平民) {
             reply() << "晚安失败：您无法执行该类型行动";
@@ -700,7 +700,7 @@ class RoleManager
     RoleVec roles_;
 };
 
-bool RoleBase::Act(const AttackAction& action, MsgSenderBase& reply, StageUtility& utility)
+bool RoleBase::Act(const AttackAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
 {
     if (action.token_hps_.size() != 1) {
         reply() << "攻击失败：您需要且只能攻击 1 名角色";
@@ -726,7 +726,7 @@ bool RoleBase::Act(const AttackAction& action, MsgSenderBase& reply, StageUtilit
     return true;
 }
 
-bool RoleBase::Act(const CureAction& action, MsgSenderBase& reply, StageUtility& utility)
+bool RoleBase::Act(const CureAction& action, ChildMsgSenderBase& reply, StageUtility& utility)
 {
     auto& target = role_manager_.GetRole(action.token_);
     if (!target.is_alive_) {
@@ -898,7 +898,7 @@ class MainStage : public MainGameStage<>
         return CheckoutErrCode::Condition(OnRoundFinish_(), StageErrCode::CHECKOUT, StageErrCode::CONTINUE);
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -1123,7 +1123,7 @@ class MainStage : public MainGameStage<>
             });
     }
 
-    void RolesOnRoundEnd_(MsgSenderBase::MsgSenderGuard& sender)
+    void RolesOnRoundEnd_(ChildMsgSenderBase::MsgSenderGuard& sender)
     {
         bool has_dead = false;
         role_manager_.Foreach([&](auto& role)
@@ -1166,7 +1166,7 @@ class MainStage : public MainGameStage<>
             });
     }
 
-    bool CheckTeamsLost_(MsgSenderBase::MsgSenderGuard& sender)
+    bool CheckTeamsLost_(ChildMsgSenderBase::MsgSenderGuard& sender)
     {
         bool killer_dead = true;
         bool traitor_dead = true;
@@ -1517,13 +1517,13 @@ class MainStage : public MainGameStage<>
         return s;
     }
 
-    AtomReqErrCode RoleRule_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Occupation& occupation)
+    AtomReqErrCode RoleRule_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Occupation& occupation)
     {
         reply() << k_role_rules[static_cast<uint32_t>(occupation)];
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (!is_public) {
             const auto& role = role_manager_.GetRole(pid);
@@ -1548,7 +1548,7 @@ class MainStage : public MainGameStage<>
         return true;
     }
 
-    AtomReqErrCode GenericAct_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const ActionVariant& action)
+    AtomReqErrCode GenericAct_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const ActionVariant& action)
     {
         if (is_public) {
             reply() << "行动失败：请您私信裁判行动";
@@ -1572,7 +1572,7 @@ class MainStage : public MainGameStage<>
     }
 
     template <typename Tokens>
-    bool CheckMultipleTokens_(const Tokens& tokens, const char* const action_name, MsgSenderBase& reply)
+    bool CheckMultipleTokens_(const Tokens& tokens, const char* const action_name, ChildMsgSenderBase& reply)
     {
         if (tokens.empty()) {
             reply() << action_name << "失败：需要至少指定 1 名角色";
@@ -1592,7 +1592,7 @@ class MainStage : public MainGameStage<>
         return true;
     }
 
-    bool CheckToken(const Token token, const char* const action_name, MsgSenderBase& reply)
+    bool CheckToken(const Token token, const char* const action_name, ChildMsgSenderBase& reply)
     {
         if (!role_manager_.IsValid(token)) {
             reply() << action_name << "失败：场上没有角色 " << token.ToChar();
@@ -1605,7 +1605,7 @@ class MainStage : public MainGameStage<>
         return true;
     }
 
-    AtomReqErrCode Hurt_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode Hurt_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const std::vector<Token>& tokens, const int32_t hp)
     {
         if (!CheckMultipleTokens_(tokens, "攻击", reply)) {
@@ -1618,7 +1618,7 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, std::move(action));
     }
 
-    AtomReqErrCode Cure_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Token token, const bool is_heavy)
+    AtomReqErrCode Cure_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Token token, const bool is_heavy)
     {
         if (!CheckToken(token, "治愈", reply)) {
             return StageErrCode::FAILED;
@@ -1626,7 +1626,7 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, CureAction{.token_ = token, .hp_ = is_heavy ? k_heavy_cure_hp : k_normal_cure_hp});
     }
 
-    AtomReqErrCode Detect_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Token token)
+    AtomReqErrCode Detect_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Token token)
     {
         // detecting dead roles is valid
         if (!role_manager_.IsValid(token)) {
@@ -1636,7 +1636,7 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, DetectAction{.token_ = token});
     }
 
-    AtomReqErrCode BlockHurt_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const std::optional<Token>& token)
+    AtomReqErrCode BlockHurt_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const std::optional<Token>& token)
     {
         if (!token.has_value() && GAME_OPTION(身份互通)) {
             reply() << "挡刀失败：身份互通模式必须指定挡刀代号";
@@ -1649,7 +1649,7 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, BlockAttackAction{token});
     }
 
-    AtomReqErrCode Curse_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode Curse_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const Token token, const int32_t hp)
     {
         if (!CheckToken(token, "诅咒", reply)) {
@@ -1658,14 +1658,14 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, CurseAction{.token_ = token, .hp_ = hp});
     }
 
-    AtomReqErrCode SevereInjury_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Token token, const int32_t hp) {
+    AtomReqErrCode SevereInjury_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Token token, const int32_t hp) {
         if (!CheckToken(token, "重伤", reply)) {
             return StageErrCode::FAILED;
         }
         return GenericAct_(pid, is_public, reply, SevereInjuryAction{.token_ = token, .hp_ = hp});
     }
 
-    AtomReqErrCode Exocrism_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Token token)
+    AtomReqErrCode Exocrism_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Token token)
     {
         if (!role_manager_.IsValid(token)) {
             reply() << "通灵失败：场上没有该角色";
@@ -1678,7 +1678,7 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, ExocrismAction{.token_ = token});
     }
 
-    AtomReqErrCode ShieldAnti_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode ShieldAnti_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const std::vector<std::tuple<Token, int32_t>>& token_hps)
     {
         if (!CheckMultipleTokens_(token_hps | std::views::transform([](const auto& tuple) { return std::get<Token>(tuple); }),
@@ -1688,7 +1688,7 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, ShieldAntiAction{.token_hps_ = token_hps});
     }
 
-    AtomReqErrCode AssignHiddenDamange_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode AssignHiddenDamange_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const std::vector<std::tuple<Token, int32_t>>& token_hps)
     {
         if (!CheckMultipleTokens_(token_hps | std::views::transform([](const auto& tuple) { return std::get<Token>(tuple); }),
@@ -1698,7 +1698,7 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, AssignHiddenDamangeAction{.token_hps_ = token_hps});
     }
 
-    AtomReqErrCode FlushHiddenDamange_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode FlushHiddenDamange_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const std::vector<Token>& tokens)
     {
         if (!CheckMultipleTokens_(tokens, "释放", reply)) {
@@ -1707,7 +1707,7 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, FlushHiddenDamangeAction{.tokens_ = tokens});
     }
 
-    AtomReqErrCode GoodNight_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode GoodNight_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (!GAME_OPTION(晚安模式)) {
             reply() << "晚安失败：当前游戏模式下无需晚安";
@@ -1716,7 +1716,7 @@ class MainStage : public MainGameStage<>
         return GenericAct_(pid, is_public, reply, GoodNightAction{});
     }
 
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         return GenericAct_(pid, is_public, reply, PassAction{});
     }
@@ -1780,7 +1780,7 @@ class BodyDoubleRole : public RoleBase
         return RoleBase::PrivateInfo(main_stage);
     }
 
-    virtual bool Act(const BlockAttackAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const BlockAttackAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         reply() << "请做好觉悟，本回合对该角色造成的全部伤害将转移到您身上";
         cur_action_ = action;
@@ -1829,7 +1829,7 @@ class AssassinRole : public RoleBase
         return RoleBase::PrivateInfo(main_stage);
     }
 
-    virtual bool Act(const AttackAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const AttackAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         assert(!action.token_hps_.empty());
         assert(std::all_of(action.token_hps_.begin(), action.token_hps_.end(),
@@ -1891,13 +1891,13 @@ class WitchRole : public RoleBase
         return RoleBase::PrivateInfo(main_stage);
     }
 
-    virtual bool Act(const AttackAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const AttackAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         reply() << "攻击失败：您无法使用物理攻击";
         return false;
     }
 
-    virtual bool Act(const CurseAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const CurseAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         auto& target = role_manager_.GetRole(action.token_);
         cur_action_ = action;
@@ -1932,7 +1932,7 @@ class PrisonerRole : public RoleBase {
         return RoleBase::PrivateInfo(main_stage);
     }
 
-    virtual bool Act(const SevereInjuryAction& action, MsgSenderBase& reply, StageUtility& utility) override {
+    virtual bool Act(const SevereInjuryAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override {
         auto& target = role_manager_.GetRole(action.token_);
         cur_action_ = action;
         if (action.hp_ != 0 && action.hp_ != 5 && action.hp_ != 10) {
@@ -1970,7 +1970,7 @@ class GoddessRole : public RoleBase
     {
     }
 
-    virtual bool Act(const AttackAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const AttackAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         if (!history_status_.empty() && std::get_if<AttackAction>(&history_status_.back().action_)) {
             reply() << "攻击失败：您无法连续两回合进行攻击";
@@ -1989,7 +1989,7 @@ class DetectiveRole : public RoleBase
     }
 
   public:
-    virtual bool Act(const DetectAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const DetectAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         if (history_status_.empty()) {
             reply() << "侦查失败：首回合无法侦查";
@@ -2014,7 +2014,7 @@ class SorcererRole : public RoleBase
     {
     }
 
-    virtual bool Act(const ExocrismAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const ExocrismAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         if (exocrismed_) {
             reply() << "通灵失败：您本局游戏已经通灵过一次了";
@@ -2038,7 +2038,7 @@ class GuardRole : public RoleBase
     {
     }
 
-    virtual bool Act(const ShieldAntiAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const ShieldAntiAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         if (action.token_hps_.size() > 2 || action.token_hps_.empty()) {
             reply() << "盾反失败：您需要指定 1~2 名角色的血量";
@@ -2099,7 +2099,7 @@ class TwinRole : public RoleBase
             "，您当前属于" + GetTeam().ToString() + "阵营";
     }
 
-    virtual bool Act(const AttackAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const AttackAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         for (const auto& token_hp : action.token_hps_) {
             const auto occupation = role_manager_.GetRole(std::get<Token>(token_hp)).GetOccupation();
@@ -2166,13 +2166,13 @@ class AgentRole : public RoleBase
     {
     }
 
-    virtual bool Act(const AttackAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const AttackAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         reply() << "攻击失败：您只能通过释放隐藏伤害的方式攻击角色";
         return false;
     }
 
-    virtual bool Act(const AssignHiddenDamangeAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const AssignHiddenDamangeAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         int32_t sum_hp = 0;
         for (const auto& [token, hp] : action.token_hps_) {
@@ -2200,7 +2200,7 @@ class AgentRole : public RoleBase
         return true;
     }
 
-    virtual bool Act(const FlushHiddenDamangeAction& action, MsgSenderBase& reply, StageUtility& utility) override
+    virtual bool Act(const FlushHiddenDamangeAction& action, ChildMsgSenderBase& reply, StageUtility& utility) override
     {
         for (const auto& token : action.tokens_) {
             if (hidden_damages_[token.id_] == 0) {

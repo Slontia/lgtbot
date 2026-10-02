@@ -39,7 +39,7 @@ const MutableGenericOptions k_default_generic_options{
 };
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "该游戏至少 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -116,7 +116,7 @@ class MainStage : public MainGameStage<SubmitStage>
     void BuildGroups();
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         string score_Board = GetScoreBoard();
         reply() << Markdown(T_Board + score_Board + Board + "</table>", image_width);
@@ -236,7 +236,7 @@ class SubmitStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -260,7 +260,7 @@ class SubmitStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t num)
+    AtomReqErrCode Submit_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t num)
     {
         // 第1轮强制私信提交，第2轮起允许公屏或私信
         if (is_public && Main().round_ <= 1) {

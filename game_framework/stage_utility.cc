@@ -28,33 +28,19 @@ PublicStageUtility::PublicStageUtility(const CustomOptions& game_options, const 
     std::ranges::for_each(achievement_counts_, [](AchievementCounts& counts) { std::ranges::fill(counts, 0); });
 }
 
-MsgSenderBase& PublicStageUtility::BoardcastMsgSender() const
+ChildMsgSenderBase& PublicStageUtility::BoardcastMsgSender() const
 {
-    return IsInDeduction() ? EmptyMsgSender::Get() : match_.BoardcastMsgSender();
+    return IsInDeduction() ? ChildEmptyMsgSender::Get() : match_.BoardcastMsgSender();
 }
 
-MsgSenderBase& PublicStageUtility::TellMsgSender(const PlayerID pid) const
+ChildMsgSenderBase& PublicStageUtility::TellMsgSender(const PlayerID pid) const
 {
-    return IsInDeduction() ? EmptyMsgSender::Get() : match_.TellMsgSender(pid);
+    return IsInDeduction() ? ChildEmptyMsgSender::Get() : match_.TellMsgSender(pid);
 }
 
-MsgSenderBase& PublicStageUtility::GroupMsgSender() const
+ChildMsgSenderBase& PublicStageUtility::GroupMsgSender() const
 {
-    return IsInDeduction() ? EmptyMsgSender::Get() : match_.GroupMsgSender();
-}
-
-MsgSenderBase& PublicStageUtility::BoardcastAiInfoMsgSender() const
-{
-    return IsInDeduction() ? EmptyMsgSender::Get() : match_.BoardcastAiInfoMsgSender();
-}
-
-void PublicStageUtility::BoardcastAiInfo(nlohmann::json j)
-{
-    BoardcastAiInfoMsgSender()() << nlohmann::json{
-            { "match_id", match_.MatchId() },
-            { "info_id", bot_message_id_++ },
-            { "info", std::move(j) },
-        }.dump();
+    return IsInDeduction() ? ChildEmptyMsgSender::Get() : match_.GroupMsgSender();
 }
 
 int PublicStageUtility::SaveMarkdown(const std::string& markdown, const uint32_t width)

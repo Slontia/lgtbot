@@ -51,7 +51,7 @@ const std::vector<InitOptionsCommand> k_init_options_commands = {
             VoidChecker("单机")),
 };
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2 || generic_options_readonly.PlayerNum() > 3) {
         reply() << "该游戏为 2 至 3 人游戏，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -254,7 +254,7 @@ class MainStage : public MainGameStage<>
     }
 
     // 校验是否轮到该玩家在指定步骤行动
-    bool CheckAction_(const PlayerID pid, MsgSenderBase& reply, const Step step) const
+    bool CheckAction_(const PlayerID pid, ChildMsgSenderBase& reply, const Step step) const
     {
         if (game_over_) {
             reply() << "[错误] 游戏已经结束";
@@ -718,7 +718,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             Global().Boardcast() << Markdown(GetBoard_(), k_board_width);
@@ -728,7 +728,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (game_over_) {
             reply() << "[错误] 游戏已经结束";
@@ -756,7 +756,7 @@ class MainStage : public MainGameStage<>
         return ActionResult_();
     }
 
-    AtomReqErrCode Draw_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int from)
+    AtomReqErrCode Draw_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int from)
     {
         if (!CheckAction_(pid, reply, Step::DRAW)) {
             return StageErrCode::FAILED;
@@ -788,7 +788,7 @@ class MainStage : public MainGameStage<>
         return ActionResult_();
     }
 
-    AtomReqErrCode Task_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode Task_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const vector<Card>& cards0, const vector<Card>& cards1)
     {
         if (!CheckAction_(pid, reply, Step::TASK)) {
@@ -824,7 +824,7 @@ class MainStage : public MainGameStage<>
         return ActionResult_();
     }
 
-    AtomReqErrCode Chain_(const PlayerID pid, const bool is_public, MsgSenderBase& reply,
+    AtomReqErrCode Chain_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply,
             const AreaArg& target, const vector<Card>& cards)
     {
         if (!CheckAction_(pid, reply, Step::CHAIN)) {
@@ -873,7 +873,7 @@ class MainStage : public MainGameStage<>
         return ActionResult_();
     }
 
-    AtomReqErrCode Discard_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const vector<Card>& cards)
+    AtomReqErrCode Discard_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const vector<Card>& cards)
     {
         if (!CheckAction_(pid, reply, Step::DISCARD)) {
             return StageErrCode::FAILED;
@@ -1060,7 +1060,7 @@ class MainStage : public MainGameStage<>
         return nullopt;
     }
 
-    AtomReqErrCode ComputerAct_(const PlayerID pid, MsgSenderBase& reply)
+    AtomReqErrCode ComputerAct_(const PlayerID pid, ChildMsgSenderBase& reply)
     {
         switch (step_) {
         case Step::DRAW:
@@ -1089,7 +1089,7 @@ class MainStage : public MainGameStage<>
         return StageErrCode::FAILED;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         // 非当前行动玩家已被标记为已完成，直接返回 OK 让推演循环跳过
         if (game_over_ || players_[pid].eliminated_ || Global().IsReady(pid)) {

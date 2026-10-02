@@ -28,6 +28,8 @@ using DynModule = HMODULE;
 using DynModule = void*;
 #endif
 
+namespace lgtbot::game {
+
 class IpcMatchEnv;
 
 // Owns dlopen'd game, main stage, and IPC loop for one match in the child process.
@@ -56,27 +58,23 @@ class ChildGameSession
     [[nodiscard]] lgtbot::game::MainStageBase* main_stage() const { return main_stage_.get(); }
 
   private:
-    using init_options_command_handler =
-            lgtbot::game::InitOptionsResult(*)(const char*, lgtbot::game::GameOptionsBase*,
-                                               lgtbot::game::MutableGenericOptions*);
-
     struct ModuleFns
     {
         DynModule mod_{};
-        GameHandle::game_options_allocator alloc_opt_{};
-        GameHandle::game_options_deleter del_opt_{};
-        GameHandle::main_stage_allocator alloc_stage_{};
-        GameHandle::main_stage_deleter del_stage_{};
-        init_options_command_handler init_options_{};
+        core::GameHandle::game_options_allocator alloc_opt_{};
+        core::GameHandle::game_options_deleter del_opt_{};
+        core::GameHandle::main_stage_allocator alloc_stage_{};
+        core::GameHandle::main_stage_deleter del_stage_{};
     };
 
     bool HandleInit(const lgtbot::ipc::InitReq& req, std::string& err);
     bool HandleSetOption(const lgtbot::ipc::SetOptionReq& req, std::string& err);
-    bool HandleApplyInitOptions(const lgtbot::ipc::ApplyInitOptionsReq& req, std::string& err);
     bool HandleStart(const lgtbot::ipc::StartReq& req, std::string& err);
     bool HandleExecute(const lgtbot::ipc::ExecuteReq& req, std::string& err);
     bool HandleLeave(const lgtbot::ipc::LeaveReq& req, std::string& err);
     bool HandleHelp(const lgtbot::ipc::HelpReq& req, std::string& err);
+    bool HandleTimeout(const lgtbot::ipc::TimeoutReq& req, std::string& err);
+    bool HandleAlert(const lgtbot::ipc::AlertReq& req, std::string& err);
     void SendGameOver();
     void DrainAfterStageWork();
 
@@ -87,10 +85,12 @@ class ChildGameSession
 
     std::string game_title_;
     ModuleFns module_;
-    GameHandle::game_options_ptr game_options_{nullptr, [](const lgtbot::game::GameOptionsBase*) {}};
+    core::GameHandle::game_options_ptr game_options_{nullptr, [](const lgtbot::game::GameOptionsBase*) {}};
     std::string resource_dir_;
     std::string saved_image_dir_;
     lgtbot::game::GenericOptions generic_options_{};
-    GameHandle::main_stage_ptr main_stage_{nullptr, nullptr};
+    core::GameHandle::main_stage_ptr main_stage_{nullptr, nullptr};
     std::unique_ptr<IpcMatchEnv> env_;
 };
+
+} // namespace lgtbot::game

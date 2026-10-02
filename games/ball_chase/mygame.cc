@@ -34,7 +34,7 @@ const MutableGenericOptions k_default_generic_options{
 };
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 4) {
         reply() << "该游戏至少 4 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -126,7 +126,7 @@ class MainStage : public MainGameStage<RoundStage>
     }
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         string status_Board = GetStatusBoard();
         reply() << Markdown(T_Board + status_Board + Board + "</table>" + GetFreeBallLine() + game_details, image_width);
@@ -192,7 +192,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid) || Main().player_out_[pid] != 0) {
             return StageErrCode::OK;
@@ -491,7 +491,7 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Hold_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Hold_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行行动。";
@@ -511,7 +511,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Protect_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Protect_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行行动。";
@@ -531,7 +531,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Directed_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t target)
+    AtomReqErrCode Directed_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t target)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行行动。";
@@ -559,7 +559,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Grab_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t ball)
+    AtomReqErrCode Grab_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t ball)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行行动。";
@@ -583,7 +583,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Pass_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判进行行动。";

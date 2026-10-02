@@ -4,7 +4,7 @@
 class Player
 {
 public:
-	Player(PlayerID pid, string playerName, string playerAvatar)
+	Player(lgtbot::PlayerID pid, string playerName, string playerAvatar)
 	{
         id = pid;
         name = playerName;
@@ -14,7 +14,7 @@ public:
 	}
 
     // 玩家信息
-    PlayerID id;
+    lgtbot::PlayerID id;
     string name;
     string avatar;
 
@@ -162,7 +162,7 @@ public:
     }
 
     // 获取手牌
-    string GetHand(const PlayerID pid, const vector<Player> players, const vector<Player> current_players) const
+    string GetHand(const lgtbot::PlayerID pid, const vector<Player> players, const vector<Player> current_players) const
     {
         int line = ceil(players[pid].hand.size() / 5.0);
         html::Table handTable(line, 5);
@@ -197,7 +197,7 @@ public:
     }
 
     // 检测玩家是否需要手动操作（基础规则）
-    int CheckPlayerNeedPlace(const PlayerID pid, const vector<Player> players) const
+    int CheckPlayerNeedPlace(const lgtbot::PlayerID pid, const vector<Player> players) const
     {
         int card = players[pid].current;
         int maxIndex = 0;
@@ -233,7 +233,7 @@ public:
     }
 
     // 检测玩家是否需要手动操作（专家变体）
-    PlaceResult CheckPlayerNeedPlaceExpert(const PlayerID pid, const vector<Player> players) const
+    PlaceResult CheckPlayerNeedPlaceExpert(const lgtbot::PlayerID pid, const vector<Player> players) const
     {
         PlaceResult result;
         result.needManual = false;

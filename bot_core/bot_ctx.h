@@ -8,8 +8,9 @@
 #include <map>
 #include <set>
 #include <optional>
+#include <future>
 
-#include "bot_core/match_manager.h"
+#include "bot_core/match/match_manager.h"
 #include "bot_core/id.h"
 #include "bot_core/db_manager.h"
 #include "bot_core/options.h"
@@ -19,6 +20,8 @@
 #include "nlohmann/json.hpp"
 
 #include <dirent.h>
+
+namespace lgtbot::core {
 
 class BotCtx
 {
@@ -30,7 +33,7 @@ class BotCtx
 
     ~BotCtx();
 
-    MatchManager& match_manager() { return match_manager_; }
+    lgtbot::core::match::MatchManager& match_manager() { return match_manager_; }
 
     auto& game_handles() { return game_handles_; }
     const auto& game_handles() const { return game_handles_; }
@@ -56,10 +59,10 @@ class BotCtx
     // copy-constructibility requirement.
     // The queue is drained during BotCtx destruction before MatchManager is destroyed.
     template <typename Fn>
-    void PostCleanup(Fn&& fn)
+    auto PostCleanup(Fn&& fn) -> std::future<std::invoke_result_t<Fn>>
     {
         auto shared_fn = std::make_shared<std::decay_t<Fn>>(std::forward<Fn>(fn));
-        match_cleanup_queue_.Post([shared_fn]() mutable { (*shared_fn)(); });
+        return match_cleanup_queue_.Post([shared_fn]() mutable { return (*shared_fn)(); });
     }
 
     bool UpdateGameConfig(const std::string& game_name, const std::string& option_name,
@@ -120,7 +123,7 @@ class BotCtx
     mutex_protect_wrapper<nlohmann::json> config_json_;
     void* const handler_;
 
-    MatchManager match_manager_;
+    lgtbot::core::match::MatchManager match_manager_;
     mutable std::mutex mutex_;
 
     // Must be declared LAST so it is destroyed FIRST.
@@ -128,3 +131,5 @@ class BotCtx
     // ensuring no read thread accesses MatchManager after it is destroyed.
     SerialTaskQueue match_cleanup_queue_;
 };
+
+} // namespace lgtbot::core

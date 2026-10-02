@@ -4,10 +4,13 @@
 
 #pragma once
 
+#include <compare>
 #include <cstdint>
 #include <string>
 #include <iostream>
 #include <limits>
+
+namespace lgtbot {
 
 #define DEFINE_INTEGER_ID(idname, type) \
 struct idname \
@@ -24,6 +27,7 @@ struct idname \
   constexpr idname& operator=(const idname&) = default; \
   operator type() const { return id_; } \
   auto operator<=>(const type id) const { return id_ <=> id; } \
+  auto operator<=>(const idname& rhs) const { return id_ <=> rhs.id_; } \
   idname& operator++() \
   { \
     id_ += 1; \
@@ -84,3 +88,5 @@ struct idname \
 
 DEFINE_STRING_ID(UserID);
 DEFINE_STRING_ID(GroupID);
+
+} // namespace lgtbot

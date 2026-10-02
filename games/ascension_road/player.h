@@ -67,11 +67,11 @@ class Score
 class Player
 {
   public:
-    Player(const PlayerID pid, const std::string& name, const std::string& avatar, const Num init_hp)
+    Player(const lgtbot::PlayerID pid, const std::string& name, const std::string& avatar, const Num init_hp)
         : pid(pid), name(name), avatar(avatar), hp(init_hp), hp_start(init_hp) {}
 
     /* ===== 基本信息 ===== */
-    PlayerID pid;
+    lgtbot::PlayerID pid;
     std::string name;
     std::string avatar;
 
@@ -138,7 +138,7 @@ class Player
     // 本回合是否被他人的攻击实际命中
     bool attacked = false;
     // 本回合对自己造成过伤害的修士
-    std::vector<PlayerID> damagers;
+    std::vector<lgtbot::PlayerID> damagers;
     // 本回合累计获得的修为与晋升的境界数
     Num cult_gain = 0;
     int promoted = 0;

@@ -39,14 +39,19 @@ list(APPEND SOURCE_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/bot_core.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/bot_ctx.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/db_manager.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/match.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/match_manager.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match/match.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match/match_lobby.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match/match_running.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/timer.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match/match_phase_base.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match/match_common.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match/match_manager.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/message_handlers.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/msg_sender.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/score_calculation.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cc
   ${CMAKE_CURRENT_BINARY_DIR}/version.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/match_child_client.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/match/match_child_client.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/game_config_client.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/subprocess.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/../match_process/ipc_frame.cc
@@ -96,7 +101,7 @@ if (WITH_TEST)
   list(APPEND THIRD_PARTIES GTest::GTest GTest::Main)
 
   set(TEST_GAME_SOURCE_FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_game/mygame.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_game/mygame.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/game_main.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource_loader.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/stage.cc
@@ -104,7 +109,7 @@ if (WITH_TEST)
     ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/player_ready_masker.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cc
   )
-  set(TEST_GAME_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_game)
+  set(TEST_GAME_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test/test_game)
   if (CMAKE_SYSTEM_NAME MATCHES "Linux")
     execute_process(
       COMMAND bash -c "cd ${TEST_GAME_DIR} && printf 0x%x `stat -c %s rule.md | awk '{print $1 + 16}'`"
@@ -129,7 +134,7 @@ if (WITH_TEST)
   add_custom_target(make_test_game_plugin_dir ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory ${TEST_GAME_PLUGIN_DIR}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_CURRENT_SOURCE_DIR}/test_game/rule.md ${TEST_GAME_PLUGIN_DIR}/rule.md)
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/test_game/rule.md ${TEST_GAME_PLUGIN_DIR}/rule.md)
   add_library(test_game_plugin SHARED ${TEST_GAME_SOURCE_FILES})
   add_dependencies(test_game_plugin make_test_game_plugin_dir)
   if (CMAKE_SYSTEM_NAME MATCHES "Linux")
@@ -137,12 +142,12 @@ if (WITH_TEST)
     target_link_libraries(test_game_plugin ${TEST_GAME_RULE_BINARY})
   endif()
   target_compile_definitions(test_game_plugin PUBLIC
-    GAME_ACHIEVEMENT_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test_game/achievements.h"
-    GAME_OPTION_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test_game/options.h"
+    GAME_ACHIEVEMENT_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test/test_game/achievements.h"
+    GAME_OPTION_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test/test_game/options.h"
     GAME_MODULE_NAME=test_game
     TEST_BOT)
   target_include_directories(test_game_plugin PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_game
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_game
     ${CMAKE_CURRENT_SOURCE_DIR}/..)
   # glog is linked into test_bot only; plugin resolves LOG symbols from the executable (ENABLE_EXPORTS).
   set_target_properties(test_game_plugin PROPERTIES
@@ -155,7 +160,7 @@ if (WITH_TEST)
     target_link_options(test_game_plugin PRIVATE -undefined dynamic_lookup)
   endif()
   if (CMAKE_SYSTEM_NAME MATCHES "Windows")
-    set(GAME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test_game")
+    set(GAME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test/test_game")
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource.rc.in"
                    "${CMAKE_CURRENT_BINARY_DIR}/resource_test_game.rc"
                    @ONLY)
@@ -164,7 +169,7 @@ if (WITH_TEST)
   endif()
 
   add_executable(test_bot
-    test_bot.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_bot.cc
     ${SOURCE_FILES})
   target_link_libraries(test_bot ${THIRD_PARTIES})
   target_include_directories(test_bot PUBLIC
@@ -182,12 +187,12 @@ if (WITH_TEST)
 
   add_library(test_game_for_test_lib OBJECT ${TEST_GAME_SOURCE_FILES})
   target_compile_definitions(test_game_for_test_lib PUBLIC
-    GAME_ACHIEVEMENT_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test_game/achievements.h"
-    GAME_OPTION_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test_game/options.h"
+    GAME_ACHIEVEMENT_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test/test_game/achievements.h"
+    GAME_OPTION_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test/test_game/options.h"
     GAME_MODULE_NAME=test_game
     TEST_BOT)
   target_include_directories(test_game_for_test_lib PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_game
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_game
     ${CMAKE_CURRENT_SOURCE_DIR}/..)
   if (WITH_GLOG)
     target_link_libraries(test_game_for_test_lib glog::glog)
@@ -197,15 +202,15 @@ if (WITH_TEST)
   endif()
 
   add_executable(test_test_game
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_game/unittest.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_game/unittest.cc
     $<TARGET_OBJECTS:test_game_for_test_lib>)
   target_compile_definitions(test_test_game PUBLIC
-    GAME_ACHIEVEMENT_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test_game/achievements.h"
-    GAME_OPTION_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test_game/options.h"
+    GAME_ACHIEVEMENT_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test/test_game/achievements.h"
+    GAME_OPTION_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test/test_game/options.h"
     GAME_MODULE_NAME=test_game
     TEST_BOT)
   target_include_directories(test_test_game PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_game
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_game
     ${CMAKE_CURRENT_SOURCE_DIR}/..)
   target_link_libraries(test_test_game GTest::GTest GTest::Main gflags)
   if (WITH_GLOG)
@@ -215,14 +220,71 @@ if (WITH_TEST)
     add_dependencies(test_test_game test_game_rule_binary)
     target_link_libraries(test_test_game ${TEST_GAME_RULE_BINARY})
   endif()
-  add_test(NAME test_test_game COMMAND test_test_game --resource_dir "${CMAKE_CURRENT_SOURCE_DIR}/test_game")
+  add_test(NAME test_test_game COMMAND test_test_game --resource_dir "${CMAKE_CURRENT_SOURCE_DIR}/test/test_game")
 
-  add_executable(test_db test_db.cc db_manager.cc score_calculation.cc)
+  add_executable(test_db ${CMAKE_CURRENT_SOURCE_DIR}/test/test_db.cc db_manager.cc score_calculation.cc)
   target_link_libraries(test_db ${THIRD_PARTIES})
-  target_include_directories(test_db PRIVATE ${MATCH_PROCESS_PROTO_GEN_DIR}/..)
+  target_include_directories(test_db PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${MATCH_PROCESS_PROTO_GEN_DIR}/..)
   add_test(NAME test_db COMMAND test_db)
 
-  add_executable(test_match_score test_match_score.cc score_calculation.cc)
+  add_executable(test_match_score ${CMAKE_CURRENT_SOURCE_DIR}/test/test_match_score.cc score_calculation.cc)
   target_link_libraries(test_match_score ${THIRD_PARTIES})
   add_test(NAME test_match_score COMMAND test_match_score)
+
+  # chaos_game plugin: a dedicated game whose single "行动" command performs
+  # randomly distributed behaviours (eliminate/hook/retime/achieve/score/over/
+  # fail/crash) controlled by options, for the concurrent chaos/soak test.
+  set(CHAOS_GAME_SOURCE_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/chaos_game/mygame.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/game_main.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource_loader.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/stage.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/stage_utility.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/player_ready_masker.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cc
+  )
+  set(CHAOS_GAME_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test/chaos_game)
+  set(CHAOS_GAME_PLUGIN_PARENT_DIR ${CMAKE_BINARY_DIR}/chaos_game_plugins)
+  set(CHAOS_GAME_PLUGIN_DIR ${CHAOS_GAME_PLUGIN_PARENT_DIR}/chaos_game)
+  add_custom_target(make_chaos_game_plugin_dir ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CHAOS_GAME_PLUGIN_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/chaos_game/rule.md ${CHAOS_GAME_PLUGIN_DIR}/rule.md)
+  add_library(chaos_game_plugin SHARED ${CHAOS_GAME_SOURCE_FILES})
+  add_dependencies(chaos_game_plugin make_chaos_game_plugin_dir)
+  target_compile_definitions(chaos_game_plugin PUBLIC
+    GAME_ACHIEVEMENT_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test/chaos_game/achievements.h"
+    GAME_OPTION_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test/chaos_game/options.h"
+    GAME_MODULE_NAME=chaos_game
+    TEST_BOT)
+  target_include_directories(chaos_game_plugin PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/chaos_game
+    ${CMAKE_CURRENT_SOURCE_DIR}/..)
+  set_target_properties(chaos_game_plugin PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${CHAOS_GAME_PLUGIN_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CHAOS_GAME_PLUGIN_DIR}
+    OUTPUT_NAME "libgame"
+    PREFIX "")
+  if (APPLE)
+    target_link_options(chaos_game_plugin PRIVATE -undefined dynamic_lookup)
+  endif()
+
+  add_executable(test_chaos
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/chaos_test.cc
+    ${SOURCE_FILES})
+  target_link_libraries(test_chaos ${THIRD_PARTIES})
+  target_include_directories(test_chaos PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${MATCH_PROCESS_PROTO_GEN_DIR}/..)
+  add_dependencies(test_chaos match_game_runner config_runner chaos_game_plugin)
+  target_compile_definitions(test_chaos PRIVATE
+    MATCH_GAME_RUNNER_PATH="$<TARGET_FILE:match_game_runner>"
+    CONFIG_RUNNER_PATH="$<TARGET_FILE:config_runner>"
+    TEST_CHAOS_PLUGIN_DIR="${CHAOS_GAME_PLUGIN_PARENT_DIR}"
+    TEST_BOT)
+  set_target_properties(test_chaos PROPERTIES ENABLE_EXPORTS ON)
+  add_test(NAME test_chaos COMMAND test_chaos)
 endif()

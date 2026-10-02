@@ -34,7 +34,7 @@ const MutableGenericOptions k_default_generic_options{
 };
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏为双人游戏，必须为 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -166,7 +166,7 @@ class MainStage : public MainGameStage<RoundStage, ShootStage>
     }
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         if (!is_public && player_role_[pid] == Role::KILLER) {
             reply() << Markdown(GetTable(true));
@@ -377,7 +377,7 @@ class RoundStage : public SubGameStage<>
         return result;
     }
     
-    bool CheckCommon(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const Role role)
+    bool CheckCommon(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const Role role)
     {
         if (Main().player_role_[pid] != role) {
             if (Main().player_role_[pid] == Role::KILLER) {
@@ -411,7 +411,7 @@ class RoundStage : public SubGameStage<>
                (t_hostage_floor > 0 || Main().police_floor == 2 ? "\n\n若您已完成部署，请使用「确认」指令确认行动" : "");
     }
     
-    AtomReqErrCode PoliceSelect_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t f)
+    AtomReqErrCode PoliceSelect_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t f)
     {
         if (!CheckCommon(pid, is_public, reply, Role::POLICE)) {
             return StageErrCode::FAILED;
@@ -430,7 +430,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::READY;
     }
 
-    AtomReqErrCode KillerHostageSelect_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int _, const int64_t f)
+    AtomReqErrCode KillerHostageSelect_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int _, const int64_t f)
     {
         if (!CheckCommon(pid, is_public, reply, Role::KILLER)) {
             return StageErrCode::FAILED;
@@ -460,7 +460,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode KillerKnifeSelect_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int _, const int64_t f)
+    AtomReqErrCode KillerKnifeSelect_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int _, const int64_t f)
     {
         if (!CheckCommon(pid, is_public, reply, Role::KILLER)) {
             return StageErrCode::FAILED;
@@ -486,7 +486,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode KillerSmokeTrigger_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int _, const bool trigger)
+    AtomReqErrCode KillerSmokeTrigger_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int _, const bool trigger)
     {
         if (!CheckCommon(pid, is_public, reply, Role::KILLER)) {
             return StageErrCode::FAILED;
@@ -502,7 +502,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::OK;
     }
 
-    AtomReqErrCode KillerConfirm_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int _)
+    AtomReqErrCode KillerConfirm_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int _)
     {
         if (!CheckCommon(pid, is_public, reply, Role::KILLER)) {
             return StageErrCode::FAILED;
@@ -556,7 +556,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;
@@ -620,7 +620,7 @@ class ShootStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Shoot_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool shoot)
+    AtomReqErrCode Shoot_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool shoot)
     {
         if (Main().player_role_[pid] == Role::KILLER) {
             reply() << "[错误] 您的角色是「杀手」，无法使用此行动。";
@@ -645,7 +645,7 @@ class ShootStage : public SubGameStage<>
         return StageErrCode::CHECKOUT;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

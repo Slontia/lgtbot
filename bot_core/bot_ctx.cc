@@ -26,10 +26,14 @@ static_assert(false, "Not support OS");
 #include "utility/log.h"
 #include "utility/process_signals.h"
 #include "bot_core/db_manager.h"
-#include "bot_core/match.h"
+#include "bot_core/match/match.h"
 #include "bot_core/msg_sender.h"
 #include "game_framework/game_main.h"
 #include "nlohmann/json.hpp"
+
+namespace lgtbot::core {
+
+using namespace lgtbot::core::match;
 
 // TODO: use std::ranges::views::split
 static std::set<UserID> SplitIdsByComma(const std::string_view& str)
@@ -209,8 +213,8 @@ std::variant<GameHandleMap, const char*> BotCtx::LoadGameModules(const char* con
 static std::variant<nlohmann::json, const char*> LoadConfig(const char* const conf_path,
         MutableBotOption& bot_options)
 {
-    if (!conf_path) {
-        return nlohmann::json{};
+    if (!conf_path || conf_path[0] == '\0') {
+        return nlohmann::json::object();
     }
     if (!std::filesystem::exists(conf_path)) {
         std::ofstream file(conf_path); // create file if not exists
@@ -416,3 +420,5 @@ MsgSender BotCtx::MakeMsgSender(const GroupID& group_id) const
 {
     return MsgSender(handler_, image_path_, callbacks_, group_id);
 }
+
+} // namespace lgtbot::core

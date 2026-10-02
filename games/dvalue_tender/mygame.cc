@@ -49,7 +49,7 @@ std::string myToStrR(int x)
     return ret;
 }
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() != 2) {
         reply() << "该游戏必须 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -106,7 +106,7 @@ class MainStage : public MainGameStage<RoundStage>
     int round_;
 
   private:
-    CompReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    CompReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
 //        reply() << "这里输出当前游戏情况";
         // Returning |OK| means the game stage
@@ -191,7 +191,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         int c1 = Main().player_coins_[0];
         int c2 = Main().player_coins_[1];
@@ -314,7 +314,7 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode GiveCoin_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const int64_t coins)
+    AtomReqErrCode GiveCoin_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const int64_t coins)
     {
         if (is_public) {
             reply() << "[错误] 请私信裁判选择";
@@ -338,7 +338,7 @@ class RoundStage : public SubGameStage<>
         return GiveCoinInternal_(pid, reply, coins);
     }
 
-    AtomReqErrCode GiveCoinInternal_(const PlayerID pid, MsgSenderBase& reply, const int64_t coins)
+    AtomReqErrCode GiveCoinInternal_(const PlayerID pid, ChildMsgSenderBase& reply, const int64_t coins)
     {
 //        auto& player_score = Main().player_scores_[pid];
 //        player_score += score;

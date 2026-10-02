@@ -29,7 +29,7 @@ uint32_t Multiple(const CustomOptions& options) { return 1; }
 const MutableGenericOptions k_default_generic_options;
 const std::vector<RuleCommand> k_rule_commands = {};
 
-bool AdaptOptions(MsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
+bool AdaptOptions(ChildMsgSenderBase& reply, CustomOptions& game_options, const GenericOptions& generic_options_readonly, MutableGenericOptions& generic_options)
 {
     if (generic_options_readonly.PlayerNum() < 2) {
         reply() << "该游戏至少 2 人参加，当前玩家数为 " << generic_options_readonly.PlayerNum();
@@ -138,7 +138,7 @@ class RoundStage : public SubGameStage<>
     }
 
   private:
-    AtomReqErrCode Action_(const PlayerID pid, const bool is_public, MsgSenderBase& reply, const bool draw)
+    AtomReqErrCode Action_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply, const bool draw)
     {
         if (pid != Main().currentPlayer) {
             reply() << "[错误] 不是您的回合，当前玩家是：" << Global().PlayerName(Main().currentPlayer);
@@ -174,7 +174,7 @@ class RoundStage : public SubGameStage<>
         return score;
     }
 
-    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, MsgSenderBase& reply)
+    AtomReqErrCode Status_(const PlayerID pid, const bool is_public, ChildMsgSenderBase& reply)
     {
         reply() << Markdown(GetBoardHtml());
         return StageErrCode::OK;
@@ -243,7 +243,7 @@ class RoundStage : public SubGameStage<>
         return StageErrCode::CONTINUE;
     }
 
-    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, MsgSenderBase& reply) override
+    virtual AtomReqErrCode OnComputerAct(const PlayerID pid, ChildMsgSenderBase& reply) override
     {
         if (Global().IsReady(pid)) {
             return StageErrCode::OK;

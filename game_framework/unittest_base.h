@@ -70,7 +70,7 @@ class TestGame : public ::testing::Test
         // Default: no markdown→PNG in unit tests (matches run_game.cc). Non-empty MockMatch image_dir makes
         // SaveMarkdown run and can trigger huge strings / failures when --gen_image is off.
         const bool want_mock_images = FLAGS_gen_image && !FLAGS_image_dir.empty();
-        ::enable_markdown_to_image = want_mock_images;
+        lgtbot::enable_markdown_to_image = want_mock_images;
 
         imm_.user_num_ = 0;
         imm_.resource_dir_ = resource_dir_str_.c_str();
