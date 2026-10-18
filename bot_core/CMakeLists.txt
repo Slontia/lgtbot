@@ -110,24 +110,31 @@ if (WITH_TEST)
     ${CMAKE_CURRENT_SOURCE_DIR}/../utility/html.cc
   )
   set(TEST_GAME_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test/test_game)
-  if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-    execute_process(
-      COMMAND bash -c "cd ${TEST_GAME_DIR} && printf 0x%x `stat -c %s rule.md | awk '{print $1 + 16}'`"
-      OUTPUT_VARIABLE TEST_GAME_RULE_SIZE)
-    set(TEST_GAME_RULE_BINARY ${CMAKE_CURRENT_BINARY_DIR}/test_game_rule.o)
-    if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
-      add_custom_target(test_game_rule_binary ALL
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMAND cd ${TEST_GAME_DIR} && aarch64-linux-gnu-objcopy --input binary --output elf64-littleaarch64 --binary-architecture aarch64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA --pad-to ${TEST_GAME_RULE_SIZE} rule.md ${TEST_GAME_RULE_BINARY}
-        BYPRODUCTS ${TEST_GAME_RULE_BINARY}
-        COMMENT "Build test_game rule binary")
+  function(add_test_rule_binary name game_dir)
+    file(SIZE "${game_dir}/rule.md" rule_size)
+    math(EXPR padded_rule_size "${rule_size} + 16")
+    set(rule_binary "${CMAKE_CURRENT_BINARY_DIR}/${name}_rule.o")
+    if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
+      set(rule_format elf64-littleaarch64)
+      set(rule_arch aarch64)
     else()
-      add_custom_target(test_game_rule_binary ALL
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMAND cd ${TEST_GAME_DIR} && objcopy --input binary --output elf64-x86-64 --binary-architecture i386:x86-64 --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA --pad-to ${TEST_GAME_RULE_SIZE} rule.md ${TEST_GAME_RULE_BINARY}
-        BYPRODUCTS ${TEST_GAME_RULE_BINARY}
-        COMMENT "Build test_game rule binary")
+      set(rule_format elf64-x86-64)
+      set(rule_arch i386:x86-64)
     endif()
+    string(TOLOWER "${name}" target_name)
+    add_custom_target(${target_name}_rule_binary ALL
+      COMMAND ${CMAKE_OBJCOPY} --input binary --output ${rule_format}
+        --binary-architecture ${rule_arch}
+        --rename-section .data=.rodata,CONTENTS,ALLOC,LOAD,READONLY,DATA
+        --pad-to ${padded_rule_size} rule.md "${rule_binary}"
+      WORKING_DIRECTORY "${game_dir}"
+      BYPRODUCTS "${rule_binary}"
+      COMMENT "Build ${name} rule binary")
+    set(${name}_RULE_BINARY "${rule_binary}" PARENT_SCOPE)
+  endfunction()
+
+  if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    add_test_rule_binary(TEST_GAME "${TEST_GAME_DIR}")
   endif()
   set(TEST_GAME_PLUGIN_PARENT_DIR ${CMAKE_BINARY_DIR}/test_game_plugins)
   set(TEST_GAME_PLUGIN_DIR ${TEST_GAME_PLUGIN_PARENT_DIR}/test_game)
@@ -254,6 +261,17 @@ if (WITH_TEST)
         ${CMAKE_CURRENT_SOURCE_DIR}/test/chaos_game/rule.md ${CHAOS_GAME_PLUGIN_DIR}/rule.md)
   add_library(chaos_game_plugin SHARED ${CHAOS_GAME_SOURCE_FILES})
   add_dependencies(chaos_game_plugin make_chaos_game_plugin_dir)
+  if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    add_test_rule_binary(CHAOS_GAME "${CHAOS_GAME_DIR}")
+    add_dependencies(chaos_game_plugin chaos_game_rule_binary)
+    target_link_libraries(chaos_game_plugin ${CHAOS_GAME_RULE_BINARY})
+  endif()
+  if (CMAKE_SYSTEM_NAME MATCHES "Windows")
+    set(GAME_DIR "${CHAOS_GAME_DIR}")
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/../game_framework/resource.rc.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/resource_chaos_game.rc" @ONLY)
+    target_sources(chaos_game_plugin PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/resource_chaos_game.rc")
+  endif()
   target_compile_definitions(chaos_game_plugin PUBLIC
     GAME_ACHIEVEMENT_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test/chaos_game/achievements.h"
     GAME_OPTION_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/test/chaos_game/options.h"
