@@ -560,7 +560,11 @@ void Match::HandleGameTimeout_(const std::shared_ptr<std::atomic<bool>>& tio)
         // runs on Timer::thread_ (the loop thread under the new sync-handle design),
         // so a synchronous Unbind_() here that dropped MatchManager's last
         // shared_ptr would cascade into ~Timer.join(current thread) — self deadlock.
-        match_manager().ScheduleUnbind(shared_from_this());
+        // A concurrent unbind may already have released the last owner. In that
+        // case destruction is waiting for this timer callback to return.
+        if (auto self = weak_from_this().lock()) {
+            match_manager().ScheduleUnbind(std::move(self));
+        }
     }
 }
 
